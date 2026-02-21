@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import subprocess  # noqa: S404
 import sys
@@ -54,7 +55,6 @@ def _assert_go_source_compiles(source: str, tmp_path: Path) -> None:
     (module_dir / "generated.go").write_text(source, encoding="utf-8")
 
     env = os.environ.copy()
-    env["GOCACHE"] = str(tmp_path / "gocache")
 
     result = subprocess.run(  # noqa: S603
         [go_binary, "test", "./..."],
@@ -73,15 +73,20 @@ def _build_runtime_smoke_library(tmp_path: Path) -> Path:
     Returns:
         Path to the compiled shared library.
     """
-    clang_binary = shutil.which("clang")
-    assert clang_binary is not None, "clang is required for runtime smoke tests"
+    cc_value = os.environ.get("CC", "").strip()
+    if cc_value:
+        command = shlex.split(cc_value)
+        assert command, "CC is empty after parsing"
+    else:
+        clang_binary = shutil.which("clang")
+        assert clang_binary is not None, "clang is required for runtime smoke tests"
+        command = [clang_binary]
 
     output_name = (
         "libpurego_gen_smoke.dylib" if sys.platform == "darwin" else "libpurego_gen_smoke.so"
     )
     output_path = tmp_path / output_name
 
-    command = [clang_binary]
     if sys.platform == "darwin":
         command.extend(["-dynamiclib"])
     else:
@@ -122,7 +127,6 @@ def _run_runtime_smoke(
 
     env = os.environ.copy()
     env["CGO_ENABLED"] = "0"
-    env["GOCACHE"] = str(tmp_path / "gocache")
     env["PUREGO_GEN_TEST_LIB"] = str(shared_library_path)
 
     return subprocess.run(  # noqa: S603
