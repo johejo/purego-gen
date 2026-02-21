@@ -32,6 +32,7 @@ Out of scope (for now):
 - Use `basedpyright` and `pyrefly` for static type checks.
 - Use `ruff` for linting/formatting.
 - Use `treefmt` as the formatter orchestrator across file types.
+- Use `clang-format` (`.clang-format`, LLVM-based) for test fixture C headers.
 - Use `pytest` for tests.
 - Prefer end-to-end golden tests for generator behavior; use unit tests for utilities.
 - Keep templates simple; keep logic in generator code.
@@ -45,19 +46,20 @@ Out of scope (for now):
   `uv run ...`.
 - Project automation entrypoint is `just` with recipes:
   - `bootstrap` (install dev dependencies + install git hooks)
-  - `nix-fmt` (run `nix fmt`)
   - `nix-flake-check` (run `nix flake check`)
-  - `fmt` (run `treefmt`)
-  - `fmt-check` (run `treefmt --fail-on-change`)
+  - `fmt` (run `nix fmt`)
+  - `fmt-check` (run `nix fmt -- --fail-on-change`)
   - `lint` (run `ruff`)
   - `typecheck` (run `basedpyright` and `pyrefly`)
   - `test` (run `pytest`)
   - `check` (aggregate lint + typecheck + test)
+  - `gate` (run `fmt` -> `nix-flake-check` -> `check`)
   - `hook-gate` (run `fmt-check` for fast pre-commit)
   - `hook-push-gate` (run full `gate` for pre-push)
 - Git hooks are managed via `lefthook`:
   - `pre-commit`: `just hook-gate`
   - `pre-push`: `just hook-push-gate`
+- Formatting scope includes `tests/fixtures/*.h` via `clang-format` in `treefmt`.
 
 ## Architecture
 

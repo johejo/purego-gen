@@ -14,6 +14,7 @@ Early development. Interfaces and generated output may change.
   (`const`: enum constants, `var`: `extern` runtime data symbols).
 - Generated output is still minimal and intentionally low-level.
 - Generated output is automatically formatted with `gofmt`.
+- Test fixture C headers (`tests/fixtures/*.h`) are formatted with `clang-format` via `treefmt`.
 
 ## Current Direction (v1)
 
@@ -51,14 +52,9 @@ just check
 ```
 
 Main tasks:
-- `just nix-fmt`: run `nix fmt`
-- `just nix-flake-check`: run `nix flake check`
-- `just fmt`: run `treefmt`
-- `just fmt-check`: run `treefmt --fail-on-change`
-- `just lint`: run `ruff` checks
-- `just typecheck`: run `basedpyright` and `pyrefly`
-- `just test`: run `pytest`
-- `just gate`: run `nix-fmt` -> `nix-flake-check` -> `check` (recommended for Codex/CI)
+- `just fmt`: run `nix fmt` (includes `.nix`, `.py`, `.go`, and `tests/fixtures/*.h`)
+- `just fmt-check`: run formatter checks (`nix fmt -- --fail-on-change`)
+- `just gate`: run `fmt` -> `nix-flake-check` -> `check` (recommended for Codex/CI)
 
 Git hook flow (`lefthook`):
 - `pre-commit`: `just hook-gate` (`fmt-check` only)

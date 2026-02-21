@@ -30,4 +30,13 @@
     options = [ "-w" ];
     includes = [ "*.go" ];
   };
+
+  settings.formatter.c_header = {
+    command = "${pkgs.clang-tools}/bin/clang-format";
+    options = [
+      "-i"
+      "--style=file"
+    ];
+    includes = [ "tests/fixtures/*.h" ];
+  };
 }

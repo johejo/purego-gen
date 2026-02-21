@@ -7,17 +7,14 @@ bootstrap:
   uv sync --group dev --python 3.14
   lefthook install
 
-nix-fmt:
-  nix fmt
-
 nix-flake-check:
   nix flake check
 
 fmt:
-  treefmt
+  nix fmt
 
 fmt-check:
-  treefmt --fail-on-change
+  nix fmt -- --fail-on-change
 
 lint:
   uv run ruff check .
@@ -32,7 +29,7 @@ test:
 
 check: lint typecheck test
 
-gate: nix-fmt nix-flake-check check
+gate: fmt nix-flake-check check
 
 hook-gate: fmt-check
 

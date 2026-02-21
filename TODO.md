@@ -5,8 +5,11 @@
 - [x] Add `flake.nix` with a reproducible `devShell` for Python, Go, and libclang tooling.
 - [x] Add `pyproject.toml` with `ruff`, `basedpyright`, `pyrefly`, and `pytest` configuration.
 - [x] Add formatter orchestration with `treefmt`.
+- [x] Add `clang-format` for test fixture C headers (`tests/fixtures/*.h`) via `treefmt`.
 - [x] Add git hook automation with `lefthook` (`pre-commit` runs fmt-only checks, `pre-push` runs full gate).
-- [x] Add `Justfile` recipes for `bootstrap`, `nix-fmt`, `nix-flake-check`, `fmt`, `fmt-check`, `lint`, `typecheck`, `test`, `check`, `gate`, `hook-gate`, and `hook-push-gate`.
+- [x] Add `Justfile` recipes for `bootstrap`, `nix-flake-check`, `fmt`, `fmt-check`, `lint`, `typecheck`, `test`, `check`, `gate`, `hook-gate`, and `hook-push-gate`.
+- [x] Make `just fmt`/`just fmt-check` use `nix fmt` to keep hook formatting checks flake-aware.
+- [x] Remove redundant `nix-fmt` alias and keep `fmt` as the single formatting entrypoint.
 - [ ] Wire `nix develop -c just check` into CI.
 
 ## M1 Core Parsing and Deterministic Emission
