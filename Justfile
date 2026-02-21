@@ -16,6 +16,9 @@ nix-flake-check:
 fmt:
   treefmt
 
+fmt-check:
+  treefmt --fail-on-change
+
 lint:
   uv run ruff check .
   uv run ruff format --check .
@@ -31,7 +34,9 @@ check: lint typecheck test
 
 gate: nix-fmt nix-flake-check check
 
-hook-gate: gate
+hook-gate: fmt-check
+
+hook-push-gate: gate
 
 hook:
   lefthook run pre-commit

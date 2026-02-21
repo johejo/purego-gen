@@ -49,14 +49,15 @@ Main tasks:
 - `just nix-fmt`: run `nix fmt`
 - `just nix-flake-check`: run `nix flake check`
 - `just fmt`: run `treefmt`
+- `just fmt-check`: run `treefmt --fail-on-change`
 - `just lint`: run `ruff` checks
 - `just typecheck`: run `basedpyright` and `pyrefly`
 - `just test`: run `pytest`
 - `just gate`: run `nix-fmt` -> `nix-flake-check` -> `check` (recommended for Codex/CI)
 
 Git hook flow (`lefthook`):
-- `pre-commit`: `just hook-gate`
-- `pre-push`: `just hook-gate`
+- `pre-commit`: `just hook-gate` (`fmt-check` only)
+- `pre-push`: `just hook-push-gate` (full `gate`)
 
 Recommended usage:
 - Codex/CI: run `just gate` directly.

@@ -48,14 +48,16 @@ Out of scope (for now):
   - `nix-fmt` (run `nix fmt`)
   - `nix-flake-check` (run `nix flake check`)
   - `fmt` (run `treefmt`)
+  - `fmt-check` (run `treefmt --fail-on-change`)
   - `lint` (run `ruff`)
   - `typecheck` (run `basedpyright` and `pyrefly`)
   - `test` (run `pytest`)
   - `check` (aggregate lint + typecheck + test)
-  - `hook-gate` (run `nix-fmt` + `nix-flake-check` + `check`)
+  - `hook-gate` (run `fmt-check` for fast pre-commit)
+  - `hook-push-gate` (run full `gate` for pre-push)
 - Git hooks are managed via `lefthook`:
   - `pre-commit`: `just hook-gate`
-  - `pre-push`: `just hook-gate`
+  - `pre-push`: `just hook-push-gate`
 
 ## Architecture
 

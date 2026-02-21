@@ -1,6 +1,6 @@
 pre-commit:
   commands:
-    gate:
+    fmt:
       root: "."
       run: just hook-gate
 
@@ -8,4 +8,4 @@ pre-push:
   commands:
     gate:
       root: "."
-      run: just hook-gate
+      run: just hook-push-gate
