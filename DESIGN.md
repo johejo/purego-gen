@@ -31,6 +31,8 @@ Out of scope (for now):
 - Use libclang Python bindings as the single source of truth for C AST/type info.
 - Use `basedpyright` and `pyrefly` for static type checks.
 - Use `ruff` for linting/formatting.
+- Use `shellcheck` for shell script linting (`scripts/*.sh`).
+- Use `shfmt` for shell script formatting (`scripts/*.sh`).
 - Use `treefmt` as the formatter orchestrator across file types.
 - Use `clang-format` (`.clang-format`, LLVM-based) for test fixture C headers.
 - Use `pytest` for tests.
@@ -49,7 +51,7 @@ Out of scope (for now):
   - `nix-flake-check` (run `nix flake check`)
   - `fmt` (run `nix fmt`)
   - `fmt-check` (run `nix fmt -- --fail-on-change`)
-  - `lint` (run `ruff`)
+  - `lint` (run `ruff`, `djlint`, `shellcheck`, and `shfmt -d` for `scripts/*.sh`)
   - `typecheck` (run `basedpyright` and `pyrefly`)
   - `golden-update` (regenerate committed golden outputs)
   - `golden-check` (verify generated output matches committed golden outputs at `HEAD`)
@@ -61,7 +63,8 @@ Out of scope (for now):
 - Git hooks are managed via `lefthook`:
   - `pre-commit`: `just hook-gate`
   - `pre-push`: `just hook-push-gate`
-- Formatting scope includes `tests/fixtures/*.h` via `clang-format` in `treefmt`.
+- Formatting scope includes `tests/fixtures/*.h` via `clang-format` and
+  `scripts/*.sh` via `shfmt` in `treefmt`.
 
 ## Architecture
 

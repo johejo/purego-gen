@@ -6,6 +6,8 @@
 - [x] Add `pyproject.toml` with `ruff`, `basedpyright`, `pyrefly`, and `pytest` configuration.
 - [x] Add formatter orchestration with `treefmt`.
 - [x] Add `clang-format` for test fixture C headers (`tests/fixtures/*.h`) via `treefmt`.
+- [x] Add `shellcheck` for `scripts/*.sh` and wire it into lint/check flow.
+- [x] Add `shfmt` for `scripts/*.sh` and wire it into fmt/lint flow.
 - [x] Add git hook automation with `lefthook` (`pre-commit` runs fmt-only checks, `pre-push` runs full gate).
 - [x] Add `Justfile` recipes for `bootstrap`, `nix-flake-check`, `fmt`, `fmt-check`, `lint`, `typecheck`, `test`, `check`, `gate`, `hook-gate`, and `hook-push-gate`.
 - [x] Make `just fmt`/`just fmt-check` use `nix fmt` to keep hook formatting checks flake-aware.

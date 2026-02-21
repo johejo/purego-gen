@@ -55,10 +55,11 @@ just check
 ```
 
 Main tasks:
-- `just fmt`: run `nix fmt` (includes `.nix`, `.py`, `.go`, and `tests/fixtures/*.h`)
+- `just fmt`: run `nix fmt` (includes `.nix`, `.py`, `.go`, `scripts/*.sh`, and `tests/fixtures/*.h`)
 - `just fmt-check`: run formatter checks (`nix fmt -- --fail-on-change`)
 - `just golden-update`: regenerate `tests/golden/*.go`
 - `just golden-check`: compare generated output against committed golden files at `HEAD`
+- `just check`: run lint/typecheck/golden-check/test (`lint` includes `shellcheck` and `shfmt -d` for `scripts/*.sh`)
 - `just gate`: run `fmt` -> `nix-flake-check` -> `check` (recommended for Codex/CI)
 
 Git hook flow (`lefthook`):

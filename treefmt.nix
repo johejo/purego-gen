@@ -31,6 +31,12 @@
     includes = [ "*.go" ];
   };
 
+  settings.formatter.shell = {
+    command = "${pkgs.shfmt}/bin/shfmt";
+    options = [ "-w" ];
+    includes = [ "scripts/*.sh" ];
+  };
+
   settings.formatter.c_header = {
     command = "${pkgs.clang-tools}/bin/clang-format";
     options = [

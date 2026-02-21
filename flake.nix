@@ -61,6 +61,8 @@
               libclang
               nixfmt
               python314
+              shellcheck
+              shfmt
               uv
               treefmt
             ];

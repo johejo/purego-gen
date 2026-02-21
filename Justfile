@@ -20,6 +20,8 @@ lint:
   uv run ruff check .
   uv run ruff format --check .
   uv run djlint --check --extension=j2 --preserve-leading-space --preserve-blank-lines templates/
+  shellcheck scripts/*.sh
+  shfmt -d scripts/*.sh
 
 typecheck:
   uv run basedpyright
