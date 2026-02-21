@@ -49,6 +49,13 @@ Use the Nix dev shell as the default entrypoint:
 nix develop
 ```
 
+The dev shell defaults caches to repo-local `.cache/` for faster repeated runs:
+- `XDG_CACHE_HOME=.cache` (including Nix user cache at `.cache/nix`)
+- `GOMODCACHE=.cache/gomod`
+- `GOCACHE=.cache/go-build`
+- `CCACHE_DIR=.cache/ccache`
+- `CC`/`CXX` route through `ccache clang` / `ccache clang++`
+
 Initialize local tooling and git hooks:
 
 ```sh

@@ -53,6 +53,7 @@
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
+              ccache
               clang
               clang-tools
               go
@@ -71,6 +72,15 @@
             LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
 
             shellHook = ''
+              export XDG_CACHE_HOME="$PWD/.cache"
+              export GOMODCACHE="$XDG_CACHE_HOME/gomod"
+              export GOCACHE="$XDG_CACHE_HOME/go-build"
+              export CCACHE_DIR="$XDG_CACHE_HOME/ccache"
+              export CCACHE_BASEDIR="$PWD"
+              export CCACHE_NOHASHDIR=1
+              export CC="ccache clang"
+              export CXX="ccache clang++"
+              mkdir -p "$XDG_CACHE_HOME/nix" "$GOMODCACHE" "$GOCACHE" "$CCACHE_DIR"
               export UV_PROJECT_ENVIRONMENT=.venv
             '';
           };

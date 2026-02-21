@@ -44,6 +44,13 @@ Out of scope (for now):
 
 - Development shell is provided via `nix develop` and must include `uv`, `just`,
   `lefthook`, `treefmt`, Go toolchain, and libclang.
+- Development shell also includes `ccache` and sets repo-local cache defaults to
+  keep repeated test/check runs fast across sandbox sessions:
+  - `XDG_CACHE_HOME=.cache` (including Nix user cache under `.cache/nix`)
+  - `GOMODCACHE=.cache/gomod`
+  - `GOCACHE=.cache/go-build`
+  - `CCACHE_DIR=.cache/ccache`
+  - `CC`/`CXX` default to `ccache clang` / `ccache clang++`
 - Python tool configuration lives in `pyproject.toml`; tools are invoked via
   `uv run ...`.
 - Project automation entrypoint is `just` with recipes:
