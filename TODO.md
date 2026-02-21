@@ -37,6 +37,18 @@
 - [ ] Generate `purego_<libid>_load_runtime_vars(handle uintptr) error`.
 - [ ] Add golden tests for mixed category selection and filtering behavior.
 
+## M2.5 Emit Layer Templating (Jinja2)
+
+- [ ] Document emit-layer templating contract in `DESIGN.md` (logic stays in Python, templates stay declarative).
+- [ ] Add `jinja2` dependency and keep tooling checks green (`ruff`, `basedpyright`, `pyrefly`, `pytest`).
+- [ ] Introduce a dedicated renderer module (e.g. `renderer.py`) and move output assembly out of `cli.py`.
+- [ ] Configure Jinja2 environment with strict undefined handling for deterministic failures.
+- [ ] Add initial Go file template(s) under `templates/` and migrate existing emit categories (`func`, `type`, `const`, `var`) without behavior changes.
+- [ ] Keep `gofmt` as the final formatting step after template rendering.
+- [ ] Preserve golden output equivalence for current fixtures (`tests/golden/*.go`), allowing only formatting-equivalent differences.
+- [ ] Add focused tests for template rendering context validation and missing-variable failures.
+- [ ] Remove obsolete string-concatenation render helpers from `cli.py` after migration.
+
 ## M3 Type System Expansion
 
 - [ ] Expand struct/enum/typedef coverage for common C patterns.
