@@ -9,22 +9,11 @@ When using purego, you often need to write a lot of boilerplate code to call C f
 ## Status
 
 Early development. Interfaces and generated output may change.
-- CLI entrypoint parses function declarations and basic typedefs via libclang.
-- Declaration model includes explicit `func/type/const/var` categories
-  (`const`: enum constants, `var`: `extern` runtime data symbols).
-- `--emit` supports selecting `func,type,const,var` categories, with `const`
-  emitted as Go compile-time constants.
-- Category-specific regex filters are available via `--func-filter`,
-  `--type-filter`, `--const-filter`, and `--var-filter`.
-- If a provided filter matches nothing in an emitted category, the CLI exits
-  with a non-zero error.
-- Generated registration/loading helpers use `purego.Dlsym`; function symbols
-  are bound with `purego.RegisterFunc`, and runtime data symbols are stored as
-  `purego_var_* uintptr` addresses.
-- Emit layer uses Jinja2 templates with strict undefined-variable failures.
-- Generated output is still minimal and intentionally low-level.
-- Generated output is automatically formatted with `gofmt`.
-- Test fixture C headers (`tests/fixtures/*.h`) are formatted with `clang-format` via `treefmt`.
+- Single-command CLI (`purego-gen`) parses C headers via libclang.
+- Generation supports `func/type/const/var` categories and category filters.
+- Runtime symbol binding uses panic-free `Dlsym + RegisterFunc` helpers.
+- Emit layer uses Jinja2 templates; generated code is formatted with `gofmt`.
+- Tooling and checks are standardized around `nix`, `just`, `uv`, and `pytest`.
 
 ## Current Direction (v1)
 
@@ -43,48 +32,18 @@ purego-gen --lib-id zstd --header zstd.h --out -
 
 ## Development Setup
 
-Use the Nix dev shell as the default entrypoint:
+Use the Nix dev shell as the default entrypoint and run the standard gate:
 
 ```sh
 nix develop
-```
-
-The dev shell defaults caches to repo-local `.cache/` for faster repeated runs:
-- `XDG_CACHE_HOME=.cache` (including Nix user cache at `.cache/nix`)
-- `GOMODCACHE=.cache/gomod`
-- `GOCACHE=.cache/go-build`
-- `CCACHE_DIR=.cache/ccache`
-- `CC`/`CXX` route through `ccache clang` / `ccache clang++`
-
-Initialize local tooling and git hooks:
-
-```sh
 just bootstrap
+just gate
 ```
 
-Run all local quality gates:
-
-```sh
-just check
-```
-
-Main tasks:
-- `just fmt`: run `nix fmt` (includes `.nix`, `.py`, `.go`, `scripts/*.sh`, and `tests/fixtures/*.h`)
-- `just fmt-check`: run formatter checks (`nix fmt -- --fail-on-change`)
-- `just golden-update`: regenerate `tests/golden/*.go`
-- `just golden-check`: compare generated output against committed golden files at `HEAD`
-- `just check`: run lint/typecheck/golden-check/test (`lint` includes `shellcheck` and `shfmt -d` for `scripts/*.sh`)
-- `just gate`: run `fmt` -> `nix-flake-check` -> `check` (recommended for Codex/CI)
-
-Git hook flow (`lefthook`):
-- `pre-commit`: `just hook-gate` (`fmt-check` only)
-- `pre-push`: `just hook-push-gate` (full `gate`)
-
-Recommended usage:
-- Codex/CI: run `just gate` directly.
-- Local git operations: rely on `lefthook` for commit/push guardrails.
+The dev shell defaults caches to repo-local `.cache/` and enables `ccache` so repeated runs stay fast across sandbox sessions.
 
 For detailed and up-to-date behavior, see:
+- [`Justfile`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/Justfile)
 - [`DESIGN.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/DESIGN.md)
 - [`TODO.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/TODO.md)
 
