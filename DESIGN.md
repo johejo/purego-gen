@@ -26,14 +26,36 @@ Out of scope (for now):
 
 - Use `nix flake` for reproducible development/build environment.
 - Use `just` for project automation tasks.
+- Use `lefthook` for local git hooks (`pre-commit` and `pre-push`).
 - Use `uv` for Python dependency management. Do not invoke `python3` directly.
 - Use libclang Python bindings as the single source of truth for C AST/type info.
 - Use `basedpyright` and `pyrefly` for static type checks.
 - Use `ruff` for linting/formatting.
+- Use `treefmt` as the formatter orchestrator across file types.
 - Use `pytest` for tests.
 - Prefer end-to-end golden tests for generator behavior; use unit tests for utilities.
 - Keep templates simple; keep logic in generator code.
 - All generated identifiers are unexported and use the `purego_` prefix.
+
+## Development Workflow Contract
+
+- Development shell is provided via `nix develop` and must include `uv`, `just`,
+  `lefthook`, `treefmt`, Go toolchain, and libclang.
+- Python tool configuration lives in `pyproject.toml`; tools are invoked via
+  `uv run ...`.
+- Project automation entrypoint is `just` with recipes:
+  - `bootstrap` (install dev dependencies + install git hooks)
+  - `nix-fmt` (run `nix fmt`)
+  - `nix-flake-check` (run `nix flake check`)
+  - `fmt` (run `treefmt`)
+  - `lint` (run `ruff`)
+  - `typecheck` (run `basedpyright` and `pyrefly`)
+  - `test` (run `pytest`)
+  - `check` (aggregate lint + typecheck + test)
+  - `hook-gate` (run `nix-fmt` + `nix-flake-check` + `check`)
+- Git hooks are managed via `lefthook`:
+  - `pre-commit`: `just hook-gate`
+  - `pre-push`: `just hook-gate`
 
 ## Architecture
 

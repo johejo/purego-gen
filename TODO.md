@@ -1,8 +1,17 @@
 # TODO
 
+## M0 Development Tooling Baseline
+
+- [x] Add `flake.nix` with a reproducible `devShell` for Python, Go, and libclang tooling.
+- [x] Add `pyproject.toml` with `ruff`, `basedpyright`, `pyrefly`, and `pytest` configuration.
+- [x] Add formatter orchestration with `treefmt`.
+- [x] Add git hook automation with `lefthook` (`pre-commit`/`pre-push` run `nix fmt` + `nix flake check` + `just check`).
+- [x] Add `Justfile` recipes for `bootstrap`, `nix-fmt`, `nix-flake-check`, `fmt`, `lint`, `typecheck`, `test`, `check`, and `hook-gate`.
+- [ ] Wire `nix develop -c just check` into CI.
+
 ## M1 Core Parsing and Deterministic Emission
 
-- [ ] Create project skeleton (`src/`, `templates/`, `tests/`).
+- [x] Create project skeleton (`src/`, `templates/`, `tests/`).
 - [ ] Implement single-command CLI entrypoint (`purego-gen` without subcommands).
 - [ ] Support repeatable `--header` and clang args passthrough via `--`.
 - [ ] Parse function declarations and basic typedefs via libclang.

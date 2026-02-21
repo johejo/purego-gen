@@ -1,0 +1,71 @@
+[project]
+name = "purego-gen"
+version = "0.0.0"
+description = "Practical C-header-to-purego binding generator"
+requires-python = ">=3.14"
+
+[dependency-groups]
+dev = [
+  "basedpyright>=1.31.2,<2",
+  "pyrefly>=0.18.0,<1",
+  "pytest>=9,<10",
+  "ruff>=0.12.11,<1",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src", "tests"]
+preview = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["COM812"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.basedpyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["src", "tests"]
+exclude = [
+  ".direnv",
+  ".git",
+  ".venv",
+  "build",
+  "dist",
+]
+analyzeUnannotatedFunctions = true
+deprecateTypingAliases = true
+enableTypeIgnoreComments = false
+strictDictionaryInference = true
+strictListInference = true
+strictSetInference = true
+reportAny = "error"
+reportExplicitAny = "error"
+reportMissingTypeStubs = true
+reportUnnecessaryTypeIgnoreComment = "error"
+
+[tool.pyrefly]
+project-includes = ["src/**/*.py", "tests/**/*.py"]
+project-excludes = [".git/**", ".venv/**", "build/**", "dist/**"]
+python-version = "3.14"
+ignore-errors-in-generated-code = false
+untyped-def-behavior = "check-and-infer-return-type"
+enabled-ignores = ["type", "pyrefly"]
+use-ignore-files = false
+infer-with-first-use = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

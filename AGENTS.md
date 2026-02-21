@@ -22,6 +22,8 @@ Do not duplicate volatile details in this file.
 - Generated identifiers are unexported and prefixed with `purego_`.
 - Generated code expects a caller-provided library handle.
 - Prefer panic-free registration flow (`Dlsym + RegisterFunc`) on v1 target OSes.
+- For automated checks (agents/CI), run `just gate` directly.
+- Do not invoke `lefthook` from agents unless hook behavior itself is being tested.
 
 ## Maintenance policy
 

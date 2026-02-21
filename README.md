@@ -25,6 +25,47 @@ Single-command interface:
 purego-gen --lib-id zstd --header zstd.h --out -
 ```
 
+## Development Setup
+
+Use the Nix dev shell as the default entrypoint:
+
+```sh
+nix develop
+```
+
+Initialize local tooling and git hooks:
+
+```sh
+just bootstrap
+```
+
+Run all local quality gates:
+
+```sh
+just check
+```
+
+Main tasks:
+- `just nix-fmt`: run `nix fmt`
+- `just nix-flake-check`: run `nix flake check`
+- `just fmt`: run `treefmt`
+- `just lint`: run `ruff` checks
+- `just typecheck`: run `basedpyright` and `pyrefly`
+- `just test`: run `pytest`
+- `just gate`: run `nix-fmt` -> `nix-flake-check` -> `check` (recommended for Codex/CI)
+
+Git hook flow (`lefthook`):
+- `pre-commit`: `just hook-gate`
+- `pre-push`: `just hook-gate`
+
+Recommended usage:
+- Codex/CI: run `just gate` directly.
+- Local git operations: rely on `lefthook` for commit/push guardrails.
+
 For detailed and up-to-date behavior, see:
 - [`DESIGN.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/DESIGN.md)
 - [`TODO.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/TODO.md)
+
+## License
+
+Apache License 2.0 (`Apache-2.0`). See [`LICENSE`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/LICENSE).

@@ -1,0 +1,11 @@
+pre-commit:
+  commands:
+    gate:
+      root: "."
+      run: just hook-gate
+
+pre-push:
+  commands:
+    gate:
+      root: "."
+      run: just hook-gate
