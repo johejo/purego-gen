@@ -10,6 +10,7 @@ purego-gen = "purego_gen.cli:main"
 [dependency-groups]
 dev = [
   "basedpyright>=1.31.2,<2",
+  "clang>=21.1.7",
   "pyrefly>=0.18.0,<1",
   "pytest>=9,<10",
   "ruff>=0.12.11,<1",

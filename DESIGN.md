@@ -183,6 +183,7 @@ Rules:
 - Current implementation always generates `purego_`-prefixed identifiers.
 - `--out <path>` writes to a file.
 - `--out -` or omitted `--out` writes generated code to stdout.
+- Generated Go source is formatted with `gofmt` before writing to stdout or files.
 - Current CLI is single-command (`purego-gen`) with no subcommand.
 - Diagnostics (warnings/progress/errors) must go to stderr, not stdout.
 - On failure, exit with non-zero status and do not emit partial generated code to stdout.
@@ -221,7 +222,8 @@ M1: Core parsing and deterministic emission
 
 Current implementation note:
 - `purego-gen` provides a single-command CLI entrypoint with flag parsing and
-  clang-argument passthrough (`--`), and currently emits deterministic placeholder stubs.
+  clang-argument passthrough (`--`).
+- Current parser phase extracts C function declarations and basic typedefs via libclang.
 
 M2: Category-complete symbol model
 - Implement explicit separation of `const` vs `runtime var`.

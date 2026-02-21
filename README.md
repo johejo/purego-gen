@@ -9,7 +9,9 @@ When using purego, you often need to write a lot of boilerplate code to call C f
 ## Status
 
 Early development. Interfaces and generated output may change.
-- CLI entrypoint is available and currently emits deterministic placeholder stubs.
+- CLI entrypoint parses function declarations and basic typedefs via libclang.
+- Generated output is still minimal and intentionally low-level.
+- Generated output is automatically formatted with `gofmt`.
 
 ## Current Direction (v1)
 
