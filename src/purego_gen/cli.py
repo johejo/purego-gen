@@ -220,6 +220,9 @@ def _apply_filters(options: CliOptions, declarations: ParsedDeclarations) -> Par
     Returns:
         Filtered declarations.
 
+    Raises:
+        ValueError: A provided category filter regex is invalid, or matches no
+            declarations in an emitted category.
     """
     func_filter = _compile_filter(options.func_filter, "--func-filter")
     type_filter = _compile_filter(options.type_filter, "--type-filter")
@@ -243,6 +246,19 @@ def _apply_filters(options: CliOptions, declarations: ParsedDeclarations) -> Par
         runtime_vars = tuple(
             runtime_var for runtime_var in runtime_vars if var_filter.search(runtime_var.name)
         )
+
+    if options.func_filter is not None and "func" in options.emit_kinds and not functions:
+        message = f"no declarations matched --func-filter: {options.func_filter}"
+        raise ValueError(message)
+    if options.type_filter is not None and "type" in options.emit_kinds and not typedefs:
+        message = f"no declarations matched --type-filter: {options.type_filter}"
+        raise ValueError(message)
+    if options.const_filter is not None and "const" in options.emit_kinds and not constants:
+        message = f"no declarations matched --const-filter: {options.const_filter}"
+        raise ValueError(message)
+    if options.var_filter is not None and "var" in options.emit_kinds and not runtime_vars:
+        message = f"no declarations matched --var-filter: {options.var_filter}"
+        raise ValueError(message)
 
     return ParsedDeclarations(
         functions=functions,

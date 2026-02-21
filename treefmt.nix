@@ -48,7 +48,17 @@
 
   settings.formatter.jinja_template = {
     command = "${pkgs.zsh}/bin/zsh";
-    options = [ "scripts/format-template-go.sh" ];
+    options = [
+      "-c"
+      "PATH=${
+        pkgs.lib.makeBinPath [
+          pkgs.coreutils
+          pkgs.diffutils
+          pkgs.uv
+        ]
+      }:$PATH scripts/format-template-go.sh \"$@\""
+      "--"
+    ];
     includes = [ "templates/*.j2" ];
   };
 }

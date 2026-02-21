@@ -16,6 +16,8 @@ Early development. Interfaces and generated output may change.
   emitted as Go compile-time constants.
 - Category-specific regex filters are available via `--func-filter`,
   `--type-filter`, `--const-filter`, and `--var-filter`.
+- If a provided filter matches nothing in an emitted category, the CLI exits
+  with a non-zero error.
 - Generated registration/loading helpers use `purego.Dlsym`; function symbols
   are bound with `purego.RegisterFunc`, and runtime data symbols are stored as
   `purego_var_* uintptr` addresses.

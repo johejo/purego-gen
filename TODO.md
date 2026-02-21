@@ -36,6 +36,7 @@
 - [x] Implement `--emit func,type,const,var`.
 - [x] Add required `--lib-id` and normalize it to snake_case-safe identifier.
 - [x] Implement category filters: `--func-filter`, `--type-filter`, `--const-filter`, `--var-filter`.
+- [x] Fail fast when a provided category filter matches no declarations in emitted categories.
 - [x] Generate `purego_<libid>_register_functions(handle uintptr) error` (`Dlsym + RegisterFunc`, panic-free).
 - [x] Generate `purego_<libid>_load_runtime_vars(handle uintptr) error`.
 - [x] Add golden tests for mixed category selection and filtering behavior.

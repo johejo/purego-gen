@@ -101,6 +101,18 @@ def _build_runtime_smoke_library(tmp_path: Path) -> Path:
 
 def _assert_runtime_smoke_passes(source: str, tmp_path: Path, *, shared_library_path: Path) -> None:
     """Run generated bindings against the compiled C shared library."""
+    result = _run_runtime_smoke(source, tmp_path, shared_library_path=shared_library_path)
+    assert result.returncode == 0, result.stderr
+
+
+def _run_runtime_smoke(
+    source: str, tmp_path: Path, *, shared_library_path: Path
+) -> subprocess.CompletedProcess[str]:
+    """Run `go test` for runtime smoke fixture and return the process result.
+
+    Returns:
+        Completed process result for assertions.
+    """
     go_binary = shutil.which("go")
     assert go_binary is not None
 
@@ -113,7 +125,7 @@ def _assert_runtime_smoke_passes(source: str, tmp_path: Path, *, shared_library_
     env["GOCACHE"] = str(tmp_path / "gocache")
     env["PUREGO_GEN_TEST_LIB"] = str(shared_library_path)
 
-    result = subprocess.run(  # noqa: S603
+    return subprocess.run(  # noqa: S603
         [go_binary, "test", "./..."],
         capture_output=True,
         check=False,
@@ -121,7 +133,6 @@ def _assert_runtime_smoke_passes(source: str, tmp_path: Path, *, shared_library_
         env=env,
         text=True,
     )
-    assert result.returncode == 0, result.stderr
 
 
 def test_help() -> None:
@@ -240,6 +251,46 @@ def test_emits_mixed_categories_with_filters(tmp_path: Path) -> None:
     _assert_go_source_compiles(result.stdout, tmp_path)
 
 
+def test_fails_when_header_has_parse_errors(tmp_path: Path) -> None:
+    """Invalid C headers should fail fast with parse diagnostics."""
+    broken_header = tmp_path / "broken_header.h"
+    broken_header.write_text("int broken(;\n", encoding="utf-8")
+
+    result = _run_cli(
+        "--lib-id",
+        "sample_lib",
+        "--header",
+        str(broken_header),
+        "--pkg",
+        "sample",
+        "--emit",
+        "func",
+    )
+
+    assert result.returncode == 1
+    assert "failed to parse" in result.stderr
+
+
+def test_fails_when_filter_matches_no_emitted_declarations() -> None:
+    """Filters should fail when they match no declaration in emitted categories."""
+    header_path = _FIXTURES_DIR / "sample.h"
+    result = _run_cli(
+        "--lib-id",
+        "sample_lib",
+        "--header",
+        str(header_path),
+        "--pkg",
+        "sample",
+        "--emit",
+        "func",
+        "--func-filter",
+        "^does_not_exist$",
+    )
+
+    assert result.returncode == 1
+    assert "no declarations matched --func-filter: ^does_not_exist$" in result.stderr
+
+
 def test_runtime_smoke_with_compiled_shared_library(tmp_path: Path) -> None:
     """Generated bindings should call symbols from a compiled shared C library."""
     shared_library_path = _build_runtime_smoke_library(tmp_path)
@@ -259,3 +310,37 @@ def test_runtime_smoke_with_compiled_shared_library(tmp_path: Path) -> None:
     assert "purego_sample_lib_register_functions" in result.stdout
     assert "purego_sample_lib_load_runtime_vars" in result.stdout
     _assert_runtime_smoke_passes(result.stdout, tmp_path, shared_library_path=shared_library_path)
+
+
+def test_runtime_smoke_reports_unresolved_symbols(tmp_path: Path) -> None:
+    """Runtime smoke should expose unresolved symbol failures from generated code."""
+    shared_library_path = _build_runtime_smoke_library(tmp_path)
+    header_path = tmp_path / "missing_symbol.h"
+    header_path.write_text(
+        (
+            "extern int smoke_counter;\n"
+            "void smoke_reset(void);\n"
+            "void smoke_increment(void);\n"
+            "void smoke_missing(void);\n"
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_cli(
+        "--lib-id",
+        "sample_lib",
+        "--header",
+        str(header_path),
+        "--pkg",
+        "sample",
+        "--emit",
+        "func,var",
+    )
+
+    assert result.returncode == 0, result.stderr
+    runtime_result = _run_runtime_smoke(
+        result.stdout, tmp_path, shared_library_path=shared_library_path
+    )
+    assert runtime_result.returncode != 0
+    combined_output = runtime_result.stdout + runtime_result.stderr
+    assert "smoke_missing" in combined_output

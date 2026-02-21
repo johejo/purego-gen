@@ -200,6 +200,7 @@ Rules:
 - `--lib-id` is normalized to a safe snake_case identifier before code emission.
 - `--` separates generator flags from clang flags.
 - Filters are category-specific regexes and applied after normalization.
+- If a category filter is provided for an emitted category and matches nothing, CLI exits non-zero with an actionable error.
 - `--emit` controls which categories are generated.
 - Current implementation always generates `purego_`-prefixed identifiers.
 - `--out <path>` writes to a file.
