@@ -2,11 +2,15 @@
 
 package sample
 
-type purego_type_my_int = int32
-type purego_type_my_handle = uintptr
+type (
+	purego_type_my_int    = int32
+	purego_type_my_handle = uintptr
+)
 
-var purego_func_add uintptr
-var purego_func_reset uintptr
+var (
+	purego_func_add   uintptr
+	purego_func_reset uintptr
+)
 
 func purego_sample_lib_register_functions(handle uintptr) error {
 	_ = handle

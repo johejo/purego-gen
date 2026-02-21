@@ -14,6 +14,7 @@ Early development. Interfaces and generated output may change.
   (`const`: enum constants, `var`: `extern` runtime data symbols).
 - `--emit` supports selecting `func,type,const,var` categories, with `const`
   emitted as Go compile-time constants.
+- Emit layer uses Jinja2 templates with strict undefined-variable failures.
 - Generated output is still minimal and intentionally low-level.
 - Generated output is automatically formatted with `gofmt`.
 - Test fixture C headers (`tests/fixtures/*.h`) are formatted with `clang-format` via `treefmt`.
@@ -56,6 +57,8 @@ just check
 Main tasks:
 - `just fmt`: run `nix fmt` (includes `.nix`, `.py`, `.go`, and `tests/fixtures/*.h`)
 - `just fmt-check`: run formatter checks (`nix fmt -- --fail-on-change`)
+- `just golden-update`: regenerate `tests/golden/*.go`
+- `just golden-check`: compare generated output against committed golden files at `HEAD`
 - `just gate`: run `fmt` -> `nix-flake-check` -> `check` (recommended for Codex/CI)
 
 Git hook flow (`lefthook`):

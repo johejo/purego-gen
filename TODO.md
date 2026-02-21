@@ -39,17 +39,17 @@
 
 ## M2.5 Emit Layer Templating (Jinja2)
 
-- [ ] Document emit-layer templating contract in `DESIGN.md` (logic stays in Python, templates stay declarative).
-- [ ] Add `jinja2` dependency and keep tooling checks green (`ruff`, `basedpyright`, `pyrefly`, `pytest`).
-- [ ] Add `djlint` for Jinja2 template lint/format and wire it into project checks.
-- [ ] Tune `djlint` options for Go-template readability, explicitly using `preserve-leading-space` and `preserve-blank-lines`.
-- [ ] Introduce a dedicated renderer module (e.g. `renderer.py`) and move output assembly out of `cli.py`.
-- [ ] Configure Jinja2 environment with strict undefined handling for deterministic failures.
-- [ ] Add initial Go file template(s) under `templates/` and migrate existing emit categories (`func`, `type`, `const`, `var`) without behavior changes.
-- [ ] Keep `gofmt` as the final formatting step after template rendering.
-- [ ] Preserve golden output equivalence for current fixtures (`tests/golden/*.go`), allowing only formatting-equivalent differences.
-- [ ] Add focused tests for template rendering context validation and missing-variable failures.
-- [ ] Remove obsolete string-concatenation render helpers from `cli.py` after migration.
+- [x] Document emit-layer templating contract in `DESIGN.md` (logic stays in Python, templates stay declarative).
+- [x] Add `jinja2` dependency and keep tooling checks green (`ruff`, `basedpyright`, `pyrefly`, `pytest`).
+- [x] Add `djlint` for Jinja2 template lint/format and wire it into project checks.
+- [x] Tune `djlint` options for Go-template readability, explicitly using `preserve-leading-space` and `preserve-blank-lines`.
+- [x] Introduce a dedicated renderer module (e.g. `renderer.py`) and move output assembly out of `cli.py`.
+- [x] Configure Jinja2 environment with strict undefined handling for deterministic failures.
+- [x] Add initial Go file template(s) under `templates/` and migrate existing emit categories (`func`, `type`, `const`, `var`) without behavior changes.
+- [x] Keep `gofmt` as the final formatting step after template rendering.
+- [x] Preserve golden output equivalence for current fixtures (`tests/golden/*.go`), allowing only formatting-equivalent differences.
+- [x] Add focused tests for template rendering context validation and missing-variable failures.
+- [x] Remove obsolete string-concatenation render helpers from `cli.py` after migration.
 
 ## M3 Type System Expansion
 

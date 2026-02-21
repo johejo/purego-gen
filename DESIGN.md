@@ -51,8 +51,10 @@ Out of scope (for now):
   - `fmt-check` (run `nix fmt -- --fail-on-change`)
   - `lint` (run `ruff`)
   - `typecheck` (run `basedpyright` and `pyrefly`)
+  - `golden-update` (regenerate committed golden outputs)
+  - `golden-check` (verify generated output matches committed golden outputs at `HEAD`)
   - `test` (run `pytest`)
-  - `check` (aggregate lint + typecheck + test)
+  - `check` (aggregate lint + typecheck + golden-check + test)
   - `gate` (run `fmt` -> `nix-flake-check` -> `check`)
   - `hook-gate` (run `fmt-check` for fast pre-commit)
   - `hook-push-gate` (run full `gate` for pre-push)
@@ -69,6 +71,19 @@ Pipeline:
 3. Filter: Apply category-specific filters (`func`, `type`, `const`, `var`).
 4. Emit: Render Go code from normalized models (via templates).
 5. Validate: Run formatting and compile/smoke checks in tests.
+
+Emit layer templating contract (M2.5):
+- Rendering entrypoint lives in `src/purego_gen/renderer.py`; CLI orchestration in
+  `src/purego_gen/cli.py` must not build Go source by string concatenation.
+- Renderer prepares a normalized context, templates stay declarative:
+  - `package`, `lib_id`, `emit_kinds`
+  - `type_aliases[].identifier`, `type_aliases[].go_type`
+  - `constants[].identifier`, `constants[].value`
+  - `functions[].identifier`
+  - `runtime_vars[].identifier`
+- Jinja2 environment uses `StrictUndefined` so missing template variables fail deterministically.
+- Renderer validates required top-level context keys before template execution.
+- `gofmt` remains the final canonical formatting step after template rendering.
 
 ## purego Integration Strategy
 

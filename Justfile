@@ -19,6 +19,7 @@ fmt-check:
 lint:
   uv run ruff check .
   uv run ruff format --check .
+  uv run djlint --check --extension=j2 --preserve-leading-space --preserve-blank-lines templates/
 
 typecheck:
   uv run basedpyright
@@ -27,7 +28,13 @@ typecheck:
 test:
   uv run pytest
 
-check: lint typecheck test
+golden-update:
+  scripts/update-golden.sh
+
+golden-check:
+  scripts/check-golden.sh
+
+check: lint typecheck golden-check test
 
 gate: fmt nix-flake-check check
 
@@ -37,3 +44,6 @@ hook-push-gate: gate
 
 hook:
   lefthook run pre-commit
+
+template-fmt:
+  uv run djlint --reformat --extension=j2 --preserve-leading-space --preserve-blank-lines templates/
