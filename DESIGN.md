@@ -231,6 +231,7 @@ M2 implementation note (partial):
 - Declaration model now includes explicit categories for `func`, `type`, `const`, and `var`.
 - Current `const` extraction covers enum constants.
 - Current `var` extraction covers `extern` runtime data symbol declarations.
+- Current `--emit` handling supports `func,type,const,var`, including Go `const` emission.
 
 M2: Category-complete symbol model
 - Implement explicit separation of `const` vs `runtime var`.

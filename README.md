@@ -12,6 +12,8 @@ Early development. Interfaces and generated output may change.
 - CLI entrypoint parses function declarations and basic typedefs via libclang.
 - Declaration model includes explicit `func/type/const/var` categories
   (`const`: enum constants, `var`: `extern` runtime data symbols).
+- `--emit` supports selecting `func,type,const,var` categories, with `const`
+  emitted as Go compile-time constants.
 - Generated output is still minimal and intentionally low-level.
 - Generated output is automatically formatted with `gofmt`.
 - Test fixture C headers (`tests/fixtures/*.h`) are formatted with `clang-format` via `treefmt`.

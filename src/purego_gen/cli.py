@@ -265,6 +265,81 @@ def _apply_filters(options: CliOptions, declarations: ParsedDeclarations) -> Par
     )
 
 
+def _render_type_aliases(declarations: ParsedDeclarations) -> list[str]:
+    """Render type alias declarations.
+
+    Returns:
+        Type alias declaration lines.
+    """
+    lines: list[str] = []
+    for typedef in declarations.typedefs:
+        identifier = _sanitize_identifier(typedef.name)
+        lines.append(f"type purego_type_{identifier} = {typedef.go_type}")
+    return lines
+
+
+def _render_constants(declarations: ParsedDeclarations) -> list[str]:
+    """Render compile-time constant declarations.
+
+    Returns:
+        Compile-time constant declaration lines.
+    """
+    lines: list[str] = []
+    for constant in declarations.constants:
+        identifier = _sanitize_identifier(constant.name)
+        lines.append(f"const purego_const_{identifier} = {constant.value}")
+    return lines
+
+
+def _render_function_vars(declarations: ParsedDeclarations) -> list[str]:
+    """Render function symbol variables.
+
+    Returns:
+        Function symbol variable lines.
+    """
+    lines: list[str] = []
+    for function in declarations.functions:
+        identifier = _sanitize_identifier(function.name)
+        lines.append(f"var purego_func_{identifier} uintptr")
+    return lines
+
+
+def _render_register_helper(lib_id: str) -> list[str]:
+    """Render runtime function registration helper.
+
+    Returns:
+        Function registration helper lines.
+    """
+    return [
+        f"func purego_{lib_id}_register_functions(handle uintptr) error {{",
+        "\t_ = handle",
+        "\treturn nil",
+        "}",
+    ]
+
+
+def _render_runtime_var_loader(lib_id: str) -> list[str]:
+    """Render runtime variable loader helper.
+
+    Returns:
+        Runtime variable loader helper lines.
+    """
+    return [
+        f"func purego_{lib_id}_load_runtime_vars(handle uintptr) error {{",
+        "\t_ = handle",
+        "\treturn nil",
+        "}",
+    ]
+
+
+def _append_non_empty_block(lines: list[str], block: list[str]) -> None:
+    """Append a block and one trailing empty line when block is non-empty."""
+    if not block:
+        return
+    lines.extend(block)
+    lines.append("")
+
+
 def _render_output(options: CliOptions, declarations: ParsedDeclarations) -> str:
     """Render generated Go source code.
 
@@ -279,36 +354,17 @@ def _render_output(options: CliOptions, declarations: ParsedDeclarations) -> str
     ]
 
     if "type" in options.emit_kinds:
-        for typedef in declarations.typedefs:
-            identifier = _sanitize_identifier(typedef.name)
-            lines.append(f"type purego_type_{identifier} = {typedef.go_type}")
-        if declarations.typedefs:
-            lines.append("")
+        _append_non_empty_block(lines, _render_type_aliases(declarations))
+
+    if "const" in options.emit_kinds:
+        _append_non_empty_block(lines, _render_constants(declarations))
 
     if "func" in options.emit_kinds:
-        for function in declarations.functions:
-            identifier = _sanitize_identifier(function.name)
-            lines.append(f"var purego_func_{identifier} uintptr")
-        if declarations.functions:
-            lines.append("")
-
-    if "func" in options.emit_kinds:
-        lines.extend([
-            f"func purego_{options.lib_id}_register_functions(handle uintptr) error {{",
-            "\t_ = handle",
-            "\treturn nil",
-            "}",
-            "",
-        ])
+        _append_non_empty_block(lines, _render_function_vars(declarations))
+        _append_non_empty_block(lines, _render_register_helper(options.lib_id))
 
     if "var" in options.emit_kinds:
-        lines.extend([
-            f"func purego_{options.lib_id}_load_runtime_vars(handle uintptr) error {{",
-            "\t_ = handle",
-            "\treturn nil",
-            "}",
-            "",
-        ])
+        _append_non_empty_block(lines, _render_runtime_var_loader(options.lib_id))
 
     return "\n".join(lines)
 

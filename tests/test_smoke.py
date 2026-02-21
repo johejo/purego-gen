@@ -129,3 +129,26 @@ def test_generates_golden_output_to_file(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert not result.stdout
     assert output_path.read_text(encoding="utf-8") == expected
+
+
+def test_emits_constants_when_const_category_selected(tmp_path: Path) -> None:
+    """`--emit const` should generate compile-time constants only."""
+    header_path = _FIXTURES_DIR / "sample_categories.h"
+
+    result = _run_cli(
+        "--lib-id",
+        "sample_lib",
+        "--header",
+        str(header_path),
+        "--pkg",
+        "sample",
+        "--emit",
+        "const",
+    )
+
+    expected = (_GOLDEN_DIR / "sample_const.go").read_text(encoding="utf-8")
+    assert result.returncode == 0
+    assert result.stdout == expected
+    assert "purego_sample_lib_register_functions" not in result.stdout
+    assert "purego_sample_lib_load_runtime_vars" not in result.stdout
+    _assert_go_source_compiles(result.stdout, tmp_path)

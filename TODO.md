@@ -30,7 +30,7 @@
 
 - [x] Add declaration categories: `func`, `type`, `const`, `var`.
 - [x] Implement explicit split between compile-time constants and runtime data symbols.
-- [ ] Implement `--emit func,type,const,var`.
+- [x] Implement `--emit func,type,const,var`.
 - [ ] Add required `--lib-id` and normalize it to snake_case-safe identifier.
 - [ ] Implement category filters: `--func-filter`, `--type-filter`, `--const-filter`, `--var-filter`.
 - [ ] Generate `purego_<libid>_register_functions(handle uintptr) error` (`Dlsym + RegisterFunc`, panic-free).
