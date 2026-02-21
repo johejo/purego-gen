@@ -16,12 +16,12 @@
 - [x] Support repeatable `--header` and clang args passthrough via `--`.
 - [x] Parse function declarations and basic typedefs via libclang.
 - [x] Build internal normalized model for `func` and minimal `type`.
-- [ ] Emit compilable Go output with generated header comment.
+- [x] Emit compilable Go output with generated header comment.
 - [ ] Emit unexported `purego_`-prefixed identifiers only.
 - [x] Implement `--out <path>` and stdout mode (`--out -` or omitted).
 - [x] Format generated output with `gofmt` before writing.
 - [x] Ensure diagnostics go to stderr and failures return non-zero.
-- [ ] Add first golden test fixture with a small synthetic header.
+- [x] Add first golden test fixture with a small synthetic header.
 
 ## M2 Category-Complete Symbol Model
 
