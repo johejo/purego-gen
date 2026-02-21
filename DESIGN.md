@@ -138,6 +138,17 @@ The generator distinguishes declaration categories explicitly:
 
 This split removes ambiguity between "constant" and "data symbol".
 
+## Type Mapping Rules (M3 Baseline)
+
+- Basic numeric typedefs map to fixed-width Go primitives (`int32`, `uint32`,
+  `int64`, `uint64`, etc.) based on libclang canonical type kind.
+- Enum typedefs map to `int32`.
+- Pointer typedefs map to `uintptr`.
+- Function-pointer typedefs are supported in v1 as raw symbol-sized values and
+  also map to `uintptr` (no callback trampoline generation yet).
+- Opaque/nested record typedefs that are not representable by the current
+  baseline mapping are skipped from emitted type aliases.
+
 ## Generated Code Contract
 
 Generated file header:

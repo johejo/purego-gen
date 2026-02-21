@@ -23,6 +23,13 @@
       "func_filter": "^add$",
       "const_filter": "^SAMPLE_STATUS_OK$",
       "var_filter": "^build_id$"
+    },
+    {
+      "id": "sample_m3_types",
+      "output_path": "tests/golden/sample_m3_types.go",
+      "header_path": "tests/fixtures/sample_m3_types.h",
+      "emit_kinds": "type,const",
+      "clang_args": ""
     }
   ]
 }

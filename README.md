@@ -13,6 +13,8 @@ Early development. Interfaces and generated output may change.
 - Generation supports `func/type/const/var` categories and category filters.
 - Runtime symbol binding uses panic-free `Dlsym + RegisterFunc` helpers.
 - Emit layer uses Jinja2 templates; generated code is formatted with `gofmt`.
+- M3 baseline type mapping includes enum typedefs (`int32`) and function-pointer
+  typedefs (`uintptr`), and skips unsupported opaque/nested record typedefs.
 - Tooling and checks are standardized around `nix`, `just`, `uv`, and `pytest`.
 
 ## Current Direction (v1)

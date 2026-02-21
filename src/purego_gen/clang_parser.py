@@ -35,7 +35,9 @@ _TYPE_KIND_TO_GO_TYPE: Final[dict[str, str]] = {
     "ULONGLONG": "uint64",
     "FLOAT": "float32",
     "DOUBLE": "float64",
+    "ENUM": "int32",
 }
+_FUNCTION_TYPE_KINDS: Final[frozenset[str]] = frozenset({"FUNCTIONPROTO", "FUNCTIONNOPROTO"})
 
 
 class ClangParserError(RuntimeError):
@@ -71,6 +73,7 @@ class _TypeLike(Protocol):
     kind: _TypeKindLike
 
     def get_canonical(self) -> _TypeLike: ...
+    def get_pointee(self) -> _TypeLike: ...
 
 
 class _ArgumentLike(Protocol):
@@ -104,6 +107,8 @@ class _TranslationUnitLike(Protocol):
 
 
 class _ConfigLike(Protocol):
+    loaded: bool
+
     def set_library_path(self, path: str) -> None: ...
 
 
@@ -168,7 +173,7 @@ def _load_cindex() -> _CIndexModule:
 def _configure_libclang(cindex: _CIndexModule) -> None:
     """Configure libclang shared library lookup from environment."""
     library_path = os.getenv("LIBCLANG_PATH")
-    if library_path:
+    if library_path and not cindex.Config.loaded:
         cindex.Config.set_library_path(library_path)
 
 
@@ -232,6 +237,11 @@ def _map_type_to_go_name(clang_type: _TypeLike) -> str | None:
     mapped = _TYPE_KIND_TO_GO_TYPE.get(kind_name)
     if mapped is not None:
         return mapped
+    if kind_name == "POINTER":
+        pointee_kind_name = canonical.get_pointee().get_canonical().kind.name
+        if pointee_kind_name in _FUNCTION_TYPE_KINDS:
+            # v1 function-pointer typedef support is intentionally low-level.
+            return "uintptr"
     if kind_name == "POINTER":
         return "uintptr"
     return None

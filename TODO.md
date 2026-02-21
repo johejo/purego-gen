@@ -58,10 +58,10 @@
 ## M3 Type System Expansion
 
 - [ ] Expand struct/enum/typedef coverage for common C patterns.
-- [ ] Document pointer mapping rules used by the generator.
-- [ ] Add limited function-pointer support for v1 target subset.
-- [ ] Add unit tests for type mapping edge cases.
-- [ ] Add golden fixtures with nested/opaque types.
+- [x] Document pointer mapping rules used by the generator.
+- [x] Add limited function-pointer support for v1 target subset.
+- [x] Add unit tests for type mapping edge cases.
+- [x] Add golden fixtures with nested/opaque types.
 
 ## M4 ABI Validation
 
