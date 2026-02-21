@@ -9,6 +9,7 @@ When using purego, you often need to write a lot of boilerplate code to call C f
 ## Status
 
 Early development. Interfaces and generated output may change.
+- CLI entrypoint is available and currently emits deterministic placeholder stubs.
 
 ## Current Direction (v1)
 

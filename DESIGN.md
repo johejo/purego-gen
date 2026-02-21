@@ -219,6 +219,10 @@ M1: Core parsing and deterministic emission
 - Emit minimal compilable bindings.
 - Golden test harness in place.
 
+Current implementation note:
+- `purego-gen` provides a single-command CLI entrypoint with flag parsing and
+  clang-argument passthrough (`--`), and currently emits deterministic placeholder stubs.
+
 M2: Category-complete symbol model
 - Implement explicit separation of `const` vs `runtime var`.
 - Implement category-specific filters and `--emit`.
