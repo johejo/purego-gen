@@ -2,34 +2,63 @@
 
 package {{ package }}
 
-{% if "type" in emit_kinds %}
+{% if "func" in emit_kinds or "var" in emit_kinds %}
+import (
+    "fmt"
+
+    "github.com/ebitengine/purego"
+)
+{% endif %}
+{% if "type" in emit_kinds and type_aliases %}
 type (
     {% for type_alias in type_aliases %}
-	purego_type_{{ type_alias.identifier }} = {{ type_alias.go_type }}
+    purego_type_{{ type_alias.identifier }} = {{ type_alias.go_type }}
     {% endfor %}
 )
 {% endif %}
-{% if "const" in emit_kinds %}
+{% if "const" in emit_kinds and constants %}
 const (
     {% for constant in constants %}
-	purego_const_{{ constant.identifier }} = {{ constant.value }}
+    purego_const_{{ constant.identifier }} = {{ constant.value }}
     {% endfor %}
 )
 {% endif %}
-{% if "func" in emit_kinds %}
+{% if "func" in emit_kinds and functions %}
 var (
     {% for function in functions %}
-	purego_func_{{ function.identifier }} uintptr
+    purego_func_{{ function.identifier }} func()
     {% endfor %}
 )
+
 func purego_{{ lib_id }}_register_functions(handle uintptr) error {
-	_ = handle
-	return nil
+    {% for function in functions %}
+    purego_func_{{ function.identifier }}_symbol, err := purego.Dlsym(handle, "{{ function.symbol }}")
+    if err != nil {
+        return fmt.Errorf("purego-gen: failed to resolve function symbol {{ function.symbol }}: %w", err)
+    }
+    purego.RegisterFunc(&purego_func_{{ function.identifier }}, purego_func_{{ function.identifier }}_symbol)
+    {% endfor %}
+    return nil
 }
 {% endif %}
-{% if "var" in emit_kinds %}
+{% if "var" in emit_kinds and runtime_vars %}
+var (
+    {% for runtime_var in runtime_vars %}
+    purego_var_{{ runtime_var.identifier }} uintptr
+    {% endfor %}
+)
+
 func purego_{{ lib_id }}_load_runtime_vars(handle uintptr) error {
-	_ = handle
-	return nil
+    {% for runtime_var in runtime_vars %}
+    purego_var_{{ runtime_var.identifier }}_symbol, err := purego.Dlsym(handle, "{{ runtime_var.symbol }}")
+    if err != nil {
+        return fmt.Errorf(
+            "purego-gen: failed to resolve runtime var symbol {{ runtime_var.symbol }}: %w",
+            err,
+        )
+    }
+    purego_var_{{ runtime_var.identifier }} = purego_var_{{ runtime_var.identifier }}_symbol
+    {% endfor %}
+    return nil
 }
 {% endif %}

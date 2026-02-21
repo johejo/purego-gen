@@ -13,6 +13,16 @@
       "header_path": "tests/fixtures/sample_categories.h",
       "emit_kinds": "const",
       "clang_args": ""
+    },
+    {
+      "id": "sample_mixed_filtered",
+      "output_path": "tests/golden/sample_mixed_filtered.go",
+      "header_path": "tests/fixtures/sample_categories.h",
+      "emit_kinds": "func,const,var",
+      "clang_args": "",
+      "func_filter": "^add$",
+      "const_filter": "^SAMPLE_STATUS_OK$",
+      "var_filter": "^build_id$"
     }
   ]
 }

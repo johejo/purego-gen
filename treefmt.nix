@@ -45,4 +45,10 @@
     ];
     includes = [ "tests/fixtures/*.h" ];
   };
+
+  settings.formatter.jinja_template = {
+    command = "${pkgs.zsh}/bin/zsh";
+    options = [ "scripts/format-template-go.sh" ];
+    includes = [ "templates/*.j2" ];
+  };
 }

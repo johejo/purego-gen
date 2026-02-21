@@ -17,11 +17,23 @@ check_case() {
 	header_path=$3
 	emit_kinds=$4
 	clang_args=$5
+	func_filter=$6
+	type_filter=$7
+	const_filter=$8
+	var_filter=$9
 
 	generated_path="$TMP_DIR/${case_id}.generated.go"
 	head_path="$TMP_DIR/${case_id}.head.go"
 
-	render_golden_case "$generated_path" "$header_path" "$emit_kinds" "$clang_args"
+	render_golden_case \
+		"$generated_path" \
+		"$header_path" \
+		"$emit_kinds" \
+		"$clang_args" \
+		"$func_filter" \
+		"$type_filter" \
+		"$const_filter" \
+		"$var_filter"
 
 	if ! git cat-file -e "HEAD:$output_path" 2>/dev/null; then
 		echo "golden file is missing at HEAD: $output_path" >&2

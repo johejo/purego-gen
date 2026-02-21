@@ -59,10 +59,12 @@ class _ConstantContext(TypedDict):
 
 class _FunctionContext(TypedDict):
     identifier: str
+    symbol: str
 
 
 class _RuntimeVarContext(TypedDict):
     identifier: str
+    symbol: str
 
 
 class _TemplateContext(TypedDict):
@@ -136,11 +138,17 @@ def _build_context(
             for constant in declarations.constants
         ),
         "functions": tuple(
-            {"identifier": _sanitize_identifier(function.name)}
+            {
+                "identifier": _sanitize_identifier(function.name),
+                "symbol": function.name,
+            }
             for function in declarations.functions
         ),
         "runtime_vars": tuple(
-            {"identifier": _sanitize_identifier(runtime_var.name)}
+            {
+                "identifier": _sanitize_identifier(runtime_var.name),
+                "symbol": runtime_var.name,
+            }
             for runtime_var in declarations.runtime_vars
         ),
     }

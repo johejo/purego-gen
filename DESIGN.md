@@ -126,8 +126,8 @@ The generator distinguishes declaration categories explicitly:
 
 - Runtime variables (exported data symbols):
   - Source: `extern` variables exported by shared library.
-  - Output: Go `var` values populated by symbol lookup.
-  - Loaded via `Dlsym` + typed pointer/value conversion.
+  - Output: Go `uintptr` symbol-address vars populated by symbol lookup.
+  - Loaded via `Dlsym` in M2; richer typed conversion is deferred.
 
 This split removes ambiguity between "constant" and "data symbol".
 
@@ -157,7 +157,8 @@ func purego_<libid>_load_runtime_vars(handle uintptr) error
 Behavior:
 - `purego_<libid>_register_functions` resolves symbols with `purego.Dlsym` and binds with `purego.RegisterFunc`.
 - `purego_<libid>_register_functions` returns an error for missing required symbols instead of panicking.
-- `purego_<libid>_load_runtime_vars` resolves exported data symbols and returns an error on missing required symbols.
+- In M2, generated function placeholders are `func()` values and are bound via `RegisterFunc`.
+- `purego_<libid>_load_runtime_vars` resolves exported data symbols, stores their addresses in `purego_var_* uintptr`, and returns an error on missing required symbols.
 - Compile-time constants are emitted directly as Go constants and do not require runtime loading.
 
 ## CLI Contract

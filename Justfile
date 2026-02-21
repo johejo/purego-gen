@@ -48,4 +48,4 @@ hook:
   lefthook run pre-commit
 
 template-fmt:
-  uv run djlint --reformat --extension=j2 --preserve-leading-space --preserve-blank-lines templates/
+  scripts/format-template-go.sh

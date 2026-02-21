@@ -33,11 +33,11 @@
 - [x] Add declaration categories: `func`, `type`, `const`, `var`.
 - [x] Implement explicit split between compile-time constants and runtime data symbols.
 - [x] Implement `--emit func,type,const,var`.
-- [ ] Add required `--lib-id` and normalize it to snake_case-safe identifier.
-- [ ] Implement category filters: `--func-filter`, `--type-filter`, `--const-filter`, `--var-filter`.
-- [ ] Generate `purego_<libid>_register_functions(handle uintptr) error` (`Dlsym + RegisterFunc`, panic-free).
-- [ ] Generate `purego_<libid>_load_runtime_vars(handle uintptr) error`.
-- [ ] Add golden tests for mixed category selection and filtering behavior.
+- [x] Add required `--lib-id` and normalize it to snake_case-safe identifier.
+- [x] Implement category filters: `--func-filter`, `--type-filter`, `--const-filter`, `--var-filter`.
+- [x] Generate `purego_<libid>_register_functions(handle uintptr) error` (`Dlsym + RegisterFunc`, panic-free).
+- [x] Generate `purego_<libid>_load_runtime_vars(handle uintptr) error`.
+- [x] Add golden tests for mixed category selection and filtering behavior.
 
 ## M2.5 Emit Layer Templating (Jinja2)
 

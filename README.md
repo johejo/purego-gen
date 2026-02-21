@@ -14,6 +14,11 @@ Early development. Interfaces and generated output may change.
   (`const`: enum constants, `var`: `extern` runtime data symbols).
 - `--emit` supports selecting `func,type,const,var` categories, with `const`
   emitted as Go compile-time constants.
+- Category-specific regex filters are available via `--func-filter`,
+  `--type-filter`, `--const-filter`, and `--var-filter`.
+- Generated registration/loading helpers use `purego.Dlsym`; function symbols
+  are bound with `purego.RegisterFunc`, and runtime data symbols are stored as
+  `purego_var_* uintptr` addresses.
 - Emit layer uses Jinja2 templates with strict undefined-variable failures.
 - Generated output is still minimal and intentionally low-level.
 - Generated output is automatically formatted with `gofmt`.

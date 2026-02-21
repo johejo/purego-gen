@@ -8,14 +8,12 @@ import (
 	"github.com/ebitengine/purego"
 )
 
-type (
-	purego_type_my_int    = int32
-	purego_type_my_handle = uintptr
+const (
+	purego_const_sample_status_ok = 0
 )
 
 var (
-	purego_func_add   func()
-	purego_func_reset func()
+	purego_func_add func()
 )
 
 func purego_sample_lib_register_functions(handle uintptr) error {
@@ -24,10 +22,21 @@ func purego_sample_lib_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol add: %w", err)
 	}
 	purego.RegisterFunc(&purego_func_add, purego_func_add_symbol)
-	purego_func_reset_symbol, err := purego.Dlsym(handle, "reset")
+	return nil
+}
+
+var (
+	purego_var_build_id uintptr
+)
+
+func purego_sample_lib_load_runtime_vars(handle uintptr) error {
+	purego_var_build_id_symbol, err := purego.Dlsym(handle, "build_id")
 	if err != nil {
-		return fmt.Errorf("purego-gen: failed to resolve function symbol reset: %w", err)
+		return fmt.Errorf(
+			"purego-gen: failed to resolve runtime var symbol build_id: %w",
+			err,
+		)
 	}
-	purego.RegisterFunc(&purego_func_reset, purego_func_reset_symbol)
+	purego_var_build_id = purego_var_build_id_symbol
 	return nil
 }
