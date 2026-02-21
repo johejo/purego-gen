@@ -29,3 +29,9 @@ def test_parse_declaration_categories() -> None:
         "global_counter",
         "build_id",
     )
+
+    constant_names = {constant.name for constant in declarations.constants}
+    runtime_var_names = {runtime_var.name for runtime_var in declarations.runtime_vars}
+    assert "global_counter" not in constant_names
+    assert "build_id" not in constant_names
+    assert constant_names.isdisjoint(runtime_var_names)

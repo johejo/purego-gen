@@ -29,7 +29,7 @@
 ## M2 Category-Complete Symbol Model
 
 - [x] Add declaration categories: `func`, `type`, `const`, `var`.
-- [ ] Implement explicit split between compile-time constants and runtime data symbols.
+- [x] Implement explicit split between compile-time constants and runtime data symbols.
 - [ ] Implement `--emit func,type,const,var`.
 - [ ] Add required `--lib-id` and normalize it to snake_case-safe identifier.
 - [ ] Implement category filters: `--func-filter`, `--type-filter`, `--const-filter`, `--var-filter`.
