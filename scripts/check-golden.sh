@@ -4,35 +4,36 @@ set -eu
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-tmp_func_type="$(mktemp)"
-tmp_const="$(mktemp)"
-head_func_type="$(mktemp)"
-head_const="$(mktemp)"
-trap 'rm -f "$tmp_func_type" "$tmp_const" "$head_func_type" "$head_const"' EXIT
+GOLDEN_CASES_FILE="$REPO_ROOT/scripts/golden-cases.json"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
 
-PYTHONPATH=src uv run python -m purego_gen \
-	--lib-id sample_lib \
-	--header tests/fixtures/sample.h \
-	--pkg sample \
-	--emit func,type \
-	-- \
-	-I./include >"$tmp_func_type"
+# shellcheck source=scripts/golden-common.sh
+. "$REPO_ROOT/scripts/golden-common.sh"
 
-PYTHONPATH=src uv run python -m purego_gen \
-	--lib-id sample_lib \
-	--header tests/fixtures/sample_categories.h \
-	--pkg sample \
-	--emit const >"$tmp_const"
+check_case() {
+	case_id=$1
+	output_path=$2
+	header_path=$3
+	emit_kinds=$4
+	clang_args=$5
 
-git show HEAD:tests/golden/sample_func_type.go >"$head_func_type"
-git show HEAD:tests/golden/sample_const.go >"$head_const"
+	generated_path="$TMP_DIR/${case_id}.generated.go"
+	head_path="$TMP_DIR/${case_id}.head.go"
 
-if ! diff -u "$head_func_type" "$tmp_func_type"; then
-	echo "golden drift detected against HEAD: run 'nix develop -c just golden-update' and commit golden changes." >&2
-	exit 1
-fi
+	render_golden_case "$generated_path" "$header_path" "$emit_kinds" "$clang_args"
 
-if ! diff -u "$head_const" "$tmp_const"; then
-	echo "golden drift detected against HEAD: run 'nix develop -c just golden-update' and commit golden changes." >&2
-	exit 1
-fi
+	if ! git cat-file -e "HEAD:$output_path" 2>/dev/null; then
+		echo "golden file is missing at HEAD: $output_path" >&2
+		exit 1
+	fi
+
+	git show "HEAD:$output_path" >"$head_path"
+
+	if ! diff -u "$head_path" "$generated_path"; then
+		echo "golden drift detected against HEAD: run 'nix develop -c just golden-update' and commit golden changes." >&2
+		exit 1
+	fi
+}
+
+for_each_golden_case check_case "$GOLDEN_CASES_FILE"

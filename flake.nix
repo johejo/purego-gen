@@ -56,6 +56,7 @@
               clang
               clang-tools
               go
+              jq
               just
               lefthook
               libclang
