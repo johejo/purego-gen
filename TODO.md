@@ -13,6 +13,7 @@
 - [x] Make `just fmt`/`just fmt-check` use `nix fmt` to keep hook formatting checks flake-aware.
 - [x] Remove redundant `nix-fmt` alias and keep `fmt` as the single formatting entrypoint.
 - [ ] Wire `nix develop -c just check` into CI.
+- [ ] Investigate faster tests by persisting `ccache` and Go caches in repo-local ignored directories (e.g. `.cache/`) and wiring `CCACHE_DIR`/`GOCACHE` defaults.
 
 ## M1 Core Parsing and Deterministic Emission
 
