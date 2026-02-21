@@ -225,6 +225,11 @@ Current implementation note:
   clang-argument passthrough (`--`).
 - Current parser phase extracts C function declarations and basic typedefs via libclang.
 
+M2 implementation note (partial):
+- Declaration model now includes explicit categories for `func`, `type`, `const`, and `var`.
+- Current `const` extraction covers enum constants.
+- Current `var` extraction covers `extern` runtime data symbol declarations.
+
 M2: Category-complete symbol model
 - Implement explicit separation of `const` vs `runtime var`.
 - Implement category-specific filters and `--emit`.

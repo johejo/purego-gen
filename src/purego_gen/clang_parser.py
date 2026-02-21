@@ -10,7 +10,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Protocol, cast
 
-from purego_gen.model import FunctionDecl, ParsedDeclarations, TypedefDecl
+from purego_gen.model import (
+    ConstantDecl,
+    FunctionDecl,
+    ParsedDeclarations,
+    RuntimeVarDecl,
+    TypedefDecl,
+)
 
 _SEVERITY_ERROR: Final[int] = 3
 _TYPE_KIND_TO_GO_TYPE: Final[dict[str, str]] = {
@@ -42,6 +48,8 @@ class _SeenDeclarations:
 
     function_names: set[str]
     typedef_names: set[str]
+    constant_names: set[str]
+    runtime_var_names: set[str]
 
 
 class _SourceFileLike(Protocol):
@@ -76,6 +84,8 @@ class _CursorLike(Protocol):
     result_type: _TypeLike
     underlying_typedef_type: _TypeLike
     type: _TypeLike
+    enum_value: int
+    storage_class: _StorageClassLike
 
     def get_children(self) -> list[_CursorLike]: ...
 
@@ -104,6 +114,12 @@ class _TranslationUnitConfigLike(Protocol):
 class _CursorKindConfigLike(Protocol):
     FUNCTION_DECL: object
     TYPEDEF_DECL: object
+    ENUM_CONSTANT_DECL: object
+    VAR_DECL: object
+
+
+class _StorageClassLike(Protocol):
+    name: str
 
 
 class _IndexLike(Protocol):
@@ -248,6 +264,119 @@ def _extract_typedef(cursor: _CursorLike) -> TypedefDecl | None:
     return TypedefDecl(name=str(cursor.spelling), c_type=str(underlying.spelling), go_type=go_type)
 
 
+def _extract_constant(cursor: _CursorLike) -> ConstantDecl:
+    """Convert an enum constant cursor to model.
+
+    Returns:
+        Normalized compile-time constant declaration.
+    """
+    return ConstantDecl(name=str(cursor.spelling), value=int(cursor.enum_value))
+
+
+def _extract_runtime_var(cursor: _CursorLike) -> RuntimeVarDecl:
+    """Convert a runtime variable cursor to model.
+
+    Returns:
+        Normalized runtime variable declaration.
+    """
+    return RuntimeVarDecl(name=str(cursor.spelling), c_type=str(cursor.type.spelling))
+
+
+def _is_extern_runtime_var(cursor: _CursorLike) -> bool:
+    """Check whether a variable declaration represents an extern data symbol.
+
+    Returns:
+        `True` when the declaration has `extern` storage class.
+    """
+    return cursor.storage_class.name == "EXTERN"
+
+
+def _collect_function(
+    cursor: _CursorLike,
+    function_decl_kind: object,
+    seen: _SeenDeclarations,
+    functions: list[FunctionDecl],
+) -> bool:
+    """Collect one function declaration when applicable.
+
+    Returns:
+        `True` when cursor matched function handling branch.
+    """
+    if cursor.kind != function_decl_kind:
+        return False
+    if cursor.spelling in seen.function_names:
+        return True
+    seen.function_names.add(cursor.spelling)
+    functions.append(_extract_function(cursor))
+    return True
+
+
+def _collect_typedef(
+    cursor: _CursorLike,
+    typedef_decl_kind: object,
+    seen: _SeenDeclarations,
+    typedefs: list[TypedefDecl],
+) -> bool:
+    """Collect one typedef declaration when applicable.
+
+    Returns:
+        `True` when cursor matched typedef handling branch.
+    """
+    if cursor.kind != typedef_decl_kind:
+        return False
+    if cursor.spelling in seen.typedef_names:
+        return True
+
+    typedef = _extract_typedef(cursor)
+    if typedef is None:
+        return True
+    seen.typedef_names.add(cursor.spelling)
+    typedefs.append(typedef)
+    return True
+
+
+def _collect_constant(
+    cursor: _CursorLike,
+    enum_constant_decl_kind: object,
+    seen: _SeenDeclarations,
+    constants: list[ConstantDecl],
+) -> bool:
+    """Collect one compile-time constant declaration when applicable.
+
+    Returns:
+        `True` when cursor matched constant handling branch.
+    """
+    if cursor.kind != enum_constant_decl_kind:
+        return False
+    if cursor.spelling in seen.constant_names:
+        return True
+    seen.constant_names.add(cursor.spelling)
+    constants.append(_extract_constant(cursor))
+    return True
+
+
+def _collect_runtime_var(
+    cursor: _CursorLike,
+    var_decl_kind: object,
+    seen: _SeenDeclarations,
+    runtime_vars: list[RuntimeVarDecl],
+) -> bool:
+    """Collect one runtime variable declaration when applicable.
+
+    Returns:
+        `True` when cursor matched runtime var handling branch.
+    """
+    if cursor.kind != var_decl_kind:
+        return False
+    if not _is_extern_runtime_var(cursor):
+        return True
+    if cursor.spelling in seen.runtime_var_names:
+        return True
+    seen.runtime_var_names.add(cursor.spelling)
+    runtime_vars.append(_extract_runtime_var(cursor))
+    return True
+
+
 def _parse_translation_unit(
     cindex: _CIndexModule,
     index: _IndexLike,
@@ -279,11 +408,11 @@ def _parse_header(
     header_path: Path,
     clang_args: tuple[str, ...],
     seen: _SeenDeclarations,
-) -> tuple[list[FunctionDecl], list[TypedefDecl]]:
+) -> tuple[list[FunctionDecl], list[TypedefDecl], list[ConstantDecl], list[RuntimeVarDecl]]:
     """Parse one header and extract supported declarations.
 
     Returns:
-        Extracted functions and typedefs.
+        Extracted functions, typedefs, constants, and runtime variables.
 
     Raises:
         ClangParserError: Header parsing fails.
@@ -295,37 +424,30 @@ def _parse_header(
 
     root_cursor = translation_unit.cursor
     if root_cursor is None:
-        return [], []
+        return [], [], [], []
 
     functions: list[FunctionDecl] = []
     typedefs: list[TypedefDecl] = []
+    constants: list[ConstantDecl] = []
+    runtime_vars: list[RuntimeVarDecl] = []
     for cursor in _walk_preorder(root_cursor):
         if not _is_cursor_from_header(cursor, header_path):
             continue
 
-        if cursor.kind == cindex.CursorKind.FUNCTION_DECL:
-            if cursor.spelling in seen.function_names:
-                continue
-            seen.function_names.add(cursor.spelling)
-            functions.append(_extract_function(cursor))
+        if _collect_function(cursor, cindex.CursorKind.FUNCTION_DECL, seen, functions):
+            continue
+        if _collect_typedef(cursor, cindex.CursorKind.TYPEDEF_DECL, seen, typedefs):
+            continue
+        if _collect_constant(cursor, cindex.CursorKind.ENUM_CONSTANT_DECL, seen, constants):
+            continue
+        if _collect_runtime_var(cursor, cindex.CursorKind.VAR_DECL, seen, runtime_vars):
             continue
 
-        if cursor.kind != cindex.CursorKind.TYPEDEF_DECL:
-            continue
-        if cursor.spelling in seen.typedef_names:
-            continue
-
-        typedef = _extract_typedef(cursor)
-        if typedef is None:
-            continue
-        seen.typedef_names.add(cursor.spelling)
-        typedefs.append(typedef)
-
-    return functions, typedefs
+    return functions, typedefs, constants, runtime_vars
 
 
 def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) -> ParsedDeclarations:
-    """Parse functions and basic typedefs from headers via libclang.
+    """Parse declaration categories from headers via libclang.
 
     Returns:
         Parsed declarations in stable order.
@@ -346,7 +468,14 @@ def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) ->
 
     all_functions: list[FunctionDecl] = []
     all_typedefs: list[TypedefDecl] = []
-    seen = _SeenDeclarations(function_names=set(), typedef_names=set())
+    all_constants: list[ConstantDecl] = []
+    all_runtime_vars: list[RuntimeVarDecl] = []
+    seen = _SeenDeclarations(
+        function_names=set(),
+        typedef_names=set(),
+        constant_names=set(),
+        runtime_var_names=set(),
+    )
 
     for header in headers:
         header_path = Path(header).resolve()
@@ -354,7 +483,7 @@ def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) ->
             message = f"header not found: {header_path}"
             raise ClangParserError(message)
 
-        parsed_functions, parsed_typedefs = _parse_header(
+        parsed_functions, parsed_typedefs, parsed_constants, parsed_runtime_vars = _parse_header(
             cindex=cindex,
             index=index,
             header_path=header_path,
@@ -363,5 +492,12 @@ def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) ->
         )
         all_functions.extend(parsed_functions)
         all_typedefs.extend(parsed_typedefs)
+        all_constants.extend(parsed_constants)
+        all_runtime_vars.extend(parsed_runtime_vars)
 
-    return ParsedDeclarations(functions=tuple(all_functions), typedefs=tuple(all_typedefs))
+    return ParsedDeclarations(
+        functions=tuple(all_functions),
+        typedefs=tuple(all_typedefs),
+        constants=tuple(all_constants),
+        runtime_vars=tuple(all_runtime_vars),
+    )

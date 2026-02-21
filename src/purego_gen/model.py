@@ -26,8 +26,26 @@ class TypedefDecl:
 
 
 @dataclass(frozen=True, slots=True)
+class ConstantDecl:
+    """Compile-time constant declaration model."""
+
+    name: str
+    value: int
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeVarDecl:
+    """Runtime data symbol declaration model."""
+
+    name: str
+    c_type: str
+
+
+@dataclass(frozen=True, slots=True)
 class ParsedDeclarations:
     """All declarations parsed for one generation run."""
 
     functions: tuple[FunctionDecl, ...]
     typedefs: tuple[TypedefDecl, ...]
+    constants: tuple[ConstantDecl, ...]
+    runtime_vars: tuple[RuntimeVarDecl, ...]

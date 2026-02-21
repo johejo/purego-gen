@@ -10,6 +10,8 @@ When using purego, you often need to write a lot of boilerplate code to call C f
 
 Early development. Interfaces and generated output may change.
 - CLI entrypoint parses function declarations and basic typedefs via libclang.
+- Declaration model includes explicit `func/type/const/var` categories
+  (`const`: enum constants, `var`: `extern` runtime data symbols).
 - Generated output is still minimal and intentionally low-level.
 - Generated output is automatically formatted with `gofmt`.
 

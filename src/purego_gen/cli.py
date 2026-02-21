@@ -236,6 +236,8 @@ def _apply_filters(options: CliOptions, declarations: ParsedDeclarations) -> Par
     """
     func_filter = _compile_filter(options.func_filter, "--func-filter")
     type_filter = _compile_filter(options.type_filter, "--type-filter")
+    const_filter = _compile_filter(options.const_filter, "--const-filter")
+    var_filter = _compile_filter(options.var_filter, "--var-filter")
 
     functions = declarations.functions
     if func_filter is not None:
@@ -245,7 +247,22 @@ def _apply_filters(options: CliOptions, declarations: ParsedDeclarations) -> Par
     if type_filter is not None:
         typedefs = tuple(typedef for typedef in typedefs if type_filter.search(typedef.name))
 
-    return ParsedDeclarations(functions=functions, typedefs=typedefs)
+    constants = declarations.constants
+    if const_filter is not None:
+        constants = tuple(constant for constant in constants if const_filter.search(constant.name))
+
+    runtime_vars = declarations.runtime_vars
+    if var_filter is not None:
+        runtime_vars = tuple(
+            runtime_var for runtime_var in runtime_vars if var_filter.search(runtime_var.name)
+        )
+
+    return ParsedDeclarations(
+        functions=functions,
+        typedefs=typedefs,
+        constants=constants,
+        runtime_vars=runtime_vars,
+    )
 
 
 def _render_output(options: CliOptions, declarations: ParsedDeclarations) -> str:
