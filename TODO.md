@@ -41,6 +41,8 @@
 
 - [ ] Document emit-layer templating contract in `DESIGN.md` (logic stays in Python, templates stay declarative).
 - [ ] Add `jinja2` dependency and keep tooling checks green (`ruff`, `basedpyright`, `pyrefly`, `pytest`).
+- [ ] Add `djlint` for Jinja2 template lint/format and wire it into project checks.
+- [ ] Tune `djlint` options for Go-template readability, explicitly using `preserve-leading-space` and `preserve-blank-lines`.
 - [ ] Introduce a dedicated renderer module (e.g. `renderer.py`) and move output assembly out of `cli.py`.
 - [ ] Configure Jinja2 environment with strict undefined handling for deterministic failures.
 - [ ] Add initial Go file template(s) under `templates/` and migrate existing emit categories (`func`, `type`, `const`, `var`) without behavior changes.
