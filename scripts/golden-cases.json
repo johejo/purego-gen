@@ -30,6 +30,30 @@
       "header_path": "tests/fixtures/sample_m3_types.h",
       "emit_kinds": "type,const",
       "clang_args": ""
+    },
+    {
+      "id": "sample_multi_headers",
+      "output_path": "tests/golden/sample_multi_headers.go",
+      "header_paths": [
+        "tests/fixtures/sample.h",
+        "tests/fixtures/sample_categories.h"
+      ],
+      "emit_kinds": "func,type,const,var",
+      "clang_args": "-I./include"
+    },
+    {
+      "id": "sample_conditional_off",
+      "output_path": "tests/golden/sample_conditional_off.go",
+      "header_path": "tests/fixtures/sample_conditional.h",
+      "emit_kinds": "func,var",
+      "clang_args": ""
+    },
+    {
+      "id": "sample_conditional_on",
+      "output_path": "tests/golden/sample_conditional_on.go",
+      "header_path": "tests/fixtures/sample_conditional.h",
+      "emit_kinds": "func,var",
+      "clang_args": "-DSAMPLE_ENABLE_EXTRA"
     }
   ]
 }

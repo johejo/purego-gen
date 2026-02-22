@@ -12,7 +12,7 @@ GOLDEN_CASES_FILE="$REPO_ROOT/scripts/golden-cases.json"
 update_case() {
 	case_id=$1
 	output_path=$2
-	header_path=$3
+	header_paths=$3
 	emit_kinds=$4
 	clang_args=$5
 	func_filter=$6
@@ -23,7 +23,7 @@ update_case() {
 
 	render_golden_case \
 		"$output_path" \
-		"$header_path" \
+		"$header_paths" \
 		"$emit_kinds" \
 		"$clang_args" \
 		"$func_filter" \

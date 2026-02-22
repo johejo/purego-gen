@@ -14,7 +14,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 check_case() {
 	case_id=$1
 	output_path=$2
-	header_path=$3
+	header_paths=$3
 	emit_kinds=$4
 	clang_args=$5
 	func_filter=$6
@@ -23,11 +23,12 @@ check_case() {
 	var_filter=$9
 
 	generated_path="$TMP_DIR/${case_id}.generated.go"
-	head_path="$TMP_DIR/${case_id}.head.go"
+	expected_path="$TMP_DIR/${case_id}.expected.go"
+	expected_source=""
 
 	render_golden_case \
 		"$generated_path" \
-		"$header_path" \
+		"$header_paths" \
 		"$emit_kinds" \
 		"$clang_args" \
 		"$func_filter" \
@@ -35,15 +36,23 @@ check_case() {
 		"$const_filter" \
 		"$var_filter"
 
-	if ! git cat-file -e "HEAD:$output_path" 2>/dev/null; then
-		echo "golden file is missing at HEAD: $output_path" >&2
+	if git cat-file -e "HEAD:$output_path" 2>/dev/null; then
+		git show "HEAD:$output_path" >"$expected_path"
+		expected_source="HEAD"
+	elif [ -f "$output_path" ]; then
+		cp "$output_path" "$expected_path"
+		expected_source="working-tree"
+	else
+		echo "golden file is missing: $output_path" >&2
 		exit 1
 	fi
 
-	git show "HEAD:$output_path" >"$head_path"
-
-	if ! diff -u "$head_path" "$generated_path"; then
-		echo "golden drift detected against HEAD: run 'nix develop -c just golden-update' and commit golden changes." >&2
+	if ! diff -u "$expected_path" "$generated_path"; then
+		if [ "$expected_source" = "HEAD" ]; then
+			echo "golden drift detected against HEAD: run 'nix develop -c just golden-update' and commit golden changes." >&2
+		else
+			echo "golden drift detected for new file in working tree: run 'nix develop -c just golden-update' and commit golden changes." >&2
+		fi
 		exit 1
 	fi
 }

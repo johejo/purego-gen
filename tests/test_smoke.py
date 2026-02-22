@@ -213,6 +213,32 @@ def test_generates_golden_output_to_file(tmp_path: Path) -> None:
     assert output_path.read_text(encoding="utf-8") == expected
 
 
+def test_generates_golden_output_from_multiple_headers(tmp_path: Path) -> None:
+    """CLI should keep deterministic output when multiple headers are provided."""
+    header_path_a = _FIXTURES_DIR / "sample.h"
+    header_path_b = _FIXTURES_DIR / "sample_categories.h"
+
+    result = _run_cli(
+        "--lib-id",
+        "sample_lib",
+        "--header",
+        str(header_path_a),
+        "--header",
+        str(header_path_b),
+        "--pkg",
+        "sample",
+        "--emit",
+        "func,type,const,var",
+        "--",
+        "-I./include",
+    )
+
+    expected = (_GOLDEN_DIR / "sample_multi_headers.go").read_text(encoding="utf-8")
+    assert result.returncode == 0
+    assert result.stdout == expected
+    _assert_go_source_compiles(result.stdout, tmp_path)
+
+
 def test_emits_constants_when_const_category_selected(tmp_path: Path) -> None:
     """`--emit const` should generate compile-time constants only."""
     header_path = _FIXTURES_DIR / "sample_categories.h"
@@ -234,6 +260,44 @@ def test_emits_constants_when_const_category_selected(tmp_path: Path) -> None:
     assert "purego_sample_lib_register_functions" not in result.stdout
     assert "purego_sample_lib_load_runtime_vars" not in result.stdout
     _assert_go_source_compiles(result.stdout, tmp_path)
+
+
+def test_generates_conditional_golden_output_with_clang_define(tmp_path: Path) -> None:
+    """Clang `-D` args should deterministically change emitted declarations."""
+    header_path = _FIXTURES_DIR / "sample_conditional.h"
+
+    result_off = _run_cli(
+        "--lib-id",
+        "sample_lib",
+        "--header",
+        str(header_path),
+        "--pkg",
+        "sample",
+        "--emit",
+        "func,var",
+    )
+    result_on = _run_cli(
+        "--lib-id",
+        "sample_lib",
+        "--header",
+        str(header_path),
+        "--pkg",
+        "sample",
+        "--emit",
+        "func,var",
+        "--",
+        "-DSAMPLE_ENABLE_EXTRA",
+    )
+
+    expected_off = (_GOLDEN_DIR / "sample_conditional_off.go").read_text(encoding="utf-8")
+    expected_on = (_GOLDEN_DIR / "sample_conditional_on.go").read_text(encoding="utf-8")
+    assert result_off.returncode == 0
+    assert result_on.returncode == 0
+    assert result_off.stdout == expected_off
+    assert result_on.stdout == expected_on
+    assert result_off.stdout != result_on.stdout
+    _assert_go_source_compiles(result_off.stdout, tmp_path / "off")
+    _assert_go_source_compiles(result_on.stdout, tmp_path / "on")
 
 
 def test_emits_mixed_categories_with_filters(tmp_path: Path) -> None:
@@ -386,3 +450,37 @@ def test_runtime_smoke_reports_unresolved_symbols(tmp_path: Path) -> None:
     assert runtime_result.returncode != 0
     combined_output = runtime_result.stdout + runtime_result.stderr
     assert "smoke_missing" in combined_output
+
+
+def test_runtime_smoke_reports_unresolved_runtime_variable(tmp_path: Path) -> None:
+    """Runtime smoke should expose unresolved runtime variable failures."""
+    shared_library_path = _build_runtime_smoke_library(tmp_path)
+    header_path = tmp_path / "missing_runtime_var.h"
+    header_path.write_text(
+        (
+            "extern int smoke_counter;\n"
+            "extern int smoke_missing_counter;\n"
+            "void smoke_reset(void);\n"
+            "void smoke_increment(void);\n"
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_cli(
+        "--lib-id",
+        "sample_lib",
+        "--header",
+        str(header_path),
+        "--pkg",
+        "sample",
+        "--emit",
+        "func,var",
+    )
+
+    assert result.returncode == 0, result.stderr
+    runtime_result = _run_runtime_smoke(
+        result.stdout, tmp_path, shared_library_path=shared_library_path
+    )
+    assert runtime_result.returncode != 0
+    combined_output = runtime_result.stdout + runtime_result.stderr
+    assert "smoke_missing_counter" in combined_output
