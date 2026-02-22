@@ -57,7 +57,7 @@
 
 ## M3 Type System Expansion
 
-- [ ] Expand struct/enum/typedef coverage for common C patterns.
+- [x] Expand struct/enum/typedef coverage for common C patterns.
 - [x] Document pointer mapping rules used by the generator.
 - [x] Add limited function-pointer support for v1 target subset.
 - [x] Add unit tests for type mapping edge cases.

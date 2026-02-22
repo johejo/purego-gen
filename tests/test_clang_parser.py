@@ -45,13 +45,28 @@ def test_parse_type_mapping_edge_cases() -> None:
 
     assert tuple(function.name for function in declarations.functions) == ()
     assert tuple(runtime_var.name for runtime_var in declarations.runtime_vars) == ()
-    assert tuple((typedef.name, typedef.go_type) for typedef in declarations.typedefs) == (
-        ("sample_mode_t", "int32"),
-        ("sample_mode_alias_t", "int32"),
-        ("sample_callback_t", "uintptr"),
-        ("sample_name_t", "uintptr"),
-        ("sample_context_t", "uintptr"),
+    typedef_map = {typedef.name: typedef.go_type for typedef in declarations.typedefs}
+    assert tuple(typedef_map) == (
+        "sample_mode_t",
+        "sample_mode_alias_t",
+        "sample_callback_t",
+        "sample_name_t",
+        "sample_context_t",
+        "sample_point_t",
+        "sample_point_alias_t",
     )
+    assert typedef_map["sample_mode_t"] == "int32"
+    assert typedef_map["sample_mode_alias_t"] == "int32"
+    assert typedef_map["sample_callback_t"] == "uintptr"
+    assert typedef_map["sample_name_t"] == "uintptr"
+    assert typedef_map["sample_context_t"] == "uintptr"
+    assert typedef_map["sample_point_t"] == (
+        "struct {\n\tleft int32\n\tright int32\n\tmode int32\n\tlabel uintptr\n}"
+    )
+    assert typedef_map["sample_point_alias_t"] == (
+        "struct {\n\tleft int32\n\tright int32\n\tmode int32\n\tlabel uintptr\n}"
+    )
+    assert "sample_opaque_t" not in typedef_map
     assert tuple(constant.name for constant in declarations.constants) == (
         "SAMPLE_MODE_OFF",
         "SAMPLE_MODE_ON",

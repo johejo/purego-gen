@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Protocol, cast
@@ -38,6 +39,35 @@ _TYPE_KIND_TO_GO_TYPE: Final[dict[str, str]] = {
     "ENUM": "int32",
 }
 _FUNCTION_TYPE_KINDS: Final[frozenset[str]] = frozenset({"FUNCTIONPROTO", "FUNCTIONNOPROTO"})
+_RECORD_TYPE_KIND_NAME: Final[str] = "RECORD"
+_FIELD_DECL_KIND_NAME: Final[str] = "FIELD_DECL"
+_GO_KEYWORDS: Final[frozenset[str]] = frozenset({
+    "break",
+    "case",
+    "chan",
+    "const",
+    "continue",
+    "default",
+    "defer",
+    "else",
+    "fallthrough",
+    "for",
+    "func",
+    "go",
+    "goto",
+    "if",
+    "import",
+    "interface",
+    "map",
+    "package",
+    "range",
+    "return",
+    "select",
+    "struct",
+    "switch",
+    "type",
+    "var",
+})
 
 
 class ClangParserError(RuntimeError):
@@ -68,12 +98,17 @@ class _TypeKindLike(Protocol):
     name: str
 
 
+class _CursorKindLike(Protocol):
+    name: str
+
+
 class _TypeLike(Protocol):
     spelling: str
     kind: _TypeKindLike
 
     def get_canonical(self) -> _TypeLike: ...
     def get_pointee(self) -> _TypeLike: ...
+    def get_declaration(self) -> _CursorLike: ...
 
 
 class _ArgumentLike(Protocol):
@@ -81,7 +116,7 @@ class _ArgumentLike(Protocol):
 
 
 class _CursorLike(Protocol):
-    kind: object
+    kind: _CursorKindLike
     spelling: str
     location: _SourceLocationLike
     result_type: _TypeLike
@@ -244,7 +279,61 @@ def _map_type_to_go_name(clang_type: _TypeLike) -> str | None:
             return "uintptr"
     if kind_name == "POINTER":
         return "uintptr"
+    if kind_name == _RECORD_TYPE_KIND_NAME:
+        return _map_record_type_to_go_name(canonical)
     return None
+
+
+def _sanitize_go_identifier(raw: str, *, fallback: str) -> str:
+    """Normalize arbitrary names into a Go identifier token.
+
+    Returns:
+        Go identifier-safe token.
+    """
+    normalized = re.sub(r"[^0-9A-Za-z_]+", "_", raw).strip("_")
+    if not normalized:
+        normalized = fallback
+    if normalized[0].isdigit():
+        normalized = f"f_{normalized}"
+    if normalized in _GO_KEYWORDS:
+        normalized = f"{normalized}_"
+    return normalized
+
+
+def _map_record_type_to_go_name(clang_type: _TypeLike) -> str | None:
+    """Map a simple C record type to a Go struct type literal.
+
+    Returns:
+        Go struct type literal when all fields are mappable, otherwise `None`.
+    """
+    declaration = clang_type.get_declaration()
+    field_lines: list[str] = []
+    seen_field_names: set[str] = set()
+
+    for index, child in enumerate(declaration.get_children(), start=1):
+        if child.kind.name != _FIELD_DECL_KIND_NAME:
+            continue
+
+        go_type = _map_type_to_go_name(child.type)
+        if go_type is None:
+            return None
+
+        base_name = _sanitize_go_identifier(
+            str(child.spelling),
+            fallback=f"field_{index}",
+        )
+        field_name = base_name
+        suffix = 2
+        while field_name in seen_field_names:
+            field_name = f"{base_name}_{suffix}"
+            suffix += 1
+
+        seen_field_names.add(field_name)
+        field_lines.append(f"\t{field_name} {go_type}")
+
+    if not field_lines:
+        return None
+    return "struct {\n" + "\n".join(field_lines) + "\n}"
 
 
 def _extract_function(cursor: _CursorLike) -> FunctionDecl:

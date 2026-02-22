@@ -15,6 +15,8 @@ Early development. Interfaces and generated output may change.
 - Emit layer uses Jinja2 templates; generated code is formatted with `gofmt`.
 - M3 baseline type mapping includes enum typedefs (`int32`) and function-pointer
   typedefs (`uintptr`), and skips unsupported opaque/nested record typedefs.
+- Common struct typedef patterns with mappable fields are emitted as Go struct
+  type literals.
 - Tooling and checks are standardized around `nix`, `just`, `uv`, and `pytest`.
 
 ## Current Direction (v1)

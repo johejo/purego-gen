@@ -8,6 +8,18 @@ type (
 	purego_type_sample_callback_t   = uintptr
 	purego_type_sample_name_t       = uintptr
 	purego_type_sample_context_t    = uintptr
+	purego_type_sample_point_t      = struct {
+		left  int32
+		right int32
+		mode  int32
+		label uintptr
+	}
+	purego_type_sample_point_alias_t = struct {
+		left  int32
+		right int32
+		mode  int32
+		label uintptr
+	}
 )
 
 const (

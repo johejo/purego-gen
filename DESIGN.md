@@ -146,6 +146,8 @@ This split removes ambiguity between "constant" and "data symbol".
 - Pointer typedefs map to `uintptr`.
 - Function-pointer typedefs are supported in v1 as raw symbol-sized values and
   also map to `uintptr` (no callback trampoline generation yet).
+- Struct typedefs with fully mappable fields are emitted as Go `struct { ... }`
+  type literals (`field` types are mapped with the same baseline rules).
 - Opaque/nested record typedefs that are not representable by the current
   baseline mapping are skipped from emitted type aliases.
 
