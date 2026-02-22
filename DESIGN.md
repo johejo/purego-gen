@@ -154,7 +154,11 @@ This split removes ambiguity between "constant" and "data symbol".
 - Opaque/nested record typedefs that are not representable by the current
   baseline mapping are skipped from emitted type aliases.
 - When a typedef is skipped due to unsupported record mapping, the CLI emits a
-  stderr diagnostic describing the skipped typedef and reason.
+  stderr diagnostic with both a stable diagnostic code and human-readable
+  reason.
+- The parser model also retains these type-diagnostic codes (record-level and
+  field-level) so ABI-focused tests can assert unsupported behavior without
+  depending on exact stderr phrasing.
 
 ## M4 ABI Input Boundary (Prework)
 

@@ -7,6 +7,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from purego_gen.clang_parser import parse_declarations
+from purego_gen.model import (
+    TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
@@ -83,16 +89,29 @@ def test_parse_type_mapping_edge_cases() -> None:
     assert "sample_with_anonymous_field_t" not in typedef_map
     assert "sample_opaque_t" not in typedef_map
     skipped_typedef_map = {
-        typedef.name: typedef.reason for typedef in declarations.skipped_typedefs
+        typedef.name: (typedef.reason_code, typedef.reason)
+        for typedef in declarations.skipped_typedefs
     }
-    assert "unsupported field type for values:" in skipped_typedef_map["sample_with_array_t"]
-    assert "[4]" in skipped_typedef_map["sample_with_array_t"]
-    assert skipped_typedef_map["sample_union_t"] == "union typedefs are not supported in v1"
-    assert skipped_typedef_map["sample_with_bitfield_t"] == "bitfield flags is not supported in v1"
-    assert skipped_typedef_map["sample_with_anonymous_field_t"] == (
-        "struct has no supported fields in v1"
+    array_code, array_reason = skipped_typedef_map["sample_with_array_t"]
+    assert array_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
+    assert "unsupported field type for values:" in array_reason
+    assert "[4]" in array_reason
+    assert skipped_typedef_map["sample_union_t"] == (
+        TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
+        "union typedefs are not supported in v1",
     )
-    assert skipped_typedef_map["sample_opaque_t"] == "struct has no supported fields in v1"
+    assert skipped_typedef_map["sample_with_bitfield_t"] == (
+        TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
+        "bitfield flags is not supported in v1",
+    )
+    assert skipped_typedef_map["sample_with_anonymous_field_t"] == (
+        TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
+        "struct has no supported fields in v1",
+    )
+    assert skipped_typedef_map["sample_opaque_t"] == (
+        TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
+        "struct has no supported fields in v1",
+    )
     assert tuple(constant.name for constant in declarations.constants) == (
         "SAMPLE_MODE_OFF",
         "SAMPLE_MODE_ON",

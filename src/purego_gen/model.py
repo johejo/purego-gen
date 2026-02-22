@@ -5,6 +5,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Final
+
+TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_ANONYMOUS_FIELD: Final[str] = "PG_TYPE_UNSUPPORTED_ANONYMOUS_FIELD"
+TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD: Final[str] = "PG_TYPE_UNSUPPORTED_BITFIELD"
+TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE: Final[str] = "PG_TYPE_UNSUPPORTED_FIELD_TYPE"
+TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF: Final[str] = "PG_TYPE_UNSUPPORTED_UNION_TYPEDEF"
+TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD_KIND: Final[str] = "PG_TYPE_UNSUPPORTED_RECORD_KIND"
+TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS: Final[str] = "PG_TYPE_NO_SUPPORTED_FIELDS"
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +55,7 @@ class SkippedTypedefDecl:
 
     name: str
     c_type: str
+    reason_code: str
     reason: str
 
 
@@ -63,6 +72,7 @@ class RecordFieldDecl:
     is_bitfield: bool
     bitfield_width: int | None
     supported: bool
+    unsupported_code: str | None
     unsupported_reason: str | None
 
 
@@ -77,6 +87,7 @@ class RecordTypedefDecl:
     align_bytes: int | None
     fields: tuple[RecordFieldDecl, ...]
     supported: bool
+    unsupported_code: str | None
     unsupported_reason: str | None
 
 

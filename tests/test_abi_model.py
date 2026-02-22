@@ -7,6 +7,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from purego_gen.clang_parser import parse_declarations
+from purego_gen.model import (
+    TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
@@ -34,6 +39,7 @@ def test_parse_record_typedef_model_for_pre_m4_abi() -> None:
 
     sample_point = record_typedef_map["sample_point_t"]
     assert sample_point.supported
+    assert sample_point.unsupported_code is None
     assert sample_point.unsupported_reason is None
     assert sample_point.size_bytes is not None
     assert sample_point.size_bytes > 0
@@ -51,16 +57,22 @@ def test_parse_record_typedef_model_for_pre_m4_abi() -> None:
 
     sample_with_array = record_typedef_map["sample_with_array_t"]
     assert not sample_with_array.supported
+    assert sample_with_array.unsupported_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
     assert sample_with_array.unsupported_reason is not None
     assert "unsupported field type for values:" in sample_with_array.unsupported_reason
     assert len(sample_with_array.fields) == 1
+    assert (
+        sample_with_array.fields[0].unsupported_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
+    )
     assert not sample_with_array.fields[0].supported
 
     sample_union = record_typedef_map["sample_union_t"]
     assert sample_union.record_kind == "UNION_DECL"
     assert not sample_union.supported
+    assert sample_union.unsupported_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF
     assert sample_union.unsupported_reason == "union typedefs are not supported in v1"
 
     sample_opaque = record_typedef_map["sample_opaque_t"]
     assert not sample_opaque.supported
+    assert sample_opaque.unsupported_code == TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS
     assert sample_opaque.fields == ()

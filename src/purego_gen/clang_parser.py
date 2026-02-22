@@ -12,6 +12,12 @@ from pathlib import Path
 from typing import Final, Protocol, cast
 
 from purego_gen.model import (
+    TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_ANONYMOUS_FIELD,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD_KIND,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
     ConstantDecl,
     FunctionDecl,
     ParsedDeclarations,
@@ -168,7 +174,15 @@ class _RecordTypeMappingResult:
     """Result of mapping a C record type into Go."""
 
     go_type: str | None
-    skip_reason: str | None
+    unsupported_diagnostic: _UnsupportedTypeDiagnostic | None
+
+
+@dataclass(frozen=True, slots=True)
+class _UnsupportedTypeDiagnostic:
+    """Stable diagnostic payload for unsupported type patterns."""
+
+    code: str
+    message: str
 
 
 class _ConfigLike(Protocol):
@@ -407,26 +421,35 @@ def _evaluate_record_field_support(
     field_cursor: _CursorLike,
     *,
     index: int,
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, _UnsupportedTypeDiagnostic | None]:
     """Evaluate whether one record field is supported by v1 mapping.
 
     Returns:
-        Tuple of mapped Go type and optional unsupported reason.
+        Tuple of mapped Go type and optional unsupported diagnostic.
     """
     field_name_for_message = str(field_cursor.spelling) or f"<anonymous field #{index}>"
     if not field_cursor.spelling:
-        skip_reason = f"anonymous field {field_name_for_message} is not supported in v1"
-        return None, skip_reason
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_ANONYMOUS_FIELD,
+            message=f"anonymous field {field_name_for_message} is not supported in v1",
+        )
+        return None, diagnostic
     if field_cursor.is_bitfield():
-        skip_reason = f"bitfield {field_name_for_message} is not supported in v1"
-        return None, skip_reason
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
+            message=f"bitfield {field_name_for_message} is not supported in v1",
+        )
+        return None, diagnostic
 
     go_type = _map_type_to_go_name(field_cursor.type)
     if go_type is None:
-        skip_reason = (
-            f"unsupported field type for {field_name_for_message}: {field_cursor.type.spelling}"
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
+            message=(
+                f"unsupported field type for {field_name_for_message}: {field_cursor.type.spelling}"
+            ),
         )
-        return None, skip_reason
+        return None, diagnostic
     return go_type, None
 
 
@@ -435,17 +458,21 @@ def _map_record_field_to_go_line(
     *,
     index: int,
     seen_field_names: set[str],
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, _UnsupportedTypeDiagnostic | None]:
     """Map one record field cursor to a Go field line.
 
     Returns:
-        Tuple of mapped field line and optional skip reason.
+        Tuple of mapped field line and optional unsupported diagnostic.
     """
-    go_type, skip_reason = _evaluate_record_field_support(field_cursor, index=index)
-    if skip_reason is not None:
-        return None, skip_reason
+    go_type, unsupported_diagnostic = _evaluate_record_field_support(field_cursor, index=index)
+    if unsupported_diagnostic is not None:
+        return None, unsupported_diagnostic
     if go_type is None:
-        return None, "unsupported field type"
+        fallback_diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
+            message="unsupported field type",
+        )
+        return None, fallback_diagnostic
 
     base_name = _sanitize_go_identifier(
         str(field_cursor.spelling),
@@ -463,7 +490,7 @@ def _extract_record_field_decl(field_cursor: _CursorLike, *, index: int) -> Reco
         Parsed field metadata for ABI/model validation.
     """
     canonical_field_type = field_cursor.type.get_canonical()
-    go_type, unsupported_reason = _evaluate_record_field_support(field_cursor, index=index)
+    go_type, unsupported_diagnostic = _evaluate_record_field_support(field_cursor, index=index)
     _ = go_type  # Explicitly ignore mapped type; model stores C-centric metadata.
     is_bitfield = field_cursor.is_bitfield()
     return RecordFieldDecl(
@@ -475,8 +502,13 @@ def _extract_record_field_decl(field_cursor: _CursorLike, *, index: int) -> Reco
         align_bytes=_safe_type_align_bytes(canonical_field_type),
         is_bitfield=is_bitfield,
         bitfield_width=_safe_bitfield_width(field_cursor) if is_bitfield else None,
-        supported=unsupported_reason is None,
-        unsupported_reason=unsupported_reason,
+        supported=unsupported_diagnostic is None,
+        unsupported_code=(
+            unsupported_diagnostic.code if unsupported_diagnostic is not None else None
+        ),
+        unsupported_reason=(
+            unsupported_diagnostic.message if unsupported_diagnostic is not None else None
+        ),
     )
 
 
@@ -484,16 +516,22 @@ def _map_record_type_to_go_name(clang_type: _TypeLike) -> _RecordTypeMappingResu
     """Map a simple C record type to a Go struct type literal.
 
     Returns:
-        Mapping result with generated Go type literal or skip reason.
+        Mapping result with generated Go type literal or unsupported diagnostic.
     """
     declaration = clang_type.get_declaration()
     declaration_kind_name = declaration.kind.name
     if declaration_kind_name == _UNION_DECL_KIND_NAME:
-        skip_reason = "union typedefs are not supported in v1"
-        return _RecordTypeMappingResult(go_type=None, skip_reason=skip_reason)
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
+            message="union typedefs are not supported in v1",
+        )
+        return _RecordTypeMappingResult(go_type=None, unsupported_diagnostic=diagnostic)
     if declaration_kind_name != _STRUCT_DECL_KIND_NAME:
-        skip_reason = f"record kind {declaration_kind_name} is not supported in v1"
-        return _RecordTypeMappingResult(go_type=None, skip_reason=skip_reason)
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD_KIND,
+            message=f"record kind {declaration_kind_name} is not supported in v1",
+        )
+        return _RecordTypeMappingResult(go_type=None, unsupported_diagnostic=diagnostic)
 
     field_lines: list[str] = []
     seen_field_names: set[str] = set()
@@ -502,22 +540,28 @@ def _map_record_type_to_go_name(clang_type: _TypeLike) -> _RecordTypeMappingResu
         if child.kind.name != _FIELD_DECL_KIND_NAME:
             continue
 
-        field_line, skip_reason = _map_record_field_to_go_line(
+        field_line, unsupported_diagnostic = _map_record_field_to_go_line(
             child,
             index=index,
             seen_field_names=seen_field_names,
         )
-        if skip_reason is not None:
-            return _RecordTypeMappingResult(go_type=None, skip_reason=skip_reason)
+        if unsupported_diagnostic is not None:
+            return _RecordTypeMappingResult(
+                go_type=None,
+                unsupported_diagnostic=unsupported_diagnostic,
+            )
         if field_line is None:
             continue
         field_lines.append(field_line)
     if not field_lines:
-        skip_reason = "struct has no supported fields in v1"
-        return _RecordTypeMappingResult(go_type=None, skip_reason=skip_reason)
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
+            message="struct has no supported fields in v1",
+        )
+        return _RecordTypeMappingResult(go_type=None, unsupported_diagnostic=diagnostic)
     return _RecordTypeMappingResult(
         go_type="struct {\n" + "\n".join(field_lines) + "\n}",
-        skip_reason=None,
+        unsupported_diagnostic=None,
     )
 
 
@@ -546,7 +590,16 @@ def _extract_record_typedef_decl(
         align_bytes=_safe_type_align_bytes(canonical_record_type),
         fields=fields,
         supported=mapping_result.go_type is not None,
-        unsupported_reason=mapping_result.skip_reason,
+        unsupported_code=(
+            mapping_result.unsupported_diagnostic.code
+            if mapping_result.unsupported_diagnostic is not None
+            else None
+        ),
+        unsupported_reason=(
+            mapping_result.unsupported_diagnostic.message
+            if mapping_result.unsupported_diagnostic is not None
+            else None
+        ),
     )
 
 
@@ -566,11 +619,11 @@ def _extract_function(cursor: _CursorLike) -> FunctionDecl:
 
 def _extract_typedef(
     cursor: _CursorLike,
-) -> tuple[TypedefDecl | None, str | None, RecordTypedefDecl | None]:
+) -> tuple[TypedefDecl | None, _UnsupportedTypeDiagnostic | None, RecordTypedefDecl | None]:
     """Convert a typedef cursor to model when it is basic.
 
     Returns:
-        Normalized typedef declaration, optional skip reason, and optional
+        Normalized typedef declaration, optional unsupported diagnostic, and optional
         structured record typedef metadata.
     """
     underlying = cursor.underlying_typedef_type
@@ -583,7 +636,7 @@ def _extract_typedef(
             mapping_result=mapping_result,
         )
         if mapping_result.go_type is None:
-            return None, mapping_result.skip_reason, record_typedef
+            return None, mapping_result.unsupported_diagnostic, record_typedef
         return (
             TypedefDecl(
                 name=str(cursor.spelling),
@@ -667,16 +720,17 @@ def _collect_typedef(
     if cursor.spelling in seen.typedef_names:
         return True
 
-    typedef, skip_reason, record_typedef = _extract_typedef(cursor)
+    typedef, unsupported_diagnostic, record_typedef = _extract_typedef(cursor)
     if record_typedef is not None:
         declarations.record_typedefs.append(record_typedef)
     if typedef is None:
-        if skip_reason is not None:
+        if unsupported_diagnostic is not None:
             declarations.skipped_typedefs.append(
                 SkippedTypedefDecl(
                     name=str(cursor.spelling),
                     c_type=str(cursor.underlying_typedef_type.spelling),
-                    reason=skip_reason,
+                    reason_code=unsupported_diagnostic.code,
+                    reason=unsupported_diagnostic.message,
                 )
             )
         return True

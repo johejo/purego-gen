@@ -351,7 +351,8 @@ def main(argv: list[str] | None = None) -> int:
     for skipped_typedef in declarations.skipped_typedefs:
         sys.stderr.write(
             "purego-gen: skipped typedef "
-            f"{skipped_typedef.name} ({skipped_typedef.c_type}): {skipped_typedef.reason}\n"
+            f"{skipped_typedef.name} ({skipped_typedef.c_type}) "
+            f"[{skipped_typedef.reason_code}]: {skipped_typedef.reason}\n"
         )
 
     try:

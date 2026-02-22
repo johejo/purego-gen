@@ -70,7 +70,7 @@
 
 - [x] Add a pre-M4 typed declaration model for records/fields (beyond string-only `go_type`) to support deterministic ABI calculations.
 - [ ] Add a minimal ABI fixture harness that captures C-side `sizeof`/`alignof`/`offsetof` values for comparison tests.
-- [ ] Promote skipped-type diagnostics to structured diagnostic codes (not stderr text only) so ABI tests can assert behavior stably.
+- [x] Promote skipped-type diagnostics to structured diagnostic codes (not stderr text only) so ABI tests can assert behavior stably.
 - [x] Document M4 ABI-validation input boundary in `DESIGN.md` (which record patterns are in/out for v1 ABI checks).
 - [x] Split parser-vs-ABI-model tests (`tests/test_clang_parser.py` vs dedicated ABI model tests) to reduce coupling before M4 implementation.
 - [ ] Add layout check utility for struct size/alignment against clang metadata.
