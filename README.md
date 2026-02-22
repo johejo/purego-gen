@@ -23,6 +23,9 @@ Early development. Interfaces and generated output may change.
   parser model metadata and CLI stderr output.
 - Parser now also exposes structured record/field metadata internally as M4 ABI
   validation input.
+- M4 now includes a layout validation utility that checks supported struct
+  size/alignment/offset consistency against clang metadata with stable
+  diagnostic codes.
 - Tooling and checks are standardized around `nix`, `just`, `uv`, and `pytest`.
 
 ## Current Direction (v1)

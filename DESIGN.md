@@ -165,6 +165,11 @@ This split removes ambiguity between "constant" and "data symbol".
 - Parser now exposes structured record typedef metadata (`record_typedefs`)
   including record-level and field-level layout attributes (size/align/offset
   when available from clang).
+- ABI layout utility now recomputes expected struct field offsets, struct
+  alignment, and final size from field metadata and compares them with
+  clang-reported values for supported records.
+- ABI layout utility emits stable diagnostic codes for unsupported records and
+  layout-metadata mismatches so tests can assert outcomes deterministically.
 - Intended v1 ABI-check target set:
   - struct typedefs with supported field kinds and available clang layout data.
 - Current non-target set for v1 ABI checks:

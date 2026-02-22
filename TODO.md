@@ -73,9 +73,9 @@
 - [x] Promote skipped-type diagnostics to structured diagnostic codes (not stderr text only) so ABI tests can assert behavior stably.
 - [x] Document M4 ABI-validation input boundary in `DESIGN.md` (which record patterns are in/out for v1 ABI checks).
 - [x] Split parser-vs-ABI-model tests (`tests/test_clang_parser.py` vs dedicated ABI model tests) to reduce coupling before M4 implementation.
-- [ ] Add layout check utility for struct size/alignment against clang metadata.
+- [x] Add layout check utility for struct size/alignment against clang metadata.
 - [ ] Emit clear diagnostics for unsupported ABI-sensitive patterns.
-- [ ] Add ABI-focused tests for supported structs.
+- [x] Add ABI-focused tests for supported structs.
 - [ ] Define fallback behavior when ABI validation cannot be completed.
 
 ## M5 Target Libraries (Objective Harness)
