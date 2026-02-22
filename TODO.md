@@ -87,6 +87,14 @@
 - [ ] Wire target-library jobs into CI matrix with platform guards.
 - [ ] Record known unsupported declarations per library.
 
+## Pre-M5 Hardening
+
+- [ ] Define where ABI layout fallback results (`passed`/`failed`/`skipped`) are surfaced (CLI vs harness report).
+- [ ] Add strict CI mode for `golden-check` that always compares against `HEAD` only.
+- [ ] Normalize golden case manifest schema to one header field shape (`header_paths`).
+- [ ] Document M5 harness environment contract (header/library discovery strategy, required env vars).
+- [ ] Resolve open decisions required by M5 execution (function pointer boundary and optional symbol policy).
+
 ## Backlog / Open Decisions
 
 - [ ] Decide v1 support boundary for function pointers.
