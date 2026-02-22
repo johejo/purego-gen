@@ -4,7 +4,11 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+import os
+import shlex
+import shutil
+import subprocess  # noqa: S404
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -22,6 +26,27 @@ if TYPE_CHECKING:
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
+_ABI_PROBE_SOURCE = _FIXTURES_DIR / "abi_probe_sample_m3_types.c"
+_PROBE_RECORD_PARTS = 4
+_PROBE_FIELD_PARTS = 6
+
+
+@dataclass(slots=True)
+class _ProbeFieldLayout:
+    """One field layout entry captured from the C-side probe."""
+
+    offset_bits: int
+    size_bytes: int
+    align_bytes: int
+
+
+@dataclass(slots=True)
+class _ProbeRecordLayout:
+    """One record layout entry captured from the C-side probe."""
+
+    size_bytes: int
+    align_bytes: int
+    fields: dict[str, _ProbeFieldLayout]
 
 
 def _record_typedef_map() -> dict[str, RecordTypedefDecl]:
@@ -30,6 +55,96 @@ def _record_typedef_map() -> dict[str, RecordTypedefDecl]:
         clang_args=(),
     )
     return {record.name: record for record in declarations.record_typedefs}
+
+
+def _build_probe_compile_command(probe_binary_path: Path) -> list[str]:
+    """Build compile command for the ABI probe source.
+
+    Returns:
+        Compiler command with arguments.
+    """
+    cc_value = os.environ.get("CC", "").strip()
+    if cc_value:
+        command = shlex.split(cc_value)
+        assert command, "CC is empty after parsing"
+    else:
+        clang_binary = shutil.which("clang")
+        assert clang_binary is not None, "clang is required for ABI probe tests"
+        command = [clang_binary]
+    command.extend([
+        "-std=gnu11",
+        "-I",
+        str(_FIXTURES_DIR),
+        str(_ABI_PROBE_SOURCE),
+        "-o",
+        str(probe_binary_path),
+    ])
+    return command
+
+
+def _parse_probe_layout_output(output: str) -> dict[str, _ProbeRecordLayout]:
+    """Parse ABI probe output lines into structured layout mappings.
+
+    Returns:
+        Record layout mapping keyed by typedef name.
+
+    Raises:
+        AssertionError: Probe output line is malformed.
+    """
+    records: dict[str, _ProbeRecordLayout] = {}
+    for line in output.splitlines():
+        parts = line.split(",")
+        if not parts:
+            continue
+        if parts[0] == "record":
+            assert len(parts) == _PROBE_RECORD_PARTS, f"invalid record probe line: {line}"
+            _, record_name, size_bytes, align_bytes = parts
+            records[record_name] = _ProbeRecordLayout(
+                size_bytes=int(size_bytes),
+                align_bytes=int(align_bytes),
+                fields={},
+            )
+            continue
+        if parts[0] == "field":
+            assert len(parts) == _PROBE_FIELD_PARTS, f"invalid field probe line: {line}"
+            _, record_name, field_name, offset_bits, size_bytes, align_bytes = parts
+            record = records.get(record_name)
+            assert record is not None, f"field probe emitted before record: {line}"
+            record.fields[field_name] = _ProbeFieldLayout(
+                offset_bits=int(offset_bits),
+                size_bytes=int(size_bytes),
+                align_bytes=int(align_bytes),
+            )
+            continue
+        message = f"invalid ABI probe tag in line: {line}"
+        raise AssertionError(message)
+    return records
+
+
+def _run_c_layout_probe(tmp_path: Path) -> dict[str, _ProbeRecordLayout]:
+    """Compile and run C-side ABI probe.
+
+    Returns:
+        Parsed record layout mapping from probe output.
+    """
+    probe_binary_path = tmp_path / "abi_probe_sample_m3_types"
+    compile_result = subprocess.run(  # noqa: S603
+        _build_probe_compile_command(probe_binary_path),
+        capture_output=True,
+        check=False,
+        cwd=_REPO_ROOT,
+        text=True,
+    )
+    assert compile_result.returncode == 0, compile_result.stderr
+    run_result = subprocess.run(  # noqa: S603
+        [str(probe_binary_path)],
+        capture_output=True,
+        check=False,
+        cwd=_REPO_ROOT,
+        text=True,
+    )
+    assert run_result.returncode == 0, run_result.stderr
+    return _parse_probe_layout_output(run_result.stdout)
 
 
 def test_validate_record_layout_accepts_supported_structs() -> None:
@@ -89,3 +204,29 @@ def test_validate_record_layout_reports_missing_field_metadata() -> None:
     diagnostic_codes = {diagnostic.code for diagnostic in diagnostics}
 
     assert ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_FIELD_LAYOUT in diagnostic_codes
+
+
+def test_record_layout_matches_c_probe_fixture(tmp_path: Path) -> None:
+    """Parsed layout metadata should match C-side probe for supported fixtures."""
+    record_map = _record_typedef_map()
+    c_layouts = _run_c_layout_probe(tmp_path)
+
+    assert tuple(c_layouts) == (
+        "sample_point_t",
+        "sample_point_alias_t",
+        "sample_nested_point_t",
+    )
+    for record_name, c_record in c_layouts.items():
+        parsed_record = record_map[record_name]
+        assert parsed_record.supported
+        assert parsed_record.size_bytes == c_record.size_bytes
+        assert parsed_record.align_bytes == c_record.align_bytes
+
+        parsed_fields = {field.name: field for field in parsed_record.fields}
+        assert tuple(parsed_fields) == tuple(c_record.fields)
+        for field_name, c_field in c_record.fields.items():
+            parsed_field = parsed_fields[field_name]
+            assert parsed_field.supported
+            assert parsed_field.offset_bits == c_field.offset_bits
+            assert parsed_field.size_bytes == c_field.size_bytes
+            assert parsed_field.align_bytes == c_field.align_bytes

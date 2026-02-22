@@ -272,6 +272,8 @@ Rules:
 
 - ABI-focused checks (phased):
   - Verify generated struct size/alignment against clang-reported layout where supported.
+  - Include a minimal C-side probe fixture that emits `sizeof`/`alignof`/`offsetof`
+    values for selected records and compare those values with parser metadata.
 
 Objective harness targets:
 - Must: `libzstd`

@@ -26,6 +26,8 @@ Early development. Interfaces and generated output may change.
 - M4 now includes a layout validation utility that checks supported struct
   size/alignment/offset consistency against clang metadata with stable
   diagnostic codes.
+- M4 now also includes a minimal C ABI probe fixture (`sizeof`/`alignof`/`offsetof`)
+  that is compared against parser-extracted record metadata in tests.
 - Tooling and checks are standardized around `nix`, `just`, `uv`, and `pytest`.
 
 ## Current Direction (v1)
