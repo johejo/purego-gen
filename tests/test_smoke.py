@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import os
-import shlex
 import shutil
 import subprocess  # noqa: S404
 import sys
@@ -17,6 +16,7 @@ from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
 )
+from purego_gen.toolchain import resolve_c_compiler_command
 
 _ARGPARSE_USAGE_ERROR = 2
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -81,14 +81,7 @@ def _build_runtime_smoke_library(tmp_path: Path) -> Path:
     Returns:
         Path to the compiled shared library.
     """
-    cc_value = os.environ.get("CC", "").strip()
-    if cc_value:
-        command = shlex.split(cc_value)
-        assert command, "CC is empty after parsing"
-    else:
-        clang_binary = shutil.which("clang")
-        assert clang_binary is not None, "clang is required for runtime smoke tests"
-        command = [clang_binary]
+    command = resolve_c_compiler_command(purpose="runtime smoke tests")
 
     output_name = (
         "libpurego_gen_smoke.dylib" if sys.platform == "darwin" else "libpurego_gen_smoke.so"

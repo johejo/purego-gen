@@ -4,9 +4,6 @@
 
 from __future__ import annotations
 
-import os
-import shlex
-import shutil
 import subprocess  # noqa: S404
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -20,6 +17,7 @@ from purego_gen.abi_layout import (
     validate_record_layout,
 )
 from purego_gen.clang_parser import parse_declarations
+from purego_gen.toolchain import resolve_c_compiler_command
 
 if TYPE_CHECKING:
     from purego_gen.model import RecordTypedefDecl
@@ -63,14 +61,7 @@ def _build_probe_compile_command(probe_binary_path: Path) -> list[str]:
     Returns:
         Compiler command with arguments.
     """
-    cc_value = os.environ.get("CC", "").strip()
-    if cc_value:
-        command = shlex.split(cc_value)
-        assert command, "CC is empty after parsing"
-    else:
-        clang_binary = shutil.which("clang")
-        assert clang_binary is not None, "clang is required for ABI probe tests"
-        command = [clang_binary]
+    command = resolve_c_compiler_command(purpose="ABI probe tests")
     command.extend([
         "-std=gnu11",
         "-I",
