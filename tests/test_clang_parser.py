@@ -12,6 +12,10 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
 
 
+def _go_struct(*fields: str) -> str:
+    return "struct {\n" + "\n".join(f"\t{field}" for field in fields) + "\n}"
+
+
 def test_parse_declaration_categories() -> None:
     """Parser should classify declarations into func/type/const/var categories."""
     header = _FIXTURES_DIR / "sample_categories.h"
@@ -61,24 +65,17 @@ def test_parse_type_mapping_edge_cases() -> None:
     assert typedef_map["sample_callback_t"] == "uintptr"
     assert typedef_map["sample_name_t"] == "uintptr"
     assert typedef_map["sample_context_t"] == "uintptr"
-    assert typedef_map["sample_point_t"] == (
-        "struct {\n\tleft int32\n\tright int32\n\tmode int32\n\tlabel uintptr\n}"
+    sample_point_type = _go_struct(
+        "left int32",
+        "right int32",
+        "mode int32",
+        "label uintptr",
     )
-    assert typedef_map["sample_point_alias_t"] == (
-        "struct {\n\tleft int32\n\tright int32\n\tmode int32\n\tlabel uintptr\n}"
-    )
-    assert typedef_map["sample_nested_point_t"] == (
-        "struct {\n"
-        "\tpoint struct {\n"
-        "\tleft int32\n"
-        "\tright int32\n"
-        "\tmode int32\n"
-        "\tlabel uintptr\n"
-        "}\n"
-        "\tinner struct {\n"
-        "\tlevel int32\n"
-        "}\n"
-        "}"
+    assert typedef_map["sample_point_t"] == sample_point_type
+    assert typedef_map["sample_point_alias_t"] == sample_point_type
+    assert typedef_map["sample_nested_point_t"] == _go_struct(
+        f"point {sample_point_type}",
+        f"inner {_go_struct('level int32')}",
     )
     assert "sample_with_array_t" not in typedef_map
     assert "sample_union_t" not in typedef_map
