@@ -13,6 +13,8 @@ Early development. Interfaces and generated output may change.
 - Generates low-level bindings for `func/type/const/var` categories.
 - Non-Windows first; generated identifiers are unexported `purego_` names.
 - Callers provide the library handle (no automatic `dlopen` policy).
+- M4 ABI checks now include C-side probe comparison (`sizeof`/`alignof`/`offsetof`)
+  and explicit `passed`/`failed`/`skipped` fallback classification per record.
 
 ## CLI (current)
 

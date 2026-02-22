@@ -75,9 +75,9 @@
 - [x] Document M4 ABI-validation input boundary in `DESIGN.md` (which record patterns are in/out for v1 ABI checks).
 - [x] Split parser-vs-ABI-model tests (`tests/test_clang_parser.py` vs dedicated ABI model tests) to reduce coupling before M4 implementation.
 - [x] Add layout check utility for struct size/alignment against clang metadata.
-- [ ] Emit clear diagnostics for unsupported ABI-sensitive patterns.
+- [x] Emit clear diagnostics for unsupported ABI-sensitive patterns.
 - [x] Add ABI-focused tests for supported structs.
-- [ ] Define fallback behavior when ABI validation cannot be completed.
+- [x] Define fallback behavior when ABI validation cannot be completed.
 
 ## M5 Target Libraries (Objective Harness)
 

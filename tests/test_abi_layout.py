@@ -14,7 +14,13 @@ from purego_gen.abi_layout import (
     ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_FIELD_LAYOUT,
     ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_SIZE_MISMATCH,
     ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD,
+    ABI_LAYOUT_FALLBACK_REASON_INCOMPLETE_METADATA,
+    ABI_LAYOUT_FALLBACK_REASON_UNSUPPORTED_PATTERN,
+    ABI_LAYOUT_RESULT_STATUS_FAILED,
+    ABI_LAYOUT_RESULT_STATUS_PASSED,
+    ABI_LAYOUT_RESULT_STATUS_SKIPPED,
     validate_record_layout,
+    validate_record_layout_with_fallback,
 )
 from purego_gen.clang_parser import parse_declarations
 from purego_gen.toolchain import resolve_c_compiler_command
@@ -178,6 +184,7 @@ def test_validate_record_layout_reports_unsupported_record() -> None:
 
     assert len(diagnostics) == 1
     assert diagnostics[0].code == ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD
+    assert diagnostics[0].source_code == "PG_TYPE_UNSUPPORTED_FIELD_TYPE"
     assert "PG_TYPE_UNSUPPORTED_FIELD_TYPE" in diagnostics[0].message
 
 
@@ -221,3 +228,75 @@ def test_record_layout_matches_c_probe_fixture(tmp_path: Path) -> None:
             assert parsed_field.offset_bits == c_field.offset_bits
             assert parsed_field.size_bytes == c_field.size_bytes
             assert parsed_field.align_bytes == c_field.align_bytes
+
+
+def test_validate_record_layout_with_fallback_reports_skipped_for_unsupported_pattern() -> None:
+    """Fallback result should mark unsupported ABI patterns as skipped."""
+    record_map = _record_typedef_map()
+    result = validate_record_layout_with_fallback(record_map["sample_with_array_t"])
+
+    assert result.record_name == "sample_with_array_t"
+    assert result.status == ABI_LAYOUT_RESULT_STATUS_SKIPPED
+    assert result.fallback_reason == ABI_LAYOUT_FALLBACK_REASON_UNSUPPORTED_PATTERN
+    assert len(result.diagnostics) == 1
+    assert result.diagnostics[0].source_code == "PG_TYPE_UNSUPPORTED_FIELD_TYPE"
+
+
+def test_validate_record_layout_with_fallback_reports_skipped_for_incomplete_metadata() -> None:
+    """Fallback result should mark incomplete layout metadata as skipped."""
+    record_map = _record_typedef_map()
+    sample_point = record_map["sample_point_t"]
+    first_field = sample_point.fields[0]
+    incomplete_record = replace(
+        sample_point,
+        fields=(replace(first_field, offset_bits=None), *sample_point.fields[1:]),
+    )
+
+    result = validate_record_layout_with_fallback(incomplete_record)
+
+    assert result.status == ABI_LAYOUT_RESULT_STATUS_SKIPPED
+    assert result.fallback_reason == ABI_LAYOUT_FALLBACK_REASON_INCOMPLETE_METADATA
+    assert any(
+        diagnostic.code == ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_FIELD_LAYOUT
+        for diagnostic in result.diagnostics
+    )
+
+
+def test_validate_record_layout_with_fallback_reports_failed_on_layout_mismatch() -> None:
+    """Fallback result should mark deterministic offset/size mismatches as failed."""
+    record_map = _record_typedef_map()
+    sample_point = record_map["sample_point_t"]
+    first_field = sample_point.fields[0]
+    assert first_field.offset_bits is not None
+    assert sample_point.size_bytes is not None
+    mismatched_record = replace(
+        sample_point,
+        fields=(
+            replace(first_field, offset_bits=first_field.offset_bits + 32),
+            *sample_point.fields[1:],
+        ),
+        size_bytes=sample_point.size_bytes + 8,
+    )
+
+    result = validate_record_layout_with_fallback(mismatched_record)
+
+    assert result.status == ABI_LAYOUT_RESULT_STATUS_FAILED
+    assert result.fallback_reason is None
+    assert any(
+        diagnostic.code == ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_MISMATCH
+        for diagnostic in result.diagnostics
+    )
+    assert any(
+        diagnostic.code == ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_SIZE_MISMATCH
+        for diagnostic in result.diagnostics
+    )
+
+
+def test_validate_record_layout_with_fallback_reports_passed_when_clean() -> None:
+    """Fallback result should mark clean supported records as passed."""
+    record_map = _record_typedef_map()
+    result = validate_record_layout_with_fallback(record_map["sample_point_t"])
+
+    assert result.status == ABI_LAYOUT_RESULT_STATUS_PASSED
+    assert result.fallback_reason is None
+    assert result.diagnostics == ()

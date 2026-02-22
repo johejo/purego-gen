@@ -178,6 +178,14 @@ This split removes ambiguity between "constant" and "data symbol".
   clang-reported values for supported records.
 - ABI layout utility emits stable diagnostic codes for unsupported records and
   layout-metadata mismatches so tests can assert outcomes deterministically.
+- ABI layout diagnostics for unsupported ABI-sensitive patterns keep the source
+  type-diagnostic code (from parser metadata) so unsupported causes can be
+  asserted without depending on human-readable text.
+- ABI layout validation fallback behavior is explicit per record:
+  - `passed`: no layout diagnostics.
+  - `failed`: deterministic layout mismatch diagnostics exist (offset/align/size).
+  - `skipped`: validation could not be completed due to unsupported patterns or
+    incomplete metadata; diagnostics are still emitted and carry fallback reason.
 - Intended v1 ABI-check target set:
   - struct typedefs with supported field kinds and available clang layout data.
 - Current non-target set for v1 ABI checks:

@@ -20,6 +20,11 @@ ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_NOT_BYTE_ALIGNED: Final[str] = (
 ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_MISMATCH: Final[str] = "PG_ABI_LAYOUT_FIELD_OFFSET_MISMATCH"
 ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_ALIGN_MISMATCH: Final[str] = "PG_ABI_LAYOUT_RECORD_ALIGN_MISMATCH"
 ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_SIZE_MISMATCH: Final[str] = "PG_ABI_LAYOUT_RECORD_SIZE_MISMATCH"
+ABI_LAYOUT_RESULT_STATUS_PASSED: Final[str] = "passed"
+ABI_LAYOUT_RESULT_STATUS_FAILED: Final[str] = "failed"
+ABI_LAYOUT_RESULT_STATUS_SKIPPED: Final[str] = "skipped"
+ABI_LAYOUT_FALLBACK_REASON_UNSUPPORTED_PATTERN: Final[str] = "unsupported_pattern"
+ABI_LAYOUT_FALLBACK_REASON_INCOMPLETE_METADATA: Final[str] = "incomplete_metadata"
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +33,17 @@ class AbiLayoutDiagnostic:
 
     code: str
     message: str
+    source_code: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AbiLayoutValidationResult:
+    """Record-level ABI layout validation outcome."""
+
+    record_name: str
+    status: str
+    fallback_reason: str | None
+    diagnostics: tuple[AbiLayoutDiagnostic, ...]
 
 
 def _align_up(value: int, alignment: int) -> int:
@@ -58,6 +74,7 @@ def _validate_field_layout(
                 AbiLayoutDiagnostic(
                     code=ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD,
                     message=f"{record_name}.{field.name}: {details}{reason}",
+                    source_code=field.unsupported_code,
                 ),
             ),
             current_offset_bytes,
@@ -149,6 +166,7 @@ def validate_record_layout(record: RecordTypedefDecl) -> tuple[AbiLayoutDiagnost
             AbiLayoutDiagnostic(
                 code=ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD,
                 message=f"{record.name}: {details}{reason}",
+                source_code=record.unsupported_code,
             ),
         )
 
@@ -210,3 +228,89 @@ def validate_record_layout(record: RecordTypedefDecl) -> tuple[AbiLayoutDiagnost
         )
 
     return tuple(diagnostics)
+
+
+def _has_layout_mismatch_diagnostics(diagnostics: tuple[AbiLayoutDiagnostic, ...]) -> bool:
+    """Check whether diagnostics contain deterministic layout mismatches.
+
+    Returns:
+        `True` when offset/align/size mismatch diagnostics are present.
+    """
+    mismatch_codes = {
+        ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_MISMATCH,
+        ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_ALIGN_MISMATCH,
+        ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_SIZE_MISMATCH,
+    }
+    return any(diagnostic.code in mismatch_codes for diagnostic in diagnostics)
+
+
+def _is_unsupported_pattern_diagnostic(diagnostic: AbiLayoutDiagnostic) -> bool:
+    """Check whether one diagnostic indicates unsupported ABI-sensitive pattern.
+
+    Returns:
+        `True` when diagnostic corresponds to unsupported record/field patterns.
+    """
+    return diagnostic.code in {
+        ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD,
+        ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD,
+    }
+
+
+def _is_incomplete_metadata_diagnostic(diagnostic: AbiLayoutDiagnostic) -> bool:
+    """Check whether one diagnostic indicates incomplete layout metadata.
+
+    Returns:
+        `True` when diagnostic indicates metadata is insufficient for full validation.
+    """
+    return diagnostic.code in {
+        ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_RECORD_LAYOUT,
+        ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_FIELD_LAYOUT,
+        ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_NOT_BYTE_ALIGNED,
+    }
+
+
+def validate_record_layout_with_fallback(record: RecordTypedefDecl) -> AbiLayoutValidationResult:
+    """Validate one record layout with explicit fallback classification.
+
+    Returns:
+        Validation result with one of `passed`/`failed`/`skipped`.
+    """
+    diagnostics = validate_record_layout(record)
+    if not diagnostics:
+        return AbiLayoutValidationResult(
+            record_name=record.name,
+            status=ABI_LAYOUT_RESULT_STATUS_PASSED,
+            fallback_reason=None,
+            diagnostics=(),
+        )
+
+    if any(_is_unsupported_pattern_diagnostic(diagnostic) for diagnostic in diagnostics):
+        return AbiLayoutValidationResult(
+            record_name=record.name,
+            status=ABI_LAYOUT_RESULT_STATUS_SKIPPED,
+            fallback_reason=ABI_LAYOUT_FALLBACK_REASON_UNSUPPORTED_PATTERN,
+            diagnostics=diagnostics,
+        )
+
+    if any(_is_incomplete_metadata_diagnostic(diagnostic) for diagnostic in diagnostics):
+        return AbiLayoutValidationResult(
+            record_name=record.name,
+            status=ABI_LAYOUT_RESULT_STATUS_SKIPPED,
+            fallback_reason=ABI_LAYOUT_FALLBACK_REASON_INCOMPLETE_METADATA,
+            diagnostics=diagnostics,
+        )
+
+    if _has_layout_mismatch_diagnostics(diagnostics):
+        return AbiLayoutValidationResult(
+            record_name=record.name,
+            status=ABI_LAYOUT_RESULT_STATUS_FAILED,
+            fallback_reason=None,
+            diagnostics=diagnostics,
+        )
+
+    return AbiLayoutValidationResult(
+        record_name=record.name,
+        status=ABI_LAYOUT_RESULT_STATUS_SKIPPED,
+        fallback_reason=ABI_LAYOUT_FALLBACK_REASON_INCOMPLETE_METADATA,
+        diagnostics=diagnostics,
+    )
