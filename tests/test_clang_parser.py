@@ -54,6 +54,7 @@ def test_parse_type_mapping_edge_cases() -> None:
         "sample_context_t",
         "sample_point_t",
         "sample_point_alias_t",
+        "sample_nested_point_t",
     )
     assert typedef_map["sample_mode_t"] == "int32"
     assert typedef_map["sample_mode_alias_t"] == "int32"
@@ -66,7 +67,35 @@ def test_parse_type_mapping_edge_cases() -> None:
     assert typedef_map["sample_point_alias_t"] == (
         "struct {\n\tleft int32\n\tright int32\n\tmode int32\n\tlabel uintptr\n}"
     )
+    assert typedef_map["sample_nested_point_t"] == (
+        "struct {\n"
+        "\tpoint struct {\n"
+        "\tleft int32\n"
+        "\tright int32\n"
+        "\tmode int32\n"
+        "\tlabel uintptr\n"
+        "}\n"
+        "\tinner struct {\n"
+        "\tlevel int32\n"
+        "}\n"
+        "}"
+    )
+    assert "sample_with_array_t" not in typedef_map
+    assert "sample_union_t" not in typedef_map
+    assert "sample_with_bitfield_t" not in typedef_map
+    assert "sample_with_anonymous_field_t" not in typedef_map
     assert "sample_opaque_t" not in typedef_map
+    skipped_typedef_map = {
+        typedef.name: typedef.reason for typedef in declarations.skipped_typedefs
+    }
+    assert "unsupported field type for values:" in skipped_typedef_map["sample_with_array_t"]
+    assert "[4]" in skipped_typedef_map["sample_with_array_t"]
+    assert skipped_typedef_map["sample_union_t"] == "union typedefs are not supported in v1"
+    assert skipped_typedef_map["sample_with_bitfield_t"] == "bitfield flags is not supported in v1"
+    assert skipped_typedef_map["sample_with_anonymous_field_t"] == (
+        "struct has no supported fields in v1"
+    )
+    assert skipped_typedef_map["sample_opaque_t"] == "struct has no supported fields in v1"
     assert tuple(constant.name for constant in declarations.constants) == (
         "SAMPLE_MODE_OFF",
         "SAMPLE_MODE_ON",

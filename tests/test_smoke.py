@@ -255,6 +255,29 @@ def test_emits_mixed_categories_with_filters(tmp_path: Path) -> None:
     _assert_go_source_compiles(result.stdout, tmp_path)
 
 
+def test_reports_skipped_typedef_diagnostics_for_unsupported_record_fields() -> None:
+    """CLI should report skipped typedef diagnostics for unsupported record patterns."""
+    header_path = _FIXTURES_DIR / "sample_m3_types.h"
+
+    result = _run_cli(
+        "--lib-id",
+        "sample_lib",
+        "--header",
+        str(header_path),
+        "--pkg",
+        "sample",
+        "--emit",
+        "type,const",
+    )
+
+    assert result.returncode == 0
+    assert "skipped typedef sample_with_array_t" in result.stderr
+    assert "skipped typedef sample_union_t" in result.stderr
+    assert "skipped typedef sample_with_bitfield_t" in result.stderr
+    assert "skipped typedef sample_with_anonymous_field_t" in result.stderr
+    assert "skipped typedef sample_opaque_t" in result.stderr
+
+
 def test_fails_when_header_has_parse_errors(tmp_path: Path) -> None:
     """Invalid C headers should fail fast with parse diagnostics."""
     broken_header = tmp_path / "broken_header.h"

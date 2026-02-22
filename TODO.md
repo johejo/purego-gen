@@ -62,9 +62,9 @@
 - [x] Add limited function-pointer support for v1 target subset.
 - [x] Add unit tests for type mapping edge cases.
 - [x] Add golden fixtures with nested/opaque types.
-- [ ] Define explicit support boundary for struct field kinds in v1 (`array`, `union`, bitfield, anonymous field).
-- [ ] Add focused tests for nested-record typedef handling policy (supported vs skipped).
-- [ ] Add explicit diagnostics when typedefs are skipped due to unsupported record field types.
+- [x] Define explicit support boundary for struct field kinds in v1 (`array`, `union`, bitfield, anonymous field).
+- [x] Add focused tests for nested-record typedef handling policy (supported vs skipped).
+- [x] Add explicit diagnostics when typedefs are skipped due to unsupported record field types.
 
 ## M4 ABI Validation
 

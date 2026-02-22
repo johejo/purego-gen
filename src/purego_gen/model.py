@@ -42,6 +42,15 @@ class RuntimeVarDecl:
 
 
 @dataclass(frozen=True, slots=True)
+class SkippedTypedefDecl:
+    """Typedef skipped because current mapping rules do not support it."""
+
+    name: str
+    c_type: str
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
 class ParsedDeclarations:
     """All declarations parsed for one generation run."""
 
@@ -49,3 +58,4 @@ class ParsedDeclarations:
     typedefs: tuple[TypedefDecl, ...]
     constants: tuple[ConstantDecl, ...]
     runtime_vars: tuple[RuntimeVarDecl, ...]
+    skipped_typedefs: tuple[SkippedTypedefDecl, ...] = ()

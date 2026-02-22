@@ -148,8 +148,13 @@ This split removes ambiguity between "constant" and "data symbol".
   also map to `uintptr` (no callback trampoline generation yet).
 - Struct typedefs with fully mappable fields are emitted as Go `struct { ... }`
   type literals (`field` types are mapped with the same baseline rules).
+- Nested struct fields are supported when nested field types are also mappable.
+- Struct field kinds currently unsupported in v1: arrays, unions, bitfields,
+  and anonymous fields.
 - Opaque/nested record typedefs that are not representable by the current
   baseline mapping are skipped from emitted type aliases.
+- When a typedef is skipped due to unsupported record mapping, the CLI emits a
+  stderr diagnostic describing the skipped typedef and reason.
 
 ## Generated Code Contract
 

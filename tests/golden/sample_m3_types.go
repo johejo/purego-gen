@@ -20,6 +20,17 @@ type (
 		mode  int32
 		label uintptr
 	}
+	purego_type_sample_nested_point_t = struct {
+		point struct {
+			left  int32
+			right int32
+			mode  int32
+			label uintptr
+		}
+		inner struct {
+			level int32
+		}
+	}
 )
 
 const (

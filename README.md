@@ -14,9 +14,11 @@ Early development. Interfaces and generated output may change.
 - Runtime symbol binding uses panic-free `Dlsym + RegisterFunc` helpers.
 - Emit layer uses Jinja2 templates; generated code is formatted with `gofmt`.
 - M3 baseline type mapping includes enum typedefs (`int32`) and function-pointer
-  typedefs (`uintptr`), and skips unsupported opaque/nested record typedefs.
+  typedefs (`uintptr`), and skips unsupported record typedefs (including opaque).
 - Common struct typedef patterns with mappable fields are emitted as Go struct
   type literals.
+- Skipped typedefs caused by unsupported record field kinds are reported as
+  diagnostics on stderr.
 - Tooling and checks are standardized around `nix`, `just`, `uv`, and `pytest`.
 
 ## Current Direction (v1)

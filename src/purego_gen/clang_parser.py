@@ -16,6 +16,7 @@ from purego_gen.model import (
     FunctionDecl,
     ParsedDeclarations,
     RuntimeVarDecl,
+    SkippedTypedefDecl,
     TypedefDecl,
 )
 
@@ -41,6 +42,8 @@ _TYPE_KIND_TO_GO_TYPE: Final[dict[str, str]] = {
 _FUNCTION_TYPE_KINDS: Final[frozenset[str]] = frozenset({"FUNCTIONPROTO", "FUNCTIONNOPROTO"})
 _RECORD_TYPE_KIND_NAME: Final[str] = "RECORD"
 _FIELD_DECL_KIND_NAME: Final[str] = "FIELD_DECL"
+_STRUCT_DECL_KIND_NAME: Final[str] = "STRUCT_DECL"
+_UNION_DECL_KIND_NAME: Final[str] = "UNION_DECL"
 _GO_KEYWORDS: Final[frozenset[str]] = frozenset({
     "break",
     "case",
@@ -128,6 +131,7 @@ class _CursorLike(Protocol):
     def get_children(self) -> list[_CursorLike]: ...
 
     def get_arguments(self) -> list[_ArgumentLike]: ...
+    def is_bitfield(self) -> bool: ...
 
 
 class _DiagnosticLike(Protocol):
@@ -139,6 +143,14 @@ class _DiagnosticLike(Protocol):
 class _TranslationUnitLike(Protocol):
     diagnostics: list[_DiagnosticLike]
     cursor: _CursorLike | None
+
+
+@dataclass(frozen=True, slots=True)
+class _RecordTypeMappingResult:
+    """Result of mapping a C record type into Go."""
+
+    go_type: str | None
+    skip_reason: str | None
 
 
 class _ConfigLike(Protocol):
@@ -280,7 +292,7 @@ def _map_type_to_go_name(clang_type: _TypeLike) -> str | None:
     if kind_name == "POINTER":
         return "uintptr"
     if kind_name == _RECORD_TYPE_KIND_NAME:
-        return _map_record_type_to_go_name(canonical)
+        return _map_record_type_to_go_name(canonical).go_type
     return None
 
 
@@ -300,13 +312,70 @@ def _sanitize_go_identifier(raw: str, *, fallback: str) -> str:
     return normalized
 
 
-def _map_record_type_to_go_name(clang_type: _TypeLike) -> str | None:
+def _allocate_unique_field_name(base_name: str, seen_field_names: set[str]) -> str:
+    """Allocate a unique Go field name within one struct literal.
+
+    Returns:
+        Field name unique within `seen_field_names`.
+    """
+    field_name = base_name
+    suffix = 2
+    while field_name in seen_field_names:
+        field_name = f"{base_name}_{suffix}"
+        suffix += 1
+    return field_name
+
+
+def _map_record_field_to_go_line(
+    field_cursor: _CursorLike,
+    *,
+    index: int,
+    seen_field_names: set[str],
+) -> tuple[str | None, str | None]:
+    """Map one record field cursor to a Go field line.
+
+    Returns:
+        Tuple of mapped field line and optional skip reason.
+    """
+    field_name_for_message = str(field_cursor.spelling) or f"<anonymous field #{index}>"
+    if not field_cursor.spelling:
+        skip_reason = f"anonymous field {field_name_for_message} is not supported in v1"
+        return None, skip_reason
+    if field_cursor.is_bitfield():
+        skip_reason = f"bitfield {field_name_for_message} is not supported in v1"
+        return None, skip_reason
+
+    go_type = _map_type_to_go_name(field_cursor.type)
+    if go_type is None:
+        skip_reason = (
+            f"unsupported field type for {field_name_for_message}: {field_cursor.type.spelling}"
+        )
+        return None, skip_reason
+
+    base_name = _sanitize_go_identifier(
+        str(field_cursor.spelling),
+        fallback=f"field_{index}",
+    )
+    field_name = _allocate_unique_field_name(base_name, seen_field_names)
+    seen_field_names.add(field_name)
+    return f"\t{field_name} {go_type}", None
+
+
+def _map_record_type_to_go_name(clang_type: _TypeLike) -> _RecordTypeMappingResult:
     """Map a simple C record type to a Go struct type literal.
 
     Returns:
-        Go struct type literal when all fields are mappable, otherwise `None`.
+        Mapping result with generated Go type literal or skip reason.
     """
     declaration = clang_type.get_declaration()
+    declaration_kind_name = declaration.kind.name
+    if declaration_kind_name == _UNION_DECL_KIND_NAME:
+        skip_reason = "union typedefs are not supported in v1"
+        return _RecordTypeMappingResult(go_type=None, skip_reason=skip_reason)
+    if declaration_kind_name != _STRUCT_DECL_KIND_NAME:
+        skip_reason = f"record kind {declaration_kind_name} is not supported in v1"
+        return _RecordTypeMappingResult(go_type=None, skip_reason=skip_reason)
+
     field_lines: list[str] = []
     seen_field_names: set[str] = set()
 
@@ -314,26 +383,23 @@ def _map_record_type_to_go_name(clang_type: _TypeLike) -> str | None:
         if child.kind.name != _FIELD_DECL_KIND_NAME:
             continue
 
-        go_type = _map_type_to_go_name(child.type)
-        if go_type is None:
-            return None
-
-        base_name = _sanitize_go_identifier(
-            str(child.spelling),
-            fallback=f"field_{index}",
+        field_line, skip_reason = _map_record_field_to_go_line(
+            child,
+            index=index,
+            seen_field_names=seen_field_names,
         )
-        field_name = base_name
-        suffix = 2
-        while field_name in seen_field_names:
-            field_name = f"{base_name}_{suffix}"
-            suffix += 1
-
-        seen_field_names.add(field_name)
-        field_lines.append(f"\t{field_name} {go_type}")
-
+        if skip_reason is not None:
+            return _RecordTypeMappingResult(go_type=None, skip_reason=skip_reason)
+        if field_line is None:
+            continue
+        field_lines.append(field_line)
     if not field_lines:
-        return None
-    return "struct {\n" + "\n".join(field_lines) + "\n}"
+        skip_reason = "struct has no supported fields in v1"
+        return _RecordTypeMappingResult(go_type=None, skip_reason=skip_reason)
+    return _RecordTypeMappingResult(
+        go_type="struct {\n" + "\n".join(field_lines) + "\n}",
+        skip_reason=None,
+    )
 
 
 def _extract_function(cursor: _CursorLike) -> FunctionDecl:
@@ -350,17 +416,24 @@ def _extract_function(cursor: _CursorLike) -> FunctionDecl:
     )
 
 
-def _extract_typedef(cursor: _CursorLike) -> TypedefDecl | None:
+def _extract_typedef(cursor: _CursorLike) -> tuple[TypedefDecl | None, str | None]:
     """Convert a typedef cursor to model when it is basic.
 
     Returns:
-        Normalized typedef declaration, or `None` when unsupported.
+        Normalized typedef declaration and optional skip reason.
     """
     underlying = cursor.underlying_typedef_type
+    canonical = underlying.get_canonical()
     go_type = _map_type_to_go_name(underlying)
     if go_type is None:
-        return None
-    return TypedefDecl(name=str(cursor.spelling), c_type=str(underlying.spelling), go_type=go_type)
+        if canonical.kind.name == _RECORD_TYPE_KIND_NAME:
+            mapping_result = _map_record_type_to_go_name(canonical)
+            return None, mapping_result.skip_reason
+        return None, None
+    return (
+        TypedefDecl(name=str(cursor.spelling), c_type=str(underlying.spelling), go_type=go_type),
+        None,
+    )
 
 
 def _extract_constant(cursor: _CursorLike) -> ConstantDecl:
@@ -415,6 +488,7 @@ def _collect_typedef(
     typedef_decl_kind: object,
     seen: _SeenDeclarations,
     typedefs: list[TypedefDecl],
+    skipped_typedefs: list[SkippedTypedefDecl],
 ) -> bool:
     """Collect one typedef declaration when applicable.
 
@@ -426,8 +500,16 @@ def _collect_typedef(
     if cursor.spelling in seen.typedef_names:
         return True
 
-    typedef = _extract_typedef(cursor)
+    typedef, skip_reason = _extract_typedef(cursor)
     if typedef is None:
+        if skip_reason is not None:
+            skipped_typedefs.append(
+                SkippedTypedefDecl(
+                    name=str(cursor.spelling),
+                    c_type=str(cursor.underlying_typedef_type.spelling),
+                    reason=skip_reason,
+                )
+            )
         return True
     seen.typedef_names.add(cursor.spelling)
     typedefs.append(typedef)
@@ -507,7 +589,13 @@ def _parse_header(
     header_path: Path,
     clang_args: tuple[str, ...],
     seen: _SeenDeclarations,
-) -> tuple[list[FunctionDecl], list[TypedefDecl], list[ConstantDecl], list[RuntimeVarDecl]]:
+) -> tuple[
+    list[FunctionDecl],
+    list[TypedefDecl],
+    list[ConstantDecl],
+    list[RuntimeVarDecl],
+    list[SkippedTypedefDecl],
+]:
     """Parse one header and extract supported declarations.
 
     Returns:
@@ -523,26 +611,33 @@ def _parse_header(
 
     root_cursor = translation_unit.cursor
     if root_cursor is None:
-        return [], [], [], []
+        return [], [], [], [], []
 
     functions: list[FunctionDecl] = []
     typedefs: list[TypedefDecl] = []
     constants: list[ConstantDecl] = []
     runtime_vars: list[RuntimeVarDecl] = []
+    skipped_typedefs: list[SkippedTypedefDecl] = []
     for cursor in _walk_preorder(root_cursor):
         if not _is_cursor_from_header(cursor, header_path):
             continue
 
         if _collect_function(cursor, cindex.CursorKind.FUNCTION_DECL, seen, functions):
             continue
-        if _collect_typedef(cursor, cindex.CursorKind.TYPEDEF_DECL, seen, typedefs):
+        if _collect_typedef(
+            cursor,
+            cindex.CursorKind.TYPEDEF_DECL,
+            seen,
+            typedefs,
+            skipped_typedefs,
+        ):
             continue
         if _collect_constant(cursor, cindex.CursorKind.ENUM_CONSTANT_DECL, seen, constants):
             continue
         if _collect_runtime_var(cursor, cindex.CursorKind.VAR_DECL, seen, runtime_vars):
             continue
 
-    return functions, typedefs, constants, runtime_vars
+    return functions, typedefs, constants, runtime_vars, skipped_typedefs
 
 
 def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) -> ParsedDeclarations:
@@ -569,6 +664,7 @@ def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) ->
     all_typedefs: list[TypedefDecl] = []
     all_constants: list[ConstantDecl] = []
     all_runtime_vars: list[RuntimeVarDecl] = []
+    all_skipped_typedefs: list[SkippedTypedefDecl] = []
     seen = _SeenDeclarations(
         function_names=set(),
         typedef_names=set(),
@@ -582,7 +678,13 @@ def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) ->
             message = f"header not found: {header_path}"
             raise ClangParserError(message)
 
-        parsed_functions, parsed_typedefs, parsed_constants, parsed_runtime_vars = _parse_header(
+        (
+            parsed_functions,
+            parsed_typedefs,
+            parsed_constants,
+            parsed_runtime_vars,
+            parsed_skipped_typedefs,
+        ) = _parse_header(
             cindex=cindex,
             index=index,
             header_path=header_path,
@@ -593,10 +695,12 @@ def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) ->
         all_typedefs.extend(parsed_typedefs)
         all_constants.extend(parsed_constants)
         all_runtime_vars.extend(parsed_runtime_vars)
+        all_skipped_typedefs.extend(parsed_skipped_typedefs)
 
     return ParsedDeclarations(
         functions=tuple(all_functions),
         typedefs=tuple(all_typedefs),
         constants=tuple(all_constants),
         runtime_vars=tuple(all_runtime_vars),
+        skipped_typedefs=tuple(all_skipped_typedefs),
     )

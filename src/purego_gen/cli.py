@@ -265,6 +265,7 @@ def _apply_filters(options: CliOptions, declarations: ParsedDeclarations) -> Par
         typedefs=typedefs,
         constants=constants,
         runtime_vars=runtime_vars,
+        skipped_typedefs=declarations.skipped_typedefs,
     )
 
 
@@ -338,6 +339,12 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as error:
         sys.stderr.write(f"purego-gen: {error}\n")
         return 1
+
+    for skipped_typedef in declarations.skipped_typedefs:
+        sys.stderr.write(
+            "purego-gen: skipped typedef "
+            f"{skipped_typedef.name} ({skipped_typedef.c_type}): {skipped_typedef.reason}\n"
+        )
 
     try:
         rendered = render_go_source(
