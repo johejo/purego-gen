@@ -236,6 +236,13 @@ def _apply_filters(options: CliOptions, declarations: ParsedDeclarations) -> Par
     typedefs = declarations.typedefs
     if type_filter is not None:
         typedefs = tuple(typedef for typedef in typedefs if type_filter.search(typedef.name))
+    record_typedefs = declarations.record_typedefs
+    if type_filter is not None:
+        record_typedefs = tuple(
+            record_typedef
+            for record_typedef in record_typedefs
+            if type_filter.search(record_typedef.name)
+        )
 
     constants = declarations.constants
     if const_filter is not None:
@@ -266,6 +273,7 @@ def _apply_filters(options: CliOptions, declarations: ParsedDeclarations) -> Par
         constants=constants,
         runtime_vars=runtime_vars,
         skipped_typedefs=declarations.skipped_typedefs,
+        record_typedefs=record_typedefs,
     )
 
 

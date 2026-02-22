@@ -156,6 +156,18 @@ This split removes ambiguity between "constant" and "data symbol".
 - When a typedef is skipped due to unsupported record mapping, the CLI emits a
   stderr diagnostic describing the skipped typedef and reason.
 
+## M4 ABI Input Boundary (Prework)
+
+- Parser now exposes structured record typedef metadata (`record_typedefs`)
+  including record-level and field-level layout attributes (size/align/offset
+  when available from clang).
+- Intended v1 ABI-check target set:
+  - struct typedefs with supported field kinds and available clang layout data.
+- Current non-target set for v1 ABI checks:
+  - union typedefs
+  - structs with arrays, bitfields, or anonymous fields
+  - opaque/incomplete record typedefs
+
 ## Generated Code Contract
 
 Generated file header:

@@ -19,6 +19,8 @@ Early development. Interfaces and generated output may change.
   type literals.
 - Skipped typedefs caused by unsupported record field kinds are reported as
   diagnostics on stderr.
+- Parser now also exposes structured record/field metadata internally as M4 ABI
+  validation input.
 - Tooling and checks are standardized around `nix`, `just`, `uv`, and `pytest`.
 
 ## Current Direction (v1)

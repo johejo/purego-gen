@@ -51,6 +51,36 @@ class SkippedTypedefDecl:
 
 
 @dataclass(frozen=True, slots=True)
+class RecordFieldDecl:
+    """Structured field metadata for a C record declaration."""
+
+    name: str
+    c_type: str
+    kind: str
+    offset_bits: int | None
+    size_bytes: int | None
+    align_bytes: int | None
+    is_bitfield: bool
+    bitfield_width: int | None
+    supported: bool
+    unsupported_reason: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class RecordTypedefDecl:
+    """Structured record typedef metadata used by ABI validation."""
+
+    name: str
+    c_type: str
+    record_kind: str
+    size_bytes: int | None
+    align_bytes: int | None
+    fields: tuple[RecordFieldDecl, ...]
+    supported: bool
+    unsupported_reason: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class ParsedDeclarations:
     """All declarations parsed for one generation run."""
 
@@ -59,3 +89,4 @@ class ParsedDeclarations:
     constants: tuple[ConstantDecl, ...]
     runtime_vars: tuple[RuntimeVarDecl, ...]
     skipped_typedefs: tuple[SkippedTypedefDecl, ...] = ()
+    record_typedefs: tuple[RecordTypedefDecl, ...] = ()

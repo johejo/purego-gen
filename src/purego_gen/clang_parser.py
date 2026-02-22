@@ -15,6 +15,8 @@ from purego_gen.model import (
     ConstantDecl,
     FunctionDecl,
     ParsedDeclarations,
+    RecordFieldDecl,
+    RecordTypedefDecl,
     RuntimeVarDecl,
     SkippedTypedefDecl,
     TypedefDecl,
@@ -87,6 +89,18 @@ class _SeenDeclarations:
     runtime_var_names: set[str]
 
 
+@dataclass(slots=True)
+class _CollectedDeclarations:
+    """Mutable declaration buffers for one parse run."""
+
+    functions: list[FunctionDecl]
+    typedefs: list[TypedefDecl]
+    constants: list[ConstantDecl]
+    runtime_vars: list[RuntimeVarDecl]
+    skipped_typedefs: list[SkippedTypedefDecl]
+    record_typedefs: list[RecordTypedefDecl]
+
+
 class _SourceFileLike(Protocol):
     name: str
 
@@ -112,6 +126,8 @@ class _TypeLike(Protocol):
     def get_canonical(self) -> _TypeLike: ...
     def get_pointee(self) -> _TypeLike: ...
     def get_declaration(self) -> _CursorLike: ...
+    def get_size(self) -> int: ...
+    def get_align(self) -> int: ...
 
 
 class _ArgumentLike(Protocol):
@@ -132,6 +148,8 @@ class _CursorLike(Protocol):
 
     def get_arguments(self) -> list[_ArgumentLike]: ...
     def is_bitfield(self) -> bool: ...
+    def get_bitfield_width(self) -> int: ...
+    def get_field_offsetof(self) -> int: ...
 
 
 class _DiagnosticLike(Protocol):
@@ -326,16 +344,74 @@ def _allocate_unique_field_name(base_name: str, seen_field_names: set[str]) -> s
     return field_name
 
 
-def _map_record_field_to_go_line(
+def _normalize_clang_metric(raw_value: int) -> int | None:
+    """Normalize clang layout metric value.
+
+    Returns:
+        Integer value when non-negative, otherwise `None`.
+    """
+    if raw_value < 0:
+        return None
+    return int(raw_value)
+
+
+def _safe_type_size_bytes(clang_type: _TypeLike) -> int | None:
+    """Read type size in bytes from clang, tolerating unsupported cases.
+
+    Returns:
+        Type size in bytes when available, otherwise `None`.
+    """
+    try:
+        return _normalize_clang_metric(clang_type.get_size())
+    except RuntimeError, TypeError, ValueError:
+        return None
+
+
+def _safe_type_align_bytes(clang_type: _TypeLike) -> int | None:
+    """Read type alignment in bytes from clang, tolerating unsupported cases.
+
+    Returns:
+        Type alignment in bytes when available, otherwise `None`.
+    """
+    try:
+        return _normalize_clang_metric(clang_type.get_align())
+    except RuntimeError, TypeError, ValueError:
+        return None
+
+
+def _safe_field_offset_bits(field_cursor: _CursorLike) -> int | None:
+    """Read field offset in bits from clang, tolerating unsupported cases.
+
+    Returns:
+        Field offset in bits when available, otherwise `None`.
+    """
+    try:
+        return _normalize_clang_metric(field_cursor.get_field_offsetof())
+    except RuntimeError, TypeError, ValueError:
+        return None
+
+
+def _safe_bitfield_width(field_cursor: _CursorLike) -> int | None:
+    """Read bitfield width from clang, tolerating unsupported cases.
+
+    Returns:
+        Bitfield width in bits when available, otherwise `None`.
+    """
+    try:
+        return _normalize_clang_metric(field_cursor.get_bitfield_width())
+    except RuntimeError, TypeError, ValueError:
+        return None
+
+
+def _evaluate_record_field_support(
     field_cursor: _CursorLike,
     *,
     index: int,
-    seen_field_names: set[str],
 ) -> tuple[str | None, str | None]:
-    """Map one record field cursor to a Go field line.
+    """Evaluate whether one record field is supported by v1 mapping.
 
     Returns:
-        Tuple of mapped field line and optional skip reason.
+        Tuple of mapped Go type and optional unsupported reason.
     """
     field_name_for_message = str(field_cursor.spelling) or f"<anonymous field #{index}>"
     if not field_cursor.spelling:
@@ -351,6 +427,25 @@ def _map_record_field_to_go_line(
             f"unsupported field type for {field_name_for_message}: {field_cursor.type.spelling}"
         )
         return None, skip_reason
+    return go_type, None
+
+
+def _map_record_field_to_go_line(
+    field_cursor: _CursorLike,
+    *,
+    index: int,
+    seen_field_names: set[str],
+) -> tuple[str | None, str | None]:
+    """Map one record field cursor to a Go field line.
+
+    Returns:
+        Tuple of mapped field line and optional skip reason.
+    """
+    go_type, skip_reason = _evaluate_record_field_support(field_cursor, index=index)
+    if skip_reason is not None:
+        return None, skip_reason
+    if go_type is None:
+        return None, "unsupported field type"
 
     base_name = _sanitize_go_identifier(
         str(field_cursor.spelling),
@@ -359,6 +454,30 @@ def _map_record_field_to_go_line(
     field_name = _allocate_unique_field_name(base_name, seen_field_names)
     seen_field_names.add(field_name)
     return f"\t{field_name} {go_type}", None
+
+
+def _extract_record_field_decl(field_cursor: _CursorLike, *, index: int) -> RecordFieldDecl:
+    """Extract structured metadata for one record field.
+
+    Returns:
+        Parsed field metadata for ABI/model validation.
+    """
+    canonical_field_type = field_cursor.type.get_canonical()
+    go_type, unsupported_reason = _evaluate_record_field_support(field_cursor, index=index)
+    _ = go_type  # Explicitly ignore mapped type; model stores C-centric metadata.
+    is_bitfield = field_cursor.is_bitfield()
+    return RecordFieldDecl(
+        name=str(field_cursor.spelling) or f"<anonymous field #{index}>",
+        c_type=str(field_cursor.type.spelling),
+        kind=str(field_cursor.kind.name),
+        offset_bits=_safe_field_offset_bits(field_cursor),
+        size_bytes=_safe_type_size_bytes(canonical_field_type),
+        align_bytes=_safe_type_align_bytes(canonical_field_type),
+        is_bitfield=is_bitfield,
+        bitfield_width=_safe_bitfield_width(field_cursor) if is_bitfield else None,
+        supported=unsupported_reason is None,
+        unsupported_reason=unsupported_reason,
+    )
 
 
 def _map_record_type_to_go_name(clang_type: _TypeLike) -> _RecordTypeMappingResult:
@@ -402,6 +521,35 @@ def _map_record_type_to_go_name(clang_type: _TypeLike) -> _RecordTypeMappingResu
     )
 
 
+def _extract_record_typedef_decl(
+    cursor: _CursorLike,
+    *,
+    canonical_record_type: _TypeLike,
+    mapping_result: _RecordTypeMappingResult,
+) -> RecordTypedefDecl:
+    """Extract structured record typedef metadata for ABI validation.
+
+    Returns:
+        Parsed record typedef metadata with field-level details.
+    """
+    declaration = canonical_record_type.get_declaration()
+    fields = tuple(
+        _extract_record_field_decl(field_cursor, index=index)
+        for index, field_cursor in enumerate(declaration.get_children(), start=1)
+        if field_cursor.kind.name == _FIELD_DECL_KIND_NAME
+    )
+    return RecordTypedefDecl(
+        name=str(cursor.spelling),
+        c_type=str(cursor.underlying_typedef_type.spelling),
+        record_kind=str(declaration.kind.name),
+        size_bytes=_safe_type_size_bytes(canonical_record_type),
+        align_bytes=_safe_type_align_bytes(canonical_record_type),
+        fields=fields,
+        supported=mapping_result.go_type is not None,
+        unsupported_reason=mapping_result.skip_reason,
+    )
+
+
 def _extract_function(cursor: _CursorLike) -> FunctionDecl:
     """Convert a function cursor to model.
 
@@ -416,22 +564,42 @@ def _extract_function(cursor: _CursorLike) -> FunctionDecl:
     )
 
 
-def _extract_typedef(cursor: _CursorLike) -> tuple[TypedefDecl | None, str | None]:
+def _extract_typedef(
+    cursor: _CursorLike,
+) -> tuple[TypedefDecl | None, str | None, RecordTypedefDecl | None]:
     """Convert a typedef cursor to model when it is basic.
 
     Returns:
-        Normalized typedef declaration and optional skip reason.
+        Normalized typedef declaration, optional skip reason, and optional
+        structured record typedef metadata.
     """
     underlying = cursor.underlying_typedef_type
     canonical = underlying.get_canonical()
+    if canonical.kind.name == _RECORD_TYPE_KIND_NAME:
+        mapping_result = _map_record_type_to_go_name(canonical)
+        record_typedef = _extract_record_typedef_decl(
+            cursor,
+            canonical_record_type=canonical,
+            mapping_result=mapping_result,
+        )
+        if mapping_result.go_type is None:
+            return None, mapping_result.skip_reason, record_typedef
+        return (
+            TypedefDecl(
+                name=str(cursor.spelling),
+                c_type=str(underlying.spelling),
+                go_type=mapping_result.go_type,
+            ),
+            None,
+            record_typedef,
+        )
+
     go_type = _map_type_to_go_name(underlying)
     if go_type is None:
-        if canonical.kind.name == _RECORD_TYPE_KIND_NAME:
-            mapping_result = _map_record_type_to_go_name(canonical)
-            return None, mapping_result.skip_reason
-        return None, None
+        return None, None, None
     return (
         TypedefDecl(name=str(cursor.spelling), c_type=str(underlying.spelling), go_type=go_type),
+        None,
         None,
     )
 
@@ -487,8 +655,7 @@ def _collect_typedef(
     cursor: _CursorLike,
     typedef_decl_kind: object,
     seen: _SeenDeclarations,
-    typedefs: list[TypedefDecl],
-    skipped_typedefs: list[SkippedTypedefDecl],
+    declarations: _CollectedDeclarations,
 ) -> bool:
     """Collect one typedef declaration when applicable.
 
@@ -500,10 +667,12 @@ def _collect_typedef(
     if cursor.spelling in seen.typedef_names:
         return True
 
-    typedef, skip_reason = _extract_typedef(cursor)
+    typedef, skip_reason, record_typedef = _extract_typedef(cursor)
+    if record_typedef is not None:
+        declarations.record_typedefs.append(record_typedef)
     if typedef is None:
         if skip_reason is not None:
-            skipped_typedefs.append(
+            declarations.skipped_typedefs.append(
                 SkippedTypedefDecl(
                     name=str(cursor.spelling),
                     c_type=str(cursor.underlying_typedef_type.spelling),
@@ -512,7 +681,7 @@ def _collect_typedef(
             )
         return True
     seen.typedef_names.add(cursor.spelling)
-    typedefs.append(typedef)
+    declarations.typedefs.append(typedef)
     return True
 
 
@@ -595,6 +764,7 @@ def _parse_header(
     list[ConstantDecl],
     list[RuntimeVarDecl],
     list[SkippedTypedefDecl],
+    list[RecordTypedefDecl],
 ]:
     """Parse one header and extract supported declarations.
 
@@ -611,33 +781,52 @@ def _parse_header(
 
     root_cursor = translation_unit.cursor
     if root_cursor is None:
-        return [], [], [], [], []
+        return [], [], [], [], [], []
 
-    functions: list[FunctionDecl] = []
-    typedefs: list[TypedefDecl] = []
-    constants: list[ConstantDecl] = []
-    runtime_vars: list[RuntimeVarDecl] = []
-    skipped_typedefs: list[SkippedTypedefDecl] = []
+    declarations = _CollectedDeclarations(
+        functions=[],
+        typedefs=[],
+        constants=[],
+        runtime_vars=[],
+        skipped_typedefs=[],
+        record_typedefs=[],
+    )
     for cursor in _walk_preorder(root_cursor):
         if not _is_cursor_from_header(cursor, header_path):
             continue
 
-        if _collect_function(cursor, cindex.CursorKind.FUNCTION_DECL, seen, functions):
+        if _collect_function(cursor, cindex.CursorKind.FUNCTION_DECL, seen, declarations.functions):
             continue
         if _collect_typedef(
             cursor,
             cindex.CursorKind.TYPEDEF_DECL,
             seen,
-            typedefs,
-            skipped_typedefs,
+            declarations,
         ):
             continue
-        if _collect_constant(cursor, cindex.CursorKind.ENUM_CONSTANT_DECL, seen, constants):
+        if _collect_constant(
+            cursor,
+            cindex.CursorKind.ENUM_CONSTANT_DECL,
+            seen,
+            declarations.constants,
+        ):
             continue
-        if _collect_runtime_var(cursor, cindex.CursorKind.VAR_DECL, seen, runtime_vars):
+        if _collect_runtime_var(
+            cursor,
+            cindex.CursorKind.VAR_DECL,
+            seen,
+            declarations.runtime_vars,
+        ):
             continue
 
-    return functions, typedefs, constants, runtime_vars, skipped_typedefs
+    return (
+        declarations.functions,
+        declarations.typedefs,
+        declarations.constants,
+        declarations.runtime_vars,
+        declarations.skipped_typedefs,
+        declarations.record_typedefs,
+    )
 
 
 def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) -> ParsedDeclarations:
@@ -660,11 +849,14 @@ def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) ->
         )
         raise ClangParserError(message) from error
 
-    all_functions: list[FunctionDecl] = []
-    all_typedefs: list[TypedefDecl] = []
-    all_constants: list[ConstantDecl] = []
-    all_runtime_vars: list[RuntimeVarDecl] = []
-    all_skipped_typedefs: list[SkippedTypedefDecl] = []
+    all_declarations = _CollectedDeclarations(
+        functions=[],
+        typedefs=[],
+        constants=[],
+        runtime_vars=[],
+        skipped_typedefs=[],
+        record_typedefs=[],
+    )
     seen = _SeenDeclarations(
         function_names=set(),
         typedef_names=set(),
@@ -684,6 +876,7 @@ def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) ->
             parsed_constants,
             parsed_runtime_vars,
             parsed_skipped_typedefs,
+            parsed_record_typedefs,
         ) = _parse_header(
             cindex=cindex,
             index=index,
@@ -691,16 +884,18 @@ def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) ->
             clang_args=clang_args,
             seen=seen,
         )
-        all_functions.extend(parsed_functions)
-        all_typedefs.extend(parsed_typedefs)
-        all_constants.extend(parsed_constants)
-        all_runtime_vars.extend(parsed_runtime_vars)
-        all_skipped_typedefs.extend(parsed_skipped_typedefs)
+        all_declarations.functions.extend(parsed_functions)
+        all_declarations.typedefs.extend(parsed_typedefs)
+        all_declarations.constants.extend(parsed_constants)
+        all_declarations.runtime_vars.extend(parsed_runtime_vars)
+        all_declarations.skipped_typedefs.extend(parsed_skipped_typedefs)
+        all_declarations.record_typedefs.extend(parsed_record_typedefs)
 
     return ParsedDeclarations(
-        functions=tuple(all_functions),
-        typedefs=tuple(all_typedefs),
-        constants=tuple(all_constants),
-        runtime_vars=tuple(all_runtime_vars),
-        skipped_typedefs=tuple(all_skipped_typedefs),
+        functions=tuple(all_declarations.functions),
+        typedefs=tuple(all_declarations.typedefs),
+        constants=tuple(all_declarations.constants),
+        runtime_vars=tuple(all_declarations.runtime_vars),
+        skipped_typedefs=tuple(all_declarations.skipped_typedefs),
+        record_typedefs=tuple(all_declarations.record_typedefs),
     )
