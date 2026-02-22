@@ -40,6 +40,7 @@
 - [x] Generate `purego_<libid>_register_functions(handle uintptr) error` (`Dlsym + RegisterFunc`, panic-free).
 - [x] Generate `purego_<libid>_load_runtime_vars(handle uintptr) error`.
 - [x] Add golden tests for mixed category selection and filtering behavior.
+- [x] Remove `go.mod replace`-based purego stubs from compile smoke fixtures and pin real purego dependency.
 
 ## M2.5 Emit Layer Templating (Jinja2)
 

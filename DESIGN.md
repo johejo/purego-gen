@@ -7,6 +7,12 @@ and predictable output.
 This document defines the current implementation contract. Additions are allowed,
 but existing contracts should not change without explicit versioning or migration notes.
 
+## Document Roles
+
+- `README.md` is the quick-start and high-level project summary.
+- `DESIGN.md` (this file) is the normative behavior contract.
+- `TODO.md` is the execution plan and milestone tracker.
+
 ## Scope
 
 In scope:
@@ -81,6 +87,8 @@ Pipeline:
 3. Filter: Apply category-specific filters (`func`, `type`, `const`, `var`).
 4. Emit: Render Go code from normalized models (via templates).
 5. Validate: Run formatting and compile/smoke checks in tests.
+   - Compile smoke checks use a pinned real `github.com/ebitengine/purego`
+     module in fixture modules (no local stub replacement).
 
 Emit layer templating contract (M2.5):
 - Rendering entrypoint lives in `src/purego_gen/renderer.py`; CLI orchestration in
