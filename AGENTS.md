@@ -23,8 +23,8 @@ Do not duplicate volatile details in this file.
 - Generated code expects a caller-provided library handle.
 - Prefer panic-free registration flow (`Dlsym + RegisterFunc`) on v1 target OSes.
 - Run `pytest` in the `nix` devshell by default because it requires `LIBCLANG_PATH`.
-- In Codex sandbox, run `nix develop` commands with repo-local cache env (e.g. `nix develop -c env XDG_CACHE_HOME=$PWD/.cache <cmd>`).
-- For automated checks (agents/CI), run `just gate` directly.
+- In Codex sandbox, prefer `just codex-check` / `just codex-gate` (single cached nix entrypoint).
+- For automated checks outside Codex sandbox (agents/CI), run `just gate` directly.
 - Do not invoke `lefthook` from agents unless hook behavior itself is being tested.
 
 ## Maintenance policy

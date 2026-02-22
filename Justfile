@@ -1,4 +1,5 @@
 set shell := ["zsh", "-eu", "-o", "pipefail", "-c"]
+codex_nix_prefix := "XDG_CACHE_HOME=$PWD/.cache nix develop -c"
 
 default:
   @just --list
@@ -39,6 +40,12 @@ golden-check:
 check: lint typecheck golden-check test
 
 gate: fmt nix-flake-check check
+
+codex-check:
+  {{codex_nix_prefix}} just check
+
+codex-gate:
+  {{codex_nix_prefix}} just gate
 
 hook-gate: fmt-check
 
