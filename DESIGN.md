@@ -344,6 +344,9 @@ M5 implementation note (partial):
 - `libzstd` objective harness fixture is wired with deterministic function filtering
   and committed golden output, with discovery simplified to a
   `pkg-config`-driven flow in the nix dev shell.
+- Stable v1 subset allowlist profile for `libzstd` is tracked at
+  `tests/fixtures/target_profiles/libzstd_v1.json` and consumed by the harness
+  tests to reduce cross-version drift.
 - Runtime harness accepts explicit shared-library path override via
   `PUREGO_GEN_TEST_LIBZSTD`.
 

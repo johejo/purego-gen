@@ -1,0 +1,12 @@
+{
+  "profile_id": "libzstd_v1",
+  "description": "Stable v1 libzstd subset used by objective harness tests.",
+  "emit_kinds": "func",
+  "required_functions": [
+    "ZSTD_versionNumber",
+    "ZSTD_compress",
+    "ZSTD_decompress",
+    "ZSTD_compressBound",
+    "ZSTD_isError"
+  ]
+}

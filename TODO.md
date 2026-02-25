@@ -86,7 +86,7 @@
 - [ ] Extend constant extraction beyond enum constants to object-like macro constants required by `libzstd` (`ZSTD_VERSION_*`, magic/content-size related values).
 - [ ] Add symbol requirement metadata (`required` vs `optional`) and generate registration flow that can tolerate optional symbol absence when configured.
 - [x] Add runtime harness scenario that performs real block compress/decompress roundtrip using generated bindings (not symbol-resolution only).
-- [ ] Define and document a stable `libzstd` API subset profile for v1 generation tests (allowlist-based to reduce cross-version drift).
+- [x] Define and document a stable `libzstd` API subset profile for v1 generation tests (allowlist-based to reduce cross-version drift).
 
 ## Pre-M5 Hardening
 

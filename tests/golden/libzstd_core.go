@@ -10,10 +10,25 @@ import (
 
 var (
 	purego_func_zstd_versionnumber func() uint32
-	purego_func_zstd_compress      func(uintptr, uint64, uintptr, uint64, int32) uint64
-	purego_func_zstd_decompress    func(uintptr, uint64, uintptr, uint64) uint64
-	purego_func_zstd_compressbound func(uint64) uint64
-	purego_func_zstd_iserror       func(uint64) uint32
+	purego_func_zstd_compress      func(
+		uintptr,
+		uint64,
+		uintptr,
+		uint64,
+		int32,
+	) uint64
+	purego_func_zstd_decompress func(
+		uintptr,
+		uint64,
+		uintptr,
+		uint64,
+	) uint64
+	purego_func_zstd_compressbound func(
+		uint64,
+	) uint64
+	purego_func_zstd_iserror func(
+		uint64,
+	) uint32
 )
 
 func purego_zstd_register_functions(handle uintptr) error {

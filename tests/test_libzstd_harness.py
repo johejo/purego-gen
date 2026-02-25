@@ -4,11 +4,14 @@
 
 from __future__ import annotations
 
+import json
 import os
+import re
 import subprocess  # noqa: S404
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -21,10 +24,21 @@ _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
 _GOLDEN_DIR = _REPO_ROOT / "tests" / "golden"
 _GO_COMPILE_FIXTURE_DIR = _FIXTURES_DIR / "go_compile_module"
 _GO_RUNTIME_FIXTURE_DIR = _FIXTURES_DIR / "go_runtime_zstd_module"
+_TARGET_PROFILES_DIR = _FIXTURES_DIR / "target_profiles"
 _LIBZSTD_GOLDEN_PATH = _GOLDEN_DIR / "libzstd_core.go"
-_LIBZSTD_FUNCTION_FILTER = r"^ZSTD_(versionNumber|compress|decompress|compressBound|isError)$"
+_LIBZSTD_PROFILE_PATH = _TARGET_PROFILES_DIR / "libzstd_v1.json"
 _LIBRARY_OVERRIDE_ENV = "PUREGO_GEN_TEST_LIBZSTD"
 _HEADER_NAME = "zstd.h"
+
+
+@dataclass(frozen=True, slots=True)
+class _LibzstdSubsetProfile:
+    """Stable allowlist profile used by libzstd objective harness."""
+
+    profile_id: str
+    emit_kinds: str
+    required_functions: tuple[str, ...]
+    function_filter: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +48,69 @@ class _LibzstdHarnessConfig:
     header_path: Path
     clang_args: tuple[str, ...]
     shared_library_path: Path
+
+
+def _build_exact_symbol_regex(symbols: tuple[str, ...]) -> str:
+    """Build exact-match regex from symbol names.
+
+    Returns:
+        Regex pattern that matches symbols exactly.
+    """
+    escaped = [re.escape(symbol) for symbol in symbols]
+    return "^(" + "|".join(escaped) + ")$"
+
+
+def _load_libzstd_subset_profile() -> _LibzstdSubsetProfile:
+    """Load stable v1 profile used by libzstd harness tests.
+
+    Returns:
+        Parsed profile model.
+
+    Raises:
+        RuntimeError: Profile file is missing or malformed.
+        TypeError: Profile JSON root is not an object.
+    """
+    if not _LIBZSTD_PROFILE_PATH.is_file():
+        message = f"libzstd profile not found: {_LIBZSTD_PROFILE_PATH}"
+        raise RuntimeError(message)
+
+    try:
+        raw_object = cast("object", json.loads(_LIBZSTD_PROFILE_PATH.read_text(encoding="utf-8")))
+    except json.JSONDecodeError as error:
+        message = f"failed to parse libzstd profile JSON: {error}"
+        raise RuntimeError(message) from error
+    if not isinstance(raw_object, dict):
+        message = "libzstd profile root must be a JSON object."
+        raise TypeError(message)
+    raw = cast("dict[str, object]", raw_object)
+
+    profile_id = raw.get("profile_id")
+    emit_kinds = raw.get("emit_kinds")
+    required_functions = raw.get("required_functions")
+    if not isinstance(profile_id, str) or not profile_id:
+        message = "libzstd profile must define non-empty string `profile_id`."
+        raise RuntimeError(message)
+    if not isinstance(emit_kinds, str) or not emit_kinds:
+        message = "libzstd profile must define non-empty string `emit_kinds`."
+        raise RuntimeError(message)
+    if not isinstance(required_functions, list) or not required_functions:
+        message = "libzstd profile must define non-empty array `required_functions`."
+        raise RuntimeError(message)
+
+    symbols: list[str] = []
+    for value in cast("list[object]", required_functions):
+        if not isinstance(value, str) or not value:
+            message = "libzstd profile `required_functions` must contain non-empty strings."
+            raise RuntimeError(message)
+        symbols.append(value)
+
+    symbol_tuple = tuple(symbols)
+    return _LibzstdSubsetProfile(
+        profile_id=profile_id,
+        emit_kinds=emit_kinds,
+        required_functions=symbol_tuple,
+        function_filter=_build_exact_symbol_regex(symbol_tuple),
+    )
 
 
 def _resolve_shared_library_path(library_dir: Path) -> Path | None:
@@ -104,7 +181,11 @@ def _resolve_libzstd_harness_config() -> _LibzstdHarnessConfig:
     )
 
 
-def _run_cli_for_libzstd(config: _LibzstdHarnessConfig) -> subprocess.CompletedProcess[str]:
+def _run_cli_for_libzstd(
+    config: _LibzstdHarnessConfig,
+    *,
+    profile: _LibzstdSubsetProfile,
+) -> subprocess.CompletedProcess[str]:
     """Run purego-gen against discovered libzstd header with deterministic filter.
 
     Returns:
@@ -121,9 +202,9 @@ def _run_cli_for_libzstd(config: _LibzstdHarnessConfig) -> subprocess.CompletedP
         "--pkg",
         "zstdfixture",
         "--emit",
-        "func",
+        profile.emit_kinds,
         "--func-filter",
-        _LIBZSTD_FUNCTION_FILTER,
+        profile.function_filter,
     ]
     if config.clang_args:
         command.extend(["--", *config.clang_args])
@@ -185,12 +266,23 @@ def libzstd_harness_config() -> _LibzstdHarnessConfig:
     return _resolve_libzstd_harness_config()
 
 
+@pytest.fixture(scope="session")
+def libzstd_subset_profile() -> _LibzstdSubsetProfile:
+    """Load stable libzstd subset profile for harness tests.
+
+    Returns:
+        Parsed profile used to build generation filters.
+    """
+    return _load_libzstd_subset_profile()
+
+
 def test_generates_libzstd_golden_output(
     tmp_path: Path,
     libzstd_harness_config: _LibzstdHarnessConfig,
+    libzstd_subset_profile: _LibzstdSubsetProfile,
 ) -> None:
     """CLI output for selected libzstd APIs should match committed golden output."""
-    result = _run_cli_for_libzstd(libzstd_harness_config)
+    result = _run_cli_for_libzstd(libzstd_harness_config, profile=libzstd_subset_profile)
     expected = _LIBZSTD_GOLDEN_PATH.read_text(encoding="utf-8")
     assert result.returncode == 0, result.stderr
     assert result.stdout == expected
@@ -200,9 +292,10 @@ def test_generates_libzstd_golden_output(
 def test_runtime_harness_resolves_libzstd_symbols(
     tmp_path: Path,
     libzstd_harness_config: _LibzstdHarnessConfig,
+    libzstd_subset_profile: _LibzstdSubsetProfile,
 ) -> None:
     """Generated bindings should run a libzstd roundtrip in runtime harness."""
-    result = _run_cli_for_libzstd(libzstd_harness_config)
+    result = _run_cli_for_libzstd(libzstd_harness_config, profile=libzstd_subset_profile)
     assert result.returncode == 0, result.stderr
     _assert_runtime_harness_passes(
         result.stdout,

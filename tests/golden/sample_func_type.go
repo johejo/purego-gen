@@ -14,7 +14,10 @@ type (
 )
 
 var (
-	purego_func_add   func(int32, int32) int32
+	purego_func_add func(
+		int32,
+		int32,
+	) int32
 	purego_func_reset func()
 )
 
