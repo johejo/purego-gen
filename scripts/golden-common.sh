@@ -38,6 +38,8 @@ render_golden_case() {
 	render_const_filter=$7
 	render_var_filter=$8
 
+	mkdir -p "$(dirname -- "$render_output_path")"
+
 	set -- \
 		uv run python -m purego_gen \
 		--lib-id sample_lib \

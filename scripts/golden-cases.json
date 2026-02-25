@@ -2,7 +2,7 @@
   "cases": [
     {
       "id": "sample_func_type",
-      "output_path": "tests/golden/sample_func_type.go",
+      "output_path": "tests/golden/sample_func_type/generated.go",
       "header_paths": [
         "tests/fixtures/sample.h"
       ],
@@ -11,7 +11,7 @@
     },
     {
       "id": "sample_const",
-      "output_path": "tests/golden/sample_const.go",
+      "output_path": "tests/golden/sample_const/generated.go",
       "header_paths": [
         "tests/fixtures/sample_categories.h"
       ],
@@ -20,7 +20,7 @@
     },
     {
       "id": "sample_mixed_filtered",
-      "output_path": "tests/golden/sample_mixed_filtered.go",
+      "output_path": "tests/golden/sample_mixed_filtered/generated.go",
       "header_paths": [
         "tests/fixtures/sample_categories.h"
       ],
@@ -32,7 +32,7 @@
     },
     {
       "id": "sample_m3_types",
-      "output_path": "tests/golden/sample_m3_types.go",
+      "output_path": "tests/golden/sample_m3_types/generated.go",
       "header_paths": [
         "tests/fixtures/sample_m3_types.h"
       ],
@@ -41,7 +41,7 @@
     },
     {
       "id": "sample_multi_headers",
-      "output_path": "tests/golden/sample_multi_headers.go",
+      "output_path": "tests/golden/sample_multi_headers/generated.go",
       "header_paths": [
         "tests/fixtures/sample.h",
         "tests/fixtures/sample_categories.h"
@@ -51,7 +51,7 @@
     },
     {
       "id": "sample_conditional_off",
-      "output_path": "tests/golden/sample_conditional_off.go",
+      "output_path": "tests/golden/sample_conditional_off/generated.go",
       "header_paths": [
         "tests/fixtures/sample_conditional.h"
       ],
@@ -60,7 +60,7 @@
     },
     {
       "id": "sample_conditional_on",
-      "output_path": "tests/golden/sample_conditional_on.go",
+      "output_path": "tests/golden/sample_conditional_on/generated.go",
       "header_paths": [
         "tests/fixtures/sample_conditional.h"
       ],
