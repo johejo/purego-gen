@@ -1,7 +1,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include "sample_m3_types.h"
+#include "abi_types.h"
 
 #define EMIT_RECORD_LAYOUT(record_type) \
   printf("record,%s,%zu,%zu\n", #record_type, sizeof(record_type), _Alignof(record_type))

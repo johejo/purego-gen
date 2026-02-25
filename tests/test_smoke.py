@@ -27,10 +27,10 @@ _GO_COMPILE_FIXTURE_DIR = _FIXTURES_DIR / "go_compile_module"
 _GO_RUNTIME_FIXTURE_DIR = _FIXTURES_DIR / "go_runtime_module"
 _RUNTIME_SMOKE_HEADER = _FIXTURES_DIR / "smoke_runtime.h"
 _RUNTIME_SMOKE_SOURCE = _FIXTURES_DIR / "smoke_runtime.c"
-_PRIMARY_HEADER = _FIXTURES_DIR / "sample.h"
-_CATEGORY_HEADER = _FIXTURES_DIR / "sample_categories.h"
-_CONDITIONAL_HEADER = _FIXTURES_DIR / "sample_conditional.h"
-_M3_TYPES_HEADER = _FIXTURES_DIR / "sample_m3_types.h"
+_PRIMARY_HEADER = _FIXTURES_DIR / "basic.h"
+_CATEGORY_HEADER = _FIXTURES_DIR / "categories.h"
+_CONDITIONAL_HEADER = _FIXTURES_DIR / "conditional.h"
+_M3_TYPES_HEADER = _FIXTURES_DIR / "abi_types.h"
 _FIXTURE_LIB_ID = "sample_lib"
 _FIXTURE_PACKAGE = "sample"
 _REGISTER_FUNCTIONS_SYMBOL = f"purego_{_FIXTURE_LIB_ID}_register_functions"
@@ -169,7 +169,7 @@ def test_generates_golden_output_to_stdout(tmp_path: Path) -> None:
         "-I./include",
     )
 
-    expected = _golden_path("sample_func_type").read_text(encoding="utf-8")
+    expected = _golden_path("case_basic_func_type").read_text(encoding="utf-8")
     assert result.returncode == 0
     assert result.stdout == expected
     assert result.stdout.startswith(f"{_GENERATED_HEADER_PREFIX}\n")
@@ -197,7 +197,7 @@ def test_generates_golden_output_to_file(tmp_path: Path) -> None:
         "-I./include",
     )
 
-    expected = _golden_path("sample_func_type").read_text(encoding="utf-8")
+    expected = _golden_path("case_basic_func_type").read_text(encoding="utf-8")
     assert result.returncode == 0
     assert not result.stdout
     assert output_path.read_text(encoding="utf-8") == expected
@@ -223,7 +223,7 @@ def test_generates_golden_output_from_multiple_headers(tmp_path: Path) -> None:
         "-I./include",
     )
 
-    expected = _golden_path("sample_multi_headers").read_text(encoding="utf-8")
+    expected = _golden_path("case_basic_and_categories").read_text(encoding="utf-8")
     assert result.returncode == 0
     assert result.stdout == expected
     _assert_go_source_compiles(result.stdout, tmp_path)
@@ -244,7 +244,7 @@ def test_emits_constants_when_const_category_selected(tmp_path: Path) -> None:
         "const",
     )
 
-    expected = _golden_path("sample_const").read_text(encoding="utf-8")
+    expected = _golden_path("case_categories_const").read_text(encoding="utf-8")
     assert result.returncode == 0
     assert result.stdout == expected
     assert _REGISTER_FUNCTIONS_SYMBOL not in result.stdout
@@ -279,8 +279,8 @@ def test_generates_conditional_golden_output_with_clang_define(tmp_path: Path) -
         "-DFIXTURE_ENABLE_EXTRA",
     )
 
-    expected_off = _golden_path("sample_conditional_off").read_text(encoding="utf-8")
-    expected_on = _golden_path("sample_conditional_on").read_text(encoding="utf-8")
+    expected_off = _golden_path("case_conditional_default").read_text(encoding="utf-8")
+    expected_on = _golden_path("case_conditional_with_define").read_text(encoding="utf-8")
     assert result_off.returncode == 0
     assert result_on.returncode == 0
     assert result_off.stdout == expected_off
@@ -311,7 +311,7 @@ def test_emits_mixed_categories_with_filters(tmp_path: Path) -> None:
         "^build_id$",
     )
 
-    expected = _golden_path("sample_mixed_filtered").read_text(encoding="utf-8")
+    expected = _golden_path("case_categories_mixed_filtered").read_text(encoding="utf-8")
     assert result.returncode == 0
     assert result.stdout == expected
     _assert_go_source_compiles(result.stdout, tmp_path)

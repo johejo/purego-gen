@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
-_ABI_PROBE_SOURCE = _FIXTURES_DIR / "abi_probe_sample_m3_types.c"
+_ABI_PROBE_SOURCE = _FIXTURES_DIR / "abi_probe_abi_types.c"
 _PROBE_RECORD_PARTS = 4
 _PROBE_FIELD_PARTS = 6
 
@@ -55,7 +55,7 @@ class _ProbeRecordLayout:
 
 def _record_typedef_map() -> dict[str, RecordTypedefDecl]:
     declarations = parse_declarations(
-        headers=(str(_FIXTURES_DIR / "sample_m3_types.h"),),
+        headers=(str(_FIXTURES_DIR / "abi_types.h"),),
         clang_args=(),
     )
     return {record.name: record for record in declarations.record_typedefs}
@@ -124,7 +124,7 @@ def _run_c_layout_probe(tmp_path: Path) -> dict[str, _ProbeRecordLayout]:
     Returns:
         Parsed record layout mapping from probe output.
     """
-    probe_binary_path = tmp_path / "abi_probe_sample_m3_types"
+    probe_binary_path = tmp_path / "abi_probe_abi_types"
     compile_result = subprocess.run(  # noqa: S603
         _build_probe_compile_command(probe_binary_path),
         capture_output=True,

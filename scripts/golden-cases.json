@@ -1,28 +1,28 @@
 {
   "cases": [
     {
-      "id": "sample_func_type",
-      "output_path": "tests/golden/sample_func_type/generated.go",
+      "id": "case_basic_func_type",
+      "output_path": "tests/golden/case_basic_func_type/generated.go",
       "header_paths": [
-        "tests/fixtures/sample.h"
+        "tests/fixtures/basic.h"
       ],
       "emit_kinds": "func,type",
       "clang_args": "-I./include"
     },
     {
-      "id": "sample_const",
-      "output_path": "tests/golden/sample_const/generated.go",
+      "id": "case_categories_const",
+      "output_path": "tests/golden/case_categories_const/generated.go",
       "header_paths": [
-        "tests/fixtures/sample_categories.h"
+        "tests/fixtures/categories.h"
       ],
       "emit_kinds": "const",
       "clang_args": ""
     },
     {
-      "id": "sample_mixed_filtered",
-      "output_path": "tests/golden/sample_mixed_filtered/generated.go",
+      "id": "case_categories_mixed_filtered",
+      "output_path": "tests/golden/case_categories_mixed_filtered/generated.go",
       "header_paths": [
-        "tests/fixtures/sample_categories.h"
+        "tests/fixtures/categories.h"
       ],
       "emit_kinds": "func,const,var",
       "clang_args": "",
@@ -31,38 +31,38 @@
       "var_filter": "^build_id$"
     },
     {
-      "id": "sample_m3_types",
-      "output_path": "tests/golden/sample_m3_types/generated.go",
+      "id": "case_abi_types",
+      "output_path": "tests/golden/case_abi_types/generated.go",
       "header_paths": [
-        "tests/fixtures/sample_m3_types.h"
+        "tests/fixtures/abi_types.h"
       ],
       "emit_kinds": "type,const",
       "clang_args": ""
     },
     {
-      "id": "sample_multi_headers",
-      "output_path": "tests/golden/sample_multi_headers/generated.go",
+      "id": "case_basic_and_categories",
+      "output_path": "tests/golden/case_basic_and_categories/generated.go",
       "header_paths": [
-        "tests/fixtures/sample.h",
-        "tests/fixtures/sample_categories.h"
+        "tests/fixtures/basic.h",
+        "tests/fixtures/categories.h"
       ],
       "emit_kinds": "func,type,const,var",
       "clang_args": "-I./include"
     },
     {
-      "id": "sample_conditional_off",
-      "output_path": "tests/golden/sample_conditional_off/generated.go",
+      "id": "case_conditional_default",
+      "output_path": "tests/golden/case_conditional_default/generated.go",
       "header_paths": [
-        "tests/fixtures/sample_conditional.h"
+        "tests/fixtures/conditional.h"
       ],
       "emit_kinds": "func,var",
       "clang_args": ""
     },
     {
-      "id": "sample_conditional_on",
-      "output_path": "tests/golden/sample_conditional_on/generated.go",
+      "id": "case_conditional_with_define",
+      "output_path": "tests/golden/case_conditional_with_define/generated.go",
       "header_paths": [
-        "tests/fixtures/sample_conditional.h"
+        "tests/fixtures/conditional.h"
       ],
       "emit_kinds": "func,var",
       "clang_args": "-DFIXTURE_ENABLE_EXTRA"

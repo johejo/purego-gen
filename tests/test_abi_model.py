@@ -19,7 +19,7 @@ _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
 
 def test_parse_record_typedef_model_for_pre_m4_abi() -> None:
     """Parser should expose structured record/field metadata for ABI checks."""
-    header = _FIXTURES_DIR / "sample_m3_types.h"
+    header = _FIXTURES_DIR / "abi_types.h"
 
     declarations = parse_declarations(headers=(str(header),), clang_args=())
 

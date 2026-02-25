@@ -24,7 +24,7 @@ def _go_struct(*fields: str) -> str:
 
 def test_parse_declaration_categories() -> None:
     """Parser should classify declarations into func/type/const/var categories."""
-    header = _FIXTURES_DIR / "sample_categories.h"
+    header = _FIXTURES_DIR / "categories.h"
 
     declarations = parse_declarations(headers=(str(header),), clang_args=())
 
@@ -49,7 +49,7 @@ def test_parse_declaration_categories() -> None:
 
 def test_parse_type_mapping_edge_cases() -> None:
     """Parser should keep M3 baseline mappings stable for common typedef patterns."""
-    header = _FIXTURES_DIR / "sample_m3_types.h"
+    header = _FIXTURES_DIR / "abi_types.h"
 
     declarations = parse_declarations(headers=(str(header),), clang_args=())
 
