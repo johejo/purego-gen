@@ -37,6 +37,9 @@ golden-update:
 golden-check:
   scripts/check-golden.sh
 
+golden-check-ci:
+  GOLDEN_CHECK_STRICT_HEAD=1 scripts/check-golden.sh
+
 check: lint typecheck golden-check test
 
 gate: fmt nix-flake-check check

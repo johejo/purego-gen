@@ -89,9 +89,9 @@
 
 ## Pre-M5 Hardening
 
-- [ ] Define where ABI layout fallback results (`passed`/`failed`/`skipped`) are surfaced (CLI vs harness report).
-- [ ] Add strict CI mode for `golden-check` that always compares against `HEAD` only.
-- [ ] Normalize golden case manifest schema to one header field shape (`header_paths`).
+- [x] Define where ABI layout fallback results (`passed`/`failed`/`skipped`) are surfaced (CLI vs harness report).
+- [x] Add strict CI mode for `golden-check` that always compares against `HEAD` only.
+- [x] Normalize golden case manifest schema to one header field shape (`header_paths`).
 - [x] Document M5 harness environment contract (header/library discovery strategy and fallback flags).
 - [x] Resolve open decisions required by M5 execution (function pointer boundary and optional symbol policy).
 

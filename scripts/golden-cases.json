@@ -3,21 +3,27 @@
     {
       "id": "sample_func_type",
       "output_path": "tests/golden/sample_func_type.go",
-      "header_path": "tests/fixtures/sample.h",
+      "header_paths": [
+        "tests/fixtures/sample.h"
+      ],
       "emit_kinds": "func,type",
       "clang_args": "-I./include"
     },
     {
       "id": "sample_const",
       "output_path": "tests/golden/sample_const.go",
-      "header_path": "tests/fixtures/sample_categories.h",
+      "header_paths": [
+        "tests/fixtures/sample_categories.h"
+      ],
       "emit_kinds": "const",
       "clang_args": ""
     },
     {
       "id": "sample_mixed_filtered",
       "output_path": "tests/golden/sample_mixed_filtered.go",
-      "header_path": "tests/fixtures/sample_categories.h",
+      "header_paths": [
+        "tests/fixtures/sample_categories.h"
+      ],
       "emit_kinds": "func,const,var",
       "clang_args": "",
       "func_filter": "^add$",
@@ -27,7 +33,9 @@
     {
       "id": "sample_m3_types",
       "output_path": "tests/golden/sample_m3_types.go",
-      "header_path": "tests/fixtures/sample_m3_types.h",
+      "header_paths": [
+        "tests/fixtures/sample_m3_types.h"
+      ],
       "emit_kinds": "type,const",
       "clang_args": ""
     },
@@ -44,14 +52,18 @@
     {
       "id": "sample_conditional_off",
       "output_path": "tests/golden/sample_conditional_off.go",
-      "header_path": "tests/fixtures/sample_conditional.h",
+      "header_paths": [
+        "tests/fixtures/sample_conditional.h"
+      ],
       "emit_kinds": "func,var",
       "clang_args": ""
     },
     {
       "id": "sample_conditional_on",
       "output_path": "tests/golden/sample_conditional_on.go",
-      "header_path": "tests/fixtures/sample_conditional.h",
+      "header_paths": [
+        "tests/fixtures/sample_conditional.h"
+      ],
       "emit_kinds": "func,var",
       "clang_args": "-DSAMPLE_ENABLE_EXTRA"
     }

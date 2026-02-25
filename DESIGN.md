@@ -189,6 +189,9 @@ This split removes ambiguity between "constant" and "data symbol".
   - `failed`: deterministic layout mismatch diagnostics exist (offset/align/size).
   - `skipped`: validation could not be completed due to unsupported patterns or
     incomplete metadata; diagnostics are still emitted and carry fallback reason.
+- In v1, ABI fallback results are surfaced through harness/test reports using
+  ABI utility outputs; default `purego-gen` CLI output remains focused on
+  generation diagnostics.
 - Intended v1 ABI-check target set:
   - struct typedefs with supported field kinds and available clang layout data.
 - Current non-target set for v1 ABI checks:

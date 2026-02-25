@@ -7,7 +7,7 @@ for_each_golden_case() {
 	jq -c '.cases[]' "$case_file" | while IFS= read -r case_entry; do
 		case_id="$(printf '%s' "$case_entry" | jq -r '.id')"
 		output_path="$(printf '%s' "$case_entry" | jq -r '.output_path')"
-		header_paths="$(printf '%s' "$case_entry" | jq -r '(.header_paths // [.header_path]) | .[]')"
+		header_paths="$(printf '%s' "$case_entry" | jq -r '.header_paths[]')"
 		emit_kinds="$(printf '%s' "$case_entry" | jq -r '.emit_kinds')"
 		clang_args="$(printf '%s' "$case_entry" | jq -r '.clang_args // ""')"
 		func_filter="$(printf '%s' "$case_entry" | jq -r '.func_filter // ""')"

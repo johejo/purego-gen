@@ -17,6 +17,8 @@ Early development. Interfaces and generated output may change.
   and explicit `passed`/`failed`/`skipped` fallback classification per record.
 - v1 function-pointer handling is `uintptr`-only (no callback trampoline codegen).
 - v1 optional symbol policy is hard-error for emitted symbols.
+- Golden-case manifest is normalized to `header_paths`, and CI can enforce
+  strict golden drift checks via `just golden-check-ci`.
 
 ## CLI (current)
 

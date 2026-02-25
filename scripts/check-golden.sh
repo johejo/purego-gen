@@ -7,9 +7,15 @@ cd "$REPO_ROOT"
 GOLDEN_CASES_FILE="$REPO_ROOT/scripts/golden-cases.json"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
+STRICT_HEAD_ONLY="${GOLDEN_CHECK_STRICT_HEAD:-0}"
 
 # shellcheck source=scripts/golden-common.sh
 . "$REPO_ROOT/scripts/golden-common.sh"
+
+if [ "$STRICT_HEAD_ONLY" != "0" ] && [ "$STRICT_HEAD_ONLY" != "1" ]; then
+	echo "GOLDEN_CHECK_STRICT_HEAD must be '0' or '1'." >&2
+	exit 1
+fi
 
 check_case() {
 	case_id=$1
@@ -39,6 +45,9 @@ check_case() {
 	if git cat-file -e "HEAD:$output_path" 2>/dev/null; then
 		git show "HEAD:$output_path" >"$expected_path"
 		expected_source="HEAD"
+	elif [ "$STRICT_HEAD_ONLY" = "1" ]; then
+		echo "golden file is missing at HEAD (strict mode): $output_path" >&2
+		exit 1
 	elif [ -f "$output_path" ]; then
 		cp "$output_path" "$expected_path"
 		expected_source="working-tree"
