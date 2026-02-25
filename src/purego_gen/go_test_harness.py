@@ -44,6 +44,9 @@ def run_go_test_in_generated_module(
 
     module_dir = tmp_path / output_dir_name
     shutil.copytree(fixture_module_dir, module_dir)
+    shared_module_dir = fixture_module_dir.parent / "go_shared_module"
+    (module_dir / "go.mod").write_text((shared_module_dir / "go.mod").read_text(encoding="utf-8"))
+    (module_dir / "go.sum").write_text((shared_module_dir / "go.sum").read_text(encoding="utf-8"))
     (module_dir / "generated.go").write_text(generated_source, encoding="utf-8")
 
     env = os.environ.copy()
