@@ -36,11 +36,7 @@ _ALLOWED_MACRO_OPERATOR_TOKENS: Final[frozenset[str]] = frozenset({
     "(",
     ")",
 })
-_MACRO_MIN_FUNCTION_LIKE_TOKEN_COUNT: Final[int] = 3
 _MACRO_MIN_OBJECT_LIKE_TOKEN_COUNT: Final[int] = 2
-_MACRO_PAREN_OPEN: Final[str] = "("
-_MACRO_PAREN_CLOSE: Final[str] = ")"
-_MACRO_PARAM_SEPARATOR: Final[str] = ","
 _UNSIGNED_WRAP_BITS: Final[int] = 64
 
 _BINARY_OPERATOR_HANDLERS: Final[dict[type[ast.operator], Callable[[int, int], int]]] = {
@@ -53,69 +49,6 @@ _BINARY_OPERATOR_HANDLERS: Final[dict[type[ast.operator], Callable[[int, int], i
     ast.BitAnd: operator.and_,
     ast.BitXor: operator.xor,
 }
-
-
-def _find_macro_parameter_list_closing_index(tokens: tuple[str, ...]) -> int | None:
-    """Find the index of the first top-level closing token in a parameter list.
-
-    Returns:
-        Closing token index, or `None` when not found.
-    """
-    depth = 0
-    for index, macro_piece in enumerate(tokens[1:], start=1):
-        if macro_piece == _MACRO_PAREN_OPEN:
-            depth += 1
-            continue
-        if macro_piece != _MACRO_PAREN_CLOSE:
-            continue
-        depth -= 1
-        if depth == 0:
-            return index
-    return None
-
-
-def _is_macro_parameter_list_tokens(parameter_tokens: tuple[str, ...]) -> bool:
-    """Validate tokens as a function-like macro parameter list.
-
-    Returns:
-        `True` when tokens match `<id>(,<id>)*` with optional `...`.
-    """
-    if not parameter_tokens:
-        return True
-
-    expect_identifier = True
-    for macro_piece in parameter_tokens:
-        if expect_identifier:
-            if macro_piece == "...":
-                expect_identifier = False
-                continue
-            if _IDENTIFIER_PATTERN.fullmatch(macro_piece) is None:
-                return False
-            expect_identifier = False
-            continue
-        if macro_piece != _MACRO_PARAM_SEPARATOR:
-            return False
-        expect_identifier = True
-    return not expect_identifier
-
-
-def _is_function_like_macro(tokens: tuple[str, ...]) -> bool:
-    """Check whether macro tokens represent a function-like macro definition.
-
-    Returns:
-        `True` when token stream starts with a macro parameter list.
-    """
-    if len(tokens) < _MACRO_MIN_FUNCTION_LIKE_TOKEN_COUNT:
-        return False
-    if tokens[1] != _MACRO_PAREN_OPEN:
-        return False
-
-    closing_index = _find_macro_parameter_list_closing_index(tokens)
-    if closing_index is None or closing_index >= len(tokens) - 1:
-        return False
-
-    parameter_tokens = tokens[2:closing_index]
-    return _is_macro_parameter_list_tokens(parameter_tokens)
 
 
 def _normalize_macro_literal_token(token: str) -> tuple[str, bool] | None:
@@ -244,19 +177,21 @@ def evaluate_object_like_macro_definition(
     *,
     token_spellings: tuple[str, ...],
     known_constant_values: Mapping[str, int],
+    is_function_like: bool,
 ) -> int | None:
     """Evaluate one macro definition as an integer constant when supported.
 
     Args:
         token_spellings: Macro token sequence including the macro name token.
         known_constant_values: Already-resolved constant values usable as references.
+        is_function_like: Externally-resolved function-like classification.
 
     Returns:
         Integer value for supported object-like macro definitions, otherwise `None`.
     """
     if not token_spellings or len(token_spellings) < _MACRO_MIN_OBJECT_LIKE_TOKEN_COUNT:
         return None
-    if _is_function_like_macro(token_spellings):
+    if is_function_like:
         return None
 
     expression = _build_macro_expression(

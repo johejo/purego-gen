@@ -7,9 +7,13 @@ from __future__ import annotations
 import importlib
 import os
 import re
+from ctypes import c_uint
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, Protocol, cast
+from typing import TYPE_CHECKING, Final, Protocol, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from purego_gen.macro_constants import evaluate_object_like_macro_definition
 from purego_gen.model import (
@@ -108,6 +112,16 @@ class _CollectedDeclarations:
     record_typedefs: list[RecordTypedefDecl]
 
 
+@dataclass(frozen=True, slots=True)
+class _ParseContext:
+    """Shared parse context reused across headers in one parse run."""
+
+    cindex: _CIndexModule
+    index: _IndexLike
+    clang_args: tuple[str, ...]
+    macro_cursor_predicates: _MacroCursorPredicates
+
+
 class _SourceFileLike(Protocol):
     name: str
 
@@ -163,6 +177,15 @@ class _CursorLike(Protocol):
 
 class _TokenLike(Protocol):
     spelling: str
+
+
+class _CursorBoolProbeLike(Protocol):
+    """ctypes-backed libclang probe with cursor argument and bool-like result."""
+
+    argtypes: list[object]
+    restype: object
+
+    def __call__(self, cursor: object) -> int: ...
 
 
 class _DiagnosticLike(Protocol):
@@ -233,6 +256,7 @@ class _CIndexModule(Protocol):
     TranslationUnit: _TranslationUnitConfigLike
     CursorKind: _CursorKindConfigLike
     Index: _IndexFactoryLike
+    Cursor: type[object]
     TranslationUnitLoadError: type[Exception]
     LibclangError: type[Exception]
 
@@ -262,6 +286,93 @@ def _configure_libclang(cindex: _CIndexModule) -> None:
     library_path = os.getenv("LIBCLANG_PATH")
     if library_path and not cindex.Config.loaded:
         cindex.Config.set_library_path(library_path)
+
+
+@dataclass(frozen=True, slots=True)
+class _MacroCursorPredicates:
+    """libclang-backed cursor predicates used by macro extraction."""
+
+    is_function_like: Callable[[_CursorLike], bool]
+    is_builtin: Callable[[_CursorLike], bool]
+
+
+@dataclass(slots=True)
+class _MacroCollectionState:
+    """Mutable state shared by macro constant collection in one header."""
+
+    known_constant_values: dict[str, int]
+    cursor_predicates: _MacroCursorPredicates
+
+
+def _bind_cursor_bool_probe(
+    *,
+    cindex: _CIndexModule,
+    symbol_name: str,
+) -> Callable[[_CursorLike], bool] | None:
+    """Bind one libclang cursor predicate via ctypes.
+
+    Returns:
+        Callable predicate when symbol binding succeeds, otherwise `None`.
+    """
+    conf_object = cast("object | None", getattr(cindex, "conf", None))
+    if conf_object is None:
+        return None
+    lib_object = cast("object | None", getattr(conf_object, "lib", None))
+    if lib_object is None:
+        return None
+    raw_probe = cast("object | None", getattr(lib_object, symbol_name, None))
+    if raw_probe is None:
+        return None
+
+    probe = cast("_CursorBoolProbeLike", raw_probe)
+    try:
+        probe.argtypes = [cindex.Cursor]
+        probe.restype = c_uint
+    except AttributeError, TypeError:
+        return None
+
+    def _predicate(cursor: _CursorLike) -> bool:
+        try:
+            return bool(probe(cast("object", cursor)))
+        except TypeError, ValueError:
+            return False
+
+    return _predicate
+
+
+def _build_macro_cursor_predicates(cindex: _CIndexModule) -> _MacroCursorPredicates:
+    """Build macro-related cursor predicates from libclang when available.
+
+    Returns:
+        Predicate bundle backed by libclang APIs when available.
+
+    Raises:
+        ClangParserError: Required macro predicate symbols are unavailable.
+    """
+    function_like_probe = _bind_cursor_bool_probe(
+        cindex=cindex,
+        symbol_name="clang_Cursor_isMacroFunctionLike",
+    )
+    if function_like_probe is None:
+        message = (
+            "loaded libclang does not expose `clang_Cursor_isMacroFunctionLike`; "
+            "cannot classify macros without token fallback."
+        )
+        raise ClangParserError(message)
+    builtin_probe = _bind_cursor_bool_probe(
+        cindex=cindex,
+        symbol_name="clang_Cursor_isMacroBuiltin",
+    )
+    if builtin_probe is None:
+        message = (
+            "loaded libclang does not expose `clang_Cursor_isMacroBuiltin`; "
+            "cannot classify built-in macros without token fallback."
+        )
+        raise ClangParserError(message)
+    return _MacroCursorPredicates(
+        is_function_like=function_like_probe,
+        is_builtin=builtin_probe,
+    )
 
 
 def _collect_diagnostics(
@@ -733,15 +844,22 @@ def _extract_macro_constant(
     cursor: _CursorLike,
     *,
     known_constant_values: dict[str, int],
+    macro_cursor_predicates: _MacroCursorPredicates,
 ) -> ConstantDecl | None:
     """Extract one object-like macro constant when expression is supported.
 
     Returns:
         Parsed compile-time constant, or `None` when macro is unsupported.
     """
+    if macro_cursor_predicates.is_builtin(cursor):
+        return None
+
+    is_function_like = macro_cursor_predicates.is_function_like(cursor)
+
     evaluated = evaluate_object_like_macro_definition(
         token_spellings=tuple(token.spelling for token in cursor.get_tokens()),
         known_constant_values=known_constant_values,
+        is_function_like=is_function_like,
     )
     if evaluated is None:
         return None
@@ -846,7 +964,7 @@ def _collect_macro_constant(
     macro_definition_kind: object,
     seen: _SeenDeclarations,
     constants: list[ConstantDecl],
-    known_constant_values: dict[str, int],
+    macro_state: _MacroCollectionState,
 ) -> bool:
     """Collect one object-like macro constant when expression is supported.
 
@@ -860,13 +978,14 @@ def _collect_macro_constant(
 
     extracted = _extract_macro_constant(
         cursor,
-        known_constant_values=known_constant_values,
+        known_constant_values=macro_state.known_constant_values,
+        macro_cursor_predicates=macro_state.cursor_predicates,
     )
     if extracted is None:
         return True
     seen.constant_names.add(cursor.spelling)
     constants.append(extracted)
-    known_constant_values[extracted.name] = extracted.value
+    macro_state.known_constant_values[extracted.name] = extracted.value
     return True
 
 
@@ -893,10 +1012,8 @@ def _collect_runtime_var(
 
 
 def _parse_translation_unit(
-    cindex: _CIndexModule,
-    index: _IndexLike,
+    parse_context: _ParseContext,
     header_path: Path,
-    clang_args: tuple[str, ...],
 ) -> _TranslationUnitLike:
     """Create translation unit for one header.
 
@@ -906,6 +1023,7 @@ def _parse_translation_unit(
     Raises:
         ClangParserError: Translation unit could not be loaded.
     """
+    cindex = parse_context.cindex
     parse_options = int(cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES)
     detailed_preprocessing_record = getattr(
         cindex.TranslationUnit,
@@ -914,9 +1032,9 @@ def _parse_translation_unit(
     )
     parse_options |= int(detailed_preprocessing_record)
     try:
-        return index.parse(
+        return parse_context.index.parse(
             path=str(header_path),
-            args=list(clang_args),
+            args=list(parse_context.clang_args),
             options=parse_options,
         )
     except cindex.TranslationUnitLoadError as error:
@@ -925,10 +1043,8 @@ def _parse_translation_unit(
 
 
 def _parse_header(
-    cindex: _CIndexModule,
-    index: _IndexLike,
+    parse_context: _ParseContext,
     header_path: Path,
-    clang_args: tuple[str, ...],
     seen: _SeenDeclarations,
 ) -> tuple[
     list[FunctionDecl],
@@ -946,7 +1062,8 @@ def _parse_header(
     Raises:
         ClangParserError: Header parsing fails.
     """
-    translation_unit = _parse_translation_unit(cindex, index, header_path, clang_args)
+    cindex = parse_context.cindex
+    translation_unit = _parse_translation_unit(parse_context, header_path)
     diagnostic_messages = _collect_diagnostics(translation_unit, header_path)
     if diagnostic_messages:
         raise ClangParserError("\n".join(diagnostic_messages))
@@ -963,7 +1080,10 @@ def _parse_header(
         skipped_typedefs=[],
         record_typedefs=[],
     )
-    known_constant_values: dict[str, int] = {}
+    macro_state = _MacroCollectionState(
+        known_constant_values={},
+        cursor_predicates=parse_context.macro_cursor_predicates,
+    )
     macro_definition_kind = cast(
         "object | None",
         getattr(cindex.CursorKind, "MACRO_DEFINITION", None),
@@ -987,14 +1107,14 @@ def _parse_header(
             seen,
             declarations.constants,
         ):
-            known_constant_values[str(cursor.spelling)] = int(cursor.enum_value)
+            macro_state.known_constant_values[str(cursor.spelling)] = int(cursor.enum_value)
             continue
         if macro_definition_kind is not None and _collect_macro_constant(
             cursor,
             macro_definition_kind,
             seen,
             declarations.constants,
-            known_constant_values,
+            macro_state,
         ):
             continue
         if _collect_runtime_var(
@@ -1034,6 +1154,12 @@ def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) ->
             "failed to load libclang. Set `LIBCLANG_PATH` to the directory containing libclang."
         )
         raise ClangParserError(message) from error
+    parse_context = _ParseContext(
+        cindex=cindex,
+        index=index,
+        clang_args=clang_args,
+        macro_cursor_predicates=_build_macro_cursor_predicates(cindex),
+    )
 
     all_declarations = _CollectedDeclarations(
         functions=[],
@@ -1064,10 +1190,8 @@ def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) ->
             parsed_skipped_typedefs,
             parsed_record_typedefs,
         ) = _parse_header(
-            cindex=cindex,
-            index=index,
+            parse_context=parse_context,
             header_path=header_path,
-            clang_args=clang_args,
             seen=seen,
         )
         all_declarations.functions.extend(parsed_functions)
