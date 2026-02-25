@@ -73,7 +73,7 @@
 
 ## M5 Target Libraries (Objective Harness)
 
-- [ ] Add `libzstd` harness fixture and golden outputs (must).
+- [x] Add `libzstd` harness fixture and golden outputs (must).
 - [ ] Add `onnxruntime` harness fixture and golden outputs (must).
 - [ ] Add optional Linux-only `libsystemd` harness fixture.
 - [ ] Wire target-library jobs into CI matrix with platform guards.

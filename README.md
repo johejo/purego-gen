@@ -19,6 +19,8 @@ Early development. Interfaces and generated output may change.
 - v1 optional symbol policy is hard-error for emitted symbols.
 - Golden-case manifest is normalized to `header_paths`, and CI can enforce
   strict golden drift checks via `just golden-check-ci`.
+- M5 `libzstd` objective harness fixture now checks deterministic golden output
+  and runtime symbol resolution for a stable API subset.
 
 ## CLI (current)
 

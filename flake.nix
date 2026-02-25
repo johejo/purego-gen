@@ -62,10 +62,12 @@
               just
               libclang
               nixfmt
+              pkg-config
               python314
               shellcheck
               shfmt
               uv
+              zstd
               treefmt
             ];
 

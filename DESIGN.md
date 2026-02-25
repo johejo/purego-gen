@@ -338,6 +338,13 @@ M4: ABI validation
 - Add layout checks for supported struct cases.
 - Add clear unsupported-case diagnostics.
 
+M5 implementation note (partial):
+- `libzstd` objective harness fixture is wired with deterministic function filtering
+  and committed golden output, with discovery simplified to a
+  `pkg-config`-driven flow in the nix dev shell.
+- Runtime harness accepts explicit shared-library path override via
+  `PUREGO_GEN_TEST_LIBZSTD`.
+
 M5: Target libraries
 - Validate against objective harness targets (`libzstd`, `onnxruntime`) once M1-M4 are stable.
 - Add `libsystemd` coverage as optional Linux-only validation.
