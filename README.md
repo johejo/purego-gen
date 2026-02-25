@@ -38,7 +38,7 @@ just format
 just check
 ```
 
-Run strict CI-equivalent checks before pushing:
+Run strict CI-equivalent checks before pushing (including `djlint` version parity checks):
 
 ```sh
 just ci

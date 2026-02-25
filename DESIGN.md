@@ -65,7 +65,8 @@ Out of scope (for now):
   for recipe names and wiring).
 - GitHub Actions CI executes through `just` recipes.
 - `just check` is local-first and must work in dirty/uncommitted working trees.
-- `just ci` is strict and CI-oriented (`format-check` + strict golden drift checks).
+- `just ci` is strict and CI-oriented (`format-check`, strict golden drift checks,
+  and `djlint` version parity between Nix and `uv.lock`).
 - Formatting scope includes `tests/fixtures/*.h` via `clang-format` and
   `scripts/*.sh` via `shfmt` in `treefmt`.
 

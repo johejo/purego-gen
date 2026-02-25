@@ -40,9 +40,12 @@ golden-check:
 golden-check-ci:
   GOLDEN_CHECK_STRICT_HEAD=1 scripts/check-golden.sh
 
+tool-version-check:
+  scripts/check-tool-versions.sh
+
 check: lint typecheck golden-check test
 
-ci: format-check nix-flake-check lint typecheck golden-check-ci test
+ci: format-check nix-flake-check tool-version-check lint typecheck golden-check-ci test
 
 # Codex sandbox helper tasks
 

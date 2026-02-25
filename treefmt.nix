@@ -16,10 +16,8 @@
   };
 
   settings.formatter.python = {
-    command = "${pkgs.uv}/bin/uv";
+    command = "${pkgs.ruff}/bin/ruff";
     options = [
-      "run"
-      "ruff"
       "format"
     ];
     includes = [ "*.py" ];
@@ -54,9 +52,9 @@
         pkgs.lib.makeBinPath [
           pkgs.coreutils
           pkgs.diffutils
-          pkgs.uv
+          pkgs.djlint
         ]
-      }:$PATH scripts/format-template-go.sh \"$@\""
+      }:$PATH ${pkgs.bash}/bin/bash scripts/format-template-go.sh \"$@\""
       "--"
     ];
     includes = [ "templates/*.j2" ];

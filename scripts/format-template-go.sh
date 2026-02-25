@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/bin/sh
 set -eu
 
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
@@ -22,4 +22,4 @@ for template_path in "$@"; do
 	mv "$tmp_file" "$template_path"
 done
 
-uv run djlint --reformat --extension=j2 --preserve-leading-space --preserve-blank-lines "$@"
+djlint --reformat --extension=j2 --preserve-leading-space --preserve-blank-lines "$@"
