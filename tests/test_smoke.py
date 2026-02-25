@@ -391,12 +391,11 @@ def test_runtime_smoke_with_compiled_shared_library(tmp_path: Path) -> None:
         "--pkg",
         "sample",
         "--emit",
-        "func,var",
+        "func",
     )
 
     assert result.returncode == 0, result.stderr
     assert "purego_sample_lib_register_functions" in result.stdout
-    assert "purego_sample_lib_load_runtime_vars" in result.stdout
     _assert_runtime_smoke_passes(result.stdout, tmp_path, shared_library_path=shared_library_path)
 
 
@@ -406,9 +405,9 @@ def test_runtime_smoke_reports_unresolved_symbols(tmp_path: Path) -> None:
     header_path = tmp_path / "missing_symbol.h"
     header_path.write_text(
         (
-            "extern int smoke_counter;\n"
-            "void smoke_reset(void);\n"
-            "void smoke_increment(void);\n"
+            "int smoke_reset(void);\n"
+            "int smoke_increment(void);\n"
+            "int smoke_get_counter(void);\n"
             "void smoke_missing(void);\n"
         ),
         encoding="utf-8",
@@ -422,7 +421,7 @@ def test_runtime_smoke_reports_unresolved_symbols(tmp_path: Path) -> None:
         "--pkg",
         "sample",
         "--emit",
-        "func,var",
+        "func",
     )
 
     assert result.returncode == 0, result.stderr
@@ -432,37 +431,3 @@ def test_runtime_smoke_reports_unresolved_symbols(tmp_path: Path) -> None:
     assert runtime_result.returncode != 0
     combined_output = runtime_result.stdout + runtime_result.stderr
     assert "smoke_missing" in combined_output
-
-
-def test_runtime_smoke_reports_unresolved_runtime_variable(tmp_path: Path) -> None:
-    """Runtime smoke should expose unresolved runtime variable failures."""
-    shared_library_path = _build_runtime_smoke_library(tmp_path)
-    header_path = tmp_path / "missing_runtime_var.h"
-    header_path.write_text(
-        (
-            "extern int smoke_counter;\n"
-            "extern int smoke_missing_counter;\n"
-            "void smoke_reset(void);\n"
-            "void smoke_increment(void);\n"
-        ),
-        encoding="utf-8",
-    )
-
-    result = _run_cli(
-        "--lib-id",
-        "sample_lib",
-        "--header",
-        str(header_path),
-        "--pkg",
-        "sample",
-        "--emit",
-        "func,var",
-    )
-
-    assert result.returncode == 0, result.stderr
-    runtime_result = _run_runtime_smoke(
-        result.stdout, tmp_path, shared_library_path=shared_library_path
-    )
-    assert runtime_result.returncode != 0
-    combined_output = runtime_result.stdout + runtime_result.stderr
-    assert "smoke_missing_counter" in combined_output

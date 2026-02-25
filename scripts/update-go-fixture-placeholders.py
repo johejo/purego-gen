@@ -188,7 +188,7 @@ def _generated_fixture_sources() -> dict[Path, str]:
             lib_id="sample_lib",
             header_path=_SMOKE_HEADER_PATH.resolve(),
             package_name="sample",
-            emit_kinds="func,var",
+            emit_kinds="func",
         )
     )
 

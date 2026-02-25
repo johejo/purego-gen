@@ -1,11 +1,17 @@
 #include "smoke_runtime.h"
 
-int smoke_counter = 0;
+static int smoke_counter = 0;
 
-void smoke_reset(void) {
+int smoke_reset(void) {
   smoke_counter = 0;
+  return smoke_counter;
 }
 
-void smoke_increment(void) {
+int smoke_increment(void) {
   smoke_counter += 1;
+  return smoke_counter;
+}
+
+int smoke_get_counter(void) {
+  return smoke_counter;
 }

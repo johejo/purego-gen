@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	purego_func_smoke_reset     func()
-	purego_func_smoke_increment func()
+	purego_func_smoke_reset       func() int32
+	purego_func_smoke_increment   func() int32
+	purego_func_smoke_get_counter func() int32
 )
 
 func purego_sample_lib_register_functions(handle uintptr) error {
@@ -24,21 +25,10 @@ func purego_sample_lib_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol smoke_increment: %w", err)
 	}
 	purego.RegisterFunc(&purego_func_smoke_increment, purego_func_smoke_increment_symbol)
-	return nil
-}
-
-var (
-	purego_var_smoke_counter uintptr
-)
-
-func purego_sample_lib_load_runtime_vars(handle uintptr) error {
-	purego_var_smoke_counter_symbol, err := purego.Dlsym(handle, "smoke_counter")
+	purego_func_smoke_get_counter_symbol, err := purego.Dlsym(handle, "smoke_get_counter")
 	if err != nil {
-		return fmt.Errorf(
-			"purego-gen: failed to resolve runtime var symbol smoke_counter: %w",
-			err,
-		)
+		return fmt.Errorf("purego-gen: failed to resolve function symbol smoke_get_counter: %w", err)
 	}
-	purego_var_smoke_counter = purego_var_smoke_counter_symbol
+	purego.RegisterFunc(&purego_func_smoke_get_counter, purego_func_smoke_get_counter_symbol)
 	return nil
 }
