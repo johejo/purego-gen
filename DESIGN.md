@@ -154,6 +154,9 @@ This split removes ambiguity between "constant" and "data symbol".
 - Pointer typedefs map to `uintptr`.
 - Function-pointer typedefs are supported in v1 as raw symbol-sized values and
   also map to `uintptr` (no callback trampoline generation yet).
+- v1 function-pointer support boundary is intentionally low-level:
+  - supported: opaque `uintptr` mapping for function-pointer declarations.
+  - unsupported: callback trampoline/codegen flows and signature-aware wrappers.
 - Struct typedefs with fully mappable fields are emitted as Go `struct { ... }`
   type literals (`field` types are mapped with the same baseline rules).
 - Nested struct fields are supported when nested field types are also mappable.
@@ -221,6 +224,8 @@ Behavior:
 - `purego_<libid>_register_functions` returns an error for missing required symbols instead of panicking.
 - In M2, generated function placeholders are `func()` values and are bound via `RegisterFunc`.
 - `purego_<libid>_load_runtime_vars` resolves exported data symbols, stores their addresses in `purego_var_* uintptr`, and returns an error on missing required symbols.
+- v1 optional symbol policy is hard-error (`error`) for emitted symbols; optional
+  symbols must be excluded at generation time (e.g. by category filters).
 - Compile-time constants are emitted directly as Go constants and do not require runtime loading.
 
 ## CLI Contract
@@ -299,6 +304,16 @@ Objective harness targets:
 - Optional (Linux-only): `libsystemd`
   - Platform-dependent target to validate Linux integration paths.
 
+M5 harness environment contract:
+- Discovery order:
+  - first: `pkg-config` (`--cflags`/`--libs`) for target libraries.
+  - fallback: standard compiler/linker flags (`CPPFLAGS`/`CFLAGS`/`LDFLAGS`)
+    and explicit include/library options (`-I`/`-L`).
+- Dedicated per-library include/lib environment variables are intentionally not
+  part of the baseline M5 contract.
+- Runtime harness tests should accept explicit shared-library path overrides via
+  environment variables rather than assuming system loader paths.
+
 ## Milestones (Capability-Based)
 
 M1: Core parsing and deterministic emission
@@ -335,7 +350,5 @@ M5: Target libraries
 
 ## Open Decisions
 
-- Exact supported subset for function pointers in v1.
-- Policy for optional symbols (warn vs hard error).
 - How much macro evaluation to support beyond enum-like values.
 - Trigger criteria for introducing `--config` (e.g., complexity threshold or repeated CI use).

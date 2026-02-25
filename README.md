@@ -15,6 +15,8 @@ Early development. Interfaces and generated output may change.
 - Callers provide the library handle (no automatic `dlopen` policy).
 - M4 ABI checks now include C-side probe comparison (`sizeof`/`alignof`/`offsetof`)
   and explicit `passed`/`failed`/`skipped` fallback classification per record.
+- v1 function-pointer handling is `uintptr`-only (no callback trampoline codegen).
+- v1 optional symbol policy is hard-error for emitted symbols.
 
 ## CLI (current)
 

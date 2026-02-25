@@ -92,13 +92,13 @@
 - [ ] Define where ABI layout fallback results (`passed`/`failed`/`skipped`) are surfaced (CLI vs harness report).
 - [ ] Add strict CI mode for `golden-check` that always compares against `HEAD` only.
 - [ ] Normalize golden case manifest schema to one header field shape (`header_paths`).
-- [ ] Document M5 harness environment contract (header/library discovery strategy, required env vars).
-- [ ] Resolve open decisions required by M5 execution (function pointer boundary and optional symbol policy).
+- [x] Document M5 harness environment contract (header/library discovery strategy and fallback flags).
+- [x] Resolve open decisions required by M5 execution (function pointer boundary and optional symbol policy).
 
 ## Backlog / Open Decisions
 
-- [ ] Decide v1 support boundary for function pointers.
-- [ ] Decide optional symbol policy (`warn` vs `error`).
+- [x] Decide v1 support boundary for function pointers.
+- [x] Decide optional symbol policy (`warn` vs `error`).
 - [ ] Decide macro evaluation boundary beyond enum-like constants.
 - [ ] Define trigger criteria for introducing `--config <file>`.
 - [ ] Re-evaluate Windows support scope after v1 (API and symbol-loading strategy).
