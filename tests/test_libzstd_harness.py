@@ -177,15 +177,12 @@ def _assert_runtime_harness_passes(
 
 @pytest.fixture(scope="session")
 def libzstd_harness_config() -> _LibzstdHarnessConfig:
-    """Skip session when libzstd harness prerequisites are unavailable.
+    """Resolve libzstd harness configuration.
 
     Returns:
         Resolved harness configuration used by libzstd tests.
     """
-    try:
-        return _resolve_libzstd_harness_config()
-    except RuntimeError as error:
-        pytest.skip(str(error))
+    return _resolve_libzstd_harness_config()
 
 
 def test_generates_libzstd_golden_output(
