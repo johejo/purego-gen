@@ -31,6 +31,7 @@ type (
 			level int32
 		}
 	}
+	purego_type_fixture_opaque_t = uintptr
 )
 
 const (

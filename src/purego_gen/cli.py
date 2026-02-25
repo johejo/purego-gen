@@ -9,12 +9,12 @@ import re
 import shutil
 import subprocess  # noqa: S404
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Final
 
 from purego_gen.clang_parser import ClangParserError, parse_declarations
-from purego_gen.model import ParsedDeclarations
+from purego_gen.model import FunctionDecl, ParsedDeclarations, RuntimeVarDecl
 from purego_gen.renderer import RendererError, render_go_source
 
 _ALLOWED_EMIT_KINDS: Final[frozenset[str]] = frozenset({"func", "type", "const", "var"})
@@ -34,6 +34,8 @@ class CliOptions:
     type_filter: str | None
     const_filter: str | None
     var_filter: str | None
+    optional_func_filter: str | None
+    optional_var_filter: str | None
     clang_args: tuple[str, ...]
 
 
@@ -49,6 +51,8 @@ class _ParsedArgs(argparse.Namespace):
     type_filter: str | None
     const_filter: str | None
     var_filter: str | None
+    optional_func_filter: str | None
+    optional_var_filter: str | None
 
 
 def _parse_emit_kinds(value: str) -> tuple[str, ...]:
@@ -155,6 +159,14 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--type-filter", help="Regex filter for type declarations.")
     parser.add_argument("--const-filter", help="Regex filter for constant declarations.")
     parser.add_argument("--var-filter", help="Regex filter for runtime variable declarations.")
+    parser.add_argument(
+        "--optional-func-filter",
+        help="Regex filter for function symbols that should be treated as optional.",
+    )
+    parser.add_argument(
+        "--optional-var-filter",
+        help="Regex filter for runtime variable symbols that should be treated as optional.",
+    )
     return parser
 
 
@@ -192,6 +204,8 @@ def parse_options(argv: list[str]) -> CliOptions:
         type_filter=namespace.type_filter,
         const_filter=namespace.const_filter,
         var_filter=namespace.var_filter,
+        optional_func_filter=namespace.optional_func_filter,
+        optional_var_filter=namespace.optional_var_filter,
         clang_args=clang_argv,
     )
 
@@ -214,58 +228,179 @@ def _compile_filter(pattern: str | None, option: str) -> re.Pattern[str] | None:
         raise ValueError(message) from error
 
 
+@dataclass(frozen=True, slots=True)
+class _CompiledFilters:
+    """Compiled regex filters resolved from CLI options."""
+
+    func: re.Pattern[str] | None
+    type_: re.Pattern[str] | None
+    const: re.Pattern[str] | None
+    var: re.Pattern[str] | None
+    optional_func: re.Pattern[str] | None
+    optional_var: re.Pattern[str] | None
+
+
+def _compile_filters(options: CliOptions) -> _CompiledFilters:
+    """Compile all regex filters from CLI options.
+
+    Returns:
+        Compiled filter bundle used by declaration filtering.
+    """
+    return _CompiledFilters(
+        func=_compile_filter(options.func_filter, "--func-filter"),
+        type_=_compile_filter(options.type_filter, "--type-filter"),
+        const=_compile_filter(options.const_filter, "--const-filter"),
+        var=_compile_filter(options.var_filter, "--var-filter"),
+        optional_func=_compile_filter(options.optional_func_filter, "--optional-func-filter"),
+        optional_var=_compile_filter(options.optional_var_filter, "--optional-var-filter"),
+    )
+
+
+def _mark_optional_functions(
+    functions: tuple[FunctionDecl, ...],
+    optional_func_filter: re.Pattern[str] | None,
+) -> tuple[FunctionDecl, ...]:
+    """Set `required` metadata for function declarations.
+
+    Returns:
+        Functions with updated requiredness metadata.
+    """
+    if optional_func_filter is None:
+        return functions
+    return tuple(
+        replace(
+            function,
+            required=not bool(optional_func_filter.search(function.name)),
+        )
+        for function in functions
+    )
+
+
+def _mark_optional_runtime_vars(
+    runtime_vars: tuple[RuntimeVarDecl, ...],
+    optional_var_filter: re.Pattern[str] | None,
+) -> tuple[RuntimeVarDecl, ...]:
+    """Set `required` metadata for runtime-variable declarations.
+
+    Returns:
+        Runtime-variable declarations with updated requiredness metadata.
+    """
+    if optional_var_filter is None:
+        return runtime_vars
+    return tuple(
+        replace(
+            runtime_var,
+            required=not bool(optional_var_filter.search(runtime_var.name)),
+        )
+        for runtime_var in runtime_vars
+    )
+
+
+def _validate_required_filter_match(
+    *,
+    emit_kinds: tuple[str, ...],
+    option_value: str | None,
+    option_name: str,
+    emit_kind: str,
+    has_match: bool,
+) -> None:
+    """Validate that a configured filter matches at least one emitted declaration.
+
+    Raises:
+        ValueError: The configured filter matched no declarations for an emitted category.
+    """
+    if option_value is None or emit_kind not in emit_kinds or has_match:
+        return
+    message = f"no declarations matched {option_name}: {option_value}"
+    raise ValueError(message)
+
+
 def _apply_filters(options: CliOptions, declarations: ParsedDeclarations) -> ParsedDeclarations:
     """Apply category-specific declaration filters.
 
     Returns:
         Filtered declarations.
 
-    Raises:
-        ValueError: A provided category filter regex is invalid, or matches no
-            declarations in an emitted category.
     """
-    func_filter = _compile_filter(options.func_filter, "--func-filter")
-    type_filter = _compile_filter(options.type_filter, "--type-filter")
-    const_filter = _compile_filter(options.const_filter, "--const-filter")
-    var_filter = _compile_filter(options.var_filter, "--var-filter")
+    compiled_filters = _compile_filters(options)
 
     functions = declarations.functions
-    if func_filter is not None:
-        functions = tuple(function for function in functions if func_filter.search(function.name))
+    if compiled_filters.func is not None:
+        functions = tuple(
+            function for function in functions if compiled_filters.func.search(function.name)
+        )
+    functions = _mark_optional_functions(functions, compiled_filters.optional_func)
 
     typedefs = declarations.typedefs
-    if type_filter is not None:
-        typedefs = tuple(typedef for typedef in typedefs if type_filter.search(typedef.name))
+    if compiled_filters.type_ is not None:
+        typedefs = tuple(
+            typedef for typedef in typedefs if compiled_filters.type_.search(typedef.name)
+        )
     record_typedefs = declarations.record_typedefs
-    if type_filter is not None:
+    if compiled_filters.type_ is not None:
         record_typedefs = tuple(
             record_typedef
             for record_typedef in record_typedefs
-            if type_filter.search(record_typedef.name)
+            if compiled_filters.type_.search(record_typedef.name)
         )
 
     constants = declarations.constants
-    if const_filter is not None:
-        constants = tuple(constant for constant in constants if const_filter.search(constant.name))
-
-    runtime_vars = declarations.runtime_vars
-    if var_filter is not None:
-        runtime_vars = tuple(
-            runtime_var for runtime_var in runtime_vars if var_filter.search(runtime_var.name)
+    if compiled_filters.const is not None:
+        constants = tuple(
+            constant for constant in constants if compiled_filters.const.search(constant.name)
         )
 
-    if options.func_filter is not None and "func" in options.emit_kinds and not functions:
-        message = f"no declarations matched --func-filter: {options.func_filter}"
-        raise ValueError(message)
-    if options.type_filter is not None and "type" in options.emit_kinds and not typedefs:
-        message = f"no declarations matched --type-filter: {options.type_filter}"
-        raise ValueError(message)
-    if options.const_filter is not None and "const" in options.emit_kinds and not constants:
-        message = f"no declarations matched --const-filter: {options.const_filter}"
-        raise ValueError(message)
-    if options.var_filter is not None and "var" in options.emit_kinds and not runtime_vars:
-        message = f"no declarations matched --var-filter: {options.var_filter}"
-        raise ValueError(message)
+    runtime_vars = declarations.runtime_vars
+    if compiled_filters.var is not None:
+        runtime_vars = tuple(
+            runtime_var
+            for runtime_var in runtime_vars
+            if compiled_filters.var.search(runtime_var.name)
+        )
+    runtime_vars = _mark_optional_runtime_vars(runtime_vars, compiled_filters.optional_var)
+
+    _validate_required_filter_match(
+        emit_kinds=options.emit_kinds,
+        option_value=options.func_filter,
+        option_name="--func-filter",
+        emit_kind="func",
+        has_match=bool(functions),
+    )
+    _validate_required_filter_match(
+        emit_kinds=options.emit_kinds,
+        option_value=options.type_filter,
+        option_name="--type-filter",
+        emit_kind="type",
+        has_match=bool(typedefs),
+    )
+    _validate_required_filter_match(
+        emit_kinds=options.emit_kinds,
+        option_value=options.const_filter,
+        option_name="--const-filter",
+        emit_kind="const",
+        has_match=bool(constants),
+    )
+    _validate_required_filter_match(
+        emit_kinds=options.emit_kinds,
+        option_value=options.var_filter,
+        option_name="--var-filter",
+        emit_kind="var",
+        has_match=bool(runtime_vars),
+    )
+    _validate_required_filter_match(
+        emit_kinds=options.emit_kinds,
+        option_value=options.optional_func_filter,
+        option_name="--optional-func-filter",
+        emit_kind="func",
+        has_match=any(not function.required for function in functions),
+    )
+    _validate_required_filter_match(
+        emit_kinds=options.emit_kinds,
+        option_value=options.optional_var_filter,
+        option_name="--optional-var-filter",
+        emit_kind="var",
+        has_match=any(not runtime_var.required for runtime_var in runtime_vars),
+    )
 
     return ParsedDeclarations(
         functions=functions,

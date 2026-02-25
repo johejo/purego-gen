@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Protocol, cast
 
+from purego_gen.macro_constants import evaluate_object_like_macro_definition
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_ANONYMOUS_FIELD,
@@ -151,11 +152,17 @@ class _CursorLike(Protocol):
     storage_class: _StorageClassLike
 
     def get_children(self) -> list[_CursorLike]: ...
+    def get_tokens(self) -> list[_TokenLike]: ...
 
     def get_arguments(self) -> list[_ArgumentLike]: ...
     def is_bitfield(self) -> bool: ...
+    def is_definition(self) -> bool: ...
     def get_bitfield_width(self) -> int: ...
     def get_field_offsetof(self) -> int: ...
+
+
+class _TokenLike(Protocol):
+    spelling: str
 
 
 class _DiagnosticLike(Protocol):
@@ -200,6 +207,7 @@ class _CursorKindConfigLike(Protocol):
     TYPEDEF_DECL: object
     ENUM_CONSTANT_DECL: object
     VAR_DECL: object
+    MACRO_DEFINITION: object
 
 
 class _StorageClassLike(Protocol):
@@ -603,6 +611,16 @@ def _extract_record_typedef_decl(
     )
 
 
+def _is_opaque_record_typedef(canonical_record_type: _TypeLike) -> bool:
+    """Check whether a record typedef refers to an incomplete struct declaration.
+
+    Returns:
+        `True` when declaration is a forward-declared struct with no definition.
+    """
+    declaration = canonical_record_type.get_declaration()
+    return declaration.kind.name == _STRUCT_DECL_KIND_NAME and not declaration.is_definition()
+
+
 def _map_function_parameter_type_to_go_name(clang_type: _TypeLike) -> str:
     """Map one function parameter type into a Go type.
 
@@ -671,6 +689,16 @@ def _extract_typedef(
             mapping_result=mapping_result,
         )
         if mapping_result.go_type is None:
+            if _is_opaque_record_typedef(canonical):
+                return (
+                    TypedefDecl(
+                        name=str(cursor.spelling),
+                        c_type=str(underlying.spelling),
+                        go_type="uintptr",
+                    ),
+                    None,
+                    record_typedef,
+                )
             return None, mapping_result.unsupported_diagnostic, record_typedef
         return (
             TypedefDecl(
@@ -699,6 +727,25 @@ def _extract_constant(cursor: _CursorLike) -> ConstantDecl:
         Normalized compile-time constant declaration.
     """
     return ConstantDecl(name=str(cursor.spelling), value=int(cursor.enum_value))
+
+
+def _extract_macro_constant(
+    cursor: _CursorLike,
+    *,
+    known_constant_values: dict[str, int],
+) -> ConstantDecl | None:
+    """Extract one object-like macro constant when expression is supported.
+
+    Returns:
+        Parsed compile-time constant, or `None` when macro is unsupported.
+    """
+    evaluated = evaluate_object_like_macro_definition(
+        token_spellings=tuple(token.spelling for token in cursor.get_tokens()),
+        known_constant_values=known_constant_values,
+    )
+    if evaluated is None:
+        return None
+    return ConstantDecl(name=str(cursor.spelling), value=evaluated)
 
 
 def _extract_runtime_var(cursor: _CursorLike) -> RuntimeVarDecl:
@@ -794,6 +841,35 @@ def _collect_constant(
     return True
 
 
+def _collect_macro_constant(
+    cursor: _CursorLike,
+    macro_definition_kind: object,
+    seen: _SeenDeclarations,
+    constants: list[ConstantDecl],
+    known_constant_values: dict[str, int],
+) -> bool:
+    """Collect one object-like macro constant when expression is supported.
+
+    Returns:
+        `True` when cursor matched macro handling branch.
+    """
+    if cursor.kind != macro_definition_kind:
+        return False
+    if cursor.spelling in seen.constant_names:
+        return True
+
+    extracted = _extract_macro_constant(
+        cursor,
+        known_constant_values=known_constant_values,
+    )
+    if extracted is None:
+        return True
+    seen.constant_names.add(cursor.spelling)
+    constants.append(extracted)
+    known_constant_values[extracted.name] = extracted.value
+    return True
+
+
 def _collect_runtime_var(
     cursor: _CursorLike,
     var_decl_kind: object,
@@ -830,11 +906,18 @@ def _parse_translation_unit(
     Raises:
         ClangParserError: Translation unit could not be loaded.
     """
+    parse_options = int(cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES)
+    detailed_preprocessing_record = getattr(
+        cindex.TranslationUnit,
+        "PARSE_DETAILED_PROCESSING_RECORD",
+        0,
+    )
+    parse_options |= int(detailed_preprocessing_record)
     try:
         return index.parse(
             path=str(header_path),
             args=list(clang_args),
-            options=cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES,
+            options=parse_options,
         )
     except cindex.TranslationUnitLoadError as error:
         message = f"failed to load translation unit for {header_path}"
@@ -880,6 +963,11 @@ def _parse_header(
         skipped_typedefs=[],
         record_typedefs=[],
     )
+    known_constant_values: dict[str, int] = {}
+    macro_definition_kind = cast(
+        "object | None",
+        getattr(cindex.CursorKind, "MACRO_DEFINITION", None),
+    )
     for cursor in _walk_preorder(root_cursor):
         if not _is_cursor_from_header(cursor, header_path):
             continue
@@ -898,6 +986,15 @@ def _parse_header(
             cindex.CursorKind.ENUM_CONSTANT_DECL,
             seen,
             declarations.constants,
+        ):
+            known_constant_values[str(cursor.spelling)] = int(cursor.enum_value)
+            continue
+        if macro_definition_kind is not None and _collect_macro_constant(
+            cursor,
+            macro_definition_kind,
+            seen,
+            declarations.constants,
+            known_constant_values,
         ):
             continue
         if _collect_runtime_var(

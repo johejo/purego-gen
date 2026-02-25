@@ -13,12 +13,17 @@ Early development. Interfaces and generated output may change.
 - Generates low-level bindings for `func/type/const/var` categories.
 - Function bindings are emitted as typed Go function values derived from parsed C
   signatures (with `uintptr` fallback for unsupported types).
+- Incomplete/opaque struct typedefs are emitted as `uintptr` aliases for
+  pointer-handle style APIs.
+- Compile-time constant extraction includes enum members plus supported
+  object-like integer macros.
 - Non-Windows first; generated identifiers are unexported `purego_` names.
 - Callers provide the library handle (no automatic `dlopen` policy).
 - M4 ABI checks now include C-side probe comparison (`sizeof`/`alignof`/`offsetof`)
   and explicit `passed`/`failed`/`skipped` fallback classification per record.
 - v1 function-pointer handling is `uintptr`-only (no callback trampoline codegen).
-- v1 optional symbol policy is hard-error for emitted symbols.
+- Symbols are required by default, with optional symbol handling configurable
+  via `--optional-func-filter` / `--optional-var-filter`.
 - Golden-case manifest is normalized to `header_paths`, and CI can enforce
   strict golden drift checks via `just golden-check-ci`.
 - M5 `libzstd` objective harness fixture checks deterministic golden output and

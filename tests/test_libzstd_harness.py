@@ -31,6 +31,16 @@ _LIBRARY_OVERRIDE_ENV = "PUREGO_GEN_TEST_LIBZSTD"
 _HEADER_NAME = "zstd.h"
 _GOLDEN_OUTPUT_PACKAGE = "fixture"
 _RUNTIME_PACKAGE = "zstdfixture"
+_LIBZSTD_MACRO_FILTER = (
+    "^("
+    "ZSTD_VERSION_MAJOR|"
+    "ZSTD_VERSION_MINOR|"
+    "ZSTD_VERSION_RELEASE|"
+    "ZSTD_MAGICNUMBER|"
+    "ZSTD_CONTENTSIZE_UNKNOWN|"
+    "ZSTD_CONTENTSIZE_ERROR"
+    ")$"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -228,6 +238,51 @@ def _run_cli_for_libzstd(
     )
 
 
+def _run_cli_for_libzstd_constants(
+    config: _LibzstdHarnessConfig,
+    *,
+    package: str,
+    const_filter: str,
+) -> subprocess.CompletedProcess[str]:
+    """Run purego-gen against discovered libzstd header for constant extraction.
+
+    Returns:
+        Completed process result for the CLI invocation.
+    """
+    command = [
+        sys.executable,
+        "-m",
+        "purego_gen",
+        "--lib-id",
+        "zstd",
+        "--header",
+        str(config.header_path),
+        "--pkg",
+        package,
+        "--emit",
+        "const",
+        "--const-filter",
+        const_filter,
+    ]
+    if config.clang_args:
+        command.extend(["--", *config.clang_args])
+
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH")
+    src_path = str(_SRC_DIR)
+    env["PYTHONPATH"] = (
+        src_path if existing_pythonpath is None else f"{src_path}:{existing_pythonpath}"
+    )
+    return subprocess.run(  # noqa: S603
+        command,
+        capture_output=True,
+        check=False,
+        cwd=_REPO_ROOT,
+        env=env,
+        text=True,
+    )
+
+
 def _assert_go_source_compiles(source: str, tmp_path: Path) -> None:
     """Compile generated source in the shared Go fixture module."""
     result = run_go_test_in_generated_module(
@@ -313,3 +368,23 @@ def test_runtime_harness_resolves_libzstd_symbols(
         tmp_path,
         shared_library_path=libzstd_harness_config.shared_library_path,
     )
+
+
+def test_extracts_libzstd_object_like_macro_constants(
+    tmp_path: Path,
+    libzstd_harness_config: _LibzstdHarnessConfig,
+) -> None:
+    """CLI should extract required object-like macro constants for libzstd."""
+    result = _run_cli_for_libzstd_constants(
+        libzstd_harness_config,
+        package=_GOLDEN_OUTPUT_PACKAGE,
+        const_filter=_LIBZSTD_MACRO_FILTER,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "purego_const_zstd_version_major" in result.stdout
+    assert "purego_const_zstd_version_minor" in result.stdout
+    assert "purego_const_zstd_version_release" in result.stdout
+    assert "purego_const_zstd_magicnumber" in result.stdout
+    assert "purego_const_zstd_contentsize_unknown" in result.stdout
+    assert "purego_const_zstd_contentsize_error" in result.stdout
+    _assert_go_source_compiles(result.stdout, tmp_path)

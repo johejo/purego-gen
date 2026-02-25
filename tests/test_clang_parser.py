@@ -16,6 +16,12 @@ from purego_gen.model import (
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
+_MACRO_CONSTANTS_HEADER = _FIXTURES_DIR / "macro_constants.h"
+_EXPECTED_FIXTURE_MACRO_SEED = 7
+_EXPECTED_FIXTURE_VERSION_NUMBER = 10203
+_EXPECTED_FIXTURE_MAGIC_NUMBER = 4247762216
+_EXPECTED_FIXTURE_CONTENTSIZE_UNKNOWN = 18446744073709551615
+_EXPECTED_FIXTURE_CONTENTSIZE_ERROR = 18446744073709551614
 
 
 def _go_struct(*fields: str) -> str:
@@ -65,6 +71,7 @@ def test_parse_type_mapping_edge_cases() -> None:
         "fixture_point_t",
         "fixture_point_alias_t",
         "fixture_nested_point_t",
+        "fixture_opaque_t",
     )
     assert typedef_map["fixture_mode_t"] == "int32"
     assert typedef_map["fixture_mode_alias_t"] == "int32"
@@ -87,7 +94,7 @@ def test_parse_type_mapping_edge_cases() -> None:
     assert "fixture_union_t" not in typedef_map
     assert "fixture_with_bitfield_t" not in typedef_map
     assert "fixture_with_anonymous_field_t" not in typedef_map
-    assert "fixture_opaque_t" not in typedef_map
+    assert typedef_map["fixture_opaque_t"] == "uintptr"
     skipped_typedef_map = {
         typedef.name: (typedef.reason_code, typedef.reason)
         for typedef in declarations.skipped_typedefs
@@ -108,11 +115,29 @@ def test_parse_type_mapping_edge_cases() -> None:
         TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
         "struct has no supported fields in v1",
     )
-    assert skipped_typedef_map["fixture_opaque_t"] == (
-        TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
-        "struct has no supported fields in v1",
-    )
     assert tuple(constant.name for constant in declarations.constants) == (
         "FIXTURE_MODE_OFF",
         "FIXTURE_MODE_ON",
     )
+
+
+def test_parse_object_like_macro_constants() -> None:
+    """Parser should extract object-like integer macros as compile-time constants."""
+    declarations = parse_declarations(headers=(str(_MACRO_CONSTANTS_HEADER),), clang_args=())
+
+    constant_map = {constant.name: constant.value for constant in declarations.constants}
+    assert set(constant_map) == {
+        "FIXTURE_MACRO_SEED",
+        "FIXTURE_VERSION_MAJOR",
+        "FIXTURE_VERSION_MINOR",
+        "FIXTURE_VERSION_PATCH",
+        "FIXTURE_VERSION_NUMBER",
+        "FIXTURE_MAGIC_NUMBER",
+        "FIXTURE_CONTENTSIZE_UNKNOWN",
+        "FIXTURE_CONTENTSIZE_ERROR",
+    }
+    assert constant_map["FIXTURE_MACRO_SEED"] == _EXPECTED_FIXTURE_MACRO_SEED
+    assert constant_map["FIXTURE_VERSION_NUMBER"] == _EXPECTED_FIXTURE_VERSION_NUMBER
+    assert constant_map["FIXTURE_MAGIC_NUMBER"] == _EXPECTED_FIXTURE_MAGIC_NUMBER
+    assert constant_map["FIXTURE_CONTENTSIZE_UNKNOWN"] == _EXPECTED_FIXTURE_CONTENTSIZE_UNKNOWN
+    assert constant_map["FIXTURE_CONTENTSIZE_ERROR"] == _EXPECTED_FIXTURE_CONTENTSIZE_ERROR

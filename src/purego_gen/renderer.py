@@ -62,11 +62,13 @@ class _FunctionContext(TypedDict):
     symbol: str
     parameter_types: tuple[str, ...]
     result_type: str | None
+    required: bool
 
 
 class _RuntimeVarContext(TypedDict):
     identifier: str
     symbol: str
+    required: bool
 
 
 class _TemplateContext(TypedDict):
@@ -145,6 +147,7 @@ def _build_context(
                 "symbol": function.name,
                 "parameter_types": function.go_parameter_types,
                 "result_type": function.go_result_type,
+                "required": function.required,
             }
             for function in declarations.functions
         ),
@@ -152,6 +155,7 @@ def _build_context(
             {
                 "identifier": _sanitize_identifier(runtime_var.name),
                 "symbol": runtime_var.name,
+                "required": runtime_var.required,
             }
             for runtime_var in declarations.runtime_vars
         ),

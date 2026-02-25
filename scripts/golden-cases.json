@@ -19,6 +19,15 @@
       "clang_args": ""
     },
     {
+      "id": "case_macro_constants",
+      "output_path": "tests/golden/case_macro_constants/generated.go",
+      "header_paths": [
+        "tests/fixtures/macro_constants.h"
+      ],
+      "emit_kinds": "const",
+      "clang_args": ""
+    },
+    {
       "id": "case_categories_mixed_filtered",
       "output_path": "tests/golden/case_categories_mixed_filtered/generated.go",
       "header_paths": [
