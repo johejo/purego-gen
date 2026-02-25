@@ -24,11 +24,13 @@ _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
 _GOLDEN_DIR = _REPO_ROOT / "tests" / "golden"
 _GO_COMPILE_FIXTURE_DIR = _FIXTURES_DIR / "go_compile_module"
 _GO_RUNTIME_FIXTURE_DIR = _FIXTURES_DIR / "go_runtime_zstd_module"
-_TARGET_PROFILES_DIR = _FIXTURES_DIR / "target_profiles"
 _LIBZSTD_GOLDEN_PATH = _GOLDEN_DIR / "libzstd_core.go"
+_TARGET_PROFILES_DIR = _FIXTURES_DIR / "target_profiles"
 _LIBZSTD_PROFILE_PATH = _TARGET_PROFILES_DIR / "libzstd_v1.json"
 _LIBRARY_OVERRIDE_ENV = "PUREGO_GEN_TEST_LIBZSTD"
 _HEADER_NAME = "zstd.h"
+_GOLDEN_PACKAGE = "sample"
+_RUNTIME_PACKAGE = "zstdfixture"
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,6 +187,7 @@ def _run_cli_for_libzstd(
     config: _LibzstdHarnessConfig,
     *,
     profile: _LibzstdSubsetProfile,
+    package: str,
 ) -> subprocess.CompletedProcess[str]:
     """Run purego-gen against discovered libzstd header with deterministic filter.
 
@@ -200,7 +203,7 @@ def _run_cli_for_libzstd(
         "--header",
         str(config.header_path),
         "--pkg",
-        "zstdfixture",
+        package,
         "--emit",
         profile.emit_kinds,
         "--func-filter",
@@ -282,7 +285,11 @@ def test_generates_libzstd_golden_output(
     libzstd_subset_profile: _LibzstdSubsetProfile,
 ) -> None:
     """CLI output for selected libzstd APIs should match committed golden output."""
-    result = _run_cli_for_libzstd(libzstd_harness_config, profile=libzstd_subset_profile)
+    result = _run_cli_for_libzstd(
+        libzstd_harness_config,
+        profile=libzstd_subset_profile,
+        package=_GOLDEN_PACKAGE,
+    )
     expected = _LIBZSTD_GOLDEN_PATH.read_text(encoding="utf-8")
     assert result.returncode == 0, result.stderr
     assert result.stdout == expected
@@ -295,7 +302,11 @@ def test_runtime_harness_resolves_libzstd_symbols(
     libzstd_subset_profile: _LibzstdSubsetProfile,
 ) -> None:
     """Generated bindings should run a libzstd roundtrip in runtime harness."""
-    result = _run_cli_for_libzstd(libzstd_harness_config, profile=libzstd_subset_profile)
+    result = _run_cli_for_libzstd(
+        libzstd_harness_config,
+        profile=libzstd_subset_profile,
+        package=_RUNTIME_PACKAGE,
+    )
     assert result.returncode == 0, result.stderr
     _assert_runtime_harness_passes(
         result.stdout,

@@ -44,9 +44,14 @@ def run_go_test_in_generated_module(
 
     module_dir = tmp_path / output_dir_name
     shutil.copytree(fixture_module_dir, module_dir)
-    shared_module_dir = fixture_module_dir.parent / "go_shared_module"
-    (module_dir / "go.mod").write_text((shared_module_dir / "go.mod").read_text(encoding="utf-8"))
-    (module_dir / "go.sum").write_text((shared_module_dir / "go.sum").read_text(encoding="utf-8"))
+    fixture_root_dir = fixture_module_dir.parent
+    go_mod_path = fixture_root_dir / "go.mod"
+    go_sum_path = fixture_root_dir / "go.sum"
+    if not go_mod_path.is_file() or not go_sum_path.is_file():
+        message = f"go.mod/go.sum not found under fixture root: {fixture_root_dir}"
+        raise RuntimeError(message)
+    (module_dir / "go.mod").write_text(go_mod_path.read_text(encoding="utf-8"))
+    (module_dir / "go.sum").write_text(go_sum_path.read_text(encoding="utf-8"))
     (module_dir / "generated.go").write_text(generated_source, encoding="utf-8")
 
     env = os.environ.copy()
