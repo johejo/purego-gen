@@ -5,8 +5,6 @@
 from __future__ import annotations
 
 import os
-import shlex
-import shutil
 import subprocess  # noqa: S404
 import sys
 from dataclasses import dataclass
@@ -15,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from purego_gen.go_test_harness import run_go_test_in_generated_module
+from purego_gen.pkg_config import run_pkg_config_stdout, run_pkg_config_tokens
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SRC_DIR = _REPO_ROOT / "src"
@@ -35,46 +34,6 @@ class _LibzstdHarnessConfig:
     header_path: Path
     clang_args: tuple[str, ...]
     shared_library_path: Path
-
-
-def _shell_split(value: str) -> tuple[str, ...]:
-    """Split shell-style flag text into tokens.
-
-    Returns:
-        Tokenized flag text.
-    """
-    stripped = value.strip()
-    if not stripped:
-        return ()
-    return tuple(shlex.split(stripped))
-
-
-def _run_pkg_config_stdout(*args: str) -> str:
-    """Run pkg-config and return stripped stdout for one query.
-
-    Returns:
-        Command stdout with trailing whitespace trimmed.
-
-    Raises:
-        RuntimeError: `pkg-config` is unavailable or query fails.
-    """
-    pkg_config_binary = shutil.which("pkg-config")
-    if pkg_config_binary is None:
-        message = "pkg-config is required for libzstd harness tests (run via nix develop)."
-        raise RuntimeError(message)
-
-    result = subprocess.run(  # noqa: S603
-        [pkg_config_binary, *args],
-        capture_output=True,
-        check=False,
-        text=True,
-    )
-    if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip() or "pkg-config query failed"
-        query = " ".join(args)
-        message = f"pkg-config {query} failed for libzstd: {detail}"
-        raise RuntimeError(message)
-    return result.stdout.strip()
 
 
 def _resolve_shared_library_path(library_dir: Path) -> Path | None:
@@ -110,8 +69,8 @@ def _resolve_libzstd_harness_config() -> _LibzstdHarnessConfig:
     Raises:
         RuntimeError: Header or shared-library discovery fails.
     """
-    clang_args = _shell_split(_run_pkg_config_stdout("--cflags", "libzstd"))
-    include_dir = Path(_run_pkg_config_stdout("--variable=includedir", "libzstd")).expanduser()
+    clang_args = run_pkg_config_tokens("libzstd", "--cflags")
+    include_dir = Path(run_pkg_config_stdout("libzstd", "--variable=includedir")).expanduser()
     header_path = (include_dir / _HEADER_NAME).resolve()
     if not header_path.is_file():
         message = f"failed to locate zstd.h from pkg-config includedir: {header_path}"
@@ -129,7 +88,7 @@ def _resolve_libzstd_harness_config() -> _LibzstdHarnessConfig:
             shared_library_path=shared_library_path,
         )
 
-    lib_dir = Path(_run_pkg_config_stdout("--variable=libdir", "libzstd")).expanduser().resolve()
+    lib_dir = Path(run_pkg_config_stdout("libzstd", "--variable=libdir")).expanduser().resolve()
     shared_library_path = _resolve_shared_library_path(lib_dir)
     if shared_library_path is None:
         message = (
