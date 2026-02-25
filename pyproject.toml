@@ -44,7 +44,7 @@ indent-style = "space"
 [tool.basedpyright]
 pythonVersion = "3.14"
 typeCheckingMode = "strict"
-include = ["src", "tests"]
+include = ["src", "tests", "scripts"]
 exclude = [
   ".direnv",
   ".git",
@@ -64,7 +64,7 @@ reportMissingTypeStubs = true
 reportUnnecessaryTypeIgnoreComment = "error"
 
 [tool.pyrefly]
-project-includes = ["src/**/*.py", "tests/**/*.py"]
+project-includes = ["src/**/*.py", "tests/**/*.py", "scripts/**/*.py"]
 project-excludes = [".git/**", ".venv/**", "build/**", "dist/**"]
 python-version = "3.14"
 ignore-errors-in-generated-code = false

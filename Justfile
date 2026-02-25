@@ -1,6 +1,7 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 agent_nix_prefix := "env XDG_CACHE_HOME=$PWD/.cache GOMODCACHE=$PWD/.cache/gomod GOCACHE=$PWD/.cache/go-build CCACHE_DIR=$PWD/.cache/ccache CCACHE_BASEDIR=$PWD CCACHE_NOHASHDIR=1 UV_PROJECT_ENVIRONMENT=.venv nix develop -c"
+python_src_prefix := "env PYTHONPATH=src uv run python"
 
 default:
   @just --list
@@ -30,6 +31,9 @@ typecheck:
 
 test:
   uv run pytest
+
+inspect-libzstd:
+  {{python_src_prefix}} scripts/inspect-target-library.py --pkg-config-package libzstd --header zstd.h
 
 golden-update:
   scripts/update-golden.sh

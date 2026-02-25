@@ -79,6 +79,15 @@
 - [ ] Wire target-library jobs into CI matrix with platform guards.
 - [ ] Record known unsupported declarations per library.
 
+## M5.5 libzstd Practical Usability
+
+- [ ] Generate typed function signatures (result + params) instead of `func()` placeholders for selected `libzstd` APIs.
+- [ ] Introduce opaque-handle type emission policy for incomplete structs (`ZSTD_CCtx` / `ZSTD_DCtx` / `ZSTD_CDict` / `ZSTD_DDict`) so pointer-based APIs can be represented safely.
+- [ ] Extend constant extraction beyond enum constants to object-like macro constants required by `libzstd` (`ZSTD_VERSION_*`, magic/content-size related values).
+- [ ] Add symbol requirement metadata (`required` vs `optional`) and generate registration flow that can tolerate optional symbol absence when configured.
+- [ ] Add runtime harness scenario that performs real block compress/decompress roundtrip using generated bindings (not symbol-resolution only).
+- [ ] Define and document a stable `libzstd` API subset profile for v1 generation tests (allowlist-based to reduce cross-version drift).
+
 ## Pre-M5 Hardening
 
 - [x] Define where ABI layout fallback results (`passed`/`failed`/`skipped`) are surfaced (CLI vs harness report).
