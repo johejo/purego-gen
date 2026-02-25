@@ -9,6 +9,10 @@ import (
 )
 
 var (
+	_ = fmt.Errorf
+)
+
+var (
 	purego_func_base_add func(
 		int32,
 		int32,

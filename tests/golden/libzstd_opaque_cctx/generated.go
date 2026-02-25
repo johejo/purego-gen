@@ -8,6 +8,10 @@ import (
 	"github.com/ebitengine/purego"
 )
 
+var (
+	_ = fmt.Errorf
+)
+
 type (
 	purego_type_zstd_cctx = uintptr
 )

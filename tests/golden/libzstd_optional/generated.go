@@ -9,6 +9,10 @@ import (
 )
 
 var (
+	_ = fmt.Errorf
+)
+
+var (
 	purego_func_zstd_versionnumber func() uint32
 	purego_func_zstd_compress      func(
 		uintptr,

@@ -9,6 +9,10 @@ import (
 )
 
 var (
+	_ = fmt.Errorf
+)
+
+var (
 	purego_func_smoke_reset       func() int32
 	purego_func_smoke_increment   func() int32
 	purego_func_smoke_get_counter func() int32

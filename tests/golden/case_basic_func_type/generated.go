@@ -8,6 +8,10 @@ import (
 	"github.com/ebitengine/purego"
 )
 
+var (
+	_ = fmt.Errorf
+)
+
 type (
 	purego_type_my_int    = int32
 	purego_type_my_handle = uintptr

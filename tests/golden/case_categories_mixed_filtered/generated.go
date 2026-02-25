@@ -8,6 +8,10 @@ import (
 	"github.com/ebitengine/purego"
 )
 
+var (
+	_ = fmt.Errorf
+)
+
 const (
 	purego_const_fixture_status_ok = 0
 )
