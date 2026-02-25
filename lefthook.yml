@@ -2,10 +2,10 @@ pre-commit:
   commands:
     fmt:
       root: "."
-      run: just hook-gate
+      run: just format-check
 
 pre-push:
   commands:
-    gate:
+    ci:
       root: "."
-      run: just hook-push-gate
+      run: just ci

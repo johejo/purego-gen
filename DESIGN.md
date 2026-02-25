@@ -51,35 +51,22 @@ Out of scope (for now):
 
 - Development shell is provided via `nix develop` and must include `uv`, `just`,
   `lefthook`, `treefmt`, Go toolchain, and libclang.
-- Development shell also includes `ccache` and sets repo-local cache defaults to
-  keep repeated test/check runs fast across sandbox sessions:
+- Development shell also includes `ccache`.
+- Development shell does not override user/environment cache defaults.
+- In Codex sandbox sessions, `just agent-check` / `just agent-ci` apply
+  repo-local cache/tool defaults to keep repeated runs fast:
   - `XDG_CACHE_HOME=.cache` (including Nix user cache under `.cache/nix`)
   - `GOMODCACHE=.cache/gomod`
   - `GOCACHE=.cache/go-build`
   - `CCACHE_DIR=.cache/ccache`
-  - `CC`/`CXX` default to `ccache clang` / `ccache clang++`
+  - `UV_PROJECT_ENVIRONMENT=.venv`
 - Python tool configuration lives in `pyproject.toml`; tools are invoked via
   `uv run ...`.
-- Project automation entrypoint is `just` with recipes:
-  - `bootstrap` (install dev dependencies + install git hooks)
-  - `nix-flake-check` (run `nix flake check`)
-  - `fmt` (run `nix fmt`)
-  - `fmt-check` (run `nix fmt -- --fail-on-change`)
-  - `lint` (run `actionlint`, `ruff`, `djlint`, `shellcheck`, and `shfmt -d` for `scripts/*.sh`)
-  - `typecheck` (run `basedpyright` and `pyrefly`)
-  - `golden-update` (regenerate committed golden outputs)
-  - `golden-check` (verify generated output matches committed golden outputs at `HEAD`)
-  - `test` (run `pytest`)
-  - `check` (aggregate lint + typecheck + golden-check + test)
-  - `gate` (run `fmt` -> `nix-flake-check` -> `check`)
-  - `hook-gate` (run `fmt-check` for fast pre-commit)
-  - `hook-push-gate` (run full `gate` for pre-push)
-- Git hooks are managed via `lefthook`:
-  - `pre-commit`: `just hook-gate`
-  - `pre-push`: `just hook-push-gate`
-- GitHub Actions CI runs on pinned runners and executes:
-  - `nix develop -c just gate` (includes `actionlint` via `just lint`)
-  - runners: `ubuntu-24.04`, `ubuntu-24.04-arm`, `macos-15`
+- Project automation entrypoint is `just` (`Justfile` is the source of truth
+  for recipe names and wiring).
+- Git hooks (`lefthook`) and GitHub Actions CI execute through `just` recipes.
+- `just check` is local-first and must work in dirty/uncommitted working trees.
+- `just ci` is strict and CI-oriented (`format-check` + strict golden drift checks).
 - Formatting scope includes `tests/fixtures/*.h` via `clang-format` and
   `scripts/*.sh` via `shfmt` in `treefmt`.
 

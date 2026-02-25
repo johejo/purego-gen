@@ -30,15 +30,24 @@ purego-gen --lib-id zstd --header zstd.h --out -
 
 ## Development Setup
 
-Use the Nix dev shell as the default entrypoint and run the standard gate:
+Use the Nix dev shell as the default entrypoint and run local checks first:
 
 ```sh
 nix develop
-just bootstrap
-just gate
+lefthook install
+just format
+just check
 ```
 
-The dev shell defaults caches to repo-local `.cache/` and enables `ccache` so repeated runs stay fast across sandbox sessions.
+Run strict CI-equivalent checks before pushing:
+
+```sh
+just ci
+```
+
+The dev shell respects existing user/environment cache settings. In Codex
+sandbox sessions, `just agent-check` / `just agent-ci` use repo-local `.cache/`
+defaults for repeatable runs.
 
 For detailed and up-to-date behavior, see:
 - [`DESIGN.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/DESIGN.md) (implementation contract and technical details)

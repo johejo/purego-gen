@@ -25,5 +25,5 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v31
 
-      - name: Run gate
-        run: nix develop -c just gate
+      - name: Run CI checks
+        run: nix develop -c just ci

@@ -1,48 +1,35 @@
-set shell := ["zsh", "-eu", "-o", "pipefail", "-c"]
+set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
-uv_run := "uv run"
-codex_nix_prefix := "XDG_CACHE_HOME=$PWD/.cache nix develop -c"
-djlint_flags := "--check --extension=j2 --preserve-leading-space --preserve-blank-lines"
+agent_nix_prefix := "env XDG_CACHE_HOME=$PWD/.cache GOMODCACHE=$PWD/.cache/gomod GOCACHE=$PWD/.cache/go-build CCACHE_DIR=$PWD/.cache/ccache CCACHE_BASEDIR=$PWD CCACHE_NOHASHDIR=1 UV_PROJECT_ENVIRONMENT=.venv nix develop -c"
 
 default:
   @just --list
 
-# Bootstrap
+# Day-to-day development tasks
 
-bootstrap:
-  uv sync --group dev --python 3.14
-  lefthook install
-
-# Formatting
-
-fmt:
+format:
   nix fmt
 
-fmt-check:
+format-check:
   nix fmt -- --fail-on-change
-
-template-fmt:
-  scripts/format-template-go.sh
-
-# Validation
 
 nix-flake-check:
   nix flake check
 
 lint:
   actionlint
-  {{uv_run}} ruff check .
-  {{uv_run}} ruff format --check .
-  {{uv_run}} djlint {{djlint_flags}} templates/
+  uv run ruff check .
+  uv run ruff format --check .
+  uv run djlint --check --extension=j2 --preserve-leading-space --preserve-blank-lines templates/
   shellcheck scripts/*.sh
   shfmt -d scripts/*.sh
 
 typecheck:
-  {{uv_run}} basedpyright
-  env -u PYTHONPATH {{uv_run}} pyrefly check .
+  uv run basedpyright
+  env -u PYTHONPATH uv run pyrefly check .
 
 test:
-  {{uv_run}} pytest
+  uv run pytest
 
 golden-update:
   scripts/update-golden.sh
@@ -55,21 +42,14 @@ golden-check-ci:
 
 check: lint typecheck golden-check test
 
-gate: fmt nix-flake-check check
+ci: format-check nix-flake-check lint typecheck golden-check-ci test
 
-# Hooks
+# Codex sandbox helper tasks
 
-hook:
-  lefthook run pre-commit
+agent-check:
+  mkdir -p .cache/nix .cache/gomod .cache/go-build .cache/ccache
+  {{agent_nix_prefix}} just check
 
-hook-gate: fmt-check
-
-hook-push-gate: gate
-
-# Codex sandbox helpers
-
-codex-check:
-  {{codex_nix_prefix}} just check
-
-codex-gate:
-  {{codex_nix_prefix}} just gate
+agent-ci:
+  mkdir -p .cache/nix .cache/gomod .cache/go-build .cache/ccache
+  {{agent_nix_prefix}} just ci

@@ -2,18 +2,10 @@
 
 ## M0 Development Tooling Baseline
 
-- [x] Add `flake.nix` with a reproducible `devShell` for Python, Go, and libclang tooling.
-- [x] Add `pyproject.toml` with `ruff`, `basedpyright`, `pyrefly`, and `pytest` configuration.
-- [x] Add formatter orchestration with `treefmt`.
-- [x] Add `clang-format` for test fixture C headers (`tests/fixtures/*.h`) via `treefmt`.
-- [x] Add `shellcheck` for `scripts/*.sh` and wire it into lint/check flow.
-- [x] Add `shfmt` for `scripts/*.sh` and wire it into fmt/lint flow.
-- [x] Add git hook automation with `lefthook` (`pre-commit` runs fmt-only checks, `pre-push` runs full gate).
-- [x] Add `Justfile` recipes for `bootstrap`, `nix-flake-check`, `fmt`, `fmt-check`, `lint`, `typecheck`, `test`, `check`, `gate`, `hook-gate`, and `hook-push-gate`.
-- [x] Make `just fmt`/`just fmt-check` use `nix fmt` to keep hook formatting checks flake-aware.
-- [x] Remove redundant `nix-fmt` alias and keep `fmt` as the single formatting entrypoint.
-- [x] Wire `nix develop -c just gate` into CI (including `actionlint` via `just lint`) on pinned runners `ubuntu-24.04`, `ubuntu-24.04-arm`, and `macos-15`.
-- [x] Persist `ccache`, Go caches, and Nix user cache in repo-local ignored directories (`.cache/`) by wiring `CCACHE_DIR`/`GOCACHE`/`GOMODCACHE`/`XDG_CACHE_HOME` defaults in the dev shell.
+- [x] Establish a reproducible Nix-based development baseline (`devShell` and toolchain), while keeping Codex-local cache defaults scoped to `agent` recipes.
+- [x] Standardize automation entrypoints in `Justfile` (`format`, `check`, `ci`) with local-vs-CI role separation.
+- [x] Integrate formatting/lint/typecheck/test and golden drift verification into the project gate flow.
+- [x] Wire local hooks and GitHub Actions CI to run the strict `just ci` flow on pinned runners.
 
 ## M1 Core Parsing and Deterministic Emission
 
