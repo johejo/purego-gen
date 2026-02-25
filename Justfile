@@ -1,6 +1,6 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
-agent_nix_prefix := "env XDG_CACHE_HOME=$PWD/.cache GOMODCACHE=$PWD/.cache/gomod GOCACHE=$PWD/.cache/go-build CCACHE_DIR=$PWD/.cache/ccache CCACHE_BASEDIR=$PWD CCACHE_NOHASHDIR=1 UV_PROJECT_ENVIRONMENT=.venv nix develop -c"
+agent_nix_prefix := "nix develop .#coding-agent -c"
 python_src_prefix := "env PYTHONPATH=src uv run python"
 
 default:

@@ -48,9 +48,9 @@ Run strict CI-equivalent checks before pushing (including `djlint` version parit
 just ci
 ```
 
-The dev shell respects existing user/environment cache settings. In Codex
-sandbox sessions, `just agent-check` / `just agent-ci` use repo-local `.cache/`
-defaults for repeatable runs.
+The default dev shell respects existing user/environment cache settings.
+Codex-specific sandbox workflow is documented in
+[`AGENTS.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/AGENTS.md).
 
 For detailed and up-to-date behavior, see:
 - [`DESIGN.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/DESIGN.md) (implementation contract and technical details)

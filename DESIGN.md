@@ -51,14 +51,7 @@ Out of scope (for now):
 - Development shell is provided via `nix develop` and must include `uv`, `just`,
   `treefmt`, Go toolchain, and libclang.
 - Development shell also includes `ccache`.
-- Development shell does not override user/environment cache defaults.
-- In Codex sandbox sessions, `just agent-check` / `just agent-ci` apply
-  repo-local cache/tool defaults to keep repeated runs fast:
-  - `XDG_CACHE_HOME=.cache` (including Nix user cache under `.cache/nix`)
-  - `GOMODCACHE=.cache/gomod`
-  - `GOCACHE=.cache/go-build`
-  - `CCACHE_DIR=.cache/ccache`
-  - `UV_PROJECT_ENVIRONMENT=.venv`
+- Default dev shell (`nix develop`) does not override user/environment cache defaults.
 - Python tool configuration lives in `pyproject.toml`; tools are invoked via
   `uv run ...`.
 - Project automation entrypoint is `just` (`Justfile` is the source of truth

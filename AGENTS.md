@@ -23,6 +23,7 @@ Do not duplicate volatile details in this file.
 - Generated code expects a caller-provided library handle.
 - Prefer panic-free registration flow (`Dlsym + RegisterFunc`) on v1 target OSes.
 - Run `pytest` in the `nix` devshell by default because it requires `LIBCLANG_PATH`.
+- In Codex sandbox, use `nix develop .#coding-agent -c ...` (plain `nix develop -c ...` is intentionally rejected in Codex).
 - In Codex sandbox, use `just agent-check` / `just agent-ci` for validation tasks.
 - For automated checks outside Codex sandbox (agents/CI), run `just ci` directly.
 - For target-library coverage investigation, prefer `scripts/inspect-target-library.py` (e.g. `just inspect-libzstd`) over ad-hoc one-off commands.
