@@ -35,6 +35,12 @@ test:
 inspect-libzstd:
   {{python_src_prefix}} scripts/inspect-target-library.py --pkg-config-package libzstd --header zstd.h
 
+go-fixture-update:
+  {{python_src_prefix}} scripts/update-go-fixture-placeholders.py
+
+go-fixture-check:
+  {{python_src_prefix}} scripts/update-go-fixture-placeholders.py --check
+
 golden-update:
   scripts/update-golden.sh
 
