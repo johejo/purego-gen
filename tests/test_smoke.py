@@ -5,11 +5,11 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess  # noqa: S404
 import sys
 from pathlib import Path
 
+from purego_gen.go_test_harness import run_go_test_in_generated_module
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
@@ -55,22 +55,11 @@ def _run_cli(*args: str) -> subprocess.CompletedProcess[str]:
 
 def _assert_go_source_compiles(source: str, tmp_path: Path) -> None:
     """Compile generated Go source in an isolated temporary module."""
-    go_binary = shutil.which("go")
-    assert go_binary is not None
-
-    module_dir = tmp_path / "generated"
-    shutil.copytree(_GO_COMPILE_FIXTURE_DIR, module_dir)
-    (module_dir / "generated.go").write_text(source, encoding="utf-8")
-
-    env = os.environ.copy()
-
-    result = subprocess.run(  # noqa: S603
-        [go_binary, "test", "./..."],
-        capture_output=True,
-        check=False,
-        cwd=module_dir,
-        env=env,
-        text=True,
+    result = run_go_test_in_generated_module(
+        fixture_module_dir=_GO_COMPILE_FIXTURE_DIR,
+        tmp_path=tmp_path,
+        generated_source=source,
+        output_dir_name="generated",
     )
     assert result.returncode == 0, result.stderr
 
@@ -119,24 +108,15 @@ def _run_runtime_smoke(
     Returns:
         Completed process result for assertions.
     """
-    go_binary = shutil.which("go")
-    assert go_binary is not None
-
-    module_dir = tmp_path / "runtime_generated"
-    shutil.copytree(_GO_RUNTIME_FIXTURE_DIR, module_dir)
-    (module_dir / "generated.go").write_text(source, encoding="utf-8")
-
-    env = os.environ.copy()
-    env["CGO_ENABLED"] = "0"
-    env["PUREGO_GEN_TEST_LIB"] = str(shared_library_path)
-
-    return subprocess.run(  # noqa: S603
-        [go_binary, "test", "./..."],
-        capture_output=True,
-        check=False,
-        cwd=module_dir,
-        env=env,
-        text=True,
+    return run_go_test_in_generated_module(
+        fixture_module_dir=_GO_RUNTIME_FIXTURE_DIR,
+        tmp_path=tmp_path,
+        generated_source=source,
+        output_dir_name="runtime_generated",
+        env_overrides={
+            "CGO_ENABLED": "0",
+            "PUREGO_GEN_TEST_LIB": str(shared_library_path),
+        },
     )
 
 

@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from purego_gen.go_test_harness import run_go_test_in_generated_module
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SRC_DIR = _REPO_ROOT / "src"
 _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
@@ -185,19 +187,11 @@ def _run_cli_for_libzstd(config: _LibzstdHarnessConfig) -> subprocess.CompletedP
 
 def _assert_go_source_compiles(source: str, tmp_path: Path) -> None:
     """Compile generated source in the shared Go fixture module."""
-    go_binary = shutil.which("go")
-    assert go_binary is not None
-
-    module_dir = tmp_path / "generated"
-    shutil.copytree(_GO_COMPILE_FIXTURE_DIR, module_dir)
-    (module_dir / "generated.go").write_text(source, encoding="utf-8")
-
-    result = subprocess.run(  # noqa: S603
-        [go_binary, "test", "./..."],
-        capture_output=True,
-        check=False,
-        cwd=module_dir,
-        text=True,
+    result = run_go_test_in_generated_module(
+        fixture_module_dir=_GO_COMPILE_FIXTURE_DIR,
+        tmp_path=tmp_path,
+        generated_source=source,
+        output_dir_name="generated",
     )
     assert result.returncode == 0, result.stderr
 
@@ -209,24 +203,15 @@ def _assert_runtime_harness_passes(
     shared_library_path: Path,
 ) -> None:
     """Run generated bindings in runtime harness against libzstd shared object."""
-    go_binary = shutil.which("go")
-    assert go_binary is not None
-
-    module_dir = tmp_path / "runtime_generated"
-    shutil.copytree(_GO_RUNTIME_FIXTURE_DIR, module_dir)
-    (module_dir / "generated.go").write_text(source, encoding="utf-8")
-
-    env = os.environ.copy()
-    env["CGO_ENABLED"] = "0"
-    env["PUREGO_GEN_TEST_LIB"] = str(shared_library_path)
-
-    result = subprocess.run(  # noqa: S603
-        [go_binary, "test", "./..."],
-        capture_output=True,
-        check=False,
-        cwd=module_dir,
-        env=env,
-        text=True,
+    result = run_go_test_in_generated_module(
+        fixture_module_dir=_GO_RUNTIME_FIXTURE_DIR,
+        tmp_path=tmp_path,
+        generated_source=source,
+        output_dir_name="runtime_generated",
+        env_overrides={
+            "CGO_ENABLED": "0",
+            "PUREGO_GEN_TEST_LIB": str(shared_library_path),
+        },
     )
     assert result.returncode == 0, result.stderr
 
