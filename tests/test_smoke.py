@@ -27,6 +27,9 @@ _GO_COMPILE_FIXTURE_DIR = _FIXTURES_DIR / "go_compile_module"
 _GO_RUNTIME_FIXTURE_DIR = _FIXTURES_DIR / "go_runtime_module"
 _RUNTIME_SMOKE_HEADER = _FIXTURES_DIR / "smoke_runtime.h"
 _RUNTIME_SMOKE_SOURCE = _FIXTURES_DIR / "smoke_runtime.c"
+_BROKEN_HEADER = _FIXTURES_DIR / "broken_header.h"
+_MISSING_SYMBOL_HEADER = _FIXTURES_DIR / "missing_symbol.h"
+_MISSING_RUNTIME_VAR_HEADER = _FIXTURES_DIR / "missing_runtime_var.h"
 _PRIMARY_HEADER = _FIXTURES_DIR / "basic.h"
 _CATEGORY_HEADER = _FIXTURES_DIR / "categories.h"
 _CONDITIONAL_HEADER = _FIXTURES_DIR / "conditional.h"
@@ -347,16 +350,13 @@ def test_reports_skipped_typedef_diagnostics_for_unsupported_record_fields() -> 
     )
 
 
-def test_fails_when_header_has_parse_errors(tmp_path: Path) -> None:
+def test_fails_when_header_has_parse_errors() -> None:
     """Invalid C headers should fail fast with parse diagnostics."""
-    broken_header = tmp_path / "broken_header.h"
-    broken_header.write_text("int broken(;\n", encoding="utf-8")
-
     result = _run_cli(
         "--lib-id",
         _FIXTURE_LIB_ID,
         "--header",
-        str(broken_header),
+        str(_BROKEN_HEADER),
         "--pkg",
         _FIXTURE_PACKAGE,
         "--emit",
@@ -387,8 +387,51 @@ def test_fails_when_filter_matches_no_emitted_declarations() -> None:
     assert "no declarations matched --func-filter: ^does_not_exist$" in result.stderr
 
 
+def test_fails_when_type_const_or_var_filter_matches_no_emitted_declarations() -> None:
+    """Type/const/var filters should fail when they match no declaration in emitted categories."""
+    cases = (
+        (_M3_TYPES_HEADER, "type", "--type-filter"),
+        (_CATEGORY_HEADER, "const", "--const-filter"),
+        (_CATEGORY_HEADER, "var", "--var-filter"),
+    )
+
+    for header_path, emit_kind, filter_option in cases:
+        result = _run_cli(
+            "--lib-id",
+            _FIXTURE_LIB_ID,
+            "--header",
+            str(header_path),
+            "--pkg",
+            _FIXTURE_PACKAGE,
+            "--emit",
+            emit_kind,
+            filter_option,
+            "^does_not_exist$",
+        )
+        assert result.returncode == 1
+        assert f"no declarations matched {filter_option}: ^does_not_exist$" in result.stderr
+
+
+def test_does_not_fail_when_filter_targets_non_emitted_category() -> None:
+    """Filters for categories outside `--emit` should not trigger no-match failures."""
+    result = _run_cli(
+        "--lib-id",
+        _FIXTURE_LIB_ID,
+        "--header",
+        str(_CATEGORY_HEADER),
+        "--pkg",
+        _FIXTURE_PACKAGE,
+        "--emit",
+        "func",
+        "--const-filter",
+        "^does_not_exist$",
+    )
+    assert result.returncode == 0
+    assert _REGISTER_FUNCTIONS_SYMBOL in result.stdout
+
+
 def test_runtime_smoke_with_compiled_shared_library(tmp_path: Path) -> None:
-    """Generated bindings should call symbols from a compiled shared C library."""
+    """Generated bindings should resolve functions/vars and call symbols from a shared C library."""
     shared_library_path = _build_runtime_smoke_library(tmp_path)
 
     result = _run_cli(
@@ -399,37 +442,28 @@ def test_runtime_smoke_with_compiled_shared_library(tmp_path: Path) -> None:
         "--pkg",
         _FIXTURE_PACKAGE,
         "--emit",
-        "func",
+        "func,var",
     )
 
     assert result.returncode == 0, result.stderr
     assert _REGISTER_FUNCTIONS_SYMBOL in result.stdout
+    assert _LOAD_RUNTIME_VARS_SYMBOL in result.stdout
     _assert_runtime_smoke_passes(result.stdout, tmp_path, shared_library_path=shared_library_path)
 
 
 def test_runtime_smoke_reports_unresolved_symbols(tmp_path: Path) -> None:
     """Runtime smoke should expose unresolved symbol failures from generated code."""
     shared_library_path = _build_runtime_smoke_library(tmp_path)
-    header_path = tmp_path / "missing_symbol.h"
-    header_path.write_text(
-        (
-            "int smoke_reset(void);\n"
-            "int smoke_increment(void);\n"
-            "int smoke_get_counter(void);\n"
-            "void smoke_missing(void);\n"
-        ),
-        encoding="utf-8",
-    )
 
     result = _run_cli(
         "--lib-id",
         _FIXTURE_LIB_ID,
         "--header",
-        str(header_path),
+        str(_MISSING_SYMBOL_HEADER),
         "--pkg",
         _FIXTURE_PACKAGE,
         "--emit",
-        "func",
+        "func,var",
     )
 
     assert result.returncode == 0, result.stderr
@@ -439,3 +473,27 @@ def test_runtime_smoke_reports_unresolved_symbols(tmp_path: Path) -> None:
     assert runtime_result.returncode != 0
     combined_output = runtime_result.stdout + runtime_result.stderr
     assert "smoke_missing" in combined_output
+
+
+def test_runtime_smoke_reports_unresolved_runtime_var_symbols(tmp_path: Path) -> None:
+    """Runtime smoke should expose unresolved runtime-var symbol failures from generated code."""
+    shared_library_path = _build_runtime_smoke_library(tmp_path)
+
+    result = _run_cli(
+        "--lib-id",
+        _FIXTURE_LIB_ID,
+        "--header",
+        str(_MISSING_RUNTIME_VAR_HEADER),
+        "--pkg",
+        _FIXTURE_PACKAGE,
+        "--emit",
+        "func,var",
+    )
+
+    assert result.returncode == 0, result.stderr
+    runtime_result = _run_runtime_smoke(
+        result.stdout, tmp_path, shared_library_path=shared_library_path
+    )
+    assert runtime_result.returncode != 0
+    combined_output = runtime_result.stdout + runtime_result.stderr
+    assert "smoke_missing_var" in combined_output

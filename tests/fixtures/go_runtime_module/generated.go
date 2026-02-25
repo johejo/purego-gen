@@ -32,3 +32,28 @@ func purego_fixture_lib_register_functions(handle uintptr) error {
 	purego.RegisterFunc(&purego_func_smoke_get_counter, purego_func_smoke_get_counter_symbol)
 	return nil
 }
+
+var (
+	purego_var_smoke_magic uintptr
+	purego_var_smoke_epoch uintptr
+)
+
+func purego_fixture_lib_load_runtime_vars(handle uintptr) error {
+	purego_var_smoke_magic_symbol, err := purego.Dlsym(handle, "smoke_magic")
+	if err != nil {
+		return fmt.Errorf(
+			"purego-gen: failed to resolve runtime var symbol smoke_magic: %w",
+			err,
+		)
+	}
+	purego_var_smoke_magic = purego_var_smoke_magic_symbol
+	purego_var_smoke_epoch_symbol, err := purego.Dlsym(handle, "smoke_epoch")
+	if err != nil {
+		return fmt.Errorf(
+			"purego-gen: failed to resolve runtime var symbol smoke_epoch: %w",
+			err,
+		)
+	}
+	purego_var_smoke_epoch = purego_var_smoke_epoch_symbol
+	return nil
+}

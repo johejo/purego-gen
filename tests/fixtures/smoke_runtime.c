@@ -1,6 +1,8 @@
 #include "smoke_runtime.h"
 
 static int smoke_counter = 0;
+int smoke_magic = 17;
+int smoke_epoch = 2026;
 
 int smoke_reset(void) {
   smoke_counter = 0;
