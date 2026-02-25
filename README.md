@@ -11,6 +11,8 @@ When using purego, you often need to write a lot of boilerplate code to call C f
 Early development. Interfaces and generated output may change.
 - Single-command CLI (`purego-gen`) that parses C headers via libclang.
 - Generates low-level bindings for `func/type/const/var` categories.
+- Function bindings are emitted as typed Go function values derived from parsed C
+  signatures (with `uintptr` fallback for unsupported types).
 - Non-Windows first; generated identifiers are unexported `purego_` names.
 - Callers provide the library handle (no automatic `dlopen` policy).
 - M4 ABI checks now include C-side probe comparison (`sizeof`/`alignof`/`offsetof`)
@@ -19,8 +21,8 @@ Early development. Interfaces and generated output may change.
 - v1 optional symbol policy is hard-error for emitted symbols.
 - Golden-case manifest is normalized to `header_paths`, and CI can enforce
   strict golden drift checks via `just golden-check-ci`.
-- M5 `libzstd` objective harness fixture now checks deterministic golden output
-  and runtime symbol resolution for a stable API subset.
+- M5 `libzstd` objective harness fixture checks deterministic golden output and
+  runtime block compress/decompress roundtrip for a stable API subset.
 
 ## CLI (current)
 

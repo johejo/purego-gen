@@ -60,6 +60,8 @@ class _ConstantContext(TypedDict):
 class _FunctionContext(TypedDict):
     identifier: str
     symbol: str
+    parameter_types: tuple[str, ...]
+    result_type: str | None
 
 
 class _RuntimeVarContext(TypedDict):
@@ -141,6 +143,8 @@ def _build_context(
             {
                 "identifier": _sanitize_identifier(function.name),
                 "symbol": function.name,
+                "parameter_types": function.go_parameter_types,
+                "result_type": function.go_result_type,
             }
             for function in declarations.functions
         ),

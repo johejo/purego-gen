@@ -22,7 +22,7 @@ _GOLDEN_DIR = _REPO_ROOT / "tests" / "golden"
 _GO_COMPILE_FIXTURE_DIR = _FIXTURES_DIR / "go_compile_module"
 _GO_RUNTIME_FIXTURE_DIR = _FIXTURES_DIR / "go_runtime_zstd_module"
 _LIBZSTD_GOLDEN_PATH = _GOLDEN_DIR / "libzstd_core.go"
-_LIBZSTD_FUNCTION_FILTER = r"^ZSTD_(versionNumber|compressBound|isError)$"
+_LIBZSTD_FUNCTION_FILTER = r"^ZSTD_(versionNumber|compress|decompress|compressBound|isError)$"
 _LIBRARY_OVERRIDE_ENV = "PUREGO_GEN_TEST_LIBZSTD"
 _HEADER_NAME = "zstd.h"
 
@@ -201,7 +201,7 @@ def test_runtime_harness_resolves_libzstd_symbols(
     tmp_path: Path,
     libzstd_harness_config: _LibzstdHarnessConfig,
 ) -> None:
-    """Generated register flow should resolve selected libzstd symbols at runtime."""
+    """Generated bindings should run a libzstd roundtrip in runtime harness."""
     result = _run_cli_for_libzstd(libzstd_harness_config)
     assert result.returncode == 0, result.stderr
     _assert_runtime_harness_passes(

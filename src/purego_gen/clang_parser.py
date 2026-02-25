@@ -603,6 +603,35 @@ def _extract_record_typedef_decl(
     )
 
 
+def _map_function_parameter_type_to_go_name(clang_type: _TypeLike) -> str:
+    """Map one function parameter type into a Go type.
+
+    Returns:
+        Go parameter type name.
+    """
+    mapped = _map_type_to_go_name(clang_type)
+    if mapped is not None:
+        return mapped
+    # Keep function emission total-order and compilable for v1 unknowns.
+    return "uintptr"
+
+
+def _map_function_result_type_to_go_name(clang_type: _TypeLike) -> str | None:
+    """Map one function result type into a Go type.
+
+    Returns:
+        Go result type name, or `None` for `void`.
+    """
+    canonical = clang_type.get_canonical()
+    if canonical.kind.name == "VOID":
+        return None
+    mapped = _map_type_to_go_name(clang_type)
+    if mapped is not None:
+        return mapped
+    # Keep function emission total-order and compilable for v1 unknowns.
+    return "uintptr"
+
+
 def _extract_function(cursor: _CursorLike) -> FunctionDecl:
     """Convert a function cursor to model.
 
@@ -610,10 +639,16 @@ def _extract_function(cursor: _CursorLike) -> FunctionDecl:
         Normalized function declaration.
     """
     parameters = tuple(argument.type.spelling for argument in cursor.get_arguments())
+    go_parameter_types = tuple(
+        _map_function_parameter_type_to_go_name(argument.type)
+        for argument in cursor.get_arguments()
+    )
     return FunctionDecl(
         name=str(cursor.spelling),
         result_c_type=str(cursor.result_type.spelling),
         parameter_c_types=parameters,
+        go_result_type=_map_function_result_type_to_go_name(cursor.result_type),
+        go_parameter_types=go_parameter_types,
     )
 
 

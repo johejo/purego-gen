@@ -216,7 +216,8 @@ func purego_<libid>_load_runtime_vars(handle uintptr) error
 Behavior:
 - `purego_<libid>_register_functions` resolves symbols with `purego.Dlsym` and binds with `purego.RegisterFunc`.
 - `purego_<libid>_register_functions` returns an error for missing required symbols instead of panicking.
-- In M2, generated function placeholders are `func()` values and are bound via `RegisterFunc`.
+- Generated function placeholders are typed Go function values derived from parsed C signatures
+  (with `uintptr` fallback for currently unsupported types) and are bound via `RegisterFunc`.
 - `purego_<libid>_load_runtime_vars` resolves exported data symbols, stores their addresses in `purego_var_* uintptr`, and returns an error on missing required symbols.
 - v1 optional symbol policy is hard-error (`error`) for emitted symbols; optional
   symbols must be excluded at generation time (e.g. by category filters).
@@ -324,7 +325,8 @@ M2 implementation note (partial):
 - Declaration model now includes explicit categories for `func`, `type`, `const`, and `var`.
 - Current `const` extraction covers enum constants.
 - Current `var` extraction covers `extern` runtime data symbol declarations.
-- Current `--emit` handling supports `func,type,const,var`, including Go `const` emission.
+- Current `--emit` handling supports `func,type,const,var`, including typed function
+  signature emission for `func` and Go `const` emission.
 
 M2: Category-complete symbol model
 - Implement explicit separation of `const` vs `runtime var`.

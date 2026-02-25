@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	purego_func_base_add func()
+	purego_func_base_add func(int32, int32) int32
 )
 
 func purego_sample_lib_register_functions(handle uintptr) error {
