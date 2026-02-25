@@ -1,15 +1,19 @@
 set shell := ["zsh", "-eu", "-o", "pipefail", "-c"]
+
+uv_run := "uv run"
 codex_nix_prefix := "XDG_CACHE_HOME=$PWD/.cache nix develop -c"
+djlint_flags := "--check --extension=j2 --preserve-leading-space --preserve-blank-lines"
 
 default:
   @just --list
+
+# Bootstrap
 
 bootstrap:
   uv sync --group dev --python 3.14
   lefthook install
 
-nix-flake-check:
-  nix flake check
+# Formatting
 
 fmt:
   nix fmt
@@ -17,19 +21,28 @@ fmt:
 fmt-check:
   nix fmt -- --fail-on-change
 
+template-fmt:
+  scripts/format-template-go.sh
+
+# Validation
+
+nix-flake-check:
+  nix flake check
+
 lint:
-  uv run ruff check .
-  uv run ruff format --check .
-  uv run djlint --check --extension=j2 --preserve-leading-space --preserve-blank-lines templates/
+  actionlint
+  {{uv_run}} ruff check .
+  {{uv_run}} ruff format --check .
+  {{uv_run}} djlint {{djlint_flags}} templates/
   shellcheck scripts/*.sh
   shfmt -d scripts/*.sh
 
 typecheck:
-  uv run basedpyright
-  env -u PYTHONPATH uv run pyrefly check .
+  {{uv_run}} basedpyright
+  env -u PYTHONPATH {{uv_run}} pyrefly check .
 
 test:
-  uv run pytest
+  {{uv_run}} pytest
 
 golden-update:
   scripts/update-golden.sh
@@ -44,18 +57,19 @@ check: lint typecheck golden-check test
 
 gate: fmt nix-flake-check check
 
-codex-check:
-  {{codex_nix_prefix}} just check
+# Hooks
 
-codex-gate:
-  {{codex_nix_prefix}} just gate
+hook:
+  lefthook run pre-commit
 
 hook-gate: fmt-check
 
 hook-push-gate: gate
 
-hook:
-  lefthook run pre-commit
+# Codex sandbox helpers
 
-template-fmt:
-  scripts/format-template-go.sh
+codex-check:
+  {{codex_nix_prefix}} just check
+
+codex-gate:
+  {{codex_nix_prefix}} just gate

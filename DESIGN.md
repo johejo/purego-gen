@@ -37,6 +37,7 @@ Out of scope (for now):
 - Use libclang Python bindings as the single source of truth for C AST/type info.
 - Use `basedpyright` and `pyrefly` for static type checks.
 - Use `ruff` for linting/formatting.
+- Use `actionlint` for GitHub Actions workflow linting.
 - Use `shellcheck` for shell script linting (`scripts/*.sh`).
 - Use `shfmt` for shell script formatting (`scripts/*.sh`).
 - Use `treefmt` as the formatter orchestrator across file types.
@@ -64,7 +65,7 @@ Out of scope (for now):
   - `nix-flake-check` (run `nix flake check`)
   - `fmt` (run `nix fmt`)
   - `fmt-check` (run `nix fmt -- --fail-on-change`)
-  - `lint` (run `ruff`, `djlint`, `shellcheck`, and `shfmt -d` for `scripts/*.sh`)
+  - `lint` (run `actionlint`, `ruff`, `djlint`, `shellcheck`, and `shfmt -d` for `scripts/*.sh`)
   - `typecheck` (run `basedpyright` and `pyrefly`)
   - `golden-update` (regenerate committed golden outputs)
   - `golden-check` (verify generated output matches committed golden outputs at `HEAD`)
@@ -76,6 +77,9 @@ Out of scope (for now):
 - Git hooks are managed via `lefthook`:
   - `pre-commit`: `just hook-gate`
   - `pre-push`: `just hook-push-gate`
+- GitHub Actions CI runs on pinned runners and executes:
+  - `nix develop -c just gate` (includes `actionlint` via `just lint`)
+  - runners: `ubuntu-24.04`, `ubuntu-24.04-arm`, `macos-15`
 - Formatting scope includes `tests/fixtures/*.h` via `clang-format` and
   `scripts/*.sh` via `shfmt` in `treefmt`.
 

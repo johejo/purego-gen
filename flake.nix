@@ -20,7 +20,6 @@
       systems = [
         "x86_64-linux"
         "aarch64-linux"
-        "x86_64-darwin"
         "aarch64-darwin"
       ];
       mkTreefmt = pkgs: treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
@@ -53,6 +52,7 @@
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
+              actionlint
               ccache
               clang
               clang-tools
