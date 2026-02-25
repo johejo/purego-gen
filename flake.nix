@@ -60,7 +60,6 @@
               go
               jq
               just
-              lefthook
               libclang
               nixfmt
               python314

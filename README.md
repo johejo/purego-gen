@@ -34,7 +34,6 @@ Use the Nix dev shell as the default entrypoint and run local checks first:
 
 ```sh
 nix develop
-lefthook install
 just format
 just check
 ```

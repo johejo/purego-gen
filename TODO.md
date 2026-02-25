@@ -5,7 +5,7 @@
 - [x] Establish a reproducible Nix-based development baseline (`devShell` and toolchain), while keeping Codex-local cache defaults scoped to `agent` recipes.
 - [x] Standardize automation entrypoints in `Justfile` (`format`, `check`, `ci`) with local-vs-CI role separation.
 - [x] Integrate formatting/lint/typecheck/test and golden drift verification into the project gate flow.
-- [x] Wire local hooks and GitHub Actions CI to run the strict `just ci` flow on pinned runners.
+- [x] Wire GitHub Actions CI to run the strict `just ci` flow on pinned runners.
 
 ## M1 Core Parsing and Deterministic Emission
 

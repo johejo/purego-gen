@@ -32,7 +32,6 @@ Out of scope (for now):
 
 - Use `nix flake` for reproducible development/build environment.
 - Use `just` for project automation tasks.
-- Use `lefthook` for local git hooks (`pre-commit` and `pre-push`).
 - Use `uv` for Python dependency management. Do not invoke `python3` directly.
 - Use libclang Python bindings as the single source of truth for C AST/type info.
 - Use `basedpyright` and `pyrefly` for static type checks.
@@ -50,7 +49,7 @@ Out of scope (for now):
 ## Development Workflow Contract
 
 - Development shell is provided via `nix develop` and must include `uv`, `just`,
-  `lefthook`, `treefmt`, Go toolchain, and libclang.
+  `treefmt`, Go toolchain, and libclang.
 - Development shell also includes `ccache`.
 - Development shell does not override user/environment cache defaults.
 - In Codex sandbox sessions, `just agent-check` / `just agent-ci` apply
@@ -64,7 +63,7 @@ Out of scope (for now):
   `uv run ...`.
 - Project automation entrypoint is `just` (`Justfile` is the source of truth
   for recipe names and wiring).
-- Git hooks (`lefthook`) and GitHub Actions CI execute through `just` recipes.
+- GitHub Actions CI executes through `just` recipes.
 - `just check` is local-first and must work in dirty/uncommitted working trees.
 - `just ci` is strict and CI-oriented (`format-check` + strict golden drift checks).
 - Formatting scope includes `tests/fixtures/*.h` via `clang-format` and
