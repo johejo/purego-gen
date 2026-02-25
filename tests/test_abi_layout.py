@@ -148,7 +148,7 @@ def test_validate_record_layout_accepts_supported_structs() -> None:
     """Layout validation should pass on supported record typedefs from fixtures."""
     record_map = _record_typedef_map()
 
-    for name in ("sample_point_t", "sample_point_alias_t", "sample_nested_point_t"):
+    for name in ("fixture_point_t", "fixture_point_alias_t", "fixture_nested_point_t"):
         diagnostics = validate_record_layout(record_map[name])
         assert diagnostics == ()
 
@@ -156,17 +156,17 @@ def test_validate_record_layout_accepts_supported_structs() -> None:
 def test_validate_record_layout_detects_offset_and_size_mismatch() -> None:
     """Layout utility should report deterministic mismatches for inconsistent metadata."""
     record_map = _record_typedef_map()
-    sample_point = record_map["sample_point_t"]
+    point_record = record_map["fixture_point_t"]
 
-    first_field = sample_point.fields[0]
+    first_field = point_record.fields[0]
     assert first_field.offset_bits is not None
     shifted_first_field = replace(first_field, offset_bits=first_field.offset_bits + 32)
 
-    assert sample_point.size_bytes is not None
+    assert point_record.size_bytes is not None
     mismatched_record = replace(
-        sample_point,
-        fields=(shifted_first_field, *sample_point.fields[1:]),
-        size_bytes=sample_point.size_bytes + 8,
+        point_record,
+        fields=(shifted_first_field, *point_record.fields[1:]),
+        size_bytes=point_record.size_bytes + 8,
     )
     diagnostics = validate_record_layout(mismatched_record)
     diagnostic_codes = {diagnostic.code for diagnostic in diagnostics}
@@ -178,9 +178,9 @@ def test_validate_record_layout_detects_offset_and_size_mismatch() -> None:
 def test_validate_record_layout_reports_unsupported_record() -> None:
     """Unsupported record typedefs should return a stable unsupported diagnostic."""
     record_map = _record_typedef_map()
-    sample_with_array = record_map["sample_with_array_t"]
+    array_record = record_map["fixture_with_array_t"]
 
-    diagnostics = validate_record_layout(sample_with_array)
+    diagnostics = validate_record_layout(array_record)
 
     assert len(diagnostics) == 1
     assert diagnostics[0].code == ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD
@@ -191,12 +191,12 @@ def test_validate_record_layout_reports_unsupported_record() -> None:
 def test_validate_record_layout_reports_missing_field_metadata() -> None:
     """Missing field layout metadata should be emitted as a dedicated diagnostic."""
     record_map = _record_typedef_map()
-    sample_point = record_map["sample_point_t"]
+    point_record = record_map["fixture_point_t"]
 
-    first_field = sample_point.fields[0]
+    first_field = point_record.fields[0]
     record_with_missing_offset = replace(
-        sample_point,
-        fields=(replace(first_field, offset_bits=None), *sample_point.fields[1:]),
+        point_record,
+        fields=(replace(first_field, offset_bits=None), *point_record.fields[1:]),
     )
     diagnostics = validate_record_layout(record_with_missing_offset)
     diagnostic_codes = {diagnostic.code for diagnostic in diagnostics}
@@ -210,9 +210,9 @@ def test_record_layout_matches_c_probe_fixture(tmp_path: Path) -> None:
     c_layouts = _run_c_layout_probe(tmp_path)
 
     assert tuple(c_layouts) == (
-        "sample_point_t",
-        "sample_point_alias_t",
-        "sample_nested_point_t",
+        "fixture_point_t",
+        "fixture_point_alias_t",
+        "fixture_nested_point_t",
     )
     for record_name, c_record in c_layouts.items():
         parsed_record = record_map[record_name]
@@ -233,9 +233,9 @@ def test_record_layout_matches_c_probe_fixture(tmp_path: Path) -> None:
 def test_validate_record_layout_with_fallback_reports_skipped_for_unsupported_pattern() -> None:
     """Fallback result should mark unsupported ABI patterns as skipped."""
     record_map = _record_typedef_map()
-    result = validate_record_layout_with_fallback(record_map["sample_with_array_t"])
+    result = validate_record_layout_with_fallback(record_map["fixture_with_array_t"])
 
-    assert result.record_name == "sample_with_array_t"
+    assert result.record_name == "fixture_with_array_t"
     assert result.status == ABI_LAYOUT_RESULT_STATUS_SKIPPED
     assert result.fallback_reason == ABI_LAYOUT_FALLBACK_REASON_UNSUPPORTED_PATTERN
     assert len(result.diagnostics) == 1
@@ -245,11 +245,11 @@ def test_validate_record_layout_with_fallback_reports_skipped_for_unsupported_pa
 def test_validate_record_layout_with_fallback_reports_skipped_for_incomplete_metadata() -> None:
     """Fallback result should mark incomplete layout metadata as skipped."""
     record_map = _record_typedef_map()
-    sample_point = record_map["sample_point_t"]
-    first_field = sample_point.fields[0]
+    point_record = record_map["fixture_point_t"]
+    first_field = point_record.fields[0]
     incomplete_record = replace(
-        sample_point,
-        fields=(replace(first_field, offset_bits=None), *sample_point.fields[1:]),
+        point_record,
+        fields=(replace(first_field, offset_bits=None), *point_record.fields[1:]),
     )
 
     result = validate_record_layout_with_fallback(incomplete_record)
@@ -265,17 +265,17 @@ def test_validate_record_layout_with_fallback_reports_skipped_for_incomplete_met
 def test_validate_record_layout_with_fallback_reports_failed_on_layout_mismatch() -> None:
     """Fallback result should mark deterministic offset/size mismatches as failed."""
     record_map = _record_typedef_map()
-    sample_point = record_map["sample_point_t"]
-    first_field = sample_point.fields[0]
+    point_record = record_map["fixture_point_t"]
+    first_field = point_record.fields[0]
     assert first_field.offset_bits is not None
-    assert sample_point.size_bytes is not None
+    assert point_record.size_bytes is not None
     mismatched_record = replace(
-        sample_point,
+        point_record,
         fields=(
             replace(first_field, offset_bits=first_field.offset_bits + 32),
-            *sample_point.fields[1:],
+            *point_record.fields[1:],
         ),
-        size_bytes=sample_point.size_bytes + 8,
+        size_bytes=point_record.size_bytes + 8,
     )
 
     result = validate_record_layout_with_fallback(mismatched_record)
@@ -295,7 +295,7 @@ def test_validate_record_layout_with_fallback_reports_failed_on_layout_mismatch(
 def test_validate_record_layout_with_fallback_reports_passed_when_clean() -> None:
     """Fallback result should mark clean supported records as passed."""
     record_map = _record_typedef_map()
-    result = validate_record_layout_with_fallback(record_map["sample_point_t"])
+    result = validate_record_layout_with_fallback(record_map["fixture_point_t"])
 
     assert result.status == ABI_LAYOUT_RESULT_STATUS_PASSED
     assert result.fallback_reason is None

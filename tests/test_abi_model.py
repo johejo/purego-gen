@@ -27,52 +27,50 @@ def test_parse_record_typedef_model_for_pre_m4_abi() -> None:
         record_typedef.name: record_typedef for record_typedef in declarations.record_typedefs
     }
     assert tuple(record_typedef_map) == (
-        "sample_point_t",
-        "sample_point_alias_t",
-        "sample_nested_point_t",
-        "sample_with_array_t",
-        "sample_union_t",
-        "sample_with_bitfield_t",
-        "sample_with_anonymous_field_t",
-        "sample_opaque_t",
+        "fixture_point_t",
+        "fixture_point_alias_t",
+        "fixture_nested_point_t",
+        "fixture_with_array_t",
+        "fixture_union_t",
+        "fixture_with_bitfield_t",
+        "fixture_with_anonymous_field_t",
+        "fixture_opaque_t",
     )
 
-    sample_point = record_typedef_map["sample_point_t"]
-    assert sample_point.supported
-    assert sample_point.unsupported_code is None
-    assert sample_point.unsupported_reason is None
-    assert sample_point.size_bytes is not None
-    assert sample_point.size_bytes > 0
-    assert sample_point.align_bytes is not None
-    assert sample_point.align_bytes > 0
-    assert tuple(field.name for field in sample_point.fields) == (
+    point_record = record_typedef_map["fixture_point_t"]
+    assert point_record.supported
+    assert point_record.unsupported_code is None
+    assert point_record.unsupported_reason is None
+    assert point_record.size_bytes is not None
+    assert point_record.size_bytes > 0
+    assert point_record.align_bytes is not None
+    assert point_record.align_bytes > 0
+    assert tuple(field.name for field in point_record.fields) == (
         "left",
         "right",
         "mode",
         "label",
     )
-    assert sample_point.fields[0].offset_bits == 0
-    assert all(field.offset_bits is not None for field in sample_point.fields)
-    assert all(field.supported for field in sample_point.fields)
+    assert point_record.fields[0].offset_bits == 0
+    assert all(field.offset_bits is not None for field in point_record.fields)
+    assert all(field.supported for field in point_record.fields)
 
-    sample_with_array = record_typedef_map["sample_with_array_t"]
-    assert not sample_with_array.supported
-    assert sample_with_array.unsupported_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
-    assert sample_with_array.unsupported_reason is not None
-    assert "unsupported field type for values:" in sample_with_array.unsupported_reason
-    assert len(sample_with_array.fields) == 1
-    assert (
-        sample_with_array.fields[0].unsupported_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
-    )
-    assert not sample_with_array.fields[0].supported
+    array_record = record_typedef_map["fixture_with_array_t"]
+    assert not array_record.supported
+    assert array_record.unsupported_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
+    assert array_record.unsupported_reason is not None
+    assert "unsupported field type for values:" in array_record.unsupported_reason
+    assert len(array_record.fields) == 1
+    assert array_record.fields[0].unsupported_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
+    assert not array_record.fields[0].supported
 
-    sample_union = record_typedef_map["sample_union_t"]
-    assert sample_union.record_kind == "UNION_DECL"
-    assert not sample_union.supported
-    assert sample_union.unsupported_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF
-    assert sample_union.unsupported_reason == "union typedefs are not supported in v1"
+    union_record = record_typedef_map["fixture_union_t"]
+    assert union_record.record_kind == "UNION_DECL"
+    assert not union_record.supported
+    assert union_record.unsupported_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF
+    assert union_record.unsupported_reason == "union typedefs are not supported in v1"
 
-    sample_opaque = record_typedef_map["sample_opaque_t"]
-    assert not sample_opaque.supported
-    assert sample_opaque.unsupported_code == TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS
-    assert sample_opaque.fields == ()
+    opaque_record = record_typedef_map["fixture_opaque_t"]
+    assert not opaque_record.supported
+    assert opaque_record.unsupported_code == TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS
+    assert opaque_record.fields == ()

@@ -31,8 +31,8 @@ def test_parse_declaration_categories() -> None:
     assert tuple(function.name for function in declarations.functions) == ("add",)
     assert tuple(typedef.name for typedef in declarations.typedefs) == ("my_uint",)
     assert tuple(constant.name for constant in declarations.constants) == (
-        "SAMPLE_STATUS_OK",
-        "SAMPLE_STATUS_NG",
+        "FIXTURE_STATUS_OK",
+        "FIXTURE_STATUS_NG",
     )
     assert tuple(constant.value for constant in declarations.constants) == (0, 2)
     assert tuple(runtime_var.name for runtime_var in declarations.runtime_vars) == (
@@ -57,62 +57,62 @@ def test_parse_type_mapping_edge_cases() -> None:
     assert tuple(runtime_var.name for runtime_var in declarations.runtime_vars) == ()
     typedef_map = {typedef.name: typedef.go_type for typedef in declarations.typedefs}
     assert tuple(typedef_map) == (
-        "sample_mode_t",
-        "sample_mode_alias_t",
-        "sample_callback_t",
-        "sample_name_t",
-        "sample_context_t",
-        "sample_point_t",
-        "sample_point_alias_t",
-        "sample_nested_point_t",
+        "fixture_mode_t",
+        "fixture_mode_alias_t",
+        "fixture_callback_t",
+        "fixture_name_t",
+        "fixture_context_t",
+        "fixture_point_t",
+        "fixture_point_alias_t",
+        "fixture_nested_point_t",
     )
-    assert typedef_map["sample_mode_t"] == "int32"
-    assert typedef_map["sample_mode_alias_t"] == "int32"
-    assert typedef_map["sample_callback_t"] == "uintptr"
-    assert typedef_map["sample_name_t"] == "uintptr"
-    assert typedef_map["sample_context_t"] == "uintptr"
-    sample_point_type = _go_struct(
+    assert typedef_map["fixture_mode_t"] == "int32"
+    assert typedef_map["fixture_mode_alias_t"] == "int32"
+    assert typedef_map["fixture_callback_t"] == "uintptr"
+    assert typedef_map["fixture_name_t"] == "uintptr"
+    assert typedef_map["fixture_context_t"] == "uintptr"
+    point_struct_type = _go_struct(
         "left int32",
         "right int32",
         "mode int32",
         "label uintptr",
     )
-    assert typedef_map["sample_point_t"] == sample_point_type
-    assert typedef_map["sample_point_alias_t"] == sample_point_type
-    assert typedef_map["sample_nested_point_t"] == _go_struct(
-        f"point {sample_point_type}",
+    assert typedef_map["fixture_point_t"] == point_struct_type
+    assert typedef_map["fixture_point_alias_t"] == point_struct_type
+    assert typedef_map["fixture_nested_point_t"] == _go_struct(
+        f"point {point_struct_type}",
         f"inner {_go_struct('level int32')}",
     )
-    assert "sample_with_array_t" not in typedef_map
-    assert "sample_union_t" not in typedef_map
-    assert "sample_with_bitfield_t" not in typedef_map
-    assert "sample_with_anonymous_field_t" not in typedef_map
-    assert "sample_opaque_t" not in typedef_map
+    assert "fixture_with_array_t" not in typedef_map
+    assert "fixture_union_t" not in typedef_map
+    assert "fixture_with_bitfield_t" not in typedef_map
+    assert "fixture_with_anonymous_field_t" not in typedef_map
+    assert "fixture_opaque_t" not in typedef_map
     skipped_typedef_map = {
         typedef.name: (typedef.reason_code, typedef.reason)
         for typedef in declarations.skipped_typedefs
     }
-    array_code, array_reason = skipped_typedef_map["sample_with_array_t"]
+    array_code, array_reason = skipped_typedef_map["fixture_with_array_t"]
     assert array_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
     assert "unsupported field type for values:" in array_reason
     assert "[4]" in array_reason
-    assert skipped_typedef_map["sample_union_t"] == (
+    assert skipped_typedef_map["fixture_union_t"] == (
         TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
         "union typedefs are not supported in v1",
     )
-    assert skipped_typedef_map["sample_with_bitfield_t"] == (
+    assert skipped_typedef_map["fixture_with_bitfield_t"] == (
         TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
         "bitfield flags is not supported in v1",
     )
-    assert skipped_typedef_map["sample_with_anonymous_field_t"] == (
+    assert skipped_typedef_map["fixture_with_anonymous_field_t"] == (
         TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
         "struct has no supported fields in v1",
     )
-    assert skipped_typedef_map["sample_opaque_t"] == (
+    assert skipped_typedef_map["fixture_opaque_t"] == (
         TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
         "struct has no supported fields in v1",
     )
     assert tuple(constant.name for constant in declarations.constants) == (
-        "SAMPLE_MODE_OFF",
-        "SAMPLE_MODE_ON",
+        "FIXTURE_MODE_OFF",
+        "FIXTURE_MODE_ON",
     )

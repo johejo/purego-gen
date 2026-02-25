@@ -3,31 +3,31 @@
 
 #include "sample_m3_types.h"
 
-#define PRINT_RECORD_LAYOUT(type_name) \
-  printf("record,%s,%zu,%zu\n", #type_name, sizeof(type_name), _Alignof(type_name))
+#define EMIT_RECORD_LAYOUT(record_type) \
+  printf("record,%s,%zu,%zu\n", #record_type, sizeof(record_type), _Alignof(record_type))
 
-#define PRINT_FIELD_LAYOUT(type_name, field_name)                                   \
-  printf("field,%s,%s,%zu,%zu,%zu\n", #type_name, #field_name,                     \
-         offsetof(type_name, field_name) * 8,                                       \
-         sizeof(__typeof__(((type_name *)0)->field_name)),                          \
-         _Alignof(__typeof__(((type_name *)0)->field_name)))
+#define EMIT_FIELD_LAYOUT(record_type, member_name)                                    \
+  printf("field,%s,%s,%zu,%zu,%zu\n", #record_type, #member_name,                     \
+         offsetof(record_type, member_name) * 8,                                       \
+         sizeof(__typeof__(((record_type *)0)->member_name)),                          \
+         _Alignof(__typeof__(((record_type *)0)->member_name)))
 
 int main(void) {
-  PRINT_RECORD_LAYOUT(sample_point_t);
-  PRINT_FIELD_LAYOUT(sample_point_t, left);
-  PRINT_FIELD_LAYOUT(sample_point_t, right);
-  PRINT_FIELD_LAYOUT(sample_point_t, mode);
-  PRINT_FIELD_LAYOUT(sample_point_t, label);
+  EMIT_RECORD_LAYOUT(fixture_point_t);
+  EMIT_FIELD_LAYOUT(fixture_point_t, left);
+  EMIT_FIELD_LAYOUT(fixture_point_t, right);
+  EMIT_FIELD_LAYOUT(fixture_point_t, mode);
+  EMIT_FIELD_LAYOUT(fixture_point_t, label);
 
-  PRINT_RECORD_LAYOUT(sample_point_alias_t);
-  PRINT_FIELD_LAYOUT(sample_point_alias_t, left);
-  PRINT_FIELD_LAYOUT(sample_point_alias_t, right);
-  PRINT_FIELD_LAYOUT(sample_point_alias_t, mode);
-  PRINT_FIELD_LAYOUT(sample_point_alias_t, label);
+  EMIT_RECORD_LAYOUT(fixture_point_alias_t);
+  EMIT_FIELD_LAYOUT(fixture_point_alias_t, left);
+  EMIT_FIELD_LAYOUT(fixture_point_alias_t, right);
+  EMIT_FIELD_LAYOUT(fixture_point_alias_t, mode);
+  EMIT_FIELD_LAYOUT(fixture_point_alias_t, label);
 
-  PRINT_RECORD_LAYOUT(sample_nested_point_t);
-  PRINT_FIELD_LAYOUT(sample_nested_point_t, point);
-  PRINT_FIELD_LAYOUT(sample_nested_point_t, inner);
+  EMIT_RECORD_LAYOUT(fixture_nested_point_t);
+  EMIT_FIELD_LAYOUT(fixture_nested_point_t, point);
+  EMIT_FIELD_LAYOUT(fixture_nested_point_t, inner);
 
   return 0;
 }

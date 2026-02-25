@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	purego_const_sample_status_ok = 0
+	purego_const_fixture_status_ok = 0
 )
 
 var (

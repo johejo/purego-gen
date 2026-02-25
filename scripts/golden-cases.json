@@ -27,7 +27,7 @@
       "emit_kinds": "func,const,var",
       "clang_args": "",
       "func_filter": "^add$",
-      "const_filter": "^SAMPLE_STATUS_OK$",
+      "const_filter": "^FIXTURE_STATUS_OK$",
       "var_filter": "^build_id$"
     },
     {
@@ -65,7 +65,7 @@
         "tests/fixtures/sample_conditional.h"
       ],
       "emit_kinds": "func,var",
-      "clang_args": "-DSAMPLE_ENABLE_EXTRA"
+      "clang_args": "-DFIXTURE_ENABLE_EXTRA"
     }
   ]
 }

@@ -29,7 +29,7 @@ _TARGET_PROFILES_DIR = _FIXTURES_DIR / "target_profiles"
 _LIBZSTD_PROFILE_PATH = _TARGET_PROFILES_DIR / "libzstd_v1.json"
 _LIBRARY_OVERRIDE_ENV = "PUREGO_GEN_TEST_LIBZSTD"
 _HEADER_NAME = "zstd.h"
-_GOLDEN_PACKAGE = "sample"
+_GOLDEN_OUTPUT_PACKAGE = "sample"
 _RUNTIME_PACKAGE = "zstdfixture"
 
 
@@ -288,7 +288,7 @@ def test_generates_libzstd_golden_output(
     result = _run_cli_for_libzstd(
         libzstd_harness_config,
         profile=libzstd_subset_profile,
-        package=_GOLDEN_PACKAGE,
+        package=_GOLDEN_OUTPUT_PACKAGE,
     )
     expected = _LIBZSTD_GOLDEN_PATH.read_text(encoding="utf-8")
     assert result.returncode == 0, result.stderr

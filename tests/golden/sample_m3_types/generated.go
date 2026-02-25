@@ -3,24 +3,24 @@
 package sample
 
 type (
-	purego_type_sample_mode_t       = int32
-	purego_type_sample_mode_alias_t = int32
-	purego_type_sample_callback_t   = uintptr
-	purego_type_sample_name_t       = uintptr
-	purego_type_sample_context_t    = uintptr
-	purego_type_sample_point_t      = struct {
+	purego_type_fixture_mode_t       = int32
+	purego_type_fixture_mode_alias_t = int32
+	purego_type_fixture_callback_t   = uintptr
+	purego_type_fixture_name_t       = uintptr
+	purego_type_fixture_context_t    = uintptr
+	purego_type_fixture_point_t      = struct {
 		left  int32
 		right int32
 		mode  int32
 		label uintptr
 	}
-	purego_type_sample_point_alias_t = struct {
+	purego_type_fixture_point_alias_t = struct {
 		left  int32
 		right int32
 		mode  int32
 		label uintptr
 	}
-	purego_type_sample_nested_point_t = struct {
+	purego_type_fixture_nested_point_t = struct {
 		point struct {
 			left  int32
 			right int32
@@ -34,6 +34,6 @@ type (
 )
 
 const (
-	purego_const_sample_mode_off = 0
-	purego_const_sample_mode_on  = 1
+	purego_const_fixture_mode_off = 0
+	purego_const_fixture_mode_on  = 1
 )
