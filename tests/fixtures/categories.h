@@ -11,6 +11,7 @@ enum fixture_status {
 
 extern int global_counter;
 extern const char* build_id;
+
 static int internal_state;
 
 int add(int lhs, int rhs);
