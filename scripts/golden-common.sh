@@ -42,8 +42,8 @@ render_golden_case() {
 
 	set -- \
 		uv run python -m purego_gen \
-		--lib-id sample_lib \
-		--pkg sample \
+		--lib-id fixture_lib \
+		--pkg fixture \
 		--emit "$render_emit_kinds"
 
 	old_ifs=$IFS

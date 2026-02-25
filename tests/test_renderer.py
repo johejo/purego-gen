@@ -8,8 +8,8 @@ import pytest
 
 from purego_gen.renderer import RendererError, render_template
 
-_FIXTURE_PACKAGE = "sample"
-_FIXTURE_LIB_ID = "sample_lib"
+_FIXTURE_PACKAGE = "fixture"
+_FIXTURE_LIB_ID = "fixture_lib"
 
 
 def test_render_template_requires_all_top_level_context_keys() -> None:

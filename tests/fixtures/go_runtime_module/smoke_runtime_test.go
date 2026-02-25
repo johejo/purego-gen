@@ -1,4 +1,4 @@
-package sample
+package fixture
 
 import (
 	"os"
@@ -23,7 +23,7 @@ func TestGeneratedBindingsCallSharedLibrary(t *testing.T) {
 		}
 	}()
 
-	if err := purego_sample_lib_register_functions(handle); err != nil {
+	if err := purego_fixture_lib_register_functions(handle); err != nil {
 		t.Fatalf("register functions: %v", err)
 	}
 

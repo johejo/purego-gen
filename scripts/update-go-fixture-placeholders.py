@@ -185,9 +185,9 @@ def _generated_fixture_sources() -> dict[Path, str]:
     """
     smoke_source = _run_purego_gen(
         _PuregoGenInvocation(
-            lib_id="sample_lib",
+            lib_id="fixture_lib",
             header_path=_SMOKE_HEADER_PATH.resolve(),
-            package_name="sample",
+            package_name="fixture",
             emit_kinds="func",
         )
     )
