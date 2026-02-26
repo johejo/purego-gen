@@ -198,7 +198,6 @@ def test_generates_golden_output_to_stdout(tmp_path: Path) -> None:
     expected = _golden_path("case_basic_func_type").read_text(encoding="utf-8")
     assert result.returncode == 0
     assert result.stdout == expected
-    assert result.stdout.startswith(f"{_GENERATED_HEADER_PREFIX}\n")
     _assert_go_source_compiles(result.stdout, tmp_path)
     assert "generated bindings from function declarations and basic typedefs" in result.stderr
 
@@ -273,8 +272,6 @@ def test_emits_constants_when_const_category_selected(tmp_path: Path) -> None:
     expected = _golden_path("case_categories_const").read_text(encoding="utf-8")
     assert result.returncode == 0
     assert result.stdout == expected
-    assert _REGISTER_FUNCTIONS_SYMBOL not in result.stdout
-    assert _LOAD_RUNTIME_VARS_SYMBOL not in result.stdout
     _assert_go_source_compiles(result.stdout, tmp_path)
 
 

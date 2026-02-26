@@ -416,21 +416,6 @@ def test_generates_libzstd_golden_output(
     expected = _LIBZSTD_PROFILE_GOLDEN_PATH.read_text(encoding="utf-8")
     assert result.returncode == 0, result.stderr
     assert result.stdout == expected
-    normalized_stdout = " ".join(result.stdout.split())
-    assert "purego_func_ZSTD_minCLevel  func() int32" in result.stdout
-    assert "purego_func_ZSTD_findFrameCompressedSize func(" in result.stdout
-    assert "purego_func_ZSTD_getErrorCode func(" in result.stdout
-    assert re.search(
-        r"purego_func_ZSTD_getErrorName func\( [A-Za-z_][A-Za-z0-9_]* uint64, \) string",
-        normalized_stdout,
-    )
-    assert "purego_func_ZSTD_compress_usingDict func(" in result.stdout
-    assert "purego_func_ZSTD_decompress_usingDict func(" in result.stdout
-    assert "purego_func_ZSTD_createCCtx func() purego_type_ZSTD_CCtx" in result.stdout
-    assert re.search(
-        r"purego_func_ZSTD_freeCCtx func\( [A-Za-z_][A-Za-z0-9_]* purego_type_ZSTD_CCtx, \) uint64",
-        normalized_stdout,
-    )
     _assert_go_source_compiles(result.stdout, tmp_path)
 
 
