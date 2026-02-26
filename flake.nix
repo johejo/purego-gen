@@ -48,6 +48,10 @@
         { pkgs }:
         let
           treefmt = (mkTreefmt pkgs).config.build.wrapper;
+          codingAgentEnvGuard = pkgs.writeShellScriptBin "env" ''
+            echo "purego-gen: coding-agent blocks env. In most cases, run commands directly (for example: uv run ...); required cache env vars are already set by shellHook." >&2
+            exit 1
+          '';
           commonPackages = with pkgs; [
             actionlint
             bash
@@ -87,6 +91,7 @@
             '';
           };
           coding-agent = mkDevShell {
+            packages = [ codingAgentEnvGuard ] ++ commonPackages;
             shellHook = ''
               guarded_env_vars="
               XDG_CACHE_HOME
