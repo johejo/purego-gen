@@ -53,7 +53,7 @@ var (
 	) int32
 	purego_func_ZSTD_getErrorName func(
 		uint64,
-	) uintptr
+	) string
 	purego_func_ZSTD_minCLevel  func() int32
 	purego_func_ZSTD_maxCLevel  func() int32
 	purego_func_ZSTD_createCCtx func() purego_type_ZSTD_CCtx

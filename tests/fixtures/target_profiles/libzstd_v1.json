@@ -2,6 +2,9 @@
   "profile_id": "libzstd_v1",
   "description": "Stable v1 libzstd subset used by objective harness tests.",
   "emit_kinds": "func,type",
+  "type_mapping": {
+    "const_char_as_string": true
+  },
   "required_functions": [
     "ZSTD_versionNumber",
     "ZSTD_minCLevel",

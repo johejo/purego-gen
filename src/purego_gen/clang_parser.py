@@ -31,6 +31,7 @@ from purego_gen.model import (
     RuntimeVarDecl,
     SkippedTypedefDecl,
     TypedefDecl,
+    TypeMappingOptions,
 )
 
 _SEVERITY_ERROR: Final[int] = 3
@@ -53,6 +54,7 @@ _TYPE_KIND_TO_GO_TYPE: Final[dict[str, str]] = {
     "ENUM": "int32",
 }
 _FUNCTION_TYPE_KINDS: Final[frozenset[str]] = frozenset({"FUNCTIONPROTO", "FUNCTIONNOPROTO"})
+_CHAR_TYPE_KINDS: Final[frozenset[str]] = frozenset({"CHAR_S", "CHAR_U"})
 _RECORD_TYPE_KIND_NAME: Final[str] = "RECORD"
 _FIELD_DECL_KIND_NAME: Final[str] = "FIELD_DECL"
 _STRUCT_DECL_KIND_NAME: Final[str] = "STRUCT_DECL"
@@ -120,6 +122,7 @@ class _ParseContext:
     index: _IndexLike
     clang_args: tuple[str, ...]
     macro_cursor_predicates: _MacroCursorPredicates
+    type_mapping: TypeMappingOptions
 
 
 class _SourceFileLike(Protocol):
@@ -149,6 +152,7 @@ class _TypeLike(Protocol):
     def get_declaration(self) -> _CursorLike: ...
     def get_size(self) -> int: ...
     def get_align(self) -> int: ...
+    def is_const_qualified(self) -> bool: ...
 
 
 class _ArgumentLike(Protocol):
@@ -732,12 +736,19 @@ def _is_opaque_record_typedef(canonical_record_type: _TypeLike) -> bool:
     return declaration.kind.name == _STRUCT_DECL_KIND_NAME and not declaration.is_definition()
 
 
-def _map_function_parameter_type_to_go_name(clang_type: _TypeLike) -> str:
+def _map_function_parameter_type_to_go_name(
+    clang_type: _TypeLike, *, type_mapping: TypeMappingOptions
+) -> str:
     """Map one function parameter type into a Go type.
 
     Returns:
         Go parameter type name.
     """
+    canonical = clang_type.get_canonical()
+    if type_mapping.const_char_as_string and canonical.kind.name == "POINTER":
+        pointee = canonical.get_pointee().get_canonical()
+        if pointee.kind.name in _CHAR_TYPE_KINDS and pointee.is_const_qualified():
+            return "string"
     mapped = _map_type_to_go_name(clang_type)
     if mapped is not None:
         return mapped
@@ -745,7 +756,9 @@ def _map_function_parameter_type_to_go_name(clang_type: _TypeLike) -> str:
     return "uintptr"
 
 
-def _map_function_result_type_to_go_name(clang_type: _TypeLike) -> str | None:
+def _map_function_result_type_to_go_name(
+    clang_type: _TypeLike, *, type_mapping: TypeMappingOptions
+) -> str | None:
     """Map one function result type into a Go type.
 
     Returns:
@@ -754,6 +767,10 @@ def _map_function_result_type_to_go_name(clang_type: _TypeLike) -> str | None:
     canonical = clang_type.get_canonical()
     if canonical.kind.name == "VOID":
         return None
+    if type_mapping.const_char_as_string and canonical.kind.name == "POINTER":
+        pointee = canonical.get_pointee().get_canonical()
+        if pointee.kind.name in _CHAR_TYPE_KINDS and pointee.is_const_qualified():
+            return "string"
     mapped = _map_type_to_go_name(clang_type)
     if mapped is not None:
         return mapped
@@ -761,7 +778,7 @@ def _map_function_result_type_to_go_name(clang_type: _TypeLike) -> str | None:
     return "uintptr"
 
 
-def _extract_function(cursor: _CursorLike) -> FunctionDecl:
+def _extract_function(cursor: _CursorLike, *, type_mapping: TypeMappingOptions) -> FunctionDecl:
     """Convert a function cursor to model.
 
     Returns:
@@ -769,14 +786,20 @@ def _extract_function(cursor: _CursorLike) -> FunctionDecl:
     """
     parameters = tuple(argument.type.spelling for argument in cursor.get_arguments())
     go_parameter_types = tuple(
-        _map_function_parameter_type_to_go_name(argument.type)
+        _map_function_parameter_type_to_go_name(
+            argument.type,
+            type_mapping=type_mapping,
+        )
         for argument in cursor.get_arguments()
     )
     return FunctionDecl(
         name=str(cursor.spelling),
         result_c_type=str(cursor.result_type.spelling),
         parameter_c_types=parameters,
-        go_result_type=_map_function_result_type_to_go_name(cursor.result_type),
+        go_result_type=_map_function_result_type_to_go_name(
+            cursor.result_type,
+            type_mapping=type_mapping,
+        ),
         go_parameter_types=go_parameter_types,
     )
 
@@ -889,6 +912,8 @@ def _collect_function(
     function_decl_kind: object,
     seen: _SeenDeclarations,
     functions: list[FunctionDecl],
+    *,
+    type_mapping: TypeMappingOptions,
 ) -> bool:
     """Collect one function declaration when applicable.
 
@@ -900,7 +925,12 @@ def _collect_function(
     if cursor.spelling in seen.function_names:
         return True
     seen.function_names.add(cursor.spelling)
-    functions.append(_extract_function(cursor))
+    functions.append(
+        _extract_function(
+            cursor,
+            type_mapping=type_mapping,
+        )
+    )
     return True
 
 
@@ -1092,7 +1122,13 @@ def _parse_header(
         if not _is_cursor_from_header(cursor, header_path):
             continue
 
-        if _collect_function(cursor, cindex.CursorKind.FUNCTION_DECL, seen, declarations.functions):
+        if _collect_function(
+            cursor,
+            cindex.CursorKind.FUNCTION_DECL,
+            seen,
+            declarations.functions,
+            type_mapping=parse_context.type_mapping,
+        ):
             continue
         if _collect_typedef(
             cursor,
@@ -1135,7 +1171,13 @@ def _parse_header(
     )
 
 
-def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) -> ParsedDeclarations:
+def parse_declarations(
+    headers: tuple[str, ...],
+    clang_args: tuple[str, ...],
+    *,
+    type_mapping: TypeMappingOptions | None = None,
+    map_const_char_pointer_to_string: bool | None = None,
+) -> ParsedDeclarations:
     """Parse declaration categories from headers via libclang.
 
     Returns:
@@ -1143,7 +1185,25 @@ def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) ->
 
     Raises:
         ClangParserError: libclang is unavailable or parsing fails.
+        ValueError: Type-mapping options are mutually inconsistent.
     """
+    resolved_type_mapping = (
+        type_mapping if type_mapping is not None else TypeMappingOptions()
+    )
+    if map_const_char_pointer_to_string is not None:
+        if (
+            type_mapping is not None
+            and type_mapping.const_char_as_string != map_const_char_pointer_to_string
+        ):
+            message = (
+                "conflicting type mapping options: `type_mapping.const_char_as_string` and "
+                "`map_const_char_pointer_to_string` differ"
+            )
+            raise ValueError(message)
+        resolved_type_mapping = TypeMappingOptions(
+            const_char_as_string=map_const_char_pointer_to_string
+        )
+
     cindex = _load_cindex()
     _configure_libclang(cindex)
 
@@ -1159,6 +1219,7 @@ def parse_declarations(headers: tuple[str, ...], clang_args: tuple[str, ...]) ->
         index=index,
         clang_args=clang_args,
         macro_cursor_predicates=_build_macro_cursor_predicates(cindex),
+        type_mapping=resolved_type_mapping,
     )
 
     all_declarations = _CollectedDeclarations(

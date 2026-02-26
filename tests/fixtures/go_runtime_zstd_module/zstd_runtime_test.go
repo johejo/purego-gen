@@ -131,8 +131,8 @@ func TestGeneratedBindingsResolveLibzstdSymbols(t *testing.T) {
 		maxCLevel,
 	)
 	if purego_func_ZSTD_isError(compressedCCtxSize) != 0 {
-		errorNamePtr := purego_func_ZSTD_getErrorName(compressedCCtxSize)
-		t.Fatalf("ZSTD_compressCCtx returned error code: %d (name ptr=%#x)", compressedCCtxSize, errorNamePtr)
+		errorName := purego_func_ZSTD_getErrorName(compressedCCtxSize)
+		t.Fatalf("ZSTD_compressCCtx returned error code: %d (name=%q)", compressedCCtxSize, errorName)
 	}
 	compressedCCtx = compressedCCtx[:int(compressedCCtxSize)]
 
@@ -221,8 +221,8 @@ func TestGeneratedBindingsResolveLibzstdSymbols(t *testing.T) {
 	if purego_func_ZSTD_getErrorCode(errorCode) == 0 {
 		t.Fatal("ZSTD_getErrorCode should return non-zero for an error result")
 	}
-	errorNamePtr := purego_func_ZSTD_getErrorName(errorCode)
-	if errorNamePtr == 0 {
-		t.Fatal("ZSTD_getErrorName returned NULL for an error code")
+	errorName := purego_func_ZSTD_getErrorName(errorCode)
+	if errorName == "" {
+		t.Fatal("ZSTD_getErrorName returned empty string for an error code")
 	}
 }

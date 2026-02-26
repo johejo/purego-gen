@@ -16,6 +16,7 @@ from typing import cast
 import pytest
 
 from purego_gen.go_test_harness import run_go_test_in_generated_module
+from purego_gen.model import TypeMappingOptions
 from purego_gen.pkg_config import run_pkg_config_stdout, run_pkg_config_tokens
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +55,7 @@ class _LibzstdSubsetProfile:
     required_types: tuple[str, ...]
     function_filter: str
     type_filter: str
+    type_mapping: TypeMappingOptions
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +125,41 @@ def _read_required_non_empty_string_array(raw: dict[str, object], key: str) -> t
     return tuple(items)
 
 
+def _read_required_bool(raw: dict[str, object], key: str) -> bool:
+    """Read one required bool field from profile JSON object.
+
+    Returns:
+        Bool value for `key`.
+
+    Raises:
+        TypeError: The field is missing or not a bool.
+    """
+    value = raw.get(key)
+    if not isinstance(value, bool):
+        message = f"libzstd profile must define bool `{key}`."
+        raise TypeError(message)
+    return value
+
+
+def _read_type_mapping_options(raw: dict[str, object]) -> TypeMappingOptions:
+    """Read type-mapping options from profile JSON object.
+
+    Returns:
+        Parsed type-mapping option set.
+
+    Raises:
+        TypeError: Type-mapping profile section is malformed.
+    """
+    raw_type_mapping = raw.get("type_mapping")
+    if not isinstance(raw_type_mapping, dict):
+        message = "libzstd profile `type_mapping` must be a JSON object."
+        raise TypeError(message)
+    type_mapping_dict = cast("dict[str, object]", raw_type_mapping)
+    return TypeMappingOptions(
+        const_char_as_string=_read_required_bool(type_mapping_dict, "const_char_as_string")
+    )
+
+
 def _load_libzstd_subset_profile() -> _LibzstdSubsetProfile:
     """Load stable v1 profile used by libzstd harness tests.
 
@@ -151,6 +188,7 @@ def _load_libzstd_subset_profile() -> _LibzstdSubsetProfile:
     emit_kinds = _read_required_non_empty_string(raw, "emit_kinds")
     required_functions = _read_required_non_empty_string_array(raw, "required_functions")
     required_types = _read_required_non_empty_string_array(raw, "required_types")
+    type_mapping = _read_type_mapping_options(raw)
     return _LibzstdSubsetProfile(
         profile_id=profile_id,
         emit_kinds=emit_kinds,
@@ -158,6 +196,7 @@ def _load_libzstd_subset_profile() -> _LibzstdSubsetProfile:
         required_types=required_types,
         function_filter=_build_exact_symbol_regex(required_functions),
         type_filter=_build_exact_symbol_regex(required_types),
+        type_mapping=type_mapping,
     )
 
 
@@ -257,6 +296,8 @@ def _run_cli_for_libzstd(
         "--type-filter",
         profile.type_filter,
     ]
+    if profile.type_mapping.const_char_as_string:
+        command.append("--const-char-as-string")
     if config.clang_args:
         command.extend(["--", *config.clang_args])
 
@@ -436,6 +477,7 @@ def test_generates_libzstd_golden_output(
     assert "purego_func_ZSTD_minCLevel  func() int32" in result.stdout
     assert "purego_func_ZSTD_findFrameCompressedSize func(" in result.stdout
     assert "purego_func_ZSTD_getErrorCode func(" in result.stdout
+    assert "purego_func_ZSTD_getErrorName func( uint64, ) string" in normalized_stdout
     assert "purego_func_ZSTD_compress_usingDict func(" in result.stdout
     assert "purego_func_ZSTD_decompress_usingDict func(" in result.stdout
     assert "purego_func_ZSTD_createCCtx func() purego_type_ZSTD_CCtx" in result.stdout

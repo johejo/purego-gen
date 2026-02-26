@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Final
 
 from purego_gen.clang_parser import ClangParserError, parse_declarations
-from purego_gen.model import ParsedDeclarations
+from purego_gen.model import ParsedDeclarations, TypeMappingOptions
 from purego_gen.renderer import RendererError, render_go_source
 
 _ALLOWED_EMIT_KINDS: Final[frozenset[str]] = frozenset({"func", "type", "const", "var"})
@@ -35,6 +35,7 @@ class CliOptions:
     const_filter: str | None
     var_filter: str | None
     clang_args: tuple[str, ...]
+    type_mapping: TypeMappingOptions
 
 
 class _ParsedArgs(argparse.Namespace):
@@ -49,6 +50,7 @@ class _ParsedArgs(argparse.Namespace):
     type_filter: str | None
     const_filter: str | None
     var_filter: str | None
+    const_char_as_string: bool
 
 
 def _parse_emit_kinds(value: str) -> tuple[str, ...]:
@@ -155,6 +157,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--type-filter", help="Regex filter for type declarations.")
     parser.add_argument("--const-filter", help="Regex filter for constant declarations.")
     parser.add_argument("--var-filter", help="Regex filter for runtime variable declarations.")
+    parser.add_argument(
+        "--const-char-as-string",
+        action="store_true",
+        help="Map const char* function signature slots to Go string (default: off).",
+    )
     return parser
 
 
@@ -193,6 +200,7 @@ def parse_options(argv: list[str]) -> CliOptions:
         const_filter=namespace.const_filter,
         var_filter=namespace.var_filter,
         clang_args=clang_argv,
+        type_mapping=TypeMappingOptions(const_char_as_string=namespace.const_char_as_string),
     )
 
 
@@ -400,7 +408,11 @@ def main(argv: list[str] | None = None) -> int:
         return _system_exit_to_code(error)
 
     try:
-        declarations = parse_declarations(options.headers, options.clang_args)
+        declarations = parse_declarations(
+            options.headers,
+            options.clang_args,
+            type_mapping=options.type_mapping,
+        )
         filtered_declarations = _apply_filters(options, declarations)
     except ClangParserError as error:
         sys.stderr.write(f"purego-gen: {error}\n")

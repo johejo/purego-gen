@@ -16,6 +16,7 @@ _SRC_DIR = _REPO_ROOT / "src"
 _PLACEHOLDER_SCRIPT = _REPO_ROOT / "scripts" / "update-go-fixture-placeholders.py"
 _RUNTIME_FIXTURE_DIRS = (
     _FIXTURES_ROOT / "go_runtime_module",
+    _FIXTURES_ROOT / "go_runtime_string_module",
     _FIXTURES_ROOT / "go_runtime_zstd_module",
 )
 

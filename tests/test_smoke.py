@@ -25,14 +25,18 @@ _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
 _GOLDEN_DIR = _REPO_ROOT / "tests" / "golden"
 _GO_COMPILE_FIXTURE_DIR = _FIXTURES_DIR / "go_compile_module"
 _GO_RUNTIME_FIXTURE_DIR = _FIXTURES_DIR / "go_runtime_module"
+_GO_RUNTIME_STRING_FIXTURE_DIR = _FIXTURES_DIR / "go_runtime_string_module"
 _RUNTIME_SMOKE_HEADER = _FIXTURES_DIR / "smoke_runtime.h"
 _RUNTIME_SMOKE_SOURCE = _FIXTURES_DIR / "smoke_runtime.c"
+_RUNTIME_STRING_SMOKE_HEADER = _FIXTURES_DIR / "smoke_string_runtime.h"
+_RUNTIME_STRING_SMOKE_SOURCE = _FIXTURES_DIR / "smoke_string_runtime.c"
 _BROKEN_HEADER = _FIXTURES_DIR / "broken_header.h"
 _MISSING_SYMBOL_HEADER = _FIXTURES_DIR / "missing_symbol.h"
 _MISSING_RUNTIME_VAR_HEADER = _FIXTURES_DIR / "missing_runtime_var.h"
 _PRIMARY_HEADER = _FIXTURES_DIR / "basic.h"
 _CATEGORY_HEADER = _FIXTURES_DIR / "categories.h"
 _MACRO_CONSTANTS_HEADER = _FIXTURES_DIR / "macro_constants.h"
+_FUNCTION_SIGNATURES_HEADER = _FIXTURES_DIR / "function_signatures.h"
 _CONDITIONAL_HEADER = _FIXTURES_DIR / "conditional.h"
 _M3_TYPES_HEADER = _FIXTURES_DIR / "abi_types.h"
 _FIXTURE_LIB_ID = "fixture_lib"
@@ -85,7 +89,12 @@ def _assert_go_source_compiles(source: str, tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
 
 
-def _build_runtime_smoke_library(tmp_path: Path) -> Path:
+def _build_runtime_smoke_library(
+    tmp_path: Path,
+    *,
+    source_path: Path = _RUNTIME_SMOKE_SOURCE,
+    output_stem: str = "libpurego_gen_smoke",
+) -> Path:
     """Build a tiny C shared library for runtime smoke testing.
 
     Returns:
@@ -93,16 +102,14 @@ def _build_runtime_smoke_library(tmp_path: Path) -> Path:
     """
     command = resolve_c_compiler_command(purpose="runtime smoke tests")
 
-    output_name = (
-        "libpurego_gen_smoke.dylib" if sys.platform == "darwin" else "libpurego_gen_smoke.so"
-    )
+    output_name = f"{output_stem}.dylib" if sys.platform == "darwin" else f"{output_stem}.so"
     output_path = tmp_path / output_name
 
     if sys.platform == "darwin":
         command.extend(["-dynamiclib"])
     else:
         command.extend(["-shared", "-fPIC"])
-    command.extend(["-o", str(output_path), str(_RUNTIME_SMOKE_SOURCE)])
+    command.extend(["-o", str(output_path), str(source_path)])
 
     result = subprocess.run(  # noqa: S603
         command,
@@ -115,14 +122,29 @@ def _build_runtime_smoke_library(tmp_path: Path) -> Path:
     return output_path
 
 
-def _assert_runtime_smoke_passes(source: str, tmp_path: Path, *, shared_library_path: Path) -> None:
+def _assert_runtime_smoke_passes(
+    source: str,
+    tmp_path: Path,
+    *,
+    shared_library_path: Path,
+    fixture_module_dir: Path = _GO_RUNTIME_FIXTURE_DIR,
+) -> None:
     """Run generated bindings against the compiled C shared library."""
-    result = _run_runtime_smoke(source, tmp_path, shared_library_path=shared_library_path)
+    result = _run_runtime_smoke(
+        source,
+        tmp_path,
+        shared_library_path=shared_library_path,
+        fixture_module_dir=fixture_module_dir,
+    )
     assert result.returncode == 0, result.stderr
 
 
 def _run_runtime_smoke(
-    source: str, tmp_path: Path, *, shared_library_path: Path
+    source: str,
+    tmp_path: Path,
+    *,
+    shared_library_path: Path,
+    fixture_module_dir: Path = _GO_RUNTIME_FIXTURE_DIR,
 ) -> subprocess.CompletedProcess[str]:
     """Run `go test` for runtime smoke fixture and return the process result.
 
@@ -130,7 +152,7 @@ def _run_runtime_smoke(
         Completed process result for assertions.
     """
     return run_go_test_in_generated_module(
-        fixture_module_dir=_GO_RUNTIME_FIXTURE_DIR,
+        fixture_module_dir=fixture_module_dir,
         tmp_path=tmp_path,
         generated_source=source,
         output_dir_name="runtime_generated",
@@ -313,6 +335,42 @@ def test_generates_conditional_golden_output_with_clang_define(tmp_path: Path) -
     _assert_go_source_compiles(result_on.stdout, tmp_path / "on")
 
 
+def test_const_char_pointer_string_mapping_is_opt_in(tmp_path: Path) -> None:
+    """`--const-char-as-string` should control const char* signature mapping."""
+    result_default = _run_cli(
+        "--lib-id",
+        _FIXTURE_LIB_ID,
+        "--header",
+        str(_FUNCTION_SIGNATURES_HEADER),
+        "--pkg",
+        _FIXTURE_PACKAGE,
+        "--emit",
+        "func",
+    )
+    result_enabled = _run_cli(
+        "--lib-id",
+        _FIXTURE_LIB_ID,
+        "--header",
+        str(_FUNCTION_SIGNATURES_HEADER),
+        "--pkg",
+        _FIXTURE_PACKAGE,
+        "--emit",
+        "func",
+        "--const-char-as-string",
+    )
+
+    assert result_default.returncode == 0
+    assert result_enabled.returncode == 0
+    normalized_default = " ".join(result_default.stdout.split())
+    normalized_enabled = " ".join(result_enabled.stdout.split())
+    assert "purego_func_fixture_const_name func() uintptr" in normalized_default
+    assert "purego_func_fixture_lookup_name func( uintptr, ) uintptr" in normalized_default
+    assert "purego_func_fixture_const_name func() string" in normalized_enabled
+    assert "purego_func_fixture_lookup_name func( string, ) string" in normalized_enabled
+    _assert_go_source_compiles(result_default.stdout, tmp_path / "default")
+    _assert_go_source_compiles(result_enabled.stdout, tmp_path / "enabled")
+
+
 def test_emits_mixed_categories_with_filters(tmp_path: Path) -> None:
     """Category-specific filters should combine with mixed emit selection."""
     header_path = _CATEGORY_HEADER
@@ -468,6 +526,39 @@ def test_runtime_smoke_with_compiled_shared_library(tmp_path: Path) -> None:
     assert _REGISTER_FUNCTIONS_SYMBOL in result.stdout
     assert _LOAD_RUNTIME_VARS_SYMBOL in result.stdout
     _assert_runtime_smoke_passes(result.stdout, tmp_path, shared_library_path=shared_library_path)
+
+
+def test_runtime_smoke_const_char_string_round_trip(tmp_path: Path) -> None:
+    """Runtime smoke should verify `const char* <-> string` across Go/C ABI."""
+    shared_library_path = _build_runtime_smoke_library(
+        tmp_path,
+        source_path=_RUNTIME_STRING_SMOKE_SOURCE,
+        output_stem="libpurego_gen_smoke_string",
+    )
+
+    result = _run_cli(
+        "--lib-id",
+        _FIXTURE_LIB_ID,
+        "--header",
+        str(_RUNTIME_STRING_SMOKE_HEADER),
+        "--pkg",
+        _FIXTURE_PACKAGE,
+        "--emit",
+        "func",
+        "--const-char-as-string",
+    )
+
+    assert result.returncode == 0, result.stderr
+    normalized_stdout = " ".join(result.stdout.split())
+    assert "purego_func_smoke_const_greeting func() string" in normalized_stdout
+    assert "purego_func_smoke_const_is_expected func( string, ) int32" in normalized_stdout
+    assert "purego_func_smoke_const_roundtrip func( string, ) string" in normalized_stdout
+    _assert_runtime_smoke_passes(
+        result.stdout,
+        tmp_path,
+        shared_library_path=shared_library_path,
+        fixture_module_dir=_GO_RUNTIME_STRING_FIXTURE_DIR,
+    )
 
 
 def test_runtime_smoke_reports_unresolved_symbols(tmp_path: Path) -> None:

@@ -19,6 +19,8 @@ purego-gen --lib-id zstd --header zstd.h --out -
   (`func_/type_/const_/var_`) and C-side casing preserved in suffixes.
 - Typed function signatures use emitted opaque-handle aliases (`purego_type_*`)
   when corresponding opaque typedefs are emitted.
+- Function signatures keep pointer-like C types low-level by default; optional
+  `--const-char-as-string` maps only `const char*` slots to Go `string`.
 - Callers provide and own the library handle (`dlopen` policy is out of scope).
 
 ## Development Setup

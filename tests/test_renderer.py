@@ -161,8 +161,7 @@ def test_render_go_source_uses_emitted_opaque_aliases_for_function_signatures() 
     assert "purego_type_foo_t = uintptr" in source
     assert "purego_func_create_ctx func() purego_type_foo_t" in source
     assert (
-        "purego_func_consume_ctx func( purego_type_foo_t, purego_type_foo_t, )"
-        in normalized_source
+        "purego_func_consume_ctx func( purego_type_foo_t, purego_type_foo_t, )" in normalized_source
     )
 
 
@@ -203,3 +202,31 @@ def test_render_go_source_falls_back_to_uintptr_without_type_emit() -> None:
     normalized_source = " ".join(source.split())
     assert "purego_type_foo_t" not in source
     assert "purego_func_create_ctx func( uintptr, ) uintptr" in normalized_source
+
+
+def test_render_go_source_preserves_string_function_signatures() -> None:
+    """Renderer should keep parser-produced string function signature types."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="lookup_name",
+                    result_c_type="const char *",
+                    parameter_c_types=("const char *", "void *"),
+                    go_result_type="string",
+                    go_parameter_types=("string", "uintptr"),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+    )
+    normalized_source = " ".join(source.split())
+    assert "purego_func_lookup_name func( string, uintptr, ) string" in normalized_source
+    assert "purego_bytes_ptr" not in source
+    assert "purego_string_ptr" not in source
+    assert "purego_string_from_ptr" not in source

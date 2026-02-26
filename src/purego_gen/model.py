@@ -27,6 +27,13 @@ class FunctionDecl:
 
 
 @dataclass(frozen=True, slots=True)
+class TypeMappingOptions:
+    """Type-mapping policy toggles for generated Go function signatures."""
+
+    const_char_as_string: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class TypedefDecl:
     """Basic C typedef declaration model."""
 

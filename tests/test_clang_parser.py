@@ -12,11 +12,13 @@ from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
+    TypeMappingOptions,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
 _MACRO_CONSTANTS_HEADER = _FIXTURES_DIR / "macro_constants.h"
+_FUNCTION_SIGNATURES_HEADER = _FIXTURES_DIR / "function_signatures.h"
 _EXPECTED_FIXTURE_MACRO_SEED = 7
 _EXPECTED_FIXTURE_VERSION_NUMBER = 10203
 _EXPECTED_FIXTURE_MAGIC_NUMBER = 4247762216
@@ -141,3 +143,34 @@ def test_parse_object_like_macro_constants() -> None:
     assert constant_map["FIXTURE_MAGIC_NUMBER"] == _EXPECTED_FIXTURE_MAGIC_NUMBER
     assert constant_map["FIXTURE_CONTENTSIZE_UNKNOWN"] == _EXPECTED_FIXTURE_CONTENTSIZE_UNKNOWN
     assert constant_map["FIXTURE_CONTENTSIZE_ERROR"] == _EXPECTED_FIXTURE_CONTENTSIZE_ERROR
+
+
+def test_parse_function_signature_char_pointer_rules() -> None:
+    """Parser should apply function-signature char/void pointer mapping rules."""
+    declarations_default = parse_declarations(
+        headers=(str(_FUNCTION_SIGNATURES_HEADER),), clang_args=()
+    )
+    function_map_default = {function.name: function for function in declarations_default.functions}
+    declarations_enabled = parse_declarations(
+        headers=(str(_FUNCTION_SIGNATURES_HEADER),),
+        clang_args=(),
+        type_mapping=TypeMappingOptions(const_char_as_string=True),
+    )
+    function_map = {function.name: function for function in declarations_enabled.functions}
+    assert tuple(function_map) == (
+        "fixture_const_name",
+        "fixture_lookup_name",
+        "fixture_mutable_name",
+        "fixture_fill_name",
+        "fixture_user_data",
+    )
+    assert function_map_default["fixture_const_name"].go_result_type == "uintptr"
+    assert function_map_default["fixture_lookup_name"].go_parameter_types == ("uintptr",)
+    assert function_map_default["fixture_lookup_name"].go_result_type == "uintptr"
+    assert function_map["fixture_const_name"].go_result_type == "string"
+    assert function_map["fixture_lookup_name"].go_parameter_types == ("string",)
+    assert function_map["fixture_lookup_name"].go_result_type == "string"
+    assert function_map["fixture_mutable_name"].go_result_type == "uintptr"
+    assert function_map["fixture_fill_name"].go_parameter_types == ("uintptr", "string")
+    assert function_map["fixture_user_data"].go_parameter_types == ("uintptr", "uintptr")
+    assert function_map["fixture_user_data"].go_result_type == "uintptr"

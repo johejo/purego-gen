@@ -11,10 +11,11 @@ import os
 import re
 import subprocess  # noqa: S404
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
+from purego_gen.model import TypeMappingOptions
 from purego_gen.pkg_config import run_pkg_config_stdout, run_pkg_config_tokens
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +23,8 @@ _SRC_DIR = _REPO_ROOT / "src"
 _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
 _SMOKE_HEADER_PATH = _FIXTURES_DIR / "smoke_runtime.h"
 _SMOKE_OUTPUT_PATH = _FIXTURES_DIR / "go_runtime_module" / "generated.go"
+_SMOKE_STRING_HEADER_PATH = _FIXTURES_DIR / "smoke_string_runtime.h"
+_SMOKE_STRING_OUTPUT_PATH = _FIXTURES_DIR / "go_runtime_string_module" / "generated.go"
 _ZSTD_PROFILE_PATH = _FIXTURES_DIR / "target_profiles" / "libzstd_v1.json"
 _ZSTD_OUTPUT_PATH = _FIXTURES_DIR / "go_runtime_zstd_module" / "generated.go"
 
@@ -43,6 +46,7 @@ class _PuregoGenInvocation:
     clang_args: tuple[str, ...] = ()
     func_filter: str | None = None
     type_filter: str | None = None
+    type_mapping: TypeMappingOptions = field(default_factory=TypeMappingOptions)
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +58,7 @@ class _LibzstdProfile:
     required_types: tuple[str, ...]
     function_filter: str
     type_filter: str
+    type_mapping: TypeMappingOptions
 
 
 def _write_line(message: str) -> None:
@@ -104,6 +109,8 @@ def _run_purego_gen(invocation: _PuregoGenInvocation) -> str:
         command.extend(["--func-filter", invocation.func_filter])
     if invocation.type_filter is not None:
         command.extend(["--type-filter", invocation.type_filter])
+    if invocation.type_mapping.const_char_as_string:
+        command.append("--const-char-as-string")
     if invocation.clang_args:
         command.extend(["--", *invocation.clang_args])
 
@@ -141,6 +148,80 @@ def _build_exact_symbol_regex(symbols: tuple[str, ...]) -> str:
     return "^(" + "|".join(escaped) + ")$"
 
 
+def _read_required_non_empty_string(raw: dict[str, object], key: str) -> str:
+    """Read one required non-empty string field from profile JSON object.
+
+    Returns:
+        String value for `key`.
+
+    Raises:
+        RuntimeError: The field is missing or empty.
+    """
+    value = raw.get(key)
+    if not isinstance(value, str) or not value:
+        message = f"libzstd profile must define non-empty string `{key}`."
+        raise RuntimeError(message)
+    return value
+
+
+def _read_required_non_empty_string_array(raw: dict[str, object], key: str) -> tuple[str, ...]:
+    """Read one required non-empty string array field from profile JSON object.
+
+    Returns:
+        Tuple of string values for `key`.
+
+    Raises:
+        RuntimeError: The field is missing, empty, or includes non-string/empty items.
+    """
+    value = raw.get(key)
+    if not isinstance(value, list) or not value:
+        message = f"libzstd profile must define non-empty array `{key}`."
+        raise RuntimeError(message)
+
+    items: list[str] = []
+    for element in cast("list[object]", value):
+        if not isinstance(element, str) or not element:
+            message = f"libzstd profile `{key}` must contain non-empty strings."
+            raise RuntimeError(message)
+        items.append(element)
+    return tuple(items)
+
+
+def _read_required_bool(raw: dict[str, object], key: str) -> bool:
+    """Read one required bool field from profile JSON object.
+
+    Returns:
+        Bool value for `key`.
+
+    Raises:
+        TypeError: The field is missing or not a bool.
+    """
+    value = raw.get(key)
+    if not isinstance(value, bool):
+        message = f"libzstd profile must define bool `{key}`."
+        raise TypeError(message)
+    return value
+
+
+def _read_type_mapping_options(raw: dict[str, object]) -> TypeMappingOptions:
+    """Read type-mapping options from profile JSON object.
+
+    Returns:
+        Parsed type-mapping option set.
+
+    Raises:
+        TypeError: Type-mapping profile section is malformed.
+    """
+    raw_type_mapping = raw.get("type_mapping")
+    if not isinstance(raw_type_mapping, dict):
+        message = "libzstd profile `type_mapping` must be a JSON object."
+        raise TypeError(message)
+    type_mapping_dict = cast("dict[str, object]", raw_type_mapping)
+    return TypeMappingOptions(
+        const_char_as_string=_read_required_bool(type_mapping_dict, "const_char_as_string")
+    )
+
+
 def _load_libzstd_profile() -> _LibzstdProfile:
     """Load stable libzstd profile from JSON.
 
@@ -159,40 +240,17 @@ def _load_libzstd_profile() -> _LibzstdProfile:
         message = "libzstd profile root must be a JSON object."
         raise TypeError(message)
     raw = cast("dict[str, object]", raw_object)
-    emit_kinds = raw.get("emit_kinds")
-    required_functions = raw.get("required_functions")
-    required_types = raw.get("required_types")
-    if not isinstance(emit_kinds, str) or not emit_kinds:
-        message = "libzstd profile must define non-empty string `emit_kinds`."
-        raise RuntimeError(message)
-    if not isinstance(required_functions, list) or not required_functions:
-        message = "libzstd profile must define non-empty array `required_functions`."
-        raise RuntimeError(message)
-    if not isinstance(required_types, list) or not required_types:
-        message = "libzstd profile must define non-empty array `required_types`."
-        raise RuntimeError(message)
-
-    function_symbols: list[str] = []
-    for value in cast("list[object]", required_functions):
-        if not isinstance(value, str) or not value:
-            message = "libzstd profile `required_functions` must contain non-empty strings."
-            raise RuntimeError(message)
-        function_symbols.append(value)
-    required_type_names: list[str] = []
-    for value in cast("list[object]", required_types):
-        if not isinstance(value, str) or not value:
-            message = "libzstd profile `required_types` must contain non-empty strings."
-            raise RuntimeError(message)
-        required_type_names.append(value)
-
-    required_function_tuple = tuple(function_symbols)
-    required_type_tuple = tuple(required_type_names)
+    emit_kinds = _read_required_non_empty_string(raw, "emit_kinds")
+    required_function_tuple = _read_required_non_empty_string_array(raw, "required_functions")
+    required_type_tuple = _read_required_non_empty_string_array(raw, "required_types")
+    type_mapping = _read_type_mapping_options(raw)
     return _LibzstdProfile(
         emit_kinds=emit_kinds,
         required_functions=required_function_tuple,
         required_types=required_type_tuple,
         function_filter=_build_exact_symbol_regex(required_function_tuple),
         type_filter=_build_exact_symbol_regex(required_type_tuple),
+        type_mapping=type_mapping,
     )
 
 
@@ -228,6 +286,15 @@ def _generated_fixture_sources() -> dict[Path, str]:
             emit_kinds="func,var",
         )
     )
+    smoke_string_source = _run_purego_gen(
+        _PuregoGenInvocation(
+            lib_id="fixture_lib",
+            header_path=_SMOKE_STRING_HEADER_PATH.resolve(),
+            package_name="fixture",
+            emit_kinds="func",
+            type_mapping=TypeMappingOptions(const_char_as_string=True),
+        )
+    )
 
     zstd_header, zstd_cflags = _resolve_libzstd_header_and_cflags()
     zstd_profile = _load_libzstd_profile()
@@ -240,10 +307,12 @@ def _generated_fixture_sources() -> dict[Path, str]:
             clang_args=zstd_cflags,
             func_filter=zstd_profile.function_filter,
             type_filter=zstd_profile.type_filter,
+            type_mapping=zstd_profile.type_mapping,
         )
     )
     return {
         _SMOKE_OUTPUT_PATH: smoke_source,
+        _SMOKE_STRING_OUTPUT_PATH: smoke_string_source,
         _ZSTD_OUTPUT_PATH: zstd_source,
     }
 

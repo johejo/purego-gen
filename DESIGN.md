@@ -141,6 +141,15 @@ This split removes ambiguity between "constant" and "data symbol".
 - Pointer typedefs map to `uintptr`.
 - Function-pointer typedefs are supported in v1 as raw symbol-sized values and
   also map to `uintptr` (no callback trampoline generation yet).
+- Function signatures keep pointer-like C types as `uintptr` by default.
+- Optional CLI mode `--const-char-as-string` maps `const char*` function
+  result/parameter slots to Go `string`.
+- Mutable `char*` in function signatures remains `uintptr` even when
+  `--const-char-as-string` is enabled, to avoid treating writable/output
+  buffers as immutable strings.
+- `void*` / `const void*` in function signatures remains `uintptr` (no
+  size-heuristic or buffer-shape inference in v1), regardless of
+  `--const-char-as-string`.
 - v1 function-pointer support boundary is intentionally low-level:
   - supported: opaque `uintptr` mapping for function-pointer declarations.
   - unsupported: callback trampoline/codegen flows and signature-aware wrappers.
@@ -233,6 +242,9 @@ Behavior:
 - Generated function placeholders are typed Go function values derived from parsed C signatures
   (with `uintptr` fallback for currently unsupported types, and emitted opaque-handle aliases
   used when available) and are bound via `RegisterFunc`.
+- Function signature convenience mapping in v1 is intentionally narrow and
+  opt-in: with `--const-char-as-string`, only `const char*` is lifted to Go
+  `string`; mutable `char*` and `void*` remain low-level pointer-sized values.
 - `purego_<libid>_load_runtime_vars` resolves exported data symbols, stores their addresses in `purego_var_* uintptr`, and returns an error on missing required symbols.
 - All emitted runtime symbols are required; generated helpers return errors
   when symbol resolution fails.
@@ -279,6 +291,7 @@ Rules:
 - Filters are category-specific regexes and applied after normalization.
 - If a category filter is provided for an emitted category and matches nothing, CLI exits non-zero with an actionable error.
 - `--emit` controls which categories are generated.
+- `--const-char-as-string` is opt-in and disabled by default.
 - `--out <path>` writes to a file.
 - `--out -` or omitted `--out` writes generated code to stdout.
 - Generated Go source is formatted with `gofmt` before writing to stdout or files.
