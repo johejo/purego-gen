@@ -21,9 +21,6 @@ purego-gen --lib-id zstd --header zstd.h --out -
   when corresponding opaque typedefs are emitted.
 - Callers provide and own the library handle (`dlopen` policy is out of scope).
 
-Detailed behavior and contract-level rules live in
-[`DESIGN.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/DESIGN.md).
-
 ## Development Setup
 
 Use the Nix dev shell as the default entrypoint and run local checks first:
@@ -44,7 +41,7 @@ The default dev shell respects existing user/environment cache settings.
 Codex-specific sandbox workflow is documented in
 [`AGENTS.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/AGENTS.md).
 
-For detailed and up-to-date behavior, see:
+See also:
 - [`DESIGN.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/DESIGN.md) (implementation contract and technical details)
 - [`TODO.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/TODO.md) (execution plan and milestones)
 - [`Justfile`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/Justfile) (automation entrypoints)

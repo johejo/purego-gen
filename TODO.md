@@ -98,10 +98,8 @@
 - [x] Document M5 harness environment contract (header/library discovery strategy and fallback flags).
 - [x] Resolve open decisions required by M5 execution (function pointer boundary and required-only symbol policy).
 
-## Backlog / Open Decisions
+## Open Decisions
 
-- [x] Decide v1 support boundary for function pointers.
-- [x] Decide runtime symbol policy (required-only in v1).
 - [ ] Decide macro evaluation boundary beyond enum-like constants.
 - [ ] Define trigger criteria for introducing `--config <file>`.
 - [ ] Re-evaluate Windows support scope after v1 (API and symbol-loading strategy).

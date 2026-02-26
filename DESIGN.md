@@ -45,7 +45,6 @@ Out of scope (for now):
 - Use `pytest` for tests.
 - Prefer end-to-end golden tests for generator behavior; use unit tests for utilities.
 - Keep templates simple; keep logic in generator code.
-- All generated identifiers are unexported and use the `purego_` prefix.
 
 ## Development Workflow Contract
 
@@ -280,15 +279,12 @@ Rules:
 - Filters are category-specific regexes and applied after normalization.
 - If a category filter is provided for an emitted category and matches nothing, CLI exits non-zero with an actionable error.
 - `--emit` controls which categories are generated.
-- Current implementation always generates unexported `purego_`-prefixed identifiers
-  and keeps category prefixes (`func_/type_/const_/var_`) in emitted declaration names.
 - `--out <path>` writes to a file.
 - `--out -` or omitted `--out` writes generated code to stdout.
 - Generated Go source is formatted with `gofmt` before writing to stdout or files.
 - Current CLI is single-command (`purego-gen`) with no subcommand.
 - Diagnostics (warnings/progress/errors) must go to stderr, not stdout.
-- On failure, exit with non-zero status and do not emit partial generated code to stdout.
-- CLI failures must return non-zero exit code with actionable error messages.
+- On failure, exit non-zero with actionable error messages and do not emit partial generated code to stdout.
 - Current interface is intentionally flag-first to keep the design slim.
 - A config file mode may be added later via `--config <file>` if repeated workflows justify it.
 
@@ -326,53 +322,7 @@ M5 harness environment contract:
 - Runtime harness tests should accept explicit shared-library path overrides via
   environment variables rather than assuming system loader paths.
 
-## Milestones (Capability-Based)
+## Roadmap Tracking
 
-M1: Core parsing and deterministic emission
-- Parse functions + basic typedefs.
-- Emit minimal compilable bindings.
-- Golden test harness in place.
-
-Current implementation note:
-- `purego-gen` provides a single-command CLI entrypoint with flag parsing and
-  clang-argument passthrough (`--`).
-- Current parser phase extracts C function declarations and basic typedefs via libclang.
-
-M2 implementation note (partial):
-- Declaration model now includes explicit categories for `func`, `type`, `const`, and `var`.
-- Current `const` extraction covers enum constants and supported object-like
-  integer macros.
-- Current `var` extraction covers `extern` runtime data symbol declarations.
-- Current `--emit` handling supports `func,type,const,var`, including typed function
-  signature emission for `func` and Go `const` emission.
-
-M2: Category-complete symbol model
-- Implement explicit separation of `const` vs `runtime var`.
-- Implement category-specific filters and `--emit`.
-
-M3: Type system expansion
-- Struct/enum coverage for common patterns.
-- Pointer/function-pointer mapping rules documented and tested.
-
-M4: ABI validation
-- Add layout checks for supported struct cases.
-- Add clear unsupported-case diagnostics.
-
-M5 implementation note (partial):
-- `libzstd` objective harness fixture is wired with deterministic function filtering
-  and committed golden output, with discovery simplified to a
-  `pkg-config`-driven flow in the nix dev shell.
-- Stable v1 subset allowlist profile for `libzstd` is tracked at
-  `tests/fixtures/target_profiles/libzstd_v1.json` and consumed by the harness
-  tests to reduce cross-version drift.
-- Runtime harness accepts explicit shared-library path override via
-  `PUREGO_GEN_TEST_LIBZSTD`.
-
-M5: Target libraries
-- Validate against objective harness targets (`libzstd`, `onnxruntime`) once M1-M4 are stable.
-- Add `libsystemd` coverage as optional Linux-only validation.
-
-## Open Decisions
-
-- How much macro evaluation to support beyond enum-like values.
-- Trigger criteria for introducing `--config` (e.g., complexity threshold or repeated CI use).
+- Milestones and open decisions are tracked in
+  [`TODO.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/TODO.md).
