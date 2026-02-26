@@ -27,7 +27,7 @@ lint:
 
 typecheck:
   uv run basedpyright
-  env -u PYTHONPATH uv run pyrefly check .
+  unset PYTHONPATH; uv run pyrefly check .
 
 test:
   uv run pytest
