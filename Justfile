@@ -53,9 +53,9 @@ golden-check-ci:
 tool-version-check:
   scripts/check-tool-versions.sh
 
-check: lint typecheck golden-check test
+check: nix-flake-check lint typecheck golden-check test
 
-ci: format-check nix-flake-check tool-version-check lint typecheck golden-check-ci test
+ci: nix-flake-check tool-version-check lint typecheck golden-check-ci test
 
 # Codex sandbox helper tasks
 
