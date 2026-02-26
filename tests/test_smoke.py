@@ -449,28 +449,27 @@ def test_does_not_fail_when_filter_targets_non_emitted_category() -> None:
     assert _REGISTER_FUNCTIONS_SYMBOL in result.stdout
 
 
-def test_fails_when_optional_filter_matches_no_emitted_declarations() -> None:
-    """Optional-symbol filters should fail on no-match in emitted categories."""
+def test_rejects_removed_optional_filter_flags() -> None:
+    """Removed optional-symbol flags should be rejected by argparse."""
     cases = (
-        (_CATEGORY_HEADER, "func", "--optional-func-filter"),
-        (_CATEGORY_HEADER, "var", "--optional-var-filter"),
+        ("--optional-func-filter", "^smoke_missing$"),
+        ("--optional-var-filter", "^smoke_missing_var$"),
     )
-
-    for header_path, emit_kind, filter_option in cases:
+    for option_name, option_value in cases:
         result = _run_cli(
             "--lib-id",
             _FIXTURE_LIB_ID,
             "--header",
-            str(header_path),
+            str(_CATEGORY_HEADER),
             "--pkg",
             _FIXTURE_PACKAGE,
             "--emit",
-            emit_kind,
-            filter_option,
-            "^does_not_exist$",
+            "func,var",
+            option_name,
+            option_value,
         )
-        assert result.returncode == 1
-        assert f"no declarations matched {filter_option}: ^does_not_exist$" in result.stderr
+        assert result.returncode == _ARGPARSE_USAGE_ERROR
+        assert f"unrecognized arguments: {option_name} {option_value}" in result.stderr
 
 
 def test_runtime_smoke_with_compiled_shared_library(tmp_path: Path) -> None:
@@ -518,27 +517,6 @@ def test_runtime_smoke_reports_unresolved_symbols(tmp_path: Path) -> None:
     assert "smoke_missing" in combined_output
 
 
-def test_runtime_smoke_tolerates_optional_missing_symbols(tmp_path: Path) -> None:
-    """Optional function symbols should be skipped when not present at runtime."""
-    shared_library_path = _build_runtime_smoke_library(tmp_path)
-
-    result = _run_cli(
-        "--lib-id",
-        _FIXTURE_LIB_ID,
-        "--header",
-        str(_MISSING_SYMBOL_HEADER),
-        "--pkg",
-        _FIXTURE_PACKAGE,
-        "--emit",
-        "func,var",
-        "--optional-func-filter",
-        "^smoke_missing$",
-    )
-
-    assert result.returncode == 0, result.stderr
-    _assert_runtime_smoke_passes(result.stdout, tmp_path, shared_library_path=shared_library_path)
-
-
 def test_runtime_smoke_reports_unresolved_runtime_var_symbols(tmp_path: Path) -> None:
     """Runtime smoke should expose unresolved runtime-var symbol failures from generated code."""
     shared_library_path = _build_runtime_smoke_library(tmp_path)
@@ -561,24 +539,3 @@ def test_runtime_smoke_reports_unresolved_runtime_var_symbols(tmp_path: Path) ->
     assert runtime_result.returncode != 0
     combined_output = runtime_result.stdout + runtime_result.stderr
     assert "smoke_missing_var" in combined_output
-
-
-def test_runtime_smoke_tolerates_optional_missing_runtime_var_symbols(tmp_path: Path) -> None:
-    """Optional runtime-var symbols should be skipped when not present at runtime."""
-    shared_library_path = _build_runtime_smoke_library(tmp_path)
-
-    result = _run_cli(
-        "--lib-id",
-        _FIXTURE_LIB_ID,
-        "--header",
-        str(_MISSING_RUNTIME_VAR_HEADER),
-        "--pkg",
-        _FIXTURE_PACKAGE,
-        "--emit",
-        "func,var",
-        "--optional-var-filter",
-        "^smoke_missing_var$",
-    )
-
-    assert result.returncode == 0, result.stderr
-    _assert_runtime_smoke_passes(result.stdout, tmp_path, shared_library_path=shared_library_path)

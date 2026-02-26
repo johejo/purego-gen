@@ -25,7 +25,6 @@ _GOLDEN_DIR = _REPO_ROOT / "tests" / "golden"
 _GO_COMPILE_FIXTURE_DIR = _FIXTURES_DIR / "go_compile_module"
 _GO_RUNTIME_FIXTURE_DIR = _FIXTURES_DIR / "go_runtime_zstd_module"
 _LIBZSTD_GOLDEN_PATH = _GOLDEN_DIR / "libzstd_core" / "generated.go"
-_LIBZSTD_OPTIONAL_GOLDEN_PATH = _GOLDEN_DIR / "libzstd_optional" / "generated.go"
 _LIBZSTD_OPAQUE_CCTX_GOLDEN_PATH = _GOLDEN_DIR / "libzstd_opaque_cctx" / "generated.go"
 _TARGET_PROFILES_DIR = _FIXTURES_DIR / "target_profiles"
 _LIBZSTD_PROFILE_PATH = _TARGET_PROFILES_DIR / "libzstd_v1.json"
@@ -72,7 +71,6 @@ class _CustomEmitOptions:
     emit_kinds: str
     func_filter: str | None = None
     type_filter: str | None = None
-    optional_func_filter: str | None = None
 
 
 def _build_exact_symbol_regex(symbols: tuple[str, ...]) -> str:
@@ -323,8 +321,6 @@ def _run_cli_with_custom_emit(
         command.extend(["--func-filter", options.func_filter])
     if options.type_filter is not None:
         command.extend(["--type-filter", options.type_filter])
-    if options.optional_func_filter is not None:
-        command.extend(["--optional-func-filter", options.optional_func_filter])
     if config.clang_args:
         command.extend(["--", *config.clang_args])
 
@@ -448,27 +444,6 @@ def test_extracts_libzstd_object_like_macro_constants(
     assert "purego_const_zstd_magicnumber" in result.stdout
     assert "purego_const_zstd_contentsize_unknown" in result.stdout
     assert "purego_const_zstd_contentsize_error" in result.stdout
-    _assert_go_source_compiles(result.stdout, tmp_path)
-
-
-def test_marks_only_selected_libzstd_functions_optional(
-    tmp_path: Path,
-    libzstd_harness_config: _LibzstdHarnessConfig,
-    libzstd_subset_profile: _LibzstdSubsetProfile,
-) -> None:
-    """Optional-filtered libzstd symbol should tolerate unresolved lookup."""
-    result = _run_cli_with_custom_emit(
-        libzstd_harness_config,
-        options=_CustomEmitOptions(
-            package=_GOLDEN_OUTPUT_PACKAGE,
-            emit_kinds=libzstd_subset_profile.emit_kinds,
-            func_filter=libzstd_subset_profile.function_filter,
-            optional_func_filter="^ZSTD_compressBound$",
-        ),
-    )
-    expected = _LIBZSTD_OPTIONAL_GOLDEN_PATH.read_text(encoding="utf-8")
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == expected
     _assert_go_source_compiles(result.stdout, tmp_path)
 
 

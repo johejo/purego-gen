@@ -217,11 +217,8 @@ Behavior:
 - Generated function placeholders are typed Go function values derived from parsed C signatures
   (with `uintptr` fallback for currently unsupported types) and are bound via `RegisterFunc`.
 - `purego_<libid>_load_runtime_vars` resolves exported data symbols, stores their addresses in `purego_var_* uintptr`, and returns an error on missing required symbols.
-- Symbols are required by default; generated helpers return errors when required
-  symbols are missing.
-- Optional symbol handling is configurable via CLI filters
-  (`--optional-func-filter`, `--optional-var-filter`); missing optional symbols
-  are skipped without failing registration/loading.
+- All emitted runtime symbols are required; generated helpers return errors
+  when symbol resolution fails.
 - Compile-time constants are emitted directly as Go constants and do not require runtime loading.
 
 ## CLI Contract
@@ -240,8 +237,6 @@ purego-gen \
   --type-filter '^(Foo|Bar)' \
   --const-filter '^(FOO_|BAR_)' \
   --var-filter '^(foo_|bar_)' \
-  --optional-func-filter '^(foo_experimental_)' \
-  --optional-var-filter '^(foo_optional_)' \
   -- \
   -I./include -D_GNU_SOURCE
 ```
@@ -266,10 +261,6 @@ Rules:
 - `--` separates generator flags from clang flags.
 - Filters are category-specific regexes and applied after normalization.
 - If a category filter is provided for an emitted category and matches nothing, CLI exits non-zero with an actionable error.
-- Optional-symbol filters are evaluated after category filters and only affect
-  requiredness metadata for emitted `func`/`var` symbols.
-- If an optional-symbol filter is provided for an emitted category and matches
-  nothing, CLI exits non-zero with an actionable error.
 - `--emit` controls which categories are generated.
 - Current implementation always generates `purego_`-prefixed identifiers.
 - `--out <path>` writes to a file.

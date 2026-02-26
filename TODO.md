@@ -84,7 +84,7 @@
 - [x] Generate typed function signatures (result + params) instead of `func()` placeholders for selected `libzstd` APIs.
 - [x] Introduce opaque-handle type emission policy for incomplete structs (`ZSTD_CCtx` / `ZSTD_DCtx` / `ZSTD_CDict` / `ZSTD_DDict`) so pointer-based APIs can be represented safely.
 - [x] Extend constant extraction beyond enum constants to object-like macro constants required by `libzstd` (`ZSTD_VERSION_*`, magic/content-size related values).
-- [x] Add symbol requirement metadata (`required` vs `optional`) and generate registration flow that can tolerate optional symbol absence when configured.
+- [x] Simplify runtime symbol policy to required-only and remove optional-symbol filters from CLI/API surface.
 - [x] Add runtime harness scenario that performs real block compress/decompress roundtrip using generated bindings (not symbol-resolution only).
 - [x] Define and document a stable `libzstd` API subset profile for v1 generation tests (allowlist-based to reduce cross-version drift).
 
@@ -94,12 +94,12 @@
 - [x] Add strict CI mode for `golden-check` that always compares against `HEAD` only.
 - [x] Normalize golden case manifest schema to one header field shape (`header_paths`).
 - [x] Document M5 harness environment contract (header/library discovery strategy and fallback flags).
-- [x] Resolve open decisions required by M5 execution (function pointer boundary and optional symbol policy).
+- [x] Resolve open decisions required by M5 execution (function pointer boundary and required-only symbol policy).
 
 ## Backlog / Open Decisions
 
 - [x] Decide v1 support boundary for function pointers.
-- [x] Decide optional symbol policy (`warn` vs `error`).
+- [x] Decide runtime symbol policy (required-only in v1).
 - [ ] Decide macro evaluation boundary beyond enum-like constants.
 - [ ] Define trigger criteria for introducing `--config <file>`.
 - [ ] Re-evaluate Windows support scope after v1 (API and symbol-loading strategy).

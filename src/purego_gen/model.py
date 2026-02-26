@@ -24,7 +24,6 @@ class FunctionDecl:
     parameter_c_types: tuple[str, ...]
     go_result_type: str | None
     go_parameter_types: tuple[str, ...]
-    required: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,7 +49,6 @@ class RuntimeVarDecl:
 
     name: str
     c_type: str
-    required: bool = True
 
 
 @dataclass(frozen=True, slots=True)

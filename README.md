@@ -22,8 +22,7 @@ Early development. Interfaces and generated output may change.
 - M4 ABI checks now include C-side probe comparison (`sizeof`/`alignof`/`offsetof`)
   and explicit `passed`/`failed`/`skipped` fallback classification per record.
 - v1 function-pointer handling is `uintptr`-only (no callback trampoline codegen).
-- Symbols are required by default, with optional symbol handling configurable
-  via `--optional-func-filter` / `--optional-var-filter`.
+- All emitted runtime symbols are required; unresolved symbols fail registration/loading.
 - Golden-case manifest is normalized to `header_paths`, and CI can enforce
   strict golden drift checks via `just golden-check-ci`.
 - M5 `libzstd` objective harness fixture checks deterministic golden output and

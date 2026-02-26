@@ -58,16 +58,10 @@ var (
 func purego_{{ lib_id }}_register_functions(handle uintptr) error {
     {% for function in functions %}
     purego_func_{{ function.identifier }}_symbol, err := purego.Dlsym(handle, "{{ function.symbol }}")
-        {% if function.required %}
     if err != nil {
         return fmt.Errorf("purego-gen: failed to resolve function symbol {{ function.symbol }}: %w", err)
     }
     purego.RegisterFunc(&purego_func_{{ function.identifier }}, purego_func_{{ function.identifier }}_symbol)
-        {% else %}
-    if err == nil {
-        purego.RegisterFunc(&purego_func_{{ function.identifier }}, purego_func_{{ function.identifier }}_symbol)
-    }
-        {% endif %}
     {% endfor %}
     return nil
 }
@@ -82,7 +76,6 @@ var (
 func purego_{{ lib_id }}_load_runtime_vars(handle uintptr) error {
     {% for runtime_var in runtime_vars %}
     purego_var_{{ runtime_var.identifier }}_symbol, err := purego.Dlsym(handle, "{{ runtime_var.symbol }}")
-        {% if runtime_var.required %}
     if err != nil {
         return fmt.Errorf(
             "purego-gen: failed to resolve runtime var symbol {{ runtime_var.symbol }}: %w",
@@ -90,11 +83,6 @@ func purego_{{ lib_id }}_load_runtime_vars(handle uintptr) error {
         )
     }
     purego_var_{{ runtime_var.identifier }} = purego_var_{{ runtime_var.identifier }}_symbol
-        {% else %}
-    if err == nil {
-        purego_var_{{ runtime_var.identifier }} = purego_var_{{ runtime_var.identifier }}_symbol
-    }
-        {% endif %}
     {% endfor %}
     return nil
 }
