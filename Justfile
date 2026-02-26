@@ -1,7 +1,7 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 agent_nix_prefix := "nix develop .#coding-agent -c"
-python_src_prefix := "env PYTHONPATH=src uv run python"
+python_src_prefix := "scripts/uv-run-python-src.sh"
 
 default:
   @just --list

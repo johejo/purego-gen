@@ -41,7 +41,7 @@ render_golden_case() {
 	mkdir -p "$(dirname -- "$render_output_path")"
 
 	set -- \
-		uv run python -m purego_gen \
+		scripts/uv-run-python-src.sh -m purego_gen \
 		--lib-id fixture_lib \
 		--pkg fixture \
 		--emit "$render_emit_kinds"
@@ -69,9 +69,9 @@ render_golden_case() {
 
 	if [ -n "$render_clang_args" ]; then
 		# shellcheck disable=SC2086 # manifest stores clang args as space-delimited tokens.
-		PYTHONPATH=src "$@" -- $render_clang_args >"$render_output_path"
+		"$@" -- $render_clang_args >"$render_output_path"
 		return
 	fi
 
-	PYTHONPATH=src "$@" >"$render_output_path"
+	"$@" >"$render_output_path"
 }
