@@ -58,6 +58,7 @@
             ccache
             clang
             clang-tools
+            duckdb
             go
             jq
             just
