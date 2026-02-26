@@ -15,7 +15,7 @@
 - [x] Parse function declarations and basic typedefs via libclang.
 - [x] Build internal normalized model for `func` and minimal `type`.
 - [x] Emit compilable Go output with generated header comment.
-- [ ] Emit unexported `purego_`-prefixed identifiers only.
+- [x] Emit unexported `purego_`-prefixed identifiers only.
 - [x] Implement `--out <path>` and stdout mode (`--out -` or omitted).
 - [x] Format generated output with `gofmt` before writing.
 - [x] Ensure diagnostics go to stderr and failures return non-zero.
@@ -47,6 +47,7 @@
 - [x] Preserve golden output equivalence for current fixtures (`tests/golden/*.go`), allowing only formatting-equivalent differences.
 - [x] Add focused tests for template rendering context validation and missing-variable failures.
 - [x] Remove obsolete string-concatenation render helpers from `cli.py` after migration.
+- [x] Preserve C-side symbol casing in generated identifier suffixes while keeping `func_/type_/const_/var_` category prefixes.
 
 ## M3 Type System Expansion
 

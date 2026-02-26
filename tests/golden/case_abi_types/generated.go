@@ -35,6 +35,6 @@ type (
 )
 
 const (
-	purego_const_fixture_mode_off = 0
-	purego_const_fixture_mode_on  = 1
+	purego_const_FIXTURE_MODE_OFF = 0
+	purego_const_FIXTURE_MODE_ON  = 1
 )

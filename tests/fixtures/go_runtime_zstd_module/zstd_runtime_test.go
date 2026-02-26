@@ -37,32 +37,32 @@ func TestGeneratedBindingsResolveLibzstdSymbols(t *testing.T) {
 	}
 
 	input := []byte("purego-gen zstd runtime roundtrip")
-	compressBound := purego_func_zstd_compressbound(uint64(len(input)))
-	if purego_func_zstd_iserror(compressBound) != 0 {
+	compressBound := purego_func_ZSTD_compressBound(uint64(len(input)))
+	if purego_func_ZSTD_isError(compressBound) != 0 {
 		t.Fatalf("ZSTD_compressBound returned error code: %d", compressBound)
 	}
 
 	compressed := make([]byte, int(compressBound))
-	compressedSize := purego_func_zstd_compress(
+	compressedSize := purego_func_ZSTD_compress(
 		bytesPtr(compressed),
 		uint64(len(compressed)),
 		bytesPtr(input),
 		uint64(len(input)),
 		1,
 	)
-	if purego_func_zstd_iserror(compressedSize) != 0 {
+	if purego_func_ZSTD_isError(compressedSize) != 0 {
 		t.Fatalf("ZSTD_compress returned error code: %d", compressedSize)
 	}
 	compressed = compressed[:int(compressedSize)]
 
 	output := make([]byte, len(input))
-	outputSize := purego_func_zstd_decompress(
+	outputSize := purego_func_ZSTD_decompress(
 		bytesPtr(output),
 		uint64(len(output)),
 		bytesPtr(compressed),
 		uint64(len(compressed)),
 	)
-	if purego_func_zstd_iserror(outputSize) != 0 {
+	if purego_func_ZSTD_isError(outputSize) != 0 {
 		t.Fatalf("ZSTD_decompress returned error code: %d", outputSize)
 	}
 	if outputSize != uint64(len(input)) {

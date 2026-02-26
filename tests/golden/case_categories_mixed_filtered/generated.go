@@ -13,7 +13,7 @@ var (
 )
 
 const (
-	purego_const_fixture_status_ok = 0
+	purego_const_FIXTURE_STATUS_OK = 0
 )
 
 var (

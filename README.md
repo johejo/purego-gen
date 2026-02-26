@@ -10,23 +10,14 @@ When using purego, you often need to write a lot of boilerplate code to call C f
 
 Early development. Interfaces and generated output may change.
 - Single-command CLI (`purego-gen`) that parses C headers via libclang.
-- Generates low-level bindings for `func/type/const/var` categories.
-- Function bindings are emitted as typed Go function values derived from parsed C
-  signatures (with `uintptr` fallback for unsupported types).
-- Incomplete/opaque struct typedefs are emitted as `uintptr` aliases for
-  pointer-handle style APIs.
-- Compile-time constant extraction includes enum members plus supported
-  object-like integer macros.
-- Non-Windows first; generated identifiers are unexported `purego_` names.
+- Generates low-level bindings for `func/type/const/var`.
+- Identifier scheme uses unexported `purego_` names with category prefixes
+  (`func_/type_/const_/var_`) and C-side casing preserved in suffixes.
 - Callers provide the library handle (no automatic `dlopen` policy).
-- M4 ABI checks now include C-side probe comparison (`sizeof`/`alignof`/`offsetof`)
-  and explicit `passed`/`failed`/`skipped` fallback classification per record.
-- v1 function-pointer handling is `uintptr`-only (no callback trampoline codegen).
-- All emitted runtime symbols are required; unresolved symbols fail registration/loading.
-- Golden-case manifest is normalized to `header_paths`, and CI can enforce
-  strict golden drift checks via `just golden-check-ci`.
-- M5 `libzstd` objective harness fixture checks deterministic golden output and
-  runtime block compress/decompress roundtrip for a stable API subset.
+- Runtime harness currently targets `libzstd` as the baseline objective library.
+
+Detailed behavior and contract-level rules live in
+[`DESIGN.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/DESIGN.md).
 
 ## CLI (current)
 

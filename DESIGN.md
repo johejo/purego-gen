@@ -12,6 +12,7 @@ but existing contracts should not change without explicit versioning or migratio
 - `README.md` is the quick-start and high-level project summary.
 - `DESIGN.md` (this file) is the normative behavior contract.
 - `TODO.md` is the execution plan and milestone tracker.
+- Keep `README.md` concise; do not duplicate contract-level detail from this file.
 
 ## Scope
 
@@ -196,6 +197,17 @@ Generated file header:
 Naming:
 - All generated identifiers are unexported.
 - All generated identifiers must start with `purego_`.
+- Generated declaration identifiers keep category-specific prefixes:
+  - `purego_func_<symbol>`
+  - `purego_type_<symbol>`
+  - `purego_const_<symbol>`
+  - `purego_var_<symbol>`
+- The `<symbol>` suffix preserves C-side casing as much as possible.
+- Non-identifier characters in `<symbol>` are normalized to `_`.
+- If `<symbol>` starts with a digit, generated suffix adds `n_` prefix.
+- If `<symbol>` is a Go keyword, generated suffix appends `_`.
+- Same-category collisions after normalization use deterministic numeric suffixes
+  (`_2`, `_3`, ...).
 - Current implementation keeps the prefix fixed to `purego_` for simplicity.
 - Prefix customization may be added later if it becomes necessary.
 
@@ -262,7 +274,8 @@ Rules:
 - Filters are category-specific regexes and applied after normalization.
 - If a category filter is provided for an emitted category and matches nothing, CLI exits non-zero with an actionable error.
 - `--emit` controls which categories are generated.
-- Current implementation always generates `purego_`-prefixed identifiers.
+- Current implementation always generates unexported `purego_`-prefixed identifiers
+  and keeps category prefixes (`func_/type_/const_/var_`) in emitted declaration names.
 - `--out <path>` writes to a file.
 - `--out -` or omitted `--out` writes generated code to stdout.
 - Generated Go source is formatted with `gofmt` before writing to stdout or files.

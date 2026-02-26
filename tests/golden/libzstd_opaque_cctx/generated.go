@@ -13,26 +13,26 @@ var (
 )
 
 type (
-	purego_type_zstd_cctx = uintptr
+	purego_type_ZSTD_CCtx = uintptr
 )
 
 var (
-	purego_func_zstd_createcctx func() uintptr
-	purego_func_zstd_freecctx   func(
+	purego_func_ZSTD_createCCtx func() uintptr
+	purego_func_ZSTD_freeCCtx   func(
 		uintptr,
 	) uint64
 )
 
 func purego_zstd_register_functions(handle uintptr) error {
-	purego_func_zstd_createcctx_symbol, err := purego.Dlsym(handle, "ZSTD_createCCtx")
+	purego_func_ZSTD_createCCtx_symbol, err := purego.Dlsym(handle, "ZSTD_createCCtx")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_createCCtx: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_zstd_createcctx, purego_func_zstd_createcctx_symbol)
-	purego_func_zstd_freecctx_symbol, err := purego.Dlsym(handle, "ZSTD_freeCCtx")
+	purego.RegisterFunc(&purego_func_ZSTD_createCCtx, purego_func_ZSTD_createCCtx_symbol)
+	purego_func_ZSTD_freeCCtx_symbol, err := purego.Dlsym(handle, "ZSTD_freeCCtx")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_freeCCtx: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_zstd_freecctx, purego_func_zstd_freecctx_symbol)
+	purego.RegisterFunc(&purego_func_ZSTD_freeCCtx, purego_func_ZSTD_freeCCtx_symbol)
 	return nil
 }

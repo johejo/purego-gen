@@ -13,53 +13,53 @@ var (
 )
 
 var (
-	purego_func_zstd_versionnumber func() uint32
-	purego_func_zstd_compress      func(
+	purego_func_ZSTD_versionNumber func() uint32
+	purego_func_ZSTD_compress      func(
 		uintptr,
 		uint64,
 		uintptr,
 		uint64,
 		int32,
 	) uint64
-	purego_func_zstd_decompress func(
+	purego_func_ZSTD_decompress func(
 		uintptr,
 		uint64,
 		uintptr,
 		uint64,
 	) uint64
-	purego_func_zstd_compressbound func(
+	purego_func_ZSTD_compressBound func(
 		uint64,
 	) uint64
-	purego_func_zstd_iserror func(
+	purego_func_ZSTD_isError func(
 		uint64,
 	) uint32
 )
 
 func purego_zstd_register_functions(handle uintptr) error {
-	purego_func_zstd_versionnumber_symbol, err := purego.Dlsym(handle, "ZSTD_versionNumber")
+	purego_func_ZSTD_versionNumber_symbol, err := purego.Dlsym(handle, "ZSTD_versionNumber")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_versionNumber: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_zstd_versionnumber, purego_func_zstd_versionnumber_symbol)
-	purego_func_zstd_compress_symbol, err := purego.Dlsym(handle, "ZSTD_compress")
+	purego.RegisterFunc(&purego_func_ZSTD_versionNumber, purego_func_ZSTD_versionNumber_symbol)
+	purego_func_ZSTD_compress_symbol, err := purego.Dlsym(handle, "ZSTD_compress")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_compress: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_zstd_compress, purego_func_zstd_compress_symbol)
-	purego_func_zstd_decompress_symbol, err := purego.Dlsym(handle, "ZSTD_decompress")
+	purego.RegisterFunc(&purego_func_ZSTD_compress, purego_func_ZSTD_compress_symbol)
+	purego_func_ZSTD_decompress_symbol, err := purego.Dlsym(handle, "ZSTD_decompress")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_decompress: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_zstd_decompress, purego_func_zstd_decompress_symbol)
-	purego_func_zstd_compressbound_symbol, err := purego.Dlsym(handle, "ZSTD_compressBound")
+	purego.RegisterFunc(&purego_func_ZSTD_decompress, purego_func_ZSTD_decompress_symbol)
+	purego_func_ZSTD_compressBound_symbol, err := purego.Dlsym(handle, "ZSTD_compressBound")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_compressBound: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_zstd_compressbound, purego_func_zstd_compressbound_symbol)
-	purego_func_zstd_iserror_symbol, err := purego.Dlsym(handle, "ZSTD_isError")
+	purego.RegisterFunc(&purego_func_ZSTD_compressBound, purego_func_ZSTD_compressBound_symbol)
+	purego_func_ZSTD_isError_symbol, err := purego.Dlsym(handle, "ZSTD_isError")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_isError: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_zstd_iserror, purego_func_zstd_iserror_symbol)
+	purego.RegisterFunc(&purego_func_ZSTD_isError, purego_func_ZSTD_isError_symbol)
 	return nil
 }

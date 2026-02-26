@@ -3,12 +3,12 @@
 package fixture
 
 const (
-	purego_const_fixture_version_major       = 1
-	purego_const_fixture_version_minor       = 2
-	purego_const_fixture_version_patch       = 3
-	purego_const_fixture_version_number      = 10203
-	purego_const_fixture_magic_number        = 4247762216
-	purego_const_fixture_contentsize_unknown = 18446744073709551615
-	purego_const_fixture_contentsize_error   = 18446744073709551614
-	purego_const_fixture_macro_seed          = 7
+	purego_const_FIXTURE_VERSION_MAJOR       = 1
+	purego_const_FIXTURE_VERSION_MINOR       = 2
+	purego_const_FIXTURE_VERSION_PATCH       = 3
+	purego_const_FIXTURE_VERSION_NUMBER      = 10203
+	purego_const_FIXTURE_MAGIC_NUMBER        = 4247762216
+	purego_const_FIXTURE_CONTENTSIZE_UNKNOWN = 18446744073709551615
+	purego_const_FIXTURE_CONTENTSIZE_ERROR   = 18446744073709551614
+	purego_const_FIXTURE_MACRO_SEED          = 7
 )

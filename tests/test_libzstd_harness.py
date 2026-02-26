@@ -438,12 +438,12 @@ def test_extracts_libzstd_object_like_macro_constants(
         const_filter=_LIBZSTD_MACRO_FILTER,
     )
     assert result.returncode == 0, result.stderr
-    assert "purego_const_zstd_version_major" in result.stdout
-    assert "purego_const_zstd_version_minor" in result.stdout
-    assert "purego_const_zstd_version_release" in result.stdout
-    assert "purego_const_zstd_magicnumber" in result.stdout
-    assert "purego_const_zstd_contentsize_unknown" in result.stdout
-    assert "purego_const_zstd_contentsize_error" in result.stdout
+    assert "purego_const_ZSTD_VERSION_MAJOR" in result.stdout
+    assert "purego_const_ZSTD_VERSION_MINOR" in result.stdout
+    assert "purego_const_ZSTD_VERSION_RELEASE" in result.stdout
+    assert "purego_const_ZSTD_MAGICNUMBER" in result.stdout
+    assert "purego_const_ZSTD_CONTENTSIZE_UNKNOWN" in result.stdout
+    assert "purego_const_ZSTD_CONTENTSIZE_ERROR" in result.stdout
     _assert_go_source_compiles(result.stdout, tmp_path)
 
 

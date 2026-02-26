@@ -22,6 +22,33 @@ if TYPE_CHECKING:
     from purego_gen.model import ParsedDeclarations
 
 _ALLOWED_EMIT_KINDS: Final[frozenset[str]] = frozenset({"func", "type", "const", "var"})
+_GO_KEYWORDS: Final[frozenset[str]] = frozenset({
+    "break",
+    "default",
+    "func",
+    "interface",
+    "select",
+    "case",
+    "defer",
+    "go",
+    "map",
+    "struct",
+    "chan",
+    "else",
+    "goto",
+    "package",
+    "switch",
+    "const",
+    "fallthrough",
+    "if",
+    "range",
+    "type",
+    "continue",
+    "for",
+    "import",
+    "return",
+    "var",
+})
 _TEMPLATE_DIR: Final[Path] = Path(__file__).resolve().parents[2] / "templates"
 _MAIN_TEMPLATE_NAME: Final[str] = "go_file.go.j2"
 _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
@@ -79,18 +106,57 @@ class _TemplateContext(TypedDict):
     runtime_vars: tuple[_RuntimeVarContext, ...]
 
 
-def _sanitize_identifier(raw: str) -> str:
+def _sanitize_identifier(raw: str, *, fallback: str) -> str:
     """Sanitize source identifier into a Go-syntax-safe suffix.
 
     Returns:
-        Safe lowercase identifier suffix.
+        Safe identifier suffix that preserves source casing as much as possible.
     """
-    normalized = re.sub(r"[^0-9A-Za-z]+", "_", raw).strip("_").lower()
+    normalized = re.sub(r"[^0-9A-Za-z_]+", "_", raw)
     if not normalized:
-        return "decl"
+        normalized = fallback
     if normalized[0].isdigit():
-        return f"n_{normalized}"
+        normalized = f"n_{normalized}"
+    if normalized in _GO_KEYWORDS:
+        normalized = f"{normalized}_"
     return normalized
+
+
+def _allocate_unique_identifier(base_identifier: str, *, seen: set[str]) -> str:
+    """Allocate deterministic unique identifier in one declaration category.
+
+    Returns:
+        Unique identifier string.
+    """
+    if base_identifier not in seen:
+        seen.add(base_identifier)
+        return base_identifier
+
+    suffix = 2
+    while f"{base_identifier}_{suffix}" in seen:
+        suffix += 1
+    resolved = f"{base_identifier}_{suffix}"
+    seen.add(resolved)
+    return resolved
+
+
+def _build_unique_identifiers(
+    raw_names: tuple[str, ...],
+    *,
+    fallback_prefix: str,
+) -> tuple[str, ...]:
+    """Build deterministic unique identifiers for one declaration category.
+
+    Returns:
+        Identifier tuple with stable ordering and deterministic dedupe suffixes.
+    """
+    seen: set[str] = set()
+    resolved: list[str] = []
+    for index, raw_name in enumerate(raw_names, start=1):
+        base_identifier = _sanitize_identifier(raw_name, fallback=f"{fallback_prefix}_{index}")
+        resolved_identifier = _allocate_unique_identifier(base_identifier, seen=seen)
+        resolved.append(resolved_identifier)
+    return tuple(resolved)
 
 
 def _validate_emit_kinds(emit_kinds: tuple[str, ...]) -> None:
@@ -121,39 +187,62 @@ def _build_context(
         Context dictionary passed to Jinja2 template rendering.
     """
     _validate_emit_kinds(emit_kinds)
+    type_identifiers = _build_unique_identifiers(
+        tuple(typedef.name for typedef in declarations.typedefs),
+        fallback_prefix="type",
+    )
+    constant_identifiers = _build_unique_identifiers(
+        tuple(constant.name for constant in declarations.constants),
+        fallback_prefix="const",
+    )
+    function_identifiers = _build_unique_identifiers(
+        tuple(function.name for function in declarations.functions),
+        fallback_prefix="func",
+    )
+    runtime_var_identifiers = _build_unique_identifiers(
+        tuple(runtime_var.name for runtime_var in declarations.runtime_vars),
+        fallback_prefix="var",
+    )
+
     return {
         "package": package,
         "lib_id": lib_id,
         "emit_kinds": emit_kinds,
         "type_aliases": tuple(
             {
-                "identifier": _sanitize_identifier(typedef.name),
+                "identifier": identifier,
                 "go_type": typedef.go_type,
             }
-            for typedef in declarations.typedefs
+            for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
         ),
         "constants": tuple(
             {
-                "identifier": _sanitize_identifier(constant.name),
+                "identifier": identifier,
                 "value": constant.value,
             }
-            for constant in declarations.constants
+            for constant, identifier in zip(
+                declarations.constants, constant_identifiers, strict=True
+            )
         ),
         "functions": tuple(
             {
-                "identifier": _sanitize_identifier(function.name),
+                "identifier": identifier,
                 "symbol": function.name,
                 "parameter_types": function.go_parameter_types,
                 "result_type": function.go_result_type,
             }
-            for function in declarations.functions
+            for function, identifier in zip(
+                declarations.functions, function_identifiers, strict=True
+            )
         ),
         "runtime_vars": tuple(
             {
-                "identifier": _sanitize_identifier(runtime_var.name),
+                "identifier": identifier,
                 "symbol": runtime_var.name,
             }
-            for runtime_var in declarations.runtime_vars
+            for runtime_var, identifier in zip(
+                declarations.runtime_vars, runtime_var_identifiers, strict=True
+            )
         ),
     }
 
