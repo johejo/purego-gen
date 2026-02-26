@@ -88,6 +88,21 @@
           };
           coding-agent = mkDevShell {
             shellHook = ''
+              guarded_env_vars="
+              XDG_CACHE_HOME
+              GOMODCACHE
+              GOCACHE
+              CCACHE_DIR
+              CCACHE_BASEDIR
+              CCACHE_NOHASHDIR
+              UV_PROJECT_ENVIRONMENT
+              "
+              for var_name in $guarded_env_vars; do
+                if printenv "$var_name" >/dev/null 2>&1; then
+                  echo "purego-gen: coding-agent requires $var_name to be unset before nix develop; external override is not allowed." >&2
+                  exit 1
+                fi
+              done
               export XDG_CACHE_HOME="$PWD/.cache"
               export GOMODCACHE="$PWD/.cache/gomod"
               export GOCACHE="$PWD/.cache/go-build"

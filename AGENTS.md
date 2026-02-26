@@ -31,5 +31,6 @@ Do not duplicate volatile details in this file.
 ## Maintenance policy
 
 - Keep changes minimal and incremental.
-- When behavior changes, update `DESIGN.md` first, then `TODO.md`, then `README.md` summary.
+- Update docs only for user-visible behavior/API/CLI contract changes.
+- Internal-only implementation tweaks (e.g. devShell guardrails, refactors) do not require routine updates to `DESIGN.md`/`TODO.md`/`README.md` unless they change documented workflows.
 - Keep this file short; only add rules that are unlikely to change soon.
