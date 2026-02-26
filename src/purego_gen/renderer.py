@@ -54,6 +54,7 @@ _MAIN_TEMPLATE_NAME: Final[str] = "go_file.go.j2"
 _OPAQUE_POINTER_TYPEDEF_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^(?:(?:const|volatile|restrict)\s+)*([A-Za-z_][A-Za-z0-9_]*)\s*\*(?:\s*(?:const|volatile|restrict))*$"
 )
+_GO_IDENTIFIER_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "package",
     "lib_id",
@@ -87,10 +88,15 @@ class _ConstantContext(TypedDict):
     value: int
 
 
+class _FunctionParameterContext(TypedDict):
+    name: str
+    type: str
+
+
 class _FunctionContext(TypedDict):
     identifier: str
     symbol: str
-    parameter_types: tuple[str, ...]
+    parameters: tuple[_FunctionParameterContext, ...]
     result_type: str | None
 
 
@@ -248,6 +254,65 @@ def _resolve_function_signature_type(
     return opaque_alias_type_by_typedef_name.get(typedef_name, go_type)
 
 
+def _sanitize_function_parameter_name(raw_name: str, *, index: int) -> str:
+    """Sanitize one C parameter name into a stable Go identifier.
+
+    Returns:
+        Sanitized Go parameter name with deterministic fallback.
+    """
+    normalized = re.sub(r"[^0-9A-Za-z_]+", "_", raw_name)
+    if not normalized or normalized == "_" or normalized[0].isdigit():
+        normalized = f"arg{index}"
+    if _GO_IDENTIFIER_PATTERN.fullmatch(normalized) is None:
+        normalized = f"arg{index}"
+    if normalized in _GO_KEYWORDS:
+        normalized = f"{normalized}_"
+    return normalized
+
+
+def _build_function_parameters_context(
+    *,
+    function_name: str,
+    parameter_names: tuple[str, ...],
+    go_parameter_types: tuple[str, ...],
+    parameter_c_types: tuple[str, ...],
+    opaque_alias_type_by_typedef_name: Mapping[str, str],
+) -> tuple[_FunctionParameterContext, ...]:
+    """Build resolved parameter context for one function signature.
+
+    Returns:
+        Function parameter context tuple with resolved names and types.
+
+    Raises:
+        RendererError: Parameter metadata lengths are inconsistent.
+    """
+    if not (len(parameter_names) == len(go_parameter_types) == len(parameter_c_types)):
+        message = (
+            "function parameter metadata length mismatch for "
+            f"{function_name}: names={len(parameter_names)}, "
+            f"go_types={len(go_parameter_types)}, c_types={len(parameter_c_types)}"
+        )
+        raise RendererError(message)
+
+    seen_names: set[str] = set()
+    parameters: list[_FunctionParameterContext] = []
+    for index, (parameter_name, go_parameter_type, parameter_c_type) in enumerate(
+        zip(parameter_names, go_parameter_types, parameter_c_types, strict=True),
+        start=1,
+    ):
+        resolved_name = _sanitize_function_parameter_name(parameter_name, index=index)
+        resolved_name = _allocate_unique_identifier(resolved_name, seen=seen_names)
+        parameters.append({
+            "name": resolved_name,
+            "type": _resolve_function_signature_type(
+                go_type=go_parameter_type,
+                c_type=parameter_c_type,
+                opaque_alias_type_by_typedef_name=opaque_alias_type_by_typedef_name,
+            ),
+        })
+    return tuple(parameters)
+
+
 def _build_context(
     *,
     package: str,
@@ -307,17 +372,12 @@ def _build_context(
             {
                 "identifier": identifier,
                 "symbol": function.name,
-                "parameter_types": tuple(
-                    _resolve_function_signature_type(
-                        go_type=go_parameter_type,
-                        c_type=parameter_c_type,
-                        opaque_alias_type_by_typedef_name=opaque_alias_type_by_typedef_name,
-                    )
-                    for go_parameter_type, parameter_c_type in zip(
-                        function.go_parameter_types,
-                        function.parameter_c_types,
-                        strict=True,
-                    )
+                "parameters": _build_function_parameters_context(
+                    function_name=function.name,
+                    parameter_names=function.parameter_names,
+                    go_parameter_types=function.go_parameter_types,
+                    parameter_c_types=function.parameter_c_types,
+                    opaque_alias_type_by_typedef_name=opaque_alias_type_by_typedef_name,
                 ),
                 "result_type": _resolve_function_signature_type(
                     go_type=function.go_result_type,

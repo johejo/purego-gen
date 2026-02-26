@@ -242,6 +242,8 @@ Behavior:
 - Generated function placeholders are typed Go function values derived from parsed C signatures
   (with `uintptr` fallback for currently unsupported types, and emitted opaque-handle aliases
   used when available) and are bound via `RegisterFunc`.
+- Generated function parameter names are taken from C declarations when available and sanitized
+  into Go identifiers; unnamed/invalid slots fall back to deterministic `argN` names.
 - Function signature convenience mapping in v1 is intentionally narrow and
   opt-in: with `--const-char-as-string`, only `const char*` is lifted to Go
   `string`; mutable `char*` and `void*` remain low-level pointer-sized values.

@@ -22,81 +22,81 @@ type (
 var (
 	purego_func_ZSTD_versionNumber func() uint32
 	purego_func_ZSTD_compress      func(
-		uintptr,
-		uint64,
-		uintptr,
-		uint64,
-		int32,
+		dst uintptr,
+		dstCapacity uint64,
+		src uintptr,
+		srcSize uint64,
+		compressionLevel int32,
 	) uint64
 	purego_func_ZSTD_decompress func(
-		uintptr,
-		uint64,
-		uintptr,
-		uint64,
+		dst uintptr,
+		dstCapacity uint64,
+		src uintptr,
+		compressedSize uint64,
 	) uint64
 	purego_func_ZSTD_getFrameContentSize func(
-		uintptr,
-		uint64,
+		src uintptr,
+		srcSize uint64,
 	) uint64
 	purego_func_ZSTD_findFrameCompressedSize func(
-		uintptr,
-		uint64,
+		src uintptr,
+		srcSize uint64,
 	) uint64
 	purego_func_ZSTD_compressBound func(
-		uint64,
+		srcSize uint64,
 	) uint64
 	purego_func_ZSTD_isError func(
-		uint64,
+		result uint64,
 	) uint32
 	purego_func_ZSTD_getErrorCode func(
-		uint64,
+		functionResult uint64,
 	) int32
 	purego_func_ZSTD_getErrorName func(
-		uint64,
+		result uint64,
 	) string
 	purego_func_ZSTD_minCLevel  func() int32
 	purego_func_ZSTD_maxCLevel  func() int32
 	purego_func_ZSTD_createCCtx func() purego_type_ZSTD_CCtx
 	purego_func_ZSTD_freeCCtx   func(
-		purego_type_ZSTD_CCtx,
+		cctx purego_type_ZSTD_CCtx,
 	) uint64
 	purego_func_ZSTD_compressCCtx func(
-		purego_type_ZSTD_CCtx,
-		uintptr,
-		uint64,
-		uintptr,
-		uint64,
-		int32,
+		cctx purego_type_ZSTD_CCtx,
+		dst uintptr,
+		dstCapacity uint64,
+		src uintptr,
+		srcSize uint64,
+		compressionLevel int32,
 	) uint64
 	purego_func_ZSTD_createDCtx func() purego_type_ZSTD_DCtx
 	purego_func_ZSTD_freeDCtx   func(
-		purego_type_ZSTD_DCtx,
+		dctx purego_type_ZSTD_DCtx,
 	) uint64
 	purego_func_ZSTD_decompressDCtx func(
-		purego_type_ZSTD_DCtx,
-		uintptr,
-		uint64,
-		uintptr,
-		uint64,
+		dctx purego_type_ZSTD_DCtx,
+		dst uintptr,
+		dstCapacity uint64,
+		src uintptr,
+		srcSize uint64,
 	) uint64
 	purego_func_ZSTD_compress_usingDict func(
-		purego_type_ZSTD_CCtx,
-		uintptr,
-		uint64,
-		uintptr,
-		uint64,
-		uintptr,
-		uint64,
-		int32,
+		ctx purego_type_ZSTD_CCtx,
+		dst uintptr,
+		dstCapacity uint64,
+		src uintptr,
+		srcSize uint64,
+		dict uintptr,
+		dictSize uint64,
+		compressionLevel int32,
 	) uint64
 	purego_func_ZSTD_decompress_usingDict func(
-		purego_type_ZSTD_DCtx,
-		uintptr,
-		uint64,
-		uintptr,
-		uint64,
-		uintptr,
-		uint64,
+		dctx purego_type_ZSTD_DCtx,
+		dst uintptr,
+		dstCapacity uint64,
+		src uintptr,
+		srcSize uint64,
+		dict uintptr,
+		dictSize uint64,
 	) uint64
 )
 

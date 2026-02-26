@@ -58,6 +58,7 @@ def test_render_go_source_preserves_casing_in_identifiers() -> None:
                     name="ZSTD_compressBound",
                     result_c_type="size_t",
                     parameter_c_types=("size_t",),
+                    parameter_names=("srcSize",),
                     go_result_type="uint64",
                     go_parameter_types=("uint64",),
                 ),
@@ -91,6 +92,7 @@ def test_render_go_source_adds_suffix_for_category_local_collisions() -> None:
                     name="dup-name",
                     result_c_type="void",
                     parameter_c_types=(),
+                    parameter_names=(),
                     go_result_type=None,
                     go_parameter_types=(),
                 ),
@@ -98,6 +100,7 @@ def test_render_go_source_adds_suffix_for_category_local_collisions() -> None:
                     name="dup_name",
                     result_c_type="void",
                     parameter_c_types=(),
+                    parameter_names=(),
                     go_result_type=None,
                     go_parameter_types=(),
                 ),
@@ -128,6 +131,7 @@ def test_render_go_source_uses_emitted_opaque_aliases_for_function_signatures() 
                     name="create_ctx",
                     result_c_type="foo_t *",
                     parameter_c_types=(),
+                    parameter_names=(),
                     go_result_type="uintptr",
                     go_parameter_types=(),
                 ),
@@ -135,6 +139,7 @@ def test_render_go_source_uses_emitted_opaque_aliases_for_function_signatures() 
                     name="consume_ctx",
                     result_c_type="void",
                     parameter_c_types=("foo_t *", "const foo_t *"),
+                    parameter_names=("ctx", "input"),
                     go_result_type=None,
                     go_parameter_types=("uintptr", "uintptr"),
                 ),
@@ -161,7 +166,8 @@ def test_render_go_source_uses_emitted_opaque_aliases_for_function_signatures() 
     assert "purego_type_foo_t = uintptr" in source
     assert "purego_func_create_ctx func() purego_type_foo_t" in source
     assert (
-        "purego_func_consume_ctx func( purego_type_foo_t, purego_type_foo_t, )" in normalized_source
+        "purego_func_consume_ctx func( ctx purego_type_foo_t, input purego_type_foo_t, )"
+        in normalized_source
     )
 
 
@@ -177,6 +183,7 @@ def test_render_go_source_falls_back_to_uintptr_without_type_emit() -> None:
                     name="create_ctx",
                     result_c_type="foo_t *",
                     parameter_c_types=("const foo_t *",),
+                    parameter_names=("ctx",),
                     go_result_type="uintptr",
                     go_parameter_types=("uintptr",),
                 ),
@@ -201,7 +208,7 @@ def test_render_go_source_falls_back_to_uintptr_without_type_emit() -> None:
     )
     normalized_source = " ".join(source.split())
     assert "purego_type_foo_t" not in source
-    assert "purego_func_create_ctx func( uintptr, ) uintptr" in normalized_source
+    assert "purego_func_create_ctx func( ctx uintptr, ) uintptr" in normalized_source
 
 
 def test_render_go_source_preserves_string_function_signatures() -> None:
@@ -216,6 +223,7 @@ def test_render_go_source_preserves_string_function_signatures() -> None:
                     name="lookup_name",
                     result_c_type="const char *",
                     parameter_c_types=("const char *", "void *"),
+                    parameter_names=("key", "ctx"),
                     go_result_type="string",
                     go_parameter_types=("string", "uintptr"),
                 ),
@@ -226,7 +234,36 @@ def test_render_go_source_preserves_string_function_signatures() -> None:
         ),
     )
     normalized_source = " ".join(source.split())
-    assert "purego_func_lookup_name func( string, uintptr, ) string" in normalized_source
+    assert "purego_func_lookup_name func( key string, ctx uintptr, ) string" in normalized_source
     assert "purego_bytes_ptr" not in source
     assert "purego_string_ptr" not in source
     assert "purego_string_from_ptr" not in source
+
+
+def test_render_go_source_sanitizes_function_parameter_names_with_fallbacks() -> None:
+    """Renderer should sanitize C parameter names and apply stable fallback names."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="test_names",
+                    result_c_type="int",
+                    parameter_c_types=("int", "int", "int", "int", "int"),
+                    parameter_names=("", "_", "map", "same-name", "same_name"),
+                    go_result_type="int32",
+                    go_parameter_types=("int32", "int32", "int32", "int32", "int32"),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+    )
+    normalized_source = " ".join(source.split())
+    assert (
+        "purego_func_test_names func( arg1 int32, arg2 int32, map_ int32, same_name int32, "
+        "same_name_2 int32, ) int32" in normalized_source
+    )

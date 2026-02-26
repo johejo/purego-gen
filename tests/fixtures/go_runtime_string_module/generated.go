@@ -15,10 +15,10 @@ var (
 var (
 	purego_func_smoke_const_greeting    func() string
 	purego_func_smoke_const_is_expected func(
-		string,
+		value string,
 	) int32
 	purego_func_smoke_const_roundtrip func(
-		string,
+		value string,
 	) string
 )
 

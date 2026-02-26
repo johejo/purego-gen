@@ -156,6 +156,7 @@ class _TypeLike(Protocol):
 
 
 class _ArgumentLike(Protocol):
+    spelling: str
     type: _TypeLike
 
 
@@ -784,18 +785,21 @@ def _extract_function(cursor: _CursorLike, *, type_mapping: TypeMappingOptions) 
     Returns:
         Normalized function declaration.
     """
-    parameters = tuple(argument.type.spelling for argument in cursor.get_arguments())
+    arguments = tuple(cursor.get_arguments())
+    parameters = tuple(argument.type.spelling for argument in arguments)
+    parameter_names = tuple(str(argument.spelling) for argument in arguments)
     go_parameter_types = tuple(
         _map_function_parameter_type_to_go_name(
             argument.type,
             type_mapping=type_mapping,
         )
-        for argument in cursor.get_arguments()
+        for argument in arguments
     )
     return FunctionDecl(
         name=str(cursor.spelling),
         result_c_type=str(cursor.result_type.spelling),
         parameter_c_types=parameters,
+        parameter_names=parameter_names,
         go_result_type=_map_function_result_type_to_go_name(
             cursor.result_type,
             type_mapping=type_mapping,
@@ -1187,9 +1191,7 @@ def parse_declarations(
         ClangParserError: libclang is unavailable or parsing fails.
         ValueError: Type-mapping options are mutually inconsistent.
     """
-    resolved_type_mapping = (
-        type_mapping if type_mapping is not None else TypeMappingOptions()
-    )
+    resolved_type_mapping = type_mapping if type_mapping is not None else TypeMappingOptions()
     if map_const_char_pointer_to_string is not None:
         if (
             type_mapping is not None

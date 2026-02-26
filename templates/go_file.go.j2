@@ -31,17 +31,17 @@ const (
 {% if "func" in emit_kinds and functions %}
 var (
     {% for function in functions %}
-        {% if function.parameter_types %}
+        {% if function.parameters %}
             {% if function.result_type is not none %}
     purego_func_{{ function.identifier }} func(
-                {% for parameter_type in function.parameter_types %}
-        {{ parameter_type }},
+                {% for parameter in function.parameters %}
+        {{ parameter.name }} {{ parameter.type }},
                 {% endfor %}
     ) {{ function.result_type }}
             {% else %}
     purego_func_{{ function.identifier }} func(
-                {% for parameter_type in function.parameter_types %}
-        {{ parameter_type }},
+                {% for parameter in function.parameters %}
+        {{ parameter.name }} {{ parameter.type }},
                 {% endfor %}
     )
             {% endif %}

@@ -22,6 +22,7 @@ class FunctionDecl:
     name: str
     result_c_type: str
     parameter_c_types: tuple[str, ...]
+    parameter_names: tuple[str, ...]
     go_result_type: str | None
     go_parameter_types: tuple[str, ...]
 

@@ -364,9 +364,9 @@ def test_const_char_pointer_string_mapping_is_opt_in(tmp_path: Path) -> None:
     normalized_default = " ".join(result_default.stdout.split())
     normalized_enabled = " ".join(result_enabled.stdout.split())
     assert "purego_func_fixture_const_name func() uintptr" in normalized_default
-    assert "purego_func_fixture_lookup_name func( uintptr, ) uintptr" in normalized_default
+    assert "purego_func_fixture_lookup_name func( key uintptr, ) uintptr" in normalized_default
     assert "purego_func_fixture_const_name func() string" in normalized_enabled
-    assert "purego_func_fixture_lookup_name func( string, ) string" in normalized_enabled
+    assert "purego_func_fixture_lookup_name func( key string, ) string" in normalized_enabled
     _assert_go_source_compiles(result_default.stdout, tmp_path / "default")
     _assert_go_source_compiles(result_enabled.stdout, tmp_path / "enabled")
 
@@ -551,8 +551,8 @@ def test_runtime_smoke_const_char_string_round_trip(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     normalized_stdout = " ".join(result.stdout.split())
     assert "purego_func_smoke_const_greeting func() string" in normalized_stdout
-    assert "purego_func_smoke_const_is_expected func( string, ) int32" in normalized_stdout
-    assert "purego_func_smoke_const_roundtrip func( string, ) string" in normalized_stdout
+    assert "purego_func_smoke_const_is_expected func( value string, ) int32" in normalized_stdout
+    assert "purego_func_smoke_const_roundtrip func( value string, ) string" in normalized_stdout
     _assert_runtime_smoke_passes(
         result.stdout,
         tmp_path,

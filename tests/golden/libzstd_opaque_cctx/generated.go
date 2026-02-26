@@ -19,7 +19,7 @@ type (
 var (
 	purego_func_ZSTD_createCCtx func() purego_type_ZSTD_CCtx
 	purego_func_ZSTD_freeCCtx   func(
-		purego_type_ZSTD_CCtx,
+		cctx purego_type_ZSTD_CCtx,
 	) uint64
 )
 

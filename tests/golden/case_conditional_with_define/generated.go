@@ -14,8 +14,8 @@ var (
 
 var (
 	purego_func_extra_add func(
-		int32,
-		int32,
+		lhs int32,
+		rhs int32,
 	) int32
 )
 

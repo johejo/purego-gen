@@ -19,6 +19,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
 _MACRO_CONSTANTS_HEADER = _FIXTURES_DIR / "macro_constants.h"
 _FUNCTION_SIGNATURES_HEADER = _FIXTURES_DIR / "function_signatures.h"
+_PARAMETER_NAMES_HEADER = _FIXTURES_DIR / "parameter_names.h"
 _EXPECTED_FIXTURE_MACRO_SEED = 7
 _EXPECTED_FIXTURE_VERSION_NUMBER = 10203
 _EXPECTED_FIXTURE_MAGIC_NUMBER = 4247762216
@@ -174,3 +175,18 @@ def test_parse_function_signature_char_pointer_rules() -> None:
     assert function_map["fixture_fill_name"].go_parameter_types == ("uintptr", "string")
     assert function_map["fixture_user_data"].go_parameter_types == ("uintptr", "uintptr")
     assert function_map["fixture_user_data"].go_result_type == "uintptr"
+    assert function_map["fixture_lookup_name"].parameter_names == ("key",)
+    assert function_map["fixture_fill_name"].parameter_names == ("dst", "src")
+    assert function_map["fixture_user_data"].parameter_names == ("ctx", "src")
+
+
+def test_parse_function_parameter_names() -> None:
+    """Parser should preserve C parameter names, including unnamed parameters."""
+    declarations = parse_declarations(headers=(str(_PARAMETER_NAMES_HEADER),), clang_args=())
+    function_map = {function.name: function for function in declarations.functions}
+
+    assert function_map["fixture_named_params"].parameter_names == ("lhs", "rhs")
+    assert function_map["fixture_unnamed_first"].parameter_names == ("", "rhs")
+    assert function_map["fixture_keyword_name"].parameter_names == ("map",)
+    assert function_map["fixture_underscore_name"].parameter_names == ("_",)
+    assert function_map["fixture_fallback_name_collision"].parameter_names == ("arg2", "")
