@@ -4,9 +4,18 @@
   "emit_kinds": "func",
   "required_functions": [
     "ZSTD_versionNumber",
+    "ZSTD_maxCLevel",
     "ZSTD_compress",
     "ZSTD_decompress",
     "ZSTD_compressBound",
-    "ZSTD_isError"
+    "ZSTD_isError",
+    "ZSTD_getErrorName",
+    "ZSTD_getFrameContentSize",
+    "ZSTD_createCCtx",
+    "ZSTD_freeCCtx",
+    "ZSTD_compressCCtx",
+    "ZSTD_createDCtx",
+    "ZSTD_freeDCtx",
+    "ZSTD_decompressDCtx"
   ]
 }
