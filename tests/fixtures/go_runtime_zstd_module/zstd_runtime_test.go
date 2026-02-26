@@ -38,9 +38,16 @@ func TestGeneratedBindingsResolveLibzstdSymbols(t *testing.T) {
 	if purego_func_ZSTD_versionNumber() == 0 {
 		t.Fatal("ZSTD_versionNumber returned 0")
 	}
+	minCLevel := purego_func_ZSTD_minCLevel()
 	maxCLevel := purego_func_ZSTD_maxCLevel()
 	if maxCLevel <= 0 {
 		t.Fatalf("ZSTD_maxCLevel returned invalid level: %d", maxCLevel)
+	}
+	if minCLevel > 0 {
+		t.Fatalf("ZSTD_minCLevel returned invalid level: %d", minCLevel)
+	}
+	if minCLevel > maxCLevel {
+		t.Fatalf("compression level range is invalid: min=%d max=%d", minCLevel, maxCLevel)
 	}
 
 	input := []byte("purego-gen zstd runtime roundtrip")
@@ -60,7 +67,20 @@ func TestGeneratedBindingsResolveLibzstdSymbols(t *testing.T) {
 	if purego_func_ZSTD_isError(compressedSize) != 0 {
 		t.Fatalf("ZSTD_compress returned error code: %d", compressedSize)
 	}
+	if purego_func_ZSTD_getErrorCode(compressedSize) != 0 {
+		t.Fatalf("ZSTD_getErrorCode should return no_error for success result: %d", compressedSize)
+	}
 	compressed = compressed[:int(compressedSize)]
+	frameCompressedSize := purego_func_ZSTD_findFrameCompressedSize(
+		bytesPtr(compressed),
+		uint64(len(compressed)),
+	)
+	if purego_func_ZSTD_isError(frameCompressedSize) != 0 {
+		t.Fatalf("ZSTD_findFrameCompressedSize returned error code: %d", frameCompressedSize)
+	}
+	if frameCompressedSize != uint64(len(compressed)) {
+		t.Fatalf("frame compressed size = %d, want %d", frameCompressedSize, len(compressed))
+	}
 
 	output := make([]byte, len(input))
 	outputSize := purego_func_ZSTD_decompress(
@@ -145,6 +165,48 @@ func TestGeneratedBindingsResolveLibzstdSymbols(t *testing.T) {
 		t.Fatal("decompressDCtx payload mismatch")
 	}
 
+	dict := []byte("purego-gen-zstd-dict-2026")
+	inputWithDict := bytes.Repeat(dict, 16)
+	compressBoundWithDict := purego_func_ZSTD_compressBound(uint64(len(inputWithDict)))
+	if purego_func_ZSTD_isError(compressBoundWithDict) != 0 {
+		t.Fatalf("ZSTD_compressBound (dict) returned error code: %d", compressBoundWithDict)
+	}
+	compressedWithDict := make([]byte, int(compressBoundWithDict))
+	compressedWithDictSize := purego_func_ZSTD_compress_usingDict(
+		cctx,
+		bytesPtr(compressedWithDict),
+		uint64(len(compressedWithDict)),
+		bytesPtr(inputWithDict),
+		uint64(len(inputWithDict)),
+		bytesPtr(dict),
+		uint64(len(dict)),
+		maxCLevel,
+	)
+	if purego_func_ZSTD_isError(compressedWithDictSize) != 0 {
+		t.Fatalf("ZSTD_compress_usingDict returned error code: %d", compressedWithDictSize)
+	}
+	compressedWithDict = compressedWithDict[:int(compressedWithDictSize)]
+
+	outputWithDict := make([]byte, len(inputWithDict))
+	outputWithDictSize := purego_func_ZSTD_decompress_usingDict(
+		dctx,
+		bytesPtr(outputWithDict),
+		uint64(len(outputWithDict)),
+		bytesPtr(compressedWithDict),
+		uint64(len(compressedWithDict)),
+		bytesPtr(dict),
+		uint64(len(dict)),
+	)
+	if purego_func_ZSTD_isError(outputWithDictSize) != 0 {
+		t.Fatalf("ZSTD_decompress_usingDict returned error code: %d", outputWithDictSize)
+	}
+	if outputWithDictSize != uint64(len(inputWithDict)) {
+		t.Fatalf("decompress_usingDict size = %d, want %d", outputWithDictSize, len(inputWithDict))
+	}
+	if !bytes.Equal(outputWithDict[:int(outputWithDictSize)], inputWithDict) {
+		t.Fatal("decompress_usingDict payload mismatch")
+	}
+
 	undersizedDst := make([]byte, len(input)-1)
 	errorCode := purego_func_ZSTD_decompressDCtx(
 		dctx,
@@ -155,6 +217,9 @@ func TestGeneratedBindingsResolveLibzstdSymbols(t *testing.T) {
 	)
 	if purego_func_ZSTD_isError(errorCode) == 0 {
 		t.Fatal("ZSTD_decompressDCtx should fail with undersized destination")
+	}
+	if purego_func_ZSTD_getErrorCode(errorCode) == 0 {
+		t.Fatal("ZSTD_getErrorCode should return non-zero for an error result")
 	}
 	errorNamePtr := purego_func_ZSTD_getErrorName(errorCode)
 	if errorNamePtr == 0 {
