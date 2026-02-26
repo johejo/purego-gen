@@ -42,6 +42,18 @@ class _PuregoGenInvocation:
     emit_kinds: str
     clang_args: tuple[str, ...] = ()
     func_filter: str | None = None
+    type_filter: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _LibzstdProfile:
+    """Stable profile used for libzstd fixture generation."""
+
+    emit_kinds: str
+    required_functions: tuple[str, ...]
+    required_types: tuple[str, ...]
+    function_filter: str
+    type_filter: str
 
 
 def _write_line(message: str) -> None:
@@ -90,6 +102,8 @@ def _run_purego_gen(invocation: _PuregoGenInvocation) -> str:
     ]
     if invocation.func_filter is not None:
         command.extend(["--func-filter", invocation.func_filter])
+    if invocation.type_filter is not None:
+        command.extend(["--type-filter", invocation.type_filter])
     if invocation.clang_args:
         command.extend(["--", *invocation.clang_args])
 
@@ -127,11 +141,11 @@ def _build_exact_symbol_regex(symbols: tuple[str, ...]) -> str:
     return "^(" + "|".join(escaped) + ")$"
 
 
-def _load_libzstd_required_symbols() -> tuple[str, ...]:
-    """Load required function symbol names from profile JSON.
+def _load_libzstd_profile() -> _LibzstdProfile:
+    """Load stable libzstd profile from JSON.
 
     Returns:
-        Required symbol names.
+        Parsed profile model.
 
     Raises:
         RuntimeError: Profile is missing or malformed.
@@ -145,18 +159,41 @@ def _load_libzstd_required_symbols() -> tuple[str, ...]:
         message = "libzstd profile root must be a JSON object."
         raise TypeError(message)
     raw = cast("dict[str, object]", raw_object)
+    emit_kinds = raw.get("emit_kinds")
     required_functions = raw.get("required_functions")
+    required_types = raw.get("required_types")
+    if not isinstance(emit_kinds, str) or not emit_kinds:
+        message = "libzstd profile must define non-empty string `emit_kinds`."
+        raise RuntimeError(message)
     if not isinstance(required_functions, list) or not required_functions:
         message = "libzstd profile must define non-empty array `required_functions`."
         raise RuntimeError(message)
+    if not isinstance(required_types, list) or not required_types:
+        message = "libzstd profile must define non-empty array `required_types`."
+        raise RuntimeError(message)
 
-    symbols: list[str] = []
+    function_symbols: list[str] = []
     for value in cast("list[object]", required_functions):
         if not isinstance(value, str) or not value:
             message = "libzstd profile `required_functions` must contain non-empty strings."
             raise RuntimeError(message)
-        symbols.append(value)
-    return tuple(symbols)
+        function_symbols.append(value)
+    required_type_names: list[str] = []
+    for value in cast("list[object]", required_types):
+        if not isinstance(value, str) or not value:
+            message = "libzstd profile `required_types` must contain non-empty strings."
+            raise RuntimeError(message)
+        required_type_names.append(value)
+
+    required_function_tuple = tuple(function_symbols)
+    required_type_tuple = tuple(required_type_names)
+    return _LibzstdProfile(
+        emit_kinds=emit_kinds,
+        required_functions=required_function_tuple,
+        required_types=required_type_tuple,
+        function_filter=_build_exact_symbol_regex(required_function_tuple),
+        type_filter=_build_exact_symbol_regex(required_type_tuple),
+    )
 
 
 def _resolve_libzstd_header_and_cflags() -> tuple[Path, tuple[str, ...]]:
@@ -193,16 +230,16 @@ def _generated_fixture_sources() -> dict[Path, str]:
     )
 
     zstd_header, zstd_cflags = _resolve_libzstd_header_and_cflags()
-    zstd_required_symbols = _load_libzstd_required_symbols()
-    zstd_func_filter = _build_exact_symbol_regex(zstd_required_symbols)
+    zstd_profile = _load_libzstd_profile()
     zstd_source = _run_purego_gen(
         _PuregoGenInvocation(
             lib_id="zstd",
             header_path=zstd_header,
             package_name="zstdfixture",
-            emit_kinds="func",
+            emit_kinds=zstd_profile.emit_kinds,
             clang_args=zstd_cflags,
-            func_filter=zstd_func_filter,
+            func_filter=zstd_profile.function_filter,
+            type_filter=zstd_profile.type_filter,
         )
     )
     return {

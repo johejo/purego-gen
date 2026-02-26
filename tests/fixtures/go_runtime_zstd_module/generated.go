@@ -12,6 +12,13 @@ var (
 	_ = fmt.Errorf
 )
 
+type (
+	purego_type_ZSTD_CCtx  = uintptr
+	purego_type_ZSTD_DCtx  = uintptr
+	purego_type_ZSTD_CDict = uintptr
+	purego_type_ZSTD_DDict = uintptr
+)
+
 var (
 	purego_func_ZSTD_versionNumber func() uint32
 	purego_func_ZSTD_compress      func(
@@ -41,24 +48,24 @@ var (
 		uint64,
 	) uintptr
 	purego_func_ZSTD_maxCLevel  func() int32
-	purego_func_ZSTD_createCCtx func() uintptr
+	purego_func_ZSTD_createCCtx func() purego_type_ZSTD_CCtx
 	purego_func_ZSTD_freeCCtx   func(
-		uintptr,
+		purego_type_ZSTD_CCtx,
 	) uint64
 	purego_func_ZSTD_compressCCtx func(
-		uintptr,
+		purego_type_ZSTD_CCtx,
 		uintptr,
 		uint64,
 		uintptr,
 		uint64,
 		int32,
 	) uint64
-	purego_func_ZSTD_createDCtx func() uintptr
+	purego_func_ZSTD_createDCtx func() purego_type_ZSTD_DCtx
 	purego_func_ZSTD_freeDCtx   func(
-		uintptr,
+		purego_type_ZSTD_DCtx,
 	) uint64
 	purego_func_ZSTD_decompressDCtx func(
-		uintptr,
+		purego_type_ZSTD_DCtx,
 		uintptr,
 		uint64,
 		uintptr,

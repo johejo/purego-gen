@@ -88,7 +88,7 @@
 - [x] Simplify runtime symbol policy to required-only and remove optional-symbol filters from CLI/API surface.
 - [x] Add runtime harness scenario that performs real block compress/decompress roundtrip using generated bindings (not symbol-resolution only).
 - [x] Define and document a stable `libzstd` API subset profile for v1 generation tests (allowlist-based to reduce cross-version drift).
-- [ ] Use emitted opaque-handle aliases (`purego_type_ZSTD_CCtx` etc.) directly in generated function signatures instead of raw `uintptr` for those parameters/returns.
+- [x] Use emitted opaque-handle aliases (`purego_type_ZSTD_CCtx` etc.) directly in generated function signatures instead of raw `uintptr` for those parameters/returns.
 
 ## Pre-M5 Hardening
 

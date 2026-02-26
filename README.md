@@ -17,6 +17,8 @@ purego-gen --lib-id zstd --header zstd.h --out -
 - Non-Windows first; generator targets low-level `func/type/const/var` bindings.
 - Generated identifiers are unexported `purego_` names with category prefixes
   (`func_/type_/const_/var_`) and C-side casing preserved in suffixes.
+- Typed function signatures use emitted opaque-handle aliases (`purego_type_*`)
+  when corresponding opaque typedefs are emitted.
 - Callers provide and own the library handle (`dlopen` policy is out of scope).
 
 Detailed behavior and contract-level rules live in

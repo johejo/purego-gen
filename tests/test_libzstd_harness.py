@@ -51,7 +51,9 @@ class _LibzstdSubsetProfile:
     profile_id: str
     emit_kinds: str
     required_functions: tuple[str, ...]
+    required_types: tuple[str, ...]
     function_filter: str
+    type_filter: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +85,44 @@ def _build_exact_symbol_regex(symbols: tuple[str, ...]) -> str:
     return "^(" + "|".join(escaped) + ")$"
 
 
+def _read_required_non_empty_string(raw: dict[str, object], key: str) -> str:
+    """Read one required non-empty string field from profile JSON object.
+
+    Returns:
+        String value for `key`.
+
+    Raises:
+        RuntimeError: The field is missing or empty.
+    """
+    value = raw.get(key)
+    if not isinstance(value, str) or not value:
+        message = f"libzstd profile must define non-empty string `{key}`."
+        raise RuntimeError(message)
+    return value
+
+
+def _read_required_non_empty_string_array(raw: dict[str, object], key: str) -> tuple[str, ...]:
+    """Read one required non-empty string array field from profile JSON object.
+
+    Returns:
+        Tuple of string values for `key`.
+
+    Raises:
+        RuntimeError: The field is missing, empty, or includes non-string/empty items.
+    """
+    value = raw.get(key)
+    if not isinstance(value, list) or not value:
+        message = f"libzstd profile must define non-empty array `{key}`."
+        raise RuntimeError(message)
+    items: list[str] = []
+    for element in cast("list[object]", value):
+        if not isinstance(element, str) or not element:
+            message = f"libzstd profile `{key}` must contain non-empty strings."
+            raise RuntimeError(message)
+        items.append(element)
+    return tuple(items)
+
+
 def _load_libzstd_subset_profile() -> _LibzstdSubsetProfile:
     """Load stable v1 profile used by libzstd harness tests.
 
@@ -107,32 +147,17 @@ def _load_libzstd_subset_profile() -> _LibzstdSubsetProfile:
         raise TypeError(message)
     raw = cast("dict[str, object]", raw_object)
 
-    profile_id = raw.get("profile_id")
-    emit_kinds = raw.get("emit_kinds")
-    required_functions = raw.get("required_functions")
-    if not isinstance(profile_id, str) or not profile_id:
-        message = "libzstd profile must define non-empty string `profile_id`."
-        raise RuntimeError(message)
-    if not isinstance(emit_kinds, str) or not emit_kinds:
-        message = "libzstd profile must define non-empty string `emit_kinds`."
-        raise RuntimeError(message)
-    if not isinstance(required_functions, list) or not required_functions:
-        message = "libzstd profile must define non-empty array `required_functions`."
-        raise RuntimeError(message)
-
-    symbols: list[str] = []
-    for value in cast("list[object]", required_functions):
-        if not isinstance(value, str) or not value:
-            message = "libzstd profile `required_functions` must contain non-empty strings."
-            raise RuntimeError(message)
-        symbols.append(value)
-
-    symbol_tuple = tuple(symbols)
+    profile_id = _read_required_non_empty_string(raw, "profile_id")
+    emit_kinds = _read_required_non_empty_string(raw, "emit_kinds")
+    required_functions = _read_required_non_empty_string_array(raw, "required_functions")
+    required_types = _read_required_non_empty_string_array(raw, "required_types")
     return _LibzstdSubsetProfile(
         profile_id=profile_id,
         emit_kinds=emit_kinds,
-        required_functions=symbol_tuple,
-        function_filter=_build_exact_symbol_regex(symbol_tuple),
+        required_functions=required_functions,
+        required_types=required_types,
+        function_filter=_build_exact_symbol_regex(required_functions),
+        type_filter=_build_exact_symbol_regex(required_types),
     )
 
 
@@ -229,6 +254,8 @@ def _run_cli_for_libzstd(
         profile.emit_kinds,
         "--func-filter",
         profile.function_filter,
+        "--type-filter",
+        profile.type_filter,
     ]
     if config.clang_args:
         command.extend(["--", *config.clang_args])
@@ -405,6 +432,9 @@ def test_generates_libzstd_golden_output(
     expected = _LIBZSTD_GOLDEN_PATH.read_text(encoding="utf-8")
     assert result.returncode == 0, result.stderr
     assert result.stdout == expected
+    normalized_stdout = " ".join(result.stdout.split())
+    assert "purego_func_ZSTD_createCCtx func() purego_type_ZSTD_CCtx" in result.stdout
+    assert "purego_func_ZSTD_freeCCtx func( purego_type_ZSTD_CCtx, ) uint64" in normalized_stdout
     _assert_go_source_compiles(result.stdout, tmp_path)
 
 
@@ -451,7 +481,7 @@ def test_emits_libzstd_opaque_context_handle_types(
     tmp_path: Path,
     libzstd_harness_config: _LibzstdHarnessConfig,
 ) -> None:
-    """Opaque libzstd context typedef should be emitted as uintptr alias."""
+    """Opaque libzstd context typedef should be used in emitted function signatures."""
     result = _run_cli_with_custom_emit(
         libzstd_harness_config,
         options=_CustomEmitOptions(
@@ -464,4 +494,7 @@ def test_emits_libzstd_opaque_context_handle_types(
     expected = _LIBZSTD_OPAQUE_CCTX_GOLDEN_PATH.read_text(encoding="utf-8")
     assert result.returncode == 0, result.stderr
     assert result.stdout == expected
+    normalized_stdout = " ".join(result.stdout.split())
+    assert "purego_func_ZSTD_createCCtx func() purego_type_ZSTD_CCtx" in result.stdout
+    assert "purego_func_ZSTD_freeCCtx func( purego_type_ZSTD_CCtx, ) uint64" in normalized_stdout
     _assert_go_source_compiles(result.stdout, tmp_path)

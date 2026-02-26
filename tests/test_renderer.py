@@ -10,6 +10,7 @@ from purego_gen.model import (
     ConstantDecl,
     FunctionDecl,
     ParsedDeclarations,
+    RecordTypedefDecl,
     RuntimeVarDecl,
     TypedefDecl,
 )
@@ -113,3 +114,92 @@ def test_render_go_source_adds_suffix_for_category_local_collisions() -> None:
     assert "purego_func_dup_name_2 func()" in source
     assert "purego_const_FOO_BAR = 1" in source
     assert "purego_const_FOO_BAR_2 = 2" in source
+
+
+def test_render_go_source_uses_emitted_opaque_aliases_for_function_signatures() -> None:
+    """Function signatures should use emitted opaque typedef aliases when available."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func", "type"),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="create_ctx",
+                    result_c_type="foo_t *",
+                    parameter_c_types=(),
+                    go_result_type="uintptr",
+                    go_parameter_types=(),
+                ),
+                FunctionDecl(
+                    name="consume_ctx",
+                    result_c_type="void",
+                    parameter_c_types=("foo_t *", "const foo_t *"),
+                    go_result_type=None,
+                    go_parameter_types=("uintptr", "uintptr"),
+                ),
+            ),
+            typedefs=(TypedefDecl(name="foo_t", c_type="struct foo", go_type="uintptr"),),
+            constants=(),
+            runtime_vars=(),
+            record_typedefs=(
+                RecordTypedefDecl(
+                    name="foo_t",
+                    c_type="struct foo",
+                    record_kind="STRUCT_DECL",
+                    size_bytes=None,
+                    align_bytes=None,
+                    fields=(),
+                    supported=False,
+                    unsupported_code="PG_TYPE_NO_SUPPORTED_FIELDS",
+                    unsupported_reason="struct has no supported fields in v1",
+                ),
+            ),
+        ),
+    )
+    normalized_source = " ".join(source.split())
+    assert "purego_type_foo_t = uintptr" in source
+    assert "purego_func_create_ctx func() purego_type_foo_t" in source
+    assert (
+        "purego_func_consume_ctx func( purego_type_foo_t, purego_type_foo_t, )"
+        in normalized_source
+    )
+
+
+def test_render_go_source_falls_back_to_uintptr_without_type_emit() -> None:
+    """Function signatures should keep uintptr when type aliases are not emitted."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="create_ctx",
+                    result_c_type="foo_t *",
+                    parameter_c_types=("const foo_t *",),
+                    go_result_type="uintptr",
+                    go_parameter_types=("uintptr",),
+                ),
+            ),
+            typedefs=(TypedefDecl(name="foo_t", c_type="struct foo", go_type="uintptr"),),
+            constants=(),
+            runtime_vars=(),
+            record_typedefs=(
+                RecordTypedefDecl(
+                    name="foo_t",
+                    c_type="struct foo",
+                    record_kind="STRUCT_DECL",
+                    size_bytes=None,
+                    align_bytes=None,
+                    fields=(),
+                    supported=False,
+                    unsupported_code="PG_TYPE_NO_SUPPORTED_FIELDS",
+                    unsupported_reason="struct has no supported fields in v1",
+                ),
+            ),
+        ),
+    )
+    normalized_source = " ".join(source.split())
+    assert "purego_type_foo_t" not in source
+    assert "purego_func_create_ctx func( uintptr, ) uintptr" in normalized_source

@@ -152,6 +152,11 @@ This split removes ambiguity between "constant" and "data symbol".
   and anonymous fields.
 - Incomplete/opaque struct typedefs are emitted as `uintptr` aliases for
   handle-style interop.
+- When an opaque typedef alias is emitted (`--emit` includes `type`), function
+  signatures use the emitted alias (`purego_type_*`) for matching `T*` /
+  `const T*` result and parameter types instead of raw `uintptr`.
+- If matching opaque aliases are not emitted (for example `--emit func` only),
+  function signatures keep `uintptr` fallback for those types.
 - Nested/unsupported record typedefs that are not representable by the current
   baseline mapping are skipped from emitted type aliases.
 - When a typedef is skipped due to unsupported record mapping, the CLI emits a
@@ -227,7 +232,8 @@ Behavior:
 - `purego_<libid>_register_functions` resolves symbols with `purego.Dlsym` and binds with `purego.RegisterFunc`.
 - `purego_<libid>_register_functions` returns an error for missing required symbols instead of panicking.
 - Generated function placeholders are typed Go function values derived from parsed C signatures
-  (with `uintptr` fallback for currently unsupported types) and are bound via `RegisterFunc`.
+  (with `uintptr` fallback for currently unsupported types, and emitted opaque-handle aliases
+  used when available) and are bound via `RegisterFunc`.
 - `purego_<libid>_load_runtime_vars` resolves exported data symbols, stores their addresses in `purego_var_* uintptr`, and returns an error on missing required symbols.
 - All emitted runtime symbols are required; generated helpers return errors
   when symbol resolution fails.

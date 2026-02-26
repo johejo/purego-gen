@@ -51,6 +51,9 @@ _GO_KEYWORDS: Final[frozenset[str]] = frozenset({
 })
 _TEMPLATE_DIR: Final[Path] = Path(__file__).resolve().parents[2] / "templates"
 _MAIN_TEMPLATE_NAME: Final[str] = "go_file.go.j2"
+_OPAQUE_POINTER_TYPEDEF_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"^(?:(?:const|volatile|restrict)\s+)*([A-Za-z_][A-Za-z0-9_]*)\s*\*(?:\s*(?:const|volatile|restrict))*$"
+)
 _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "package",
     "lib_id",
@@ -174,6 +177,77 @@ def _validate_emit_kinds(emit_kinds: tuple[str, ...]) -> None:
         raise RendererError(message)
 
 
+def _extract_typedef_name_from_pointer_c_type(c_type: str) -> str | None:
+    """Extract typedef name from one single-pointer C type spelling.
+
+    Returns:
+        Typedef name when `c_type` is a supported single-pointer spelling.
+    """
+    normalized = " ".join(c_type.split())
+    matched = _OPAQUE_POINTER_TYPEDEF_PATTERN.fullmatch(normalized)
+    if matched is None:
+        return None
+    return matched.group(1)
+
+
+def _build_opaque_alias_type_by_typedef_name(
+    *,
+    emit_kinds: tuple[str, ...],
+    declarations: ParsedDeclarations,
+    type_identifiers: tuple[str, ...],
+) -> dict[str, str]:
+    """Build emitted opaque typedef alias lookup used by function signatures.
+
+    Returns:
+        Mapping of typedef name to generated alias type name.
+    """
+    if "type" not in emit_kinds:
+        return {}
+
+    emitted_typedef_by_name = {
+        typedef.name: typedef for typedef in declarations.typedefs if typedef.go_type == "uintptr"
+    }
+    type_identifier_by_name = {
+        typedef.name: identifier
+        for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
+    }
+    opaque_alias_type_by_typedef_name: dict[str, str] = {}
+    for record_typedef in declarations.record_typedefs:
+        if record_typedef.record_kind != "STRUCT_DECL":
+            continue
+        if record_typedef.supported:
+            continue
+        if record_typedef.fields:
+            continue
+        emitted_typedef = emitted_typedef_by_name.get(record_typedef.name)
+        if emitted_typedef is None:
+            continue
+        identifier = type_identifier_by_name.get(record_typedef.name)
+        if identifier is None:
+            continue
+        opaque_alias_type_by_typedef_name[record_typedef.name] = f"purego_type_{identifier}"
+    return opaque_alias_type_by_typedef_name
+
+
+def _resolve_function_signature_type(
+    *,
+    go_type: str,
+    c_type: str,
+    opaque_alias_type_by_typedef_name: Mapping[str, str],
+) -> str:
+    """Resolve emitted function signature type with opaque-alias substitution.
+
+    Returns:
+        Resolved Go type preserving `uintptr` fallback behavior.
+    """
+    if go_type != "uintptr":
+        return go_type
+    typedef_name = _extract_typedef_name_from_pointer_c_type(c_type)
+    if typedef_name is None:
+        return go_type
+    return opaque_alias_type_by_typedef_name.get(typedef_name, go_type)
+
+
 def _build_context(
     *,
     package: str,
@@ -203,6 +277,11 @@ def _build_context(
         tuple(runtime_var.name for runtime_var in declarations.runtime_vars),
         fallback_prefix="var",
     )
+    opaque_alias_type_by_typedef_name = _build_opaque_alias_type_by_typedef_name(
+        emit_kinds=emit_kinds,
+        declarations=declarations,
+        type_identifiers=type_identifiers,
+    )
 
     return {
         "package": package,
@@ -228,8 +307,25 @@ def _build_context(
             {
                 "identifier": identifier,
                 "symbol": function.name,
-                "parameter_types": function.go_parameter_types,
-                "result_type": function.go_result_type,
+                "parameter_types": tuple(
+                    _resolve_function_signature_type(
+                        go_type=go_parameter_type,
+                        c_type=parameter_c_type,
+                        opaque_alias_type_by_typedef_name=opaque_alias_type_by_typedef_name,
+                    )
+                    for go_parameter_type, parameter_c_type in zip(
+                        function.go_parameter_types,
+                        function.parameter_c_types,
+                        strict=True,
+                    )
+                ),
+                "result_type": _resolve_function_signature_type(
+                    go_type=function.go_result_type,
+                    c_type=function.result_c_type,
+                    opaque_alias_type_by_typedef_name=opaque_alias_type_by_typedef_name,
+                )
+                if function.go_result_type is not None
+                else None,
             }
             for function, identifier in zip(
                 declarations.functions, function_identifiers, strict=True

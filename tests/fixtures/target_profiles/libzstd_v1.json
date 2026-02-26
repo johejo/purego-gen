@@ -1,7 +1,7 @@
 {
   "profile_id": "libzstd_v1",
   "description": "Stable v1 libzstd subset used by objective harness tests.",
-  "emit_kinds": "func",
+  "emit_kinds": "func,type",
   "required_functions": [
     "ZSTD_versionNumber",
     "ZSTD_maxCLevel",
@@ -17,5 +17,11 @@
     "ZSTD_createDCtx",
     "ZSTD_freeDCtx",
     "ZSTD_decompressDCtx"
+  ],
+  "required_types": [
+    "ZSTD_CCtx",
+    "ZSTD_DCtx",
+    "ZSTD_CDict",
+    "ZSTD_DDict"
   ]
 }
