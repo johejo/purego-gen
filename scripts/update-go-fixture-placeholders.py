@@ -111,6 +111,8 @@ def _run_purego_gen(invocation: _PuregoGenInvocation) -> str:
         command.extend(["--type-filter", invocation.type_filter])
     if invocation.type_mapping.const_char_as_string:
         command.append("--const-char-as-string")
+    if invocation.type_mapping.strict_opaque_handles:
+        command.append("--strict-opaque-handles")
     if invocation.clang_args:
         command.extend(["--", *invocation.clang_args])
 
@@ -218,7 +220,8 @@ def _read_type_mapping_options(raw: dict[str, object]) -> TypeMappingOptions:
         raise TypeError(message)
     type_mapping_dict = cast("dict[str, object]", raw_type_mapping)
     return TypeMappingOptions(
-        const_char_as_string=_read_required_bool(type_mapping_dict, "const_char_as_string")
+        const_char_as_string=_read_required_bool(type_mapping_dict, "const_char_as_string"),
+        strict_opaque_handles=_read_required_bool(type_mapping_dict, "strict_opaque_handles"),
     )
 
 

@@ -1203,7 +1203,8 @@ def parse_declarations(
             )
             raise ValueError(message)
         resolved_type_mapping = TypeMappingOptions(
-            const_char_as_string=map_const_char_pointer_to_string
+            const_char_as_string=map_const_char_pointer_to_string,
+            strict_opaque_handles=resolved_type_mapping.strict_opaque_handles,
         )
 
     cindex = _load_cindex()

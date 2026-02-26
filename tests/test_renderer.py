@@ -12,6 +12,7 @@ from purego_gen.model import (
     ParsedDeclarations,
     RecordTypedefDecl,
     TypedefDecl,
+    TypeMappingOptions,
 )
 from purego_gen.renderer import RendererError, render_go_source, render_template
 
@@ -122,6 +123,52 @@ def test_render_go_source_falls_back_to_uintptr_without_type_emit() -> None:
     normalized_source = " ".join(source.split())
     assert "purego_type_foo_t" not in source
     assert "purego_func_create_ctx func( ctx uintptr, ) uintptr" in normalized_source
+
+
+def test_render_go_source_emits_strict_opaque_handle_types_when_enabled() -> None:
+    """Strict opaque-handle mode should emit named types for opaque struct handles only."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func", "type"),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="create_ctx",
+                    result_c_type="foo_t *",
+                    parameter_c_types=(),
+                    parameter_names=(),
+                    go_result_type="uintptr",
+                    go_parameter_types=(),
+                ),
+            ),
+            typedefs=(
+                TypedefDecl(name="foo_t", c_type="struct foo", go_type="uintptr"),
+                TypedefDecl(name="my_handle", c_type="void *", go_type="uintptr"),
+            ),
+            constants=(),
+            runtime_vars=(),
+            record_typedefs=(
+                RecordTypedefDecl(
+                    name="foo_t",
+                    c_type="struct foo",
+                    record_kind="STRUCT_DECL",
+                    size_bytes=None,
+                    align_bytes=None,
+                    fields=(),
+                    supported=False,
+                    unsupported_code="PG_TYPE_NO_SUPPORTED_FIELDS",
+                    unsupported_reason="struct has no supported fields in v1",
+                ),
+            ),
+        ),
+        type_mapping=TypeMappingOptions(strict_opaque_handles=True),
+    )
+    normalized_source = " ".join(source.split())
+    assert "purego_type_foo_t uintptr" in normalized_source
+    assert "purego_type_foo_t = uintptr" not in source
+    assert "purego_type_my_handle = uintptr" in source
+    assert "purego_func_create_ctx func() purego_type_foo_t" in source
 
 
 def test_render_go_source_sanitizes_function_parameter_names_with_fallbacks() -> None:

@@ -145,7 +145,8 @@ def _read_type_mapping_options(raw: dict[str, object]) -> TypeMappingOptions:
         raise TypeError(message)
     type_mapping_dict = cast("dict[str, object]", raw_type_mapping)
     return TypeMappingOptions(
-        const_char_as_string=_read_required_bool(type_mapping_dict, "const_char_as_string")
+        const_char_as_string=_read_required_bool(type_mapping_dict, "const_char_as_string"),
+        strict_opaque_handles=_read_required_bool(type_mapping_dict, "strict_opaque_handles"),
     )
 
 
@@ -287,6 +288,8 @@ def _run_cli_for_libzstd(
     ]
     if profile.type_mapping.const_char_as_string:
         command.append("--const-char-as-string")
+    if profile.type_mapping.strict_opaque_handles:
+        command.append("--strict-opaque-handles")
     if config.clang_args:
         command.extend(["--", *config.clang_args])
 

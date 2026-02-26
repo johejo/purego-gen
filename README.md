@@ -21,6 +21,8 @@ purego-gen --lib-id zstd --header zstd.h --out -
   when corresponding opaque typedefs are emitted.
 - Function signatures keep pointer-like C types low-level by default; optional
   `--const-char-as-string` maps only `const char*` slots to Go `string`.
+- Optional `--strict-opaque-handles` emits opaque struct-handle typedefs as
+  strict Go types (`type T uintptr`) when `--emit` includes `type`.
 - Callers provide and own the library handle (`dlopen` policy is out of scope).
 
 ## Development Setup

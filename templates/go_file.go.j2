@@ -17,7 +17,11 @@ var (
 {% if "type" in emit_kinds and type_aliases %}
 type (
     {% for type_alias in type_aliases %}
+        {% if type_alias.is_strict %}
+    purego_type_{{ type_alias.identifier }} {{ type_alias.go_type }}
+        {% else %}
     purego_type_{{ type_alias.identifier }} = {{ type_alias.go_type }}
+        {% endif %}
     {% endfor %}
 )
 {% endif %}

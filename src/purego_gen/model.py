@@ -32,6 +32,7 @@ class TypeMappingOptions:
     """Type-mapping policy toggles for generated Go function signatures."""
 
     const_char_as_string: bool = False
+    strict_opaque_handles: bool = False
 
 
 @dataclass(frozen=True, slots=True)

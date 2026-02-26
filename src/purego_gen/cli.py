@@ -51,6 +51,7 @@ class _ParsedArgs(argparse.Namespace):
     const_filter: str | None
     var_filter: str | None
     const_char_as_string: bool
+    strict_opaque_handles: bool
 
 
 def _parse_emit_kinds(value: str) -> tuple[str, ...]:
@@ -162,6 +163,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Map const char* function signature slots to Go string (default: off).",
     )
+    parser.add_argument(
+        "--strict-opaque-handles",
+        action="store_true",
+        help="Emit opaque struct handle typedefs as strict Go types (default: off).",
+    )
     return parser
 
 
@@ -200,7 +206,10 @@ def parse_options(argv: list[str]) -> CliOptions:
         const_filter=namespace.const_filter,
         var_filter=namespace.var_filter,
         clang_args=clang_argv,
-        type_mapping=TypeMappingOptions(const_char_as_string=namespace.const_char_as_string),
+        type_mapping=TypeMappingOptions(
+            const_char_as_string=namespace.const_char_as_string,
+            strict_opaque_handles=namespace.strict_opaque_handles,
+        ),
     )
 
 
@@ -434,6 +443,7 @@ def main(argv: list[str] | None = None) -> int:
             lib_id=options.lib_id,
             emit_kinds=options.emit_kinds,
             declarations=filtered_declarations,
+            type_mapping=options.type_mapping,
         )
     except RendererError as error:
         sys.stderr.write(f"purego-gen: {error}\n")

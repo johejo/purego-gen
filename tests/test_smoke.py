@@ -368,6 +368,26 @@ def test_const_char_pointer_string_mapping_is_opt_in(tmp_path: Path) -> None:
     _assert_go_source_compiles(result_enabled.stdout, tmp_path / "enabled")
 
 
+def test_strict_opaque_handle_mapping_is_opt_in(tmp_path: Path) -> None:
+    """`--strict-opaque-handles` should match the committed strict-opaque golden output."""
+    result_enabled = _run_cli(
+        "--lib-id",
+        _FIXTURE_LIB_ID,
+        "--header",
+        str(_PRIMARY_HEADER),
+        "--pkg",
+        _FIXTURE_PACKAGE,
+        "--emit",
+        "type",
+        "--strict-opaque-handles",
+    )
+
+    assert result_enabled.returncode == 0
+    expected = _golden_path("case_basic_type_strict_opaque").read_text(encoding="utf-8")
+    assert result_enabled.stdout == expected
+    _assert_go_source_compiles(result_enabled.stdout, tmp_path / "enabled")
+
+
 def test_emits_mixed_categories_with_filters(tmp_path: Path) -> None:
     """Category-specific filters should combine with mixed emit selection."""
     header_path = _CATEGORY_HEADER

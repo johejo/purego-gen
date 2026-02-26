@@ -160,6 +160,9 @@ This split removes ambiguity between "constant" and "data symbol".
   and anonymous fields.
 - Incomplete/opaque struct typedefs are emitted as `uintptr` aliases for
   handle-style interop.
+- Optional CLI mode `--strict-opaque-handles` emits only opaque struct-handle
+  typedefs as strict Go types (`type T uintptr`) instead of aliases.
+- `--strict-opaque-handles` has effect only when `--emit` includes `type`.
 - When an opaque typedef alias is emitted (`--emit` includes `type`), function
   signatures use the emitted alias (`purego_type_*`) for matching `T*` /
   `const T*` result and parameter types instead of raw `uintptr`.
@@ -294,6 +297,7 @@ Rules:
 - If a category filter is provided for an emitted category and matches nothing, CLI exits non-zero with an actionable error.
 - `--emit` controls which categories are generated.
 - `--const-char-as-string` is opt-in and disabled by default.
+- `--strict-opaque-handles` is opt-in and disabled by default.
 - `--out <path>` writes to a file.
 - `--out -` or omitted `--out` writes generated code to stdout.
 - Generated Go source is formatted with `gofmt` before writing to stdout or files.

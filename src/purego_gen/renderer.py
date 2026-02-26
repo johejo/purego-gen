@@ -16,6 +16,8 @@ from jinja2 import (
     UndefinedError,
 )
 
+from purego_gen.model import TypeMappingOptions
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -81,6 +83,7 @@ class RendererError(RuntimeError):
 class _TypeAliasContext(TypedDict):
     identifier: str
     go_type: str
+    is_strict: bool
 
 
 class _ConstantContext(TypedDict):
@@ -196,28 +199,21 @@ def _extract_typedef_name_from_pointer_c_type(c_type: str) -> str | None:
     return matched.group(1)
 
 
-def _build_opaque_alias_type_by_typedef_name(
+def _build_emitted_opaque_struct_typedef_names(
     *,
     emit_kinds: tuple[str, ...],
     declarations: ParsedDeclarations,
-    type_identifiers: tuple[str, ...],
-) -> dict[str, str]:
-    """Build emitted opaque typedef alias lookup used by function signatures.
+    emitted_typedef_names: set[str],
+) -> set[str]:
+    """Build emitted opaque struct typedef-name set.
 
     Returns:
-        Mapping of typedef name to generated alias type name.
+        Set of opaque typedef names emitted in this render.
     """
     if "type" not in emit_kinds:
-        return {}
+        return set()
 
-    emitted_typedef_by_name = {
-        typedef.name: typedef for typedef in declarations.typedefs if typedef.go_type == "uintptr"
-    }
-    type_identifier_by_name = {
-        typedef.name: identifier
-        for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
-    }
-    opaque_alias_type_by_typedef_name: dict[str, str] = {}
+    opaque_typedef_names: set[str] = set()
     for record_typedef in declarations.record_typedefs:
         if record_typedef.record_kind != "STRUCT_DECL":
             continue
@@ -225,13 +221,33 @@ def _build_opaque_alias_type_by_typedef_name(
             continue
         if record_typedef.fields:
             continue
-        emitted_typedef = emitted_typedef_by_name.get(record_typedef.name)
-        if emitted_typedef is None:
+        if record_typedef.name not in emitted_typedef_names:
             continue
-        identifier = type_identifier_by_name.get(record_typedef.name)
+        opaque_typedef_names.add(record_typedef.name)
+    return opaque_typedef_names
+
+
+def _build_opaque_alias_type_by_typedef_name(
+    *,
+    declarations: ParsedDeclarations,
+    type_identifiers: tuple[str, ...],
+    emitted_opaque_struct_typedef_names: set[str],
+) -> dict[str, str]:
+    """Build emitted opaque typedef alias lookup used by function signatures.
+
+    Returns:
+        Mapping of typedef name to generated alias type name.
+    """
+    type_identifier_by_name = {
+        typedef.name: identifier
+        for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
+    }
+    opaque_alias_type_by_typedef_name: dict[str, str] = {}
+    for typedef_name in emitted_opaque_struct_typedef_names:
+        identifier = type_identifier_by_name.get(typedef_name)
         if identifier is None:
             continue
-        opaque_alias_type_by_typedef_name[record_typedef.name] = f"purego_type_{identifier}"
+        opaque_alias_type_by_typedef_name[typedef_name] = f"purego_type_{identifier}"
     return opaque_alias_type_by_typedef_name
 
 
@@ -319,6 +335,7 @@ def _build_context(
     lib_id: str,
     emit_kinds: tuple[str, ...],
     declarations: ParsedDeclarations,
+    type_mapping: TypeMappingOptions,
 ) -> _TemplateContext:
     """Build render context for the main Go output template.
 
@@ -342,10 +359,18 @@ def _build_context(
         tuple(runtime_var.name for runtime_var in declarations.runtime_vars),
         fallback_prefix="var",
     )
-    opaque_alias_type_by_typedef_name = _build_opaque_alias_type_by_typedef_name(
+    emitted_typedef_names = {
+        typedef.name for typedef in declarations.typedefs if typedef.go_type == "uintptr"
+    }
+    emitted_opaque_struct_typedef_names = _build_emitted_opaque_struct_typedef_names(
         emit_kinds=emit_kinds,
         declarations=declarations,
+        emitted_typedef_names=emitted_typedef_names,
+    )
+    opaque_alias_type_by_typedef_name = _build_opaque_alias_type_by_typedef_name(
+        declarations=declarations,
         type_identifiers=type_identifiers,
+        emitted_opaque_struct_typedef_names=emitted_opaque_struct_typedef_names,
     )
 
     return {
@@ -356,6 +381,10 @@ def _build_context(
             {
                 "identifier": identifier,
                 "go_type": typedef.go_type,
+                "is_strict": (
+                    type_mapping.strict_opaque_handles
+                    and typedef.name in emitted_opaque_struct_typedef_names
+                ),
             }
             for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
         ),
@@ -446,6 +475,7 @@ def render_go_source(
     lib_id: str,
     emit_kinds: tuple[str, ...],
     declarations: ParsedDeclarations,
+    type_mapping: TypeMappingOptions | None = None,
 ) -> str:
     """Render generated Go source for one CLI invocation.
 
@@ -457,5 +487,6 @@ def render_go_source(
         lib_id=lib_id,
         emit_kinds=emit_kinds,
         declarations=declarations,
+        type_mapping=type_mapping if type_mapping is not None else TypeMappingOptions(),
     )
     return render_template(_MAIN_TEMPLATE_NAME, context)
