@@ -25,8 +25,7 @@ _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
 _GOLDEN_DIR = _REPO_ROOT / "tests" / "golden"
 _GO_COMPILE_FIXTURE_DIR = _FIXTURES_DIR / "go_compile_module"
 _GO_RUNTIME_FIXTURE_DIR = _FIXTURES_DIR / "go_runtime_zstd_module"
-_LIBZSTD_GOLDEN_PATH = _GOLDEN_DIR / "libzstd_core" / "generated.go"
-_LIBZSTD_OPAQUE_CCTX_GOLDEN_PATH = _GOLDEN_DIR / "libzstd_opaque_cctx" / "generated.go"
+_LIBZSTD_PROFILE_GOLDEN_PATH = _GOLDEN_DIR / "libzstd_profile" / "generated.go"
 _TARGET_PROFILES_DIR = _FIXTURES_DIR / "target_profiles"
 _LIBZSTD_PROFILE_PATH = _TARGET_PROFILES_DIR / "libzstd_v1.json"
 _LIBRARY_OVERRIDE_ENV = "PUREGO_GEN_TEST_LIBZSTD"
@@ -46,8 +45,8 @@ _LIBZSTD_MACRO_FILTER = (
 
 
 @dataclass(frozen=True, slots=True)
-class _LibzstdSubsetProfile:
-    """Stable allowlist profile used by libzstd objective harness."""
+class _LibzstdProfile:
+    """Stable profile used by libzstd objective harness."""
 
     profile_id: str
     emit_kinds: str
@@ -65,16 +64,6 @@ class _LibzstdHarnessConfig:
     header_path: Path
     clang_args: tuple[str, ...]
     shared_library_path: Path
-
-
-@dataclass(frozen=True, slots=True)
-class _CustomEmitOptions:
-    """Explicit CLI emit configuration for focused libzstd assertions."""
-
-    package: str
-    emit_kinds: str
-    func_filter: str | None = None
-    type_filter: str | None = None
 
 
 def _build_exact_symbol_regex(symbols: tuple[str, ...]) -> str:
@@ -160,7 +149,7 @@ def _read_type_mapping_options(raw: dict[str, object]) -> TypeMappingOptions:
     )
 
 
-def _load_libzstd_subset_profile() -> _LibzstdSubsetProfile:
+def _load_libzstd_profile() -> _LibzstdProfile:
     """Load stable v1 profile used by libzstd harness tests.
 
     Returns:
@@ -189,7 +178,7 @@ def _load_libzstd_subset_profile() -> _LibzstdSubsetProfile:
     required_functions = _read_required_non_empty_string_array(raw, "required_functions")
     required_types = _read_required_non_empty_string_array(raw, "required_types")
     type_mapping = _read_type_mapping_options(raw)
-    return _LibzstdSubsetProfile(
+    return _LibzstdProfile(
         profile_id=profile_id,
         emit_kinds=emit_kinds,
         required_functions=required_functions,
@@ -271,7 +260,7 @@ def _resolve_libzstd_harness_config() -> _LibzstdHarnessConfig:
 def _run_cli_for_libzstd(
     config: _LibzstdHarnessConfig,
     *,
-    profile: _LibzstdSubsetProfile,
+    profile: _LibzstdProfile,
     package: str,
 ) -> subprocess.CompletedProcess[str]:
     """Run purego-gen against discovered libzstd header with deterministic filter.
@@ -362,52 +351,6 @@ def _run_cli_for_libzstd_constants(
     )
 
 
-def _run_cli_with_custom_emit(
-    config: _LibzstdHarnessConfig,
-    *,
-    options: _CustomEmitOptions,
-) -> subprocess.CompletedProcess[str]:
-    """Run purego-gen against discovered libzstd header with explicit emit options.
-
-    Returns:
-        Completed process result for the CLI invocation.
-    """
-    command = [
-        sys.executable,
-        "-m",
-        "purego_gen",
-        "--lib-id",
-        "zstd",
-        "--header",
-        str(config.header_path),
-        "--pkg",
-        options.package,
-        "--emit",
-        options.emit_kinds,
-    ]
-    if options.func_filter is not None:
-        command.extend(["--func-filter", options.func_filter])
-    if options.type_filter is not None:
-        command.extend(["--type-filter", options.type_filter])
-    if config.clang_args:
-        command.extend(["--", *config.clang_args])
-
-    env = os.environ.copy()
-    existing_pythonpath = env.get("PYTHONPATH")
-    src_path = str(_SRC_DIR)
-    env["PYTHONPATH"] = (
-        src_path if existing_pythonpath is None else f"{src_path}:{existing_pythonpath}"
-    )
-    return subprocess.run(  # noqa: S603
-        command,
-        capture_output=True,
-        check=False,
-        cwd=_REPO_ROOT,
-        env=env,
-        text=True,
-    )
-
-
 def _assert_go_source_compiles(source: str, tmp_path: Path) -> None:
     """Compile generated source in the shared Go fixture module."""
     result = run_go_test_in_generated_module(
@@ -450,27 +393,27 @@ def libzstd_harness_config() -> _LibzstdHarnessConfig:
 
 
 @pytest.fixture(scope="session")
-def libzstd_subset_profile() -> _LibzstdSubsetProfile:
-    """Load stable libzstd subset profile for harness tests.
+def libzstd_profile() -> _LibzstdProfile:
+    """Load stable libzstd profile for harness tests.
 
     Returns:
         Parsed profile used to build generation filters.
     """
-    return _load_libzstd_subset_profile()
+    return _load_libzstd_profile()
 
 
 def test_generates_libzstd_golden_output(
     tmp_path: Path,
     libzstd_harness_config: _LibzstdHarnessConfig,
-    libzstd_subset_profile: _LibzstdSubsetProfile,
+    libzstd_profile: _LibzstdProfile,
 ) -> None:
-    """CLI output for selected libzstd APIs should match committed golden output."""
+    """CLI output for libzstd profile should match committed golden output."""
     result = _run_cli_for_libzstd(
         libzstd_harness_config,
-        profile=libzstd_subset_profile,
+        profile=libzstd_profile,
         package=_GOLDEN_OUTPUT_PACKAGE,
     )
-    expected = _LIBZSTD_GOLDEN_PATH.read_text(encoding="utf-8")
+    expected = _LIBZSTD_PROFILE_GOLDEN_PATH.read_text(encoding="utf-8")
     assert result.returncode == 0, result.stderr
     assert result.stdout == expected
     normalized_stdout = " ".join(result.stdout.split())
@@ -494,12 +437,12 @@ def test_generates_libzstd_golden_output(
 def test_runtime_harness_resolves_libzstd_symbols(
     tmp_path: Path,
     libzstd_harness_config: _LibzstdHarnessConfig,
-    libzstd_subset_profile: _LibzstdSubsetProfile,
+    libzstd_profile: _LibzstdProfile,
 ) -> None:
     """Generated bindings should run a libzstd roundtrip in runtime harness."""
     result = _run_cli_for_libzstd(
         libzstd_harness_config,
-        profile=libzstd_subset_profile,
+        profile=libzstd_profile,
         package=_RUNTIME_PACKAGE,
     )
     assert result.returncode == 0, result.stderr
@@ -527,30 +470,4 @@ def test_extracts_libzstd_object_like_macro_constants(
     assert "purego_const_ZSTD_MAGICNUMBER" in result.stdout
     assert "purego_const_ZSTD_CONTENTSIZE_UNKNOWN" in result.stdout
     assert "purego_const_ZSTD_CONTENTSIZE_ERROR" in result.stdout
-    _assert_go_source_compiles(result.stdout, tmp_path)
-
-
-def test_emits_libzstd_opaque_context_handle_types(
-    tmp_path: Path,
-    libzstd_harness_config: _LibzstdHarnessConfig,
-) -> None:
-    """Opaque libzstd context typedef should be used in emitted function signatures."""
-    result = _run_cli_with_custom_emit(
-        libzstd_harness_config,
-        options=_CustomEmitOptions(
-            package=_GOLDEN_OUTPUT_PACKAGE,
-            emit_kinds="func,type",
-            func_filter="^(ZSTD_createCCtx|ZSTD_freeCCtx)$",
-            type_filter="^ZSTD_CCtx$",
-        ),
-    )
-    expected = _LIBZSTD_OPAQUE_CCTX_GOLDEN_PATH.read_text(encoding="utf-8")
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == expected
-    normalized_stdout = " ".join(result.stdout.split())
-    assert "purego_func_ZSTD_createCCtx func() purego_type_ZSTD_CCtx" in result.stdout
-    assert re.search(
-        r"purego_func_ZSTD_freeCCtx func\( [A-Za-z_][A-Za-z0-9_]* purego_type_ZSTD_CCtx, \) uint64",
-        normalized_stdout,
-    )
     _assert_go_source_compiles(result.stdout, tmp_path)
