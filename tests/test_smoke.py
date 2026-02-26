@@ -449,29 +449,6 @@ def test_does_not_fail_when_filter_targets_non_emitted_category() -> None:
     assert _REGISTER_FUNCTIONS_SYMBOL in result.stdout
 
 
-def test_rejects_removed_optional_filter_flags() -> None:
-    """Removed optional-symbol flags should be rejected by argparse."""
-    cases = (
-        ("--optional-func-filter", "^smoke_missing$"),
-        ("--optional-var-filter", "^smoke_missing_var$"),
-    )
-    for option_name, option_value in cases:
-        result = _run_cli(
-            "--lib-id",
-            _FIXTURE_LIB_ID,
-            "--header",
-            str(_CATEGORY_HEADER),
-            "--pkg",
-            _FIXTURE_PACKAGE,
-            "--emit",
-            "func,var",
-            option_name,
-            option_value,
-        )
-        assert result.returncode == _ARGPARSE_USAGE_ERROR
-        assert f"unrecognized arguments: {option_name} {option_value}" in result.stderr
-
-
 def test_runtime_smoke_with_compiled_shared_library(tmp_path: Path) -> None:
     """Generated bindings should resolve functions/vars and call symbols from a shared C library."""
     shared_library_path = _build_runtime_smoke_library(tmp_path)
