@@ -26,11 +26,11 @@ func TestGeneratedBindingsResolveLibzstdSymbols(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open library: %v", err)
 	}
-	defer func() {
+	t.Cleanup(func() {
 		if closeErr := purego.Dlclose(handle); closeErr != nil {
-			t.Fatalf("close library: %v", closeErr)
+			t.Errorf("close library: %v", closeErr)
 		}
-	}()
+	})
 
 	if err := purego_zstd_register_functions(handle); err != nil {
 		t.Fatalf("register functions: %v", err)
@@ -83,23 +83,23 @@ func TestGeneratedBindingsResolveLibzstdSymbols(t *testing.T) {
 	if cctx == 0 {
 		t.Fatal("ZSTD_createCCtx returned nil context")
 	}
-	defer func() {
+	t.Cleanup(func() {
 		freeResult := purego_func_ZSTD_freeCCtx(cctx)
 		if purego_func_ZSTD_isError(freeResult) != 0 {
-			t.Fatalf("ZSTD_freeCCtx returned error code: %d", freeResult)
+			t.Errorf("ZSTD_freeCCtx returned error code: %d", freeResult)
 		}
-	}()
+	})
 
 	dctx := purego_func_ZSTD_createDCtx()
 	if dctx == 0 {
 		t.Fatal("ZSTD_createDCtx returned nil context")
 	}
-	defer func() {
+	t.Cleanup(func() {
 		freeResult := purego_func_ZSTD_freeDCtx(dctx)
 		if purego_func_ZSTD_isError(freeResult) != 0 {
-			t.Fatalf("ZSTD_freeDCtx returned error code: %d", freeResult)
+			t.Errorf("ZSTD_freeDCtx returned error code: %d", freeResult)
 		}
-	}()
+	})
 
 	compressedCCtx := make([]byte, int(compressBound))
 	compressedCCtxSize := purego_func_ZSTD_compressCCtx(
