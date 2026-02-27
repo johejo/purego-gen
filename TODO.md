@@ -90,8 +90,6 @@
 - [x] Add runtime harness scenario that performs real block compress/decompress roundtrip using generated bindings (not symbol-resolution only).
 - [x] Define and document a stable `libzstd` API subset profile for v1 generation tests (allowlist-based to reduce cross-version drift).
 - [x] Use emitted opaque-handle aliases (`purego_type_ZSTD_CCtx` etc.) directly in generated function signatures instead of raw `uintptr` for those parameters/returns.
-- [ ] Add optional generated error-handling helper flow for `size_t`-returning `ZSTD_*` APIs (compose `ZSTD_isError` / `ZSTD_getErrorCode` / `ZSTD_getErrorName`) to reduce call-site boilerplate.
-- [ ] Add optional lifecycle helper generation for `create/free` pairs (`ZSTD_CCtx` / `ZSTD_DCtx`) to reduce manual resource-management glue.
 - [ ] Add a strict-typing variant profile for libzstd (keep `libzstd_v1` stable; add separate strict profile that enables `type_mapping.strict_opaque_handles`).
 - [ ] Evaluate enum/constant typing improvements for libzstd-facing signatures and sentinel values while preserving v1 low-level defaults.
 - [ ] Improve target profile UX by reducing repetitive profile fields (shared presets/composition) without adding CLI subcommands.
