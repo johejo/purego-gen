@@ -38,6 +38,7 @@ _CATEGORY_HEADER = _FIXTURES_DIR / "categories.h"
 _MACRO_CONSTANTS_HEADER = _FIXTURES_DIR / "macro_constants.h"
 _FUNCTION_SIGNATURES_HEADER = _FIXTURES_DIR / "function_signatures.h"
 _CONDITIONAL_HEADER = _FIXTURES_DIR / "conditional.h"
+_COMMENTS_HEADER = _FIXTURES_DIR / "comments.h"
 _M3_TYPES_HEADER = _FIXTURES_DIR / "abi_types.h"
 _FIXTURE_LIB_ID = "fixture_lib"
 _FIXTURE_PACKAGE = "fixture"
@@ -330,6 +331,46 @@ def test_generates_conditional_golden_output_with_clang_define(tmp_path: Path) -
     assert result_off.stdout != result_on.stdout
     _assert_go_source_compiles(result_off.stdout, tmp_path / "off")
     _assert_go_source_compiles(result_on.stdout, tmp_path / "on")
+
+
+def test_generates_comment_golden_output_by_default(tmp_path: Path) -> None:
+    """Default parsing should include declaration comments visible without parse-all mode."""
+    result = _run_cli(
+        "--lib-id",
+        _FIXTURE_LIB_ID,
+        "--header",
+        str(_COMMENTS_HEADER),
+        "--pkg",
+        _FIXTURE_PACKAGE,
+        "--emit",
+        "func,type,const,var",
+    )
+
+    expected = _golden_path("case_comments_default").read_text(encoding="utf-8")
+    assert result.returncode == 0
+    assert result.stdout == expected
+    _assert_go_source_compiles(result.stdout, tmp_path)
+
+
+def test_generates_comment_golden_output_with_parse_all_comments(tmp_path: Path) -> None:
+    """`-fparse-all-comments` should additionally include plain declaration comments."""
+    result = _run_cli(
+        "--lib-id",
+        _FIXTURE_LIB_ID,
+        "--header",
+        str(_COMMENTS_HEADER),
+        "--pkg",
+        _FIXTURE_PACKAGE,
+        "--emit",
+        "func,type,const,var",
+        "--",
+        "-fparse-all-comments",
+    )
+
+    expected = _golden_path("case_comments_parse_all").read_text(encoding="utf-8")
+    assert result.returncode == 0
+    assert result.stdout == expected
+    _assert_go_source_compiles(result.stdout, tmp_path)
 
 
 def test_const_char_pointer_string_mapping_is_opt_in(tmp_path: Path) -> None:

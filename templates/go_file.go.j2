@@ -17,6 +17,11 @@ var (
 {% if "type" in emit_kinds and type_aliases %}
 type (
     {% for type_alias in type_aliases %}
+        {% if type_alias.comment_lines %}
+            {% for comment_line in type_alias.comment_lines %}
+    // {{ comment_line }}
+            {% endfor %}
+        {% endif %}
         {% if type_alias.is_strict %}
     purego_type_{{ type_alias.identifier }} {{ type_alias.go_type }}
         {% else %}
@@ -28,6 +33,11 @@ type (
 {% if "const" in emit_kinds and constants %}
 const (
     {% for constant in constants %}
+        {% if constant.comment_lines %}
+            {% for comment_line in constant.comment_lines %}
+    // {{ comment_line }}
+            {% endfor %}
+        {% endif %}
     purego_const_{{ constant.identifier }} = {{ constant.value }}
     {% endfor %}
 )
@@ -35,6 +45,11 @@ const (
 {% if "func" in emit_kinds and functions %}
 var (
     {% for function in functions %}
+        {% if function.comment_lines %}
+            {% for comment_line in function.comment_lines %}
+    // {{ comment_line }}
+            {% endfor %}
+        {% endif %}
         {% if function.parameters %}
             {% if function.result_type is not none %}
     purego_func_{{ function.identifier }} func(
@@ -73,6 +88,11 @@ func purego_{{ lib_id }}_register_functions(handle uintptr) error {
 {% if "var" in emit_kinds and runtime_vars %}
 var (
     {% for runtime_var in runtime_vars %}
+        {% if runtime_var.comment_lines %}
+            {% for comment_line in runtime_var.comment_lines %}
+    // {{ comment_line }}
+            {% endfor %}
+        {% endif %}
     purego_var_{{ runtime_var.identifier }} uintptr
     {% endfor %}
 )

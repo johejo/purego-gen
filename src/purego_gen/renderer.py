@@ -84,11 +84,13 @@ class _TypeAliasContext(TypedDict):
     identifier: str
     go_type: str
     is_strict: bool
+    comment_lines: tuple[str, ...]
 
 
 class _ConstantContext(TypedDict):
     identifier: str
     value: int
+    comment_lines: tuple[str, ...]
 
 
 class _FunctionParameterContext(TypedDict):
@@ -101,11 +103,13 @@ class _FunctionContext(TypedDict):
     symbol: str
     parameters: tuple[_FunctionParameterContext, ...]
     result_type: str | None
+    comment_lines: tuple[str, ...]
 
 
 class _RuntimeVarContext(TypedDict):
     identifier: str
     symbol: str
+    comment_lines: tuple[str, ...]
 
 
 class _TemplateContext(TypedDict):
@@ -286,6 +290,52 @@ def _sanitize_function_parameter_name(raw_name: str, *, index: int) -> str:
     return normalized
 
 
+def _trim_comment_blank_edges(lines: tuple[str, ...]) -> tuple[str, ...]:
+    """Trim leading/trailing empty lines from normalized comment lines.
+
+    Returns:
+        Comment lines without outer blank lines.
+    """
+    start = 0
+    end = len(lines)
+    while start < end and not lines[start]:
+        start += 1
+    while end > start and not lines[end - 1]:
+        end -= 1
+    return lines[start:end]
+
+
+def _normalize_comment_lines(comment: str | None) -> tuple[str, ...]:
+    """Normalize libclang raw comment text into Go `//` body lines.
+
+    Returns:
+        Comment lines suitable for rendering as `// {line}`.
+    """
+    if comment is None:
+        return ()
+
+    normalized = comment.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not normalized:
+        return ()
+
+    is_block = normalized.startswith("/*") and normalized.endswith("*/")
+    raw_lines = tuple(normalized.split("\n"))
+    processed: list[str] = []
+
+    if is_block:
+        block_body = normalized[2:-2]
+        for line in block_body.split("\n"):
+            stripped_line = re.sub(r"^\s*\* ?", "", line)
+            processed.append(stripped_line.strip())
+        return _trim_comment_blank_edges(tuple(processed))
+
+    for line in raw_lines:
+        stripped_line = re.sub(r"^\s*/// ?", "", line)
+        stripped_line = re.sub(r"^\s*// ?", "", stripped_line)
+        processed.append(stripped_line.strip())
+    return _trim_comment_blank_edges(tuple(processed))
+
+
 def _build_function_parameters_context(
     *,
     function_name: str,
@@ -385,6 +435,7 @@ def _build_context(
                     type_mapping.strict_opaque_handles
                     and typedef.name in emitted_opaque_struct_typedef_names
                 ),
+                "comment_lines": _normalize_comment_lines(typedef.comment),
             }
             for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
         ),
@@ -392,6 +443,7 @@ def _build_context(
             {
                 "identifier": identifier,
                 "value": constant.value,
+                "comment_lines": _normalize_comment_lines(constant.comment),
             }
             for constant, identifier in zip(
                 declarations.constants, constant_identifiers, strict=True
@@ -415,6 +467,7 @@ def _build_context(
                 )
                 if function.go_result_type is not None
                 else None,
+                "comment_lines": _normalize_comment_lines(function.comment),
             }
             for function, identifier in zip(
                 declarations.functions, function_identifiers, strict=True
@@ -424,6 +477,7 @@ def _build_context(
             {
                 "identifier": identifier,
                 "symbol": runtime_var.name,
+                "comment_lines": _normalize_comment_lines(runtime_var.comment),
             }
             for runtime_var, identifier in zip(
                 declarations.runtime_vars, runtime_var_identifiers, strict=True

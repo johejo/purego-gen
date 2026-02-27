@@ -163,6 +163,7 @@ class _ArgumentLike(Protocol):
 class _CursorLike(Protocol):
     kind: _CursorKindLike
     spelling: str
+    raw_comment: str
     location: _SourceLocationLike
     result_type: _TypeLike
     underlying_typedef_type: _TypeLike
@@ -779,6 +780,18 @@ def _map_function_result_type_to_go_name(
     return "uintptr"
 
 
+def _extract_cursor_comment(cursor: _CursorLike) -> str | None:
+    """Extract one cursor raw comment when available.
+
+    Returns:
+        Raw comment text, or `None` when cursor has no non-empty comment.
+    """
+    raw_comment = str(getattr(cursor, "raw_comment", "") or "")
+    if not raw_comment.strip():
+        return None
+    return raw_comment
+
+
 def _extract_function(cursor: _CursorLike, *, type_mapping: TypeMappingOptions) -> FunctionDecl:
     """Convert a function cursor to model.
 
@@ -805,6 +818,7 @@ def _extract_function(cursor: _CursorLike, *, type_mapping: TypeMappingOptions) 
             type_mapping=type_mapping,
         ),
         go_parameter_types=go_parameter_types,
+        comment=_extract_cursor_comment(cursor),
     )
 
 
@@ -833,6 +847,7 @@ def _extract_typedef(
                         name=str(cursor.spelling),
                         c_type=str(underlying.spelling),
                         go_type="uintptr",
+                        comment=_extract_cursor_comment(cursor),
                     ),
                     None,
                     record_typedef,
@@ -843,6 +858,7 @@ def _extract_typedef(
                 name=str(cursor.spelling),
                 c_type=str(underlying.spelling),
                 go_type=mapping_result.go_type,
+                comment=_extract_cursor_comment(cursor),
             ),
             None,
             record_typedef,
@@ -852,7 +868,12 @@ def _extract_typedef(
     if go_type is None:
         return None, None, None
     return (
-        TypedefDecl(name=str(cursor.spelling), c_type=str(underlying.spelling), go_type=go_type),
+        TypedefDecl(
+            name=str(cursor.spelling),
+            c_type=str(underlying.spelling),
+            go_type=go_type,
+            comment=_extract_cursor_comment(cursor),
+        ),
         None,
         None,
     )
@@ -864,7 +885,11 @@ def _extract_constant(cursor: _CursorLike) -> ConstantDecl:
     Returns:
         Normalized compile-time constant declaration.
     """
-    return ConstantDecl(name=str(cursor.spelling), value=int(cursor.enum_value))
+    return ConstantDecl(
+        name=str(cursor.spelling),
+        value=int(cursor.enum_value),
+        comment=_extract_cursor_comment(cursor),
+    )
 
 
 def _extract_macro_constant(
@@ -890,7 +915,11 @@ def _extract_macro_constant(
     )
     if evaluated is None:
         return None
-    return ConstantDecl(name=str(cursor.spelling), value=evaluated)
+    return ConstantDecl(
+        name=str(cursor.spelling),
+        value=evaluated,
+        comment=_extract_cursor_comment(cursor),
+    )
 
 
 def _extract_runtime_var(cursor: _CursorLike) -> RuntimeVarDecl:
@@ -899,7 +928,11 @@ def _extract_runtime_var(cursor: _CursorLike) -> RuntimeVarDecl:
     Returns:
         Normalized runtime variable declaration.
     """
-    return RuntimeVarDecl(name=str(cursor.spelling), c_type=str(cursor.type.spelling))
+    return RuntimeVarDecl(
+        name=str(cursor.spelling),
+        c_type=str(cursor.type.spelling),
+        comment=_extract_cursor_comment(cursor),
+    )
 
 
 def _is_extern_runtime_var(cursor: _CursorLike) -> bool:

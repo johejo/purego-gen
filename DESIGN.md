@@ -247,6 +247,11 @@ Behavior:
   used when available) and are bound via `RegisterFunc`.
 - Generated function parameter names are taken from C declarations when available and sanitized
   into Go identifiers; unnamed/invalid slots fall back to deterministic `argN` names.
+- Generated declarations copy libclang declaration-attached C comments into
+  preceding Go `//` comments when comment metadata is available.
+- Plain C comments (`//`, `/* ... */`) are included only when clang is invoked
+  with `-fparse-all-comments`; otherwise doc-style declaration comments are the
+  default source.
 - Function signature convenience mapping in v1 is intentionally narrow and
   opt-in: with `--const-char-as-string`, only `const char*` is lifted to Go
   `string`; mutable `char*` and `void*` remain low-level pointer-sized values.

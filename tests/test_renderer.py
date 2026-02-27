@@ -11,6 +11,7 @@ from purego_gen.model import (
     FunctionDecl,
     ParsedDeclarations,
     RecordTypedefDecl,
+    RuntimeVarDecl,
     TypedefDecl,
     TypeMappingOptions,
 )
@@ -198,3 +199,86 @@ def test_render_go_source_sanitizes_function_parameter_names_with_fallbacks() ->
         "purego_func_test_names func( arg1 int32, arg2 int32, map_ int32, same_name int32, "
         "same_name_2 int32, ) int32" in normalized_source
     )
+
+
+def test_render_go_source_copies_comments_before_declarations() -> None:
+    """Renderer should normalize raw comments and place them before declarations."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func", "type", "const", "var"),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="doc_func",
+                    result_c_type="void",
+                    parameter_c_types=(),
+                    parameter_names=(),
+                    go_result_type=None,
+                    go_parameter_types=(),
+                    comment="/** Function doc line 1.\n *\n * Function doc line 2.\n */",
+                ),
+                FunctionDecl(
+                    name="plain_func",
+                    result_c_type="void",
+                    parameter_c_types=(),
+                    parameter_names=(),
+                    go_result_type=None,
+                    go_parameter_types=(),
+                    comment="// Plain function doc.",
+                ),
+            ),
+            typedefs=(
+                TypedefDecl(
+                    name="doc_type_t",
+                    c_type="int",
+                    go_type="int32",
+                    comment="/** Type doc line 1.\n *\n * Type doc line 2.\n */",
+                ),
+                TypedefDecl(
+                    name="plain_type_t",
+                    c_type="int",
+                    go_type="int32",
+                    comment="/* Plain type doc. */",
+                ),
+            ),
+            constants=(
+                ConstantDecl(
+                    name="DOC_CONST",
+                    value=1,
+                    comment="/// Doxygen constant doc.",
+                ),
+                ConstantDecl(
+                    name="PLAIN_CONST",
+                    value=2,
+                    comment="// Plain constant doc.",
+                ),
+            ),
+            runtime_vars=(
+                RuntimeVarDecl(
+                    name="doc_runtime_var",
+                    c_type="int",
+                    comment="/** Runtime var doc. */",
+                ),
+                RuntimeVarDecl(
+                    name="plain_runtime_var",
+                    c_type="int",
+                    comment="/* Plain runtime var doc. */",
+                ),
+            ),
+        ),
+    )
+    normalized_lines = "\n".join(line.strip() for line in source.splitlines())
+
+    assert (
+        "// Type doc line 1.\n//\n// Type doc line 2.\npurego_type_doc_type_t = int32"
+    ) in normalized_lines
+    assert "// Plain type doc.\npurego_type_plain_type_t = int32" in normalized_lines
+    assert "// Doxygen constant doc.\npurego_const_DOC_CONST = 1" in normalized_lines
+    assert "// Plain constant doc.\npurego_const_PLAIN_CONST = 2" in normalized_lines
+    assert (
+        "// Function doc line 1.\n//\n// Function doc line 2.\npurego_func_doc_func func()"
+    ) in normalized_lines
+    assert "// Plain function doc.\npurego_func_plain_func func()" in normalized_lines
+    assert "// Runtime var doc.\npurego_var_doc_runtime_var uintptr" in normalized_lines
+    assert "// Plain runtime var doc.\npurego_var_plain_runtime_var uintptr" in normalized_lines

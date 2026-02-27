@@ -75,6 +75,24 @@
       ],
       "emit_kinds": "func,var",
       "clang_args": "-DFIXTURE_ENABLE_EXTRA"
+    },
+    {
+      "id": "case_comments_default",
+      "output_path": "tests/golden/case_comments_default/generated.go",
+      "header_paths": [
+        "tests/fixtures/comments.h"
+      ],
+      "emit_kinds": "func,type,const,var",
+      "clang_args": ""
+    },
+    {
+      "id": "case_comments_parse_all",
+      "output_path": "tests/golden/case_comments_parse_all/generated.go",
+      "header_paths": [
+        "tests/fixtures/comments.h"
+      ],
+      "emit_kinds": "func,type,const,var",
+      "clang_args": "-fparse-all-comments"
     }
   ]
 }

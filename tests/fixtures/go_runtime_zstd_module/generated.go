@@ -13,21 +13,47 @@ var (
 )
 
 type (
-	purego_type_ZSTD_CCtx  = uintptr
-	purego_type_ZSTD_DCtx  = uintptr
+	// *************************************
+	// Explicit context
+	// *************************************
+	purego_type_ZSTD_CCtx = uintptr
+	purego_type_ZSTD_DCtx = uintptr
+	// *********************************
+	// Bulk processing dictionary API
+	// ********************************
 	purego_type_ZSTD_CDict = uintptr
 	purego_type_ZSTD_DDict = uintptr
 )
 
 var (
+	// ! ZSTD_versionNumber() :
+	// Return runtime library version, the value is (MAJOR*100*100 + MINOR*100 + RELEASE).
 	purego_func_ZSTD_versionNumber func() uint32
-	purego_func_ZSTD_compress      func(
+	// *************************************
+	// Simple Core API
+	// **************************************/
+	// /*! ZSTD_compress() :
+	// Compresses `src` content as a single zstd compressed frame into already allocated `dst`.
+	// NOTE: Providing `dstCapacity >= ZSTD_compressBound(srcSize)` guarantees that zstd will have
+	// enough space to successfully compress the data.
+	// @return : compressed size written into `dst` (<= `dstCapacity),
+	// or an error code if it fails (which can be tested using ZSTD_isError()).
+	purego_func_ZSTD_compress func(
 		dst uintptr,
 		dstCapacity uint64,
 		src uintptr,
 		srcSize uint64,
 		compressionLevel int32,
 	) uint64
+	// ! ZSTD_decompress() :
+	// `compressedSize` : must be the _exact_ size of some number of compressed and/or skippable frames.
+	// Multiple compressed frames can be decompressed at once with this method.
+	// The result will be the concatenation of all decompressed frames, back to back.
+	// `dstCapacity` is an upper bound of originalSize to regenerate.
+	// First frame's decompressed size can be extracted using ZSTD_getFrameContentSize().
+	// If maximum upper bound isn't known, prefer using streaming mode to decompress data.
+	// @return : the number of bytes decompressed into `dst` (<= `dstCapacity`),
+	// or an errorCode if it fails (which can be tested using ZSTD_isError()).
 	purego_func_ZSTD_decompress func(
 		dst uintptr,
 		dstCapacity uint64,
@@ -38,6 +64,17 @@ var (
 		src uintptr,
 		srcSize uint64,
 	) uint64
+	// ! ZSTD_findFrameCompressedSize() : Requires v1.4.0+
+	// `src` should point to the start of a ZSTD frame or skippable frame.
+	// `srcSize` must be >= first frame size
+	// @return : the compressed size of the first frame starting at `src`,
+	// suitable to pass as `srcSize` to `ZSTD_decompress` or similar,
+	// or an error code if input is invalid
+	// Note 1: this method is called _find*() because it's not enough to read the header,
+	// it may have to scan through the frame's content, to reach its end.
+	// Note 2: this method also works with Skippable Frames. In which case,
+	// it returns the size of the complete skippable frame,
+	// which is always equal to its content size + 8 bytes for headers.
 	purego_func_ZSTD_findFrameCompressedSize func(
 		src uintptr,
 		srcSize uint64,
@@ -60,6 +97,13 @@ var (
 	purego_func_ZSTD_freeCCtx   func(
 		cctx purego_type_ZSTD_CCtx,
 	) uint64
+	// ! ZSTD_compressCCtx() :
+	// Same as ZSTD_compress(), using an explicit ZSTD_CCtx.
+	// Important : in order to mirror `ZSTD_compress()` behavior,
+	// this function compresses at the requested compression level,
+	// __ignoring any other advanced parameter__ .
+	// If any advanced parameter was set using the advanced API,
+	// they will all be reset. Only @compressionLevel remains.
 	purego_func_ZSTD_compressCCtx func(
 		cctx purego_type_ZSTD_CCtx,
 		dst uintptr,
@@ -72,6 +116,10 @@ var (
 	purego_func_ZSTD_freeDCtx   func(
 		dctx purego_type_ZSTD_DCtx,
 	) uint64
+	// ! ZSTD_decompressDCtx() :
+	// Same as ZSTD_decompress(),
+	// requires an allocated ZSTD_DCtx.
+	// Compatible with sticky parameters (see below).
 	purego_func_ZSTD_decompressDCtx func(
 		dctx purego_type_ZSTD_DCtx,
 		dst uintptr,
@@ -79,6 +127,16 @@ var (
 		src uintptr,
 		srcSize uint64,
 	) uint64
+	// ************************
+	// Simple dictionary API
+	// **************************/
+	// /*! ZSTD_compress_usingDict() :
+	// Compression at an explicit compression level using a Dictionary.
+	// A dictionary can be any arbitrary data segment (also called a prefix),
+	// or a buffer with specified information (see zdict.h).
+	// Note : This function loads the dictionary, resulting in significant startup delay.
+	// It's intended for a dictionary used only once.
+	// Note 2 : When `dict == NULL || dictSize < 8` no dictionary is used.
 	purego_func_ZSTD_compress_usingDict func(
 		ctx purego_type_ZSTD_CCtx,
 		dst uintptr,
@@ -89,6 +147,12 @@ var (
 		dictSize uint64,
 		compressionLevel int32,
 	) uint64
+	// ! ZSTD_decompress_usingDict() :
+	// Decompression using a known Dictionary.
+	// Dictionary must be identical to the one used during compression.
+	// Note : This function loads the dictionary, resulting in significant startup delay.
+	// It's intended for a dictionary used only once.
+	// Note : When `dict == NULL || dictSize < 8` no dictionary is used.
 	purego_func_ZSTD_decompress_usingDict func(
 		dctx purego_type_ZSTD_DCtx,
 		dst uintptr,

@@ -25,6 +25,7 @@ class FunctionDecl:
     parameter_names: tuple[str, ...]
     go_result_type: str | None
     go_parameter_types: tuple[str, ...]
+    comment: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +43,7 @@ class TypedefDecl:
     name: str
     c_type: str
     go_type: str
+    comment: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +52,7 @@ class ConstantDecl:
 
     name: str
     value: int
+    comment: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +61,7 @@ class RuntimeVarDecl:
 
     name: str
     c_type: str
+    comment: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

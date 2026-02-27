@@ -20,6 +20,7 @@ _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
 _MACRO_CONSTANTS_HEADER = _FIXTURES_DIR / "macro_constants.h"
 _FUNCTION_SIGNATURES_HEADER = _FIXTURES_DIR / "function_signatures.h"
 _PARAMETER_NAMES_HEADER = _FIXTURES_DIR / "parameter_names.h"
+_COMMENTS_HEADER = _FIXTURES_DIR / "comments.h"
 _EXPECTED_FIXTURE_MACRO_SEED = 7
 _EXPECTED_FIXTURE_VERSION_NUMBER = 10203
 _EXPECTED_FIXTURE_MAGIC_NUMBER = 4247762216
@@ -190,3 +191,54 @@ def test_parse_function_parameter_names() -> None:
     assert function_map["fixture_keyword_name"].parameter_names == ("map",)
     assert function_map["fixture_underscore_name"].parameter_names == ("_",)
     assert function_map["fixture_fallback_name_collision"].parameter_names == ("arg2", "")
+
+
+def test_parse_declaration_comments_default_and_parse_all_comments() -> None:
+    """Parser should extract declaration comments from libclang when available."""
+    default_declarations = parse_declarations(headers=(str(_COMMENTS_HEADER),), clang_args=())
+    parse_all_declarations = parse_declarations(
+        headers=(str(_COMMENTS_HEADER),),
+        clang_args=("-fparse-all-comments",),
+    )
+
+    default_typedef_comments = {
+        typedef.name: typedef.comment for typedef in default_declarations.typedefs
+    }
+    parse_all_typedef_comments = {
+        typedef.name: typedef.comment for typedef in parse_all_declarations.typedefs
+    }
+    assert default_typedef_comments["fixture_doc_type_t"] == "/** Doxygen typedef comment. */"
+    assert default_typedef_comments["fixture_plain_type_t"] is None
+    assert parse_all_typedef_comments["fixture_plain_type_t"] == "/* Plain typedef comment. */"
+
+    default_constant_comments = {
+        constant.name: constant.comment for constant in default_declarations.constants
+    }
+    parse_all_constant_comments = {
+        constant.name: constant.comment for constant in parse_all_declarations.constants
+    }
+    assert default_constant_comments["FIXTURE_DOC_STATUS"] == "/// Doxygen enum constant comment."
+    assert default_constant_comments["FIXTURE_PLAIN_STATUS"] is None
+    assert parse_all_constant_comments["FIXTURE_PLAIN_STATUS"] == "// Plain enum constant comment."
+
+    default_function_comments = {
+        function.name: function.comment for function in default_declarations.functions
+    }
+    parse_all_function_comments = {
+        function.name: function.comment for function in parse_all_declarations.functions
+    }
+    assert default_function_comments["fixture_doc_add"] == "/// Doxygen function comment."
+    assert default_function_comments["fixture_plain_add"] is None
+    assert parse_all_function_comments["fixture_plain_add"] == "// Plain function comment."
+
+    default_runtime_var_comments = {
+        runtime_var.name: runtime_var.comment for runtime_var in default_declarations.runtime_vars
+    }
+    parse_all_runtime_var_comments = {
+        runtime_var.name: runtime_var.comment for runtime_var in parse_all_declarations.runtime_vars
+    }
+    assert default_runtime_var_comments["fixture_doc_counter"] == "/// Doxygen runtime-var comment."
+    assert default_runtime_var_comments["fixture_plain_counter"] is None
+    assert (
+        parse_all_runtime_var_comments["fixture_plain_counter"] == "// Plain runtime-var comment."
+    )

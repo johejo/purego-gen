@@ -23,6 +23,10 @@ purego-gen --lib-id zstd --header zstd.h --out -
   `--const-char-as-string` maps only `const char*` slots to Go `string`.
 - Optional `--strict-opaque-handles` emits opaque struct-handle typedefs as
   strict Go types (`type T uintptr`) when `--emit` includes `type`.
+- Declaration comments from C headers are copied to generated Go declarations
+  as `//` comments when libclang provides declaration-attached comments.
+- Plain `//` / `/* */` comments are copied only when clang is invoked with
+  `-fparse-all-comments` (pass it through after `--`).
 - Callers provide and own the library handle (`dlopen` policy is out of scope).
 
 ## Development Setup
