@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "description": "libzstd target profiles with shared presets for harness workflows.",
+  "presets": {
+    "libzstd_common": {
+      "header_names": [
+        "zstd.h"
+      ],
+      "emit_kinds": "func,type",
+      "type_mapping": {
+        "const_char_as_string": true,
+        "strict_opaque_handles": false
+      },
+      "required_functions": [
+        "ZSTD_versionNumber",
+        "ZSTD_minCLevel",
+        "ZSTD_maxCLevel",
+        "ZSTD_compress",
+        "ZSTD_decompress",
+        "ZSTD_compress_usingDict",
+        "ZSTD_decompress_usingDict",
+        "ZSTD_compressBound",
+        "ZSTD_findFrameCompressedSize",
+        "ZSTD_isError",
+        "ZSTD_getErrorCode",
+        "ZSTD_getErrorName",
+        "ZSTD_getFrameContentSize",
+        "ZSTD_createCCtx",
+        "ZSTD_freeCCtx",
+        "ZSTD_compressCCtx",
+        "ZSTD_createDCtx",
+        "ZSTD_freeDCtx",
+        "ZSTD_decompressDCtx"
+      ],
+      "required_types": [
+        "ZSTD_CCtx",
+        "ZSTD_DCtx",
+        "ZSTD_CDict",
+        "ZSTD_DDict"
+      ]
+    },
+    "libzstd_strict_overrides": {
+      "header_names": [
+        "zstd.h",
+        "zstd_errors.h"
+      ],
+      "emit_kinds": "func,type,const",
+      "required_types": [
+        "ZSTD_CCtx",
+        "ZSTD_DCtx",
+        "ZSTD_CDict",
+        "ZSTD_DDict",
+        "ZSTD_ErrorCode"
+      ],
+      "required_constants": [
+        "ZSTD_CONTENTSIZE_UNKNOWN",
+        "ZSTD_CONTENTSIZE_ERROR"
+      ],
+      "type_mapping": {
+        "strict_opaque_handles": true,
+        "strict_enum_typedefs": true,
+        "typed_sentinel_constants": true
+      }
+    }
+  },
+  "profiles": {
+    "libzstd_v1": {
+      "description": "Stable v1 libzstd subset used by objective harness tests.",
+      "compose": [
+        "libzstd_common"
+      ]
+    },
+    "libzstd_strict": {
+      "description": "Strict libzstd subset profile with enum and sentinel constant typing enabled.",
+      "compose": [
+        "libzstd_common",
+        "libzstd_strict_overrides"
+      ]
+    }
+  }
+}
