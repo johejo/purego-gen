@@ -56,7 +56,12 @@ _MAIN_TEMPLATE_NAME: Final[str] = "go_file.go.j2"
 _OPAQUE_POINTER_TYPEDEF_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^(?:(?:const|volatile|restrict)\s+)*([A-Za-z_][A-Za-z0-9_]*)\s*\*(?:\s*(?:const|volatile|restrict))*$"
 )
+_ENUM_TYPEDEF_C_TYPE_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"^enum\s+([A-Za-z_][A-Za-z0-9_]*)$"
+)
 _GO_IDENTIFIER_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_C_TYPE_QUALIFIERS: Final[frozenset[str]] = frozenset({"const", "volatile", "restrict"})
+_MAX_INT64: Final[int] = (1 << 63) - 1
 _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "package",
     "lib_id",
@@ -90,6 +95,7 @@ class _TypeAliasContext(TypedDict):
 class _ConstantContext(TypedDict):
     identifier: str
     value: int
+    const_type: str | None
     comment_lines: tuple[str, ...]
 
 
@@ -255,17 +261,112 @@ def _build_opaque_alias_type_by_typedef_name(
     return opaque_alias_type_by_typedef_name
 
 
+def _normalize_c_type_for_lookup(c_type: str) -> str:
+    """Normalize C type spelling for deterministic typedef-name lookup.
+
+    Returns:
+        Normalized C type token sequence without qualifiers.
+    """
+    tokens = [token for token in c_type.split() if token not in _C_TYPE_QUALIFIERS]
+    return " ".join(tokens)
+
+
+def _extract_enum_typedef_name(c_type: str) -> str | None:
+    """Extract enum typedef target name from typedef C type spelling.
+
+    Returns:
+        Enum target name when `c_type` spells an enum typedef, otherwise `None`.
+    """
+    normalized = _normalize_c_type_for_lookup(c_type)
+    matched = _ENUM_TYPEDEF_C_TYPE_PATTERN.fullmatch(normalized)
+    if matched is None:
+        return None
+    return matched.group(1)
+
+
+def _build_emitted_strict_enum_typedef_names(
+    *,
+    emit_kinds: tuple[str, ...],
+    declarations: ParsedDeclarations,
+    type_mapping: TypeMappingOptions,
+) -> set[str]:
+    """Build emitted enum typedef-name set for strict enum-type mode.
+
+    Returns:
+        Set of enum typedef names emitted as strict types.
+    """
+    if "type" not in emit_kinds or not type_mapping.strict_enum_typedefs:
+        return set()
+    return {
+        typedef.name
+        for typedef in declarations.typedefs
+        if _extract_enum_typedef_name(typedef.c_type) is not None
+    }
+
+
+def _build_enum_alias_type_by_typedef_name(
+    *,
+    declarations: ParsedDeclarations,
+    type_identifiers: tuple[str, ...],
+    emitted_strict_enum_typedef_names: set[str],
+) -> dict[str, str]:
+    """Build emitted strict-enum typedef alias lookup for function signatures.
+
+    Returns:
+        Mapping of enum typedef spellings to generated strict alias type names.
+    """
+    type_identifier_by_name = {
+        typedef.name: identifier
+        for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
+    }
+    typedef_by_name = {typedef.name: typedef for typedef in declarations.typedefs}
+    enum_alias_type_by_typedef_name: dict[str, str] = {}
+    for typedef_name in emitted_strict_enum_typedef_names:
+        identifier = type_identifier_by_name.get(typedef_name)
+        if identifier is None:
+            continue
+        alias_name = f"purego_type_{identifier}"
+        enum_alias_type_by_typedef_name[typedef_name] = alias_name
+        enum_alias_type_by_typedef_name[f"enum {typedef_name}"] = alias_name
+        typedef = typedef_by_name.get(typedef_name)
+        if typedef is None:
+            continue
+        enum_target_name = _extract_enum_typedef_name(typedef.c_type)
+        if enum_target_name is None:
+            continue
+        enum_alias_type_by_typedef_name[enum_target_name] = alias_name
+        enum_alias_type_by_typedef_name[f"enum {enum_target_name}"] = alias_name
+    return enum_alias_type_by_typedef_name
+
+
+def _resolve_constant_type(*, value: int, type_mapping: TypeMappingOptions) -> str | None:
+    """Resolve optional Go type annotation for one constant declaration.
+
+    Returns:
+        Go type name when strict sentinel typing applies, otherwise `None`.
+    """
+    if type_mapping.typed_sentinel_constants and value > _MAX_INT64:
+        return "uint64"
+    return None
+
+
 def _resolve_function_signature_type(
     *,
     go_type: str,
     c_type: str,
     opaque_alias_type_by_typedef_name: Mapping[str, str],
+    enum_alias_type_by_typedef_name: Mapping[str, str],
 ) -> str:
     """Resolve emitted function signature type with opaque-alias substitution.
 
     Returns:
         Resolved Go type preserving `uintptr` fallback behavior.
     """
+    if go_type == "int32":
+        normalized_c_type = _normalize_c_type_for_lookup(c_type)
+        strict_enum_alias = enum_alias_type_by_typedef_name.get(normalized_c_type)
+        if strict_enum_alias is not None:
+            return strict_enum_alias
     if go_type != "uintptr":
         return go_type
     typedef_name = _extract_typedef_name_from_pointer_c_type(c_type)
@@ -338,11 +439,11 @@ def _normalize_comment_lines(comment: str | None) -> tuple[str, ...]:
 
 def _build_function_parameters_context(
     *,
-    function_name: str,
     parameter_names: tuple[str, ...],
     go_parameter_types: tuple[str, ...],
     parameter_c_types: tuple[str, ...],
     opaque_alias_type_by_typedef_name: Mapping[str, str],
+    enum_alias_type_by_typedef_name: Mapping[str, str],
 ) -> tuple[_FunctionParameterContext, ...]:
     """Build resolved parameter context for one function signature.
 
@@ -354,8 +455,8 @@ def _build_function_parameters_context(
     """
     if not (len(parameter_names) == len(go_parameter_types) == len(parameter_c_types)):
         message = (
-            "function parameter metadata length mismatch for "
-            f"{function_name}: names={len(parameter_names)}, "
+            "function parameter metadata length mismatch: "
+            f"names={len(parameter_names)}, "
             f"go_types={len(go_parameter_types)}, c_types={len(parameter_c_types)}"
         )
         raise RendererError(message)
@@ -374,6 +475,7 @@ def _build_function_parameters_context(
                 go_type=go_parameter_type,
                 c_type=parameter_c_type,
                 opaque_alias_type_by_typedef_name=opaque_alias_type_by_typedef_name,
+                enum_alias_type_by_typedef_name=enum_alias_type_by_typedef_name,
             ),
         })
     return tuple(parameters)
@@ -417,10 +519,20 @@ def _build_context(
         declarations=declarations,
         emitted_typedef_names=emitted_typedef_names,
     )
+    emitted_strict_enum_typedef_names = _build_emitted_strict_enum_typedef_names(
+        emit_kinds=emit_kinds,
+        declarations=declarations,
+        type_mapping=type_mapping,
+    )
     opaque_alias_type_by_typedef_name = _build_opaque_alias_type_by_typedef_name(
         declarations=declarations,
         type_identifiers=type_identifiers,
         emitted_opaque_struct_typedef_names=emitted_opaque_struct_typedef_names,
+    )
+    enum_alias_type_by_typedef_name = _build_enum_alias_type_by_typedef_name(
+        declarations=declarations,
+        type_identifiers=type_identifiers,
+        emitted_strict_enum_typedef_names=emitted_strict_enum_typedef_names,
     )
 
     return {
@@ -432,8 +544,11 @@ def _build_context(
                 "identifier": identifier,
                 "go_type": typedef.go_type,
                 "is_strict": (
-                    type_mapping.strict_opaque_handles
-                    and typedef.name in emitted_opaque_struct_typedef_names
+                    (
+                        type_mapping.strict_opaque_handles
+                        and typedef.name in emitted_opaque_struct_typedef_names
+                    )
+                    or typedef.name in emitted_strict_enum_typedef_names
                 ),
                 "comment_lines": _normalize_comment_lines(typedef.comment),
             }
@@ -443,6 +558,10 @@ def _build_context(
             {
                 "identifier": identifier,
                 "value": constant.value,
+                "const_type": _resolve_constant_type(
+                    value=constant.value,
+                    type_mapping=type_mapping,
+                ),
                 "comment_lines": _normalize_comment_lines(constant.comment),
             }
             for constant, identifier in zip(
@@ -454,16 +573,17 @@ def _build_context(
                 "identifier": identifier,
                 "symbol": function.name,
                 "parameters": _build_function_parameters_context(
-                    function_name=function.name,
                     parameter_names=function.parameter_names,
                     go_parameter_types=function.go_parameter_types,
                     parameter_c_types=function.parameter_c_types,
                     opaque_alias_type_by_typedef_name=opaque_alias_type_by_typedef_name,
+                    enum_alias_type_by_typedef_name=enum_alias_type_by_typedef_name,
                 ),
                 "result_type": _resolve_function_signature_type(
                     go_type=function.go_result_type,
                     c_type=function.result_c_type,
                     opaque_alias_type_by_typedef_name=opaque_alias_type_by_typedef_name,
+                    enum_alias_type_by_typedef_name=enum_alias_type_by_typedef_name,
                 )
                 if function.go_result_type is not None
                 else None,

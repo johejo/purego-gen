@@ -201,6 +201,91 @@ def test_render_go_source_sanitizes_function_parameter_names_with_fallbacks() ->
     )
 
 
+def test_render_go_source_strict_enum_typedef_mapping_is_opt_in() -> None:
+    """Strict enum typedef mode should lift matching function slots to strict aliases."""
+    declarations = ParsedDeclarations(
+        functions=(
+            FunctionDecl(
+                name="get_mode",
+                result_c_type="fixture_mode_t",
+                parameter_c_types=("fixture_mode_t",),
+                parameter_names=("mode",),
+                go_result_type="int32",
+                go_parameter_types=("int32",),
+            ),
+        ),
+        typedefs=(TypedefDecl(name="fixture_mode_t", c_type="enum fixture_mode", go_type="int32"),),
+        constants=(),
+        runtime_vars=(),
+    )
+    source_default = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func", "type"),
+        declarations=declarations,
+    )
+    normalized_default = " ".join(source_default.split())
+    assert "purego_type_fixture_mode_t = int32" in source_default
+    assert "purego_func_get_mode func( mode int32, ) int32" in normalized_default
+
+    source_strict = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func", "type"),
+        declarations=declarations,
+        type_mapping=TypeMappingOptions(strict_enum_typedefs=True),
+    )
+    normalized_strict = " ".join(source_strict.split())
+    assert "purego_type_fixture_mode_t int32" in normalized_strict
+    assert "purego_type_fixture_mode_t = int32" not in source_strict
+    assert (
+        "purego_func_get_mode func( mode purego_type_fixture_mode_t, ) "
+        "purego_type_fixture_mode_t" in normalized_strict
+    )
+
+    source_strict_without_type_emit = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=declarations,
+        type_mapping=TypeMappingOptions(strict_enum_typedefs=True),
+    )
+    normalized_strict_without_type_emit = " ".join(source_strict_without_type_emit.split())
+    assert "purego_type_fixture_mode_t" not in source_strict_without_type_emit
+    assert "purego_func_get_mode func( mode int32, ) int32" in normalized_strict_without_type_emit
+
+
+def test_render_go_source_typed_sentinel_constants_is_opt_in() -> None:
+    """Typed sentinel constants mode should annotate large constants as uint64."""
+    declarations = ParsedDeclarations(
+        functions=(),
+        typedefs=(),
+        constants=(
+            ConstantDecl(name="SMALL_SENTINEL", value=7),
+            ConstantDecl(name="BIG_SENTINEL", value=18446744073709551615),
+        ),
+        runtime_vars=(),
+    )
+    source_default = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("const",),
+        declarations=declarations,
+    )
+    assert "purego_const_SMALL_SENTINEL = 7" in source_default
+    assert "purego_const_BIG_SENTINEL = 18446744073709551615" in source_default
+
+    source_typed = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("const",),
+        declarations=declarations,
+        type_mapping=TypeMappingOptions(typed_sentinel_constants=True),
+    )
+    assert "purego_const_SMALL_SENTINEL = 7" in source_typed
+    assert "purego_const_BIG_SENTINEL uint64 = 18446744073709551615" in source_typed
+
+
 def test_render_go_source_copies_comments_before_declarations() -> None:
     """Renderer should normalize raw comments and place them before declarations."""
     source = render_go_source(

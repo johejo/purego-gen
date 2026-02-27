@@ -34,6 +34,8 @@ class TypeMappingOptions:
 
     const_char_as_string: bool = False
     strict_opaque_handles: bool = False
+    strict_enum_typedefs: bool = False
+    typed_sentinel_constants: bool = False
 
 
 @dataclass(frozen=True, slots=True)

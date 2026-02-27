@@ -52,6 +52,8 @@ class _ParsedArgs(argparse.Namespace):
     var_filter: str | None
     const_char_as_string: bool
     strict_opaque_handles: bool
+    strict_enum_typedefs: bool
+    typed_sentinel_constants: bool
 
 
 def _parse_emit_kinds(value: str) -> tuple[str, ...]:
@@ -168,6 +170,16 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit opaque struct handle typedefs as strict Go types (default: off).",
     )
+    parser.add_argument(
+        "--strict-enum-typedefs",
+        action="store_true",
+        help="Emit enum typedef aliases as strict Go types when possible (default: off).",
+    )
+    parser.add_argument(
+        "--typed-sentinel-constants",
+        action="store_true",
+        help="Emit large sentinel-style constants as typed uint64 constants (default: off).",
+    )
     return parser
 
 
@@ -209,6 +221,8 @@ def parse_options(argv: list[str]) -> CliOptions:
         type_mapping=TypeMappingOptions(
             const_char_as_string=namespace.const_char_as_string,
             strict_opaque_handles=namespace.strict_opaque_handles,
+            strict_enum_typedefs=namespace.strict_enum_typedefs,
+            typed_sentinel_constants=namespace.typed_sentinel_constants,
         ),
     )
 

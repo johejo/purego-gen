@@ -26,11 +26,13 @@ _GOLDEN_DIR = _REPO_ROOT / "tests" / "golden"
 _GO_COMPILE_FIXTURE_DIR = _FIXTURES_DIR / "go_compile_module"
 _GO_RUNTIME_FIXTURE_DIR = _FIXTURES_DIR / "go_runtime_zstd_module"
 _LIBZSTD_PROFILE_GOLDEN_PATH = _GOLDEN_DIR / "libzstd_profile" / "generated.go"
+_LIBZSTD_STRICT_PROFILE_GOLDEN_PATH = _GOLDEN_DIR / "libzstd_strict_profile" / "generated.go"
 _TARGET_PROFILES_DIR = _FIXTURES_DIR / "target_profiles"
 _LIBZSTD_PROFILE_PATH = _TARGET_PROFILES_DIR / "libzstd_v1.json"
+_LIBZSTD_STRICT_PROFILE_PATH = _TARGET_PROFILES_DIR / "libzstd_strict.json"
 _LIBRARY_OVERRIDE_ENV = "PUREGO_GEN_TEST_LIBZSTD"
-_HEADER_NAME = "zstd.h"
 _GOLDEN_OUTPUT_PACKAGE = "fixture"
+_STRICT_GOLDEN_OUTPUT_PACKAGE = "zstdfixturestrict"
 _RUNTIME_PACKAGE = "zstdfixture"
 _LIBZSTD_MACRO_FILTER = (
     "^("
@@ -49,11 +51,14 @@ class _LibzstdProfile:
     """Stable profile used by libzstd objective harness."""
 
     profile_id: str
+    header_names: tuple[str, ...]
     emit_kinds: str
     required_functions: tuple[str, ...]
     required_types: tuple[str, ...]
+    required_constants: tuple[str, ...]
     function_filter: str
     type_filter: str
+    const_filter: str | None
     type_mapping: TypeMappingOptions
 
 
@@ -61,7 +66,7 @@ class _LibzstdProfile:
 class _LibzstdHarnessConfig:
     """Resolved harness inputs for libzstd target tests."""
 
-    header_path: Path
+    include_dir: Path
     clang_args: tuple[str, ...]
     shared_library_path: Path
 
@@ -114,6 +119,32 @@ def _read_required_non_empty_string_array(raw: dict[str, object], key: str) -> t
     return tuple(items)
 
 
+def _read_optional_non_empty_string_array(
+    raw: dict[str, object], key: str
+) -> tuple[str, ...] | None:
+    """Read one optional non-empty string array field from profile JSON object.
+
+    Returns:
+        Tuple of string values for `key` when present, otherwise `None`.
+
+    Raises:
+        RuntimeError: The field is malformed.
+    """
+    value = raw.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, list) or not value:
+        message = f"libzstd profile optional `{key}` must be a non-empty array when provided."
+        raise RuntimeError(message)
+    items: list[str] = []
+    for element in cast("list[object]", value):
+        if not isinstance(element, str) or not element:
+            message = f"libzstd profile `{key}` must contain non-empty strings."
+            raise RuntimeError(message)
+        items.append(element)
+    return tuple(items)
+
+
 def _read_required_bool(raw: dict[str, object], key: str) -> bool:
     """Read one required bool field from profile JSON object.
 
@@ -126,6 +157,24 @@ def _read_required_bool(raw: dict[str, object], key: str) -> bool:
     value = raw.get(key)
     if not isinstance(value, bool):
         message = f"libzstd profile must define bool `{key}`."
+        raise TypeError(message)
+    return value
+
+
+def _read_optional_bool(raw: dict[str, object], key: str, *, default: bool) -> bool:
+    """Read one optional bool field from profile JSON object.
+
+    Returns:
+        Bool value for `key`, or `default` when missing.
+
+    Raises:
+        TypeError: The field is not a bool.
+    """
+    value = raw.get(key)
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        message = f"libzstd profile optional `{key}` must be bool when provided."
         raise TypeError(message)
     return value
 
@@ -147,11 +196,17 @@ def _read_type_mapping_options(raw: dict[str, object]) -> TypeMappingOptions:
     return TypeMappingOptions(
         const_char_as_string=_read_required_bool(type_mapping_dict, "const_char_as_string"),
         strict_opaque_handles=_read_required_bool(type_mapping_dict, "strict_opaque_handles"),
+        strict_enum_typedefs=_read_optional_bool(
+            type_mapping_dict, "strict_enum_typedefs", default=False
+        ),
+        typed_sentinel_constants=_read_optional_bool(
+            type_mapping_dict, "typed_sentinel_constants", default=False
+        ),
     )
 
 
-def _load_libzstd_profile() -> _LibzstdProfile:
-    """Load stable v1 profile used by libzstd harness tests.
+def _load_libzstd_profile(profile_path: Path) -> _LibzstdProfile:
+    """Load one libzstd profile used by harness tests.
 
     Returns:
         Parsed profile model.
@@ -160,12 +215,12 @@ def _load_libzstd_profile() -> _LibzstdProfile:
         RuntimeError: Profile file is missing or malformed.
         TypeError: Profile JSON root is not an object.
     """
-    if not _LIBZSTD_PROFILE_PATH.is_file():
-        message = f"libzstd profile not found: {_LIBZSTD_PROFILE_PATH}"
+    if not profile_path.is_file():
+        message = f"libzstd profile not found: {profile_path}"
         raise RuntimeError(message)
 
     try:
-        raw_object = cast("object", json.loads(_LIBZSTD_PROFILE_PATH.read_text(encoding="utf-8")))
+        raw_object = cast("object", json.loads(profile_path.read_text(encoding="utf-8")))
     except json.JSONDecodeError as error:
         message = f"failed to parse libzstd profile JSON: {error}"
         raise RuntimeError(message) from error
@@ -178,14 +233,21 @@ def _load_libzstd_profile() -> _LibzstdProfile:
     emit_kinds = _read_required_non_empty_string(raw, "emit_kinds")
     required_functions = _read_required_non_empty_string_array(raw, "required_functions")
     required_types = _read_required_non_empty_string_array(raw, "required_types")
+    required_constants = _read_optional_non_empty_string_array(raw, "required_constants") or ()
+    header_names = _read_optional_non_empty_string_array(raw, "header_names") or ("zstd.h",)
     type_mapping = _read_type_mapping_options(raw)
     return _LibzstdProfile(
         profile_id=profile_id,
+        header_names=header_names,
         emit_kinds=emit_kinds,
         required_functions=required_functions,
         required_types=required_types,
+        required_constants=required_constants,
         function_filter=_build_exact_symbol_regex(required_functions),
         type_filter=_build_exact_symbol_regex(required_types),
+        const_filter=(
+            _build_exact_symbol_regex(required_constants) if required_constants else None
+        ),
         type_mapping=type_mapping,
     )
 
@@ -225,9 +287,8 @@ def _resolve_libzstd_harness_config() -> _LibzstdHarnessConfig:
     """
     clang_args = run_pkg_config_tokens("libzstd", "--cflags")
     include_dir = Path(run_pkg_config_stdout("libzstd", "--variable=includedir")).expanduser()
-    header_path = (include_dir / _HEADER_NAME).resolve()
-    if not header_path.is_file():
-        message = f"failed to locate zstd.h from pkg-config includedir: {header_path}"
+    if not include_dir.is_dir():
+        message = f"failed to resolve libzstd include directory from pkg-config: {include_dir}"
         raise RuntimeError(message)
 
     shared_library_override = os.environ.get(_LIBRARY_OVERRIDE_ENV, "").strip()
@@ -237,7 +298,7 @@ def _resolve_libzstd_harness_config() -> _LibzstdHarnessConfig:
             message = f"{_LIBRARY_OVERRIDE_ENV} does not point to a file: {shared_library_path}"
             raise RuntimeError(message)
         return _LibzstdHarnessConfig(
-            header_path=header_path,
+            include_dir=include_dir,
             clang_args=clang_args,
             shared_library_path=shared_library_path,
         )
@@ -252,10 +313,33 @@ def _resolve_libzstd_harness_config() -> _LibzstdHarnessConfig:
         raise RuntimeError(message)
 
     return _LibzstdHarnessConfig(
-        header_path=header_path,
+        include_dir=include_dir,
         clang_args=clang_args,
         shared_library_path=shared_library_path,
     )
+
+
+def _resolve_profile_headers(
+    config: _LibzstdHarnessConfig,
+    *,
+    profile: _LibzstdProfile,
+) -> tuple[Path, ...]:
+    """Resolve profile-defined header names from pkg-config include directory.
+
+    Returns:
+        Header path tuple in profile-defined order.
+
+    Raises:
+        RuntimeError: One or more headers cannot be resolved.
+    """
+    resolved: list[Path] = []
+    for header_name in profile.header_names:
+        header_path = (config.include_dir / header_name).resolve()
+        if not header_path.is_file():
+            message = f"failed to locate {header_name} from pkg-config includedir: {header_path}"
+            raise RuntimeError(message)
+        resolved.append(header_path)
+    return tuple(resolved)
 
 
 def _run_cli_for_libzstd(
@@ -275,21 +359,27 @@ def _run_cli_for_libzstd(
         "purego_gen",
         "--lib-id",
         "zstd",
-        "--header",
-        str(config.header_path),
         "--pkg",
         package,
         "--emit",
         profile.emit_kinds,
-        "--func-filter",
-        profile.function_filter,
-        "--type-filter",
-        profile.type_filter,
     ]
+    for header_path in _resolve_profile_headers(config, profile=profile):
+        command.extend(["--header", str(header_path)])
+    if profile.function_filter:
+        command.extend(["--func-filter", profile.function_filter])
+    if profile.type_filter:
+        command.extend(["--type-filter", profile.type_filter])
+    if profile.const_filter:
+        command.extend(["--const-filter", profile.const_filter])
     if profile.type_mapping.const_char_as_string:
         command.append("--const-char-as-string")
     if profile.type_mapping.strict_opaque_handles:
         command.append("--strict-opaque-handles")
+    if profile.type_mapping.strict_enum_typedefs:
+        command.append("--strict-enum-typedefs")
+    if profile.type_mapping.typed_sentinel_constants:
+        command.append("--typed-sentinel-constants")
     if config.clang_args:
         command.extend(["--", *config.clang_args])
 
@@ -319,7 +409,14 @@ def _run_cli_for_libzstd_constants(
 
     Returns:
         Completed process result for the CLI invocation.
+
+    Raises:
+        RuntimeError: `zstd.h` cannot be resolved from pkg-config include dir.
     """
+    header_path = (config.include_dir / "zstd.h").resolve()
+    if not header_path.is_file():
+        message = f"failed to locate zstd.h from pkg-config includedir: {header_path}"
+        raise RuntimeError(message)
     command = [
         sys.executable,
         "-m",
@@ -327,7 +424,7 @@ def _run_cli_for_libzstd_constants(
         "--lib-id",
         "zstd",
         "--header",
-        str(config.header_path),
+        str(header_path),
         "--pkg",
         package,
         "--emit",
@@ -402,7 +499,17 @@ def libzstd_profile() -> _LibzstdProfile:
     Returns:
         Parsed profile used to build generation filters.
     """
-    return _load_libzstd_profile()
+    return _load_libzstd_profile(_LIBZSTD_PROFILE_PATH)
+
+
+@pytest.fixture(scope="session")
+def libzstd_strict_profile() -> _LibzstdProfile:
+    """Load strict libzstd profile for strict typing harness tests.
+
+    Returns:
+        Parsed strict profile used to build generation filters.
+    """
+    return _load_libzstd_profile(_LIBZSTD_STRICT_PROFILE_PATH)
 
 
 def test_generates_libzstd_golden_output(
@@ -439,6 +546,28 @@ def test_runtime_harness_resolves_libzstd_symbols(
         tmp_path,
         shared_library_path=libzstd_harness_config.shared_library_path,
     )
+
+
+def test_generates_libzstd_strict_golden_output(
+    tmp_path: Path,
+    libzstd_harness_config: _LibzstdHarnessConfig,
+    libzstd_strict_profile: _LibzstdProfile,
+) -> None:
+    """Strict profile output should match committed strict golden output."""
+    result = _run_cli_for_libzstd(
+        libzstd_harness_config,
+        profile=libzstd_strict_profile,
+        package=_STRICT_GOLDEN_OUTPUT_PACKAGE,
+    )
+    expected = _LIBZSTD_STRICT_PROFILE_GOLDEN_PATH.read_text(encoding="utf-8")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == expected
+    assert "purego_type_ZSTD_ErrorCode int32" in result.stdout
+    assert ") purego_type_ZSTD_ErrorCode" in result.stdout
+    assert "purego_const_ZSTD_CONTENTSIZE_UNKNOWN uint64" in result.stdout
+    assert "purego_const_ZSTD_CONTENTSIZE_ERROR" in result.stdout
+    assert "uint64 = 18446744073709551614" in result.stdout
+    _assert_go_source_compiles(result.stdout, tmp_path)
 
 
 def test_extracts_libzstd_object_like_macro_constants(

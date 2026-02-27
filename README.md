@@ -23,6 +23,10 @@ purego-gen --lib-id zstd --header zstd.h --out -
   `--const-char-as-string` maps only `const char*` slots to Go `string`.
 - Optional `--strict-opaque-handles` emits opaque struct-handle typedefs as
   strict Go types (`type T uintptr`) when `--emit` includes `type`.
+- Optional `--strict-enum-typedefs` emits enum typedef aliases as strict Go
+  types (`type T int32`) when `--emit` includes `type`.
+- Optional `--typed-sentinel-constants` emits large sentinel-style constants
+  as typed `uint64` constants.
 - Declaration comments from C headers are copied to generated Go declarations
   as `//` comments when libclang provides declaration-attached comments.
 - Plain `//` / `/* */` comments are copied only when clang is invoked with

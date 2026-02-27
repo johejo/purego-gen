@@ -38,7 +38,11 @@ const (
     // {{ comment_line }}
             {% endfor %}
         {% endif %}
+        {% if constant.const_type is not none %}
+    purego_const_{{ constant.identifier }} {{ constant.const_type }} = {{ constant.value }}
+        {% else %}
     purego_const_{{ constant.identifier }} = {{ constant.value }}
+        {% endif %}
     {% endfor %}
 )
 {% endif %}

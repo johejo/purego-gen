@@ -163,11 +163,21 @@ This split removes ambiguity between "constant" and "data symbol".
 - Optional CLI mode `--strict-opaque-handles` emits only opaque struct-handle
   typedefs as strict Go types (`type T uintptr`) instead of aliases.
 - `--strict-opaque-handles` has effect only when `--emit` includes `type`.
+- Optional CLI mode `--strict-enum-typedefs` emits enum typedef aliases as
+  strict Go types (`type T int32`) when `--emit` includes `type`.
+- `--strict-enum-typedefs` has effect only when `--emit` includes `type`.
+- Optional CLI mode `--typed-sentinel-constants` emits large sentinel-style
+  compile-time constants (`value > MaxInt64`) as typed `uint64` constants.
 - When an opaque typedef alias is emitted (`--emit` includes `type`), function
   signatures use the emitted alias (`purego_type_*`) for matching `T*` /
   `const T*` result and parameter types instead of raw `uintptr`.
+- When strict enum typedef aliases are emitted (`--emit` includes `type` and
+  `--strict-enum-typedefs`), matching function result/parameter slots use the
+  emitted alias (`purego_type_*`) instead of raw `int32`.
 - If matching opaque aliases are not emitted (for example `--emit func` only),
   function signatures keep `uintptr` fallback for those types.
+- If matching strict enum aliases are not emitted (for example `--emit func`
+  only), function signatures keep `int32` fallback for those types.
 - Nested/unsupported record typedefs that are not representable by the current
   baseline mapping are skipped from emitted type aliases.
 - When a typedef is skipped due to unsupported record mapping, the CLI emits a
@@ -259,6 +269,8 @@ Behavior:
 - All emitted runtime symbols are required; generated helpers return errors
   when symbol resolution fails.
 - Compile-time constants are emitted directly as Go constants and do not require runtime loading.
+- By default constants are untyped; `--typed-sentinel-constants` only changes
+  strict sentinel-style values into typed `uint64` constants.
 
 ## CLI Contract
 
@@ -303,6 +315,8 @@ Rules:
 - `--emit` controls which categories are generated.
 - `--const-char-as-string` is opt-in and disabled by default.
 - `--strict-opaque-handles` is opt-in and disabled by default.
+- `--strict-enum-typedefs` is opt-in and disabled by default.
+- `--typed-sentinel-constants` is opt-in and disabled by default.
 - `--out <path>` writes to a file.
 - `--out -` or omitted `--out` writes generated code to stdout.
 - Generated Go source is formatted with `gofmt` before writing to stdout or files.

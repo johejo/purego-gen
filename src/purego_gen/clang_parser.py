@@ -1238,6 +1238,8 @@ def parse_declarations(
         resolved_type_mapping = TypeMappingOptions(
             const_char_as_string=map_const_char_pointer_to_string,
             strict_opaque_handles=resolved_type_mapping.strict_opaque_handles,
+            strict_enum_typedefs=resolved_type_mapping.strict_enum_typedefs,
+            typed_sentinel_constants=resolved_type_mapping.typed_sentinel_constants,
         )
 
     cindex = _load_cindex()
