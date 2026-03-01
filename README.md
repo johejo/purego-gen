@@ -21,12 +21,15 @@ purego-gen --lib-id zstd --header zstd.h --out -
   when corresponding opaque typedefs are emitted.
 - Function signatures keep pointer-like C types low-level by default; optional
   `--const-char-as-string` maps only `const char*` slots to Go `string`.
-- Optional `--strict-opaque-handles` emits opaque struct-handle typedefs as
-  strict Go types (`type T uintptr`) when `--emit` includes `type`.
+- Incomplete struct typedefs are treated as opaque handles; when `--emit`
+  includes `type`, opaque handles are emitted as strict Go types
+  (`type T uintptr`) by default.
 - Optional `--strict-enum-typedefs` emits enum typedef aliases as strict Go
   types (`type T int32`) when `--emit` includes `type`.
 - Optional `--typed-sentinel-constants` emits large sentinel-style constants
   as typed `uint64` constants.
+- CLI stderr includes stable opaque-summary diagnostics:
+  `PG_OPAQUE_EMITTED_COUNT` and `PG_OPAQUE_FALLBACK_UINTPTR_COUNT`.
 - Declaration comments from C headers are copied to generated Go declarations
   as `//` comments when libclang provides declaration-attached comments.
 - Plain `//` / `/* */` comments are copied only when clang is invoked with

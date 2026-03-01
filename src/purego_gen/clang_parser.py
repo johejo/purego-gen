@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 from purego_gen.macro_constants import evaluate_object_like_macro_definition
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
+    TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_ANONYMOUS_FIELD,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
@@ -657,6 +658,12 @@ def _map_record_type_to_go_name(clang_type: _TypeLike) -> _RecordTypeMappingResu
             message=f"record kind {declaration_kind_name} is not supported in v1",
         )
         return _RecordTypeMappingResult(go_type=None, unsupported_diagnostic=diagnostic)
+    if not declaration.is_definition():
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
+            message="incomplete struct typedef is treated as opaque handle",
+        )
+        return _RecordTypeMappingResult(go_type=None, unsupported_diagnostic=diagnostic)
 
     field_lines: list[str] = []
     seen_field_names: set[str] = set()
@@ -702,6 +709,9 @@ def _extract_record_typedef_decl(
         Parsed record typedef metadata with field-level details.
     """
     declaration = canonical_record_type.get_declaration()
+    is_incomplete = (
+        declaration.kind.name == _STRUCT_DECL_KIND_NAME and not declaration.is_definition()
+    )
     fields = tuple(
         _extract_record_field_decl(field_cursor, index=index)
         for index, field_cursor in enumerate(declaration.get_children(), start=1)
@@ -725,6 +735,8 @@ def _extract_record_typedef_decl(
             if mapping_result.unsupported_diagnostic is not None
             else None
         ),
+        is_incomplete=is_incomplete,
+        is_opaque=is_incomplete,
     )
 
 
@@ -1237,7 +1249,6 @@ def parse_declarations(
             raise ValueError(message)
         resolved_type_mapping = TypeMappingOptions(
             const_char_as_string=map_const_char_pointer_to_string,
-            strict_opaque_handles=resolved_type_mapping.strict_opaque_handles,
             strict_enum_typedefs=resolved_type_mapping.strict_enum_typedefs,
             typed_sentinel_constants=resolved_type_mapping.typed_sentinel_constants,
         )

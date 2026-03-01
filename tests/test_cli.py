@@ -16,11 +16,9 @@ def test_parse_options_keeps_existing_type_mapping_defaults() -> None:
         "--header",
         "fixture.h",
         "--const-char-as-string",
-        "--strict-opaque-handles",
     ])
     assert options.type_mapping == TypeMappingOptions(
         const_char_as_string=True,
-        strict_opaque_handles=True,
         strict_enum_typedefs=False,
         typed_sentinel_constants=False,
     )

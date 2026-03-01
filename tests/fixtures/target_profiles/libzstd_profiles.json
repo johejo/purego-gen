@@ -8,8 +8,7 @@
       ],
       "emit_kinds": "func,type",
       "type_mapping": {
-        "const_char_as_string": true,
-        "strict_opaque_handles": false
+        "const_char_as_string": true
       },
       "required_functions": [
         "ZSTD_versionNumber",
@@ -57,7 +56,6 @@
         "ZSTD_CONTENTSIZE_ERROR"
       ],
       "type_mapping": {
-        "strict_opaque_handles": true,
         "strict_enum_typedefs": true,
         "typed_sentinel_constants": true
       }

@@ -47,3 +47,5 @@ def test_inspect_script_exits_zero_for_libzstd() -> None:
         "0",
     )
     assert result.returncode == 0, result.stderr
+    assert "opaque_record_typedefs=" in result.stdout
+    assert "sample_opaque_record_typedefs:" in result.stdout

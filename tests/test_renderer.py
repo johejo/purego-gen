@@ -115,8 +115,10 @@ def test_render_go_source_falls_back_to_uintptr_without_type_emit() -> None:
                     align_bytes=None,
                     fields=(),
                     supported=False,
-                    unsupported_code="PG_TYPE_NO_SUPPORTED_FIELDS",
-                    unsupported_reason="struct has no supported fields in v1",
+                    unsupported_code="PG_TYPE_OPAQUE_INCOMPLETE_STRUCT",
+                    unsupported_reason="incomplete struct typedef is treated as opaque handle",
+                    is_incomplete=True,
+                    is_opaque=True,
                 ),
             ),
         ),
@@ -126,8 +128,8 @@ def test_render_go_source_falls_back_to_uintptr_without_type_emit() -> None:
     assert "purego_func_create_ctx func( ctx uintptr, ) uintptr" in normalized_source
 
 
-def test_render_go_source_emits_strict_opaque_handle_types_when_enabled() -> None:
-    """Strict opaque-handle mode should emit named types for opaque struct handles only."""
+def test_render_go_source_emits_strict_opaque_handle_types_by_default() -> None:
+    """Opaque struct handles should emit named strict types by default in v2."""
     source = render_go_source(
         package=_FIXTURE_PACKAGE,
         lib_id=_FIXTURE_LIB_ID,
@@ -158,12 +160,13 @@ def test_render_go_source_emits_strict_opaque_handle_types_when_enabled() -> Non
                     align_bytes=None,
                     fields=(),
                     supported=False,
-                    unsupported_code="PG_TYPE_NO_SUPPORTED_FIELDS",
-                    unsupported_reason="struct has no supported fields in v1",
+                    unsupported_code="PG_TYPE_OPAQUE_INCOMPLETE_STRUCT",
+                    unsupported_reason="incomplete struct typedef is treated as opaque handle",
+                    is_incomplete=True,
+                    is_opaque=True,
                 ),
             ),
         ),
-        type_mapping=TypeMappingOptions(strict_opaque_handles=True),
     )
     normalized_source = " ".join(source.split())
     assert "purego_type_foo_t uintptr" in normalized_source

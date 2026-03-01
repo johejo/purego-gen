@@ -158,11 +158,12 @@ This split removes ambiguity between "constant" and "data symbol".
 - Nested struct fields are supported when nested field types are also mappable.
 - Struct field kinds currently unsupported in v1: arrays, unions, bitfields,
   and anonymous fields.
-- Incomplete/opaque struct typedefs are emitted as `uintptr` aliases for
-  handle-style interop.
-- Optional CLI mode `--strict-opaque-handles` emits only opaque struct-handle
-  typedefs as strict Go types (`type T uintptr`) instead of aliases.
-- `--strict-opaque-handles` has effect only when `--emit` includes `type`.
+- Incomplete struct typedefs (forward declarations with no definition) are
+  treated as opaque handles.
+- Opaque struct-handle typedefs are emitted as strict Go types (`type T
+  uintptr`) when `--emit` includes `type`.
+- Unsupported struct patterns (`array`, `union`, bitfield, anonymous field) do
+  not fall back to opaque handles.
 - Optional CLI mode `--strict-enum-typedefs` emits enum typedef aliases as
   strict Go types (`type T int32`) when `--emit` includes `type`.
 - `--strict-enum-typedefs` has effect only when `--emit` includes `type`.
@@ -183,6 +184,11 @@ This split removes ambiguity between "constant" and "data symbol".
 - When a typedef is skipped due to unsupported record mapping, the CLI emits a
   stderr diagnostic with both a stable diagnostic code and human-readable
   reason.
+- Incomplete opaque struct typedef metadata uses
+  `PG_TYPE_OPAQUE_INCOMPLETE_STRUCT` and remains distinct from
+  `PG_TYPE_NO_SUPPORTED_FIELDS` used by unsupported empty/anonymous patterns.
+- CLI stderr also emits stable opaque-summary diagnostics:
+  `PG_OPAQUE_EMITTED_COUNT` and `PG_OPAQUE_FALLBACK_UINTPTR_COUNT`.
 - The parser model also retains these type-diagnostic codes (record-level and
   field-level) so ABI-focused tests can assert unsupported behavior without
   depending on exact stderr phrasing.
@@ -314,7 +320,6 @@ Rules:
 - If a category filter is provided for an emitted category and matches nothing, CLI exits non-zero with an actionable error.
 - `--emit` controls which categories are generated.
 - `--const-char-as-string` is opt-in and disabled by default.
-- `--strict-opaque-handles` is opt-in and disabled by default.
 - `--strict-enum-typedefs` is opt-in and disabled by default.
 - `--typed-sentinel-constants` is opt-in and disabled by default.
 - `--out <path>` writes to a file.

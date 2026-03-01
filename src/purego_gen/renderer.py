@@ -227,9 +227,7 @@ def _build_emitted_opaque_struct_typedef_names(
     for record_typedef in declarations.record_typedefs:
         if record_typedef.record_kind != "STRUCT_DECL":
             continue
-        if record_typedef.supported:
-            continue
-        if record_typedef.fields:
+        if not record_typedef.is_opaque:
             continue
         if record_typedef.name not in emitted_typedef_names:
             continue
@@ -544,10 +542,7 @@ def _build_context(
                 "identifier": identifier,
                 "go_type": typedef.go_type,
                 "is_strict": (
-                    (
-                        type_mapping.strict_opaque_handles
-                        and typedef.name in emitted_opaque_struct_typedef_names
-                    )
+                    typedef.name in emitted_opaque_struct_typedef_names
                     or typedef.name in emitted_strict_enum_typedef_names
                 ),
                 "comment_lines": _normalize_comment_lines(typedef.comment),

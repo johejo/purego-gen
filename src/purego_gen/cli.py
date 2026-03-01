@@ -19,6 +19,11 @@ from purego_gen.renderer import RendererError, render_go_source
 
 _ALLOWED_EMIT_KINDS: Final[frozenset[str]] = frozenset({"func", "type", "const", "var"})
 _GO_IDENTIFIER_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_OPAQUE_POINTER_TYPEDEF_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"^(?:(?:const|volatile|restrict)\s+)*([A-Za-z_][A-Za-z0-9_]*)\s*\*(?:\s*(?:const|volatile|restrict))*$"
+)
+_OPAQUE_DIAGNOSTIC_CODE_EMITTED_COUNT: Final[str] = "PG_OPAQUE_EMITTED_COUNT"
+_OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT: Final[str] = "PG_OPAQUE_FALLBACK_UINTPTR_COUNT"
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,7 +56,6 @@ class _ParsedArgs(argparse.Namespace):
     const_filter: str | None
     var_filter: str | None
     const_char_as_string: bool
-    strict_opaque_handles: bool
     strict_enum_typedefs: bool
     typed_sentinel_constants: bool
 
@@ -166,11 +170,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Map const char* function signature slots to Go string (default: off).",
     )
     parser.add_argument(
-        "--strict-opaque-handles",
-        action="store_true",
-        help="Emit opaque struct handle typedefs as strict Go types (default: off).",
-    )
-    parser.add_argument(
         "--strict-enum-typedefs",
         action="store_true",
         help="Emit enum typedef aliases as strict Go types when possible (default: off).",
@@ -220,11 +219,67 @@ def parse_options(argv: list[str]) -> CliOptions:
         clang_args=clang_argv,
         type_mapping=TypeMappingOptions(
             const_char_as_string=namespace.const_char_as_string,
-            strict_opaque_handles=namespace.strict_opaque_handles,
             strict_enum_typedefs=namespace.strict_enum_typedefs,
             typed_sentinel_constants=namespace.typed_sentinel_constants,
         ),
     )
+
+
+def _extract_typedef_name_from_pointer_c_type(c_type: str) -> str | None:
+    """Extract typedef name from one single-pointer C type spelling.
+
+    Returns:
+        Typedef name when `c_type` is a supported single-pointer spelling.
+    """
+    normalized = " ".join(c_type.split())
+    matched = _OPAQUE_POINTER_TYPEDEF_PATTERN.fullmatch(normalized)
+    if matched is None:
+        return None
+    return matched.group(1)
+
+
+def _count_opaque_diagnostics(
+    *,
+    emit_kinds: tuple[str, ...],
+    declarations: ParsedDeclarations,
+) -> tuple[int, int]:
+    """Count opaque-emission and fallback-to-uintptr diagnostics.
+
+    Returns:
+        Tuple of emitted-opaque typedef count and uintptr-fallback slot count.
+    """
+    opaque_typedef_names = {
+        record_typedef.name
+        for record_typedef in declarations.record_typedefs
+        if record_typedef.record_kind == "STRUCT_DECL" and record_typedef.is_opaque
+    }
+    emitted_opaque_typedef_names: set[str] = set()
+    if "type" in emit_kinds:
+        emitted_typedef_names = {typedef.name for typedef in declarations.typedefs}
+        emitted_opaque_typedef_names = opaque_typedef_names.intersection(emitted_typedef_names)
+
+    fallback_slot_count = 0
+    if "func" in emit_kinds:
+        for function in declarations.functions:
+            function_slots: list[tuple[str, str]] = list(
+                zip(
+                    function.go_parameter_types,
+                    function.parameter_c_types,
+                    strict=True,
+                )
+            )
+            if function.go_result_type is not None:
+                function_slots.append((function.go_result_type, function.result_c_type))
+            for go_type, c_type in function_slots:
+                if go_type != "uintptr":
+                    continue
+                typedef_name = _extract_typedef_name_from_pointer_c_type(c_type)
+                if typedef_name is None or typedef_name not in opaque_typedef_names:
+                    continue
+                if typedef_name in emitted_opaque_typedef_names:
+                    continue
+                fallback_slot_count += 1
+    return len(emitted_opaque_typedef_names), fallback_slot_count
 
 
 def _compile_filter(pattern: str | None, option: str) -> re.Pattern[str] | None:
@@ -450,6 +505,18 @@ def main(argv: list[str] | None = None) -> int:
             f"{skipped_typedef.name} ({skipped_typedef.c_type}) "
             f"[{skipped_typedef.reason_code}]: {skipped_typedef.reason}\n"
         )
+    opaque_emitted_count, opaque_fallback_count = _count_opaque_diagnostics(
+        emit_kinds=options.emit_kinds,
+        declarations=filtered_declarations,
+    )
+    sys.stderr.write(
+        "purego-gen: opaque typedefs emitted "
+        f"[{_OPAQUE_DIAGNOSTIC_CODE_EMITTED_COUNT}]: {opaque_emitted_count}\n"
+    )
+    sys.stderr.write(
+        "purego-gen: opaque function signature slots fell back to uintptr "
+        f"[{_OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT}]: {opaque_fallback_count}\n"
+    )
 
     try:
         rendered = render_go_source(

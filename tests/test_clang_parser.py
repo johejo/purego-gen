@@ -9,6 +9,7 @@ from pathlib import Path
 from purego_gen.clang_parser import parse_declarations
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
+    TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
@@ -119,6 +120,13 @@ def test_parse_type_mapping_edge_cases() -> None:
         TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
         "struct has no supported fields in v1",
     )
+    record_typedef_map = {
+        record_typedef.name: record_typedef for record_typedef in declarations.record_typedefs
+    }
+    opaque_record = record_typedef_map["fixture_opaque_t"]
+    assert opaque_record.unsupported_code == TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT
+    assert opaque_record.is_incomplete
+    assert opaque_record.is_opaque
     assert tuple(constant.name for constant in declarations.constants) == (
         "FIXTURE_MODE_OFF",
         "FIXTURE_MODE_ON",

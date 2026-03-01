@@ -247,6 +247,12 @@ def _report_declarations(
     _write_line(f"functions={len(declarations.functions)}")
     _write_line(f"typedefs={len(declarations.typedefs)}")
     _write_line(f"record_typedefs={len(declarations.record_typedefs)}")
+    opaque_record_typedefs = tuple(
+        record_typedef
+        for record_typedef in declarations.record_typedefs
+        if record_typedef.is_opaque
+    )
+    _write_line(f"opaque_record_typedefs={len(opaque_record_typedefs)}")
     _write_line(f"constants={len(declarations.constants)}")
     _write_line(f"runtime_vars={len(declarations.runtime_vars)}")
     _write_line(f"skipped_typedefs={len(declarations.skipped_typedefs)}")
@@ -263,6 +269,13 @@ def _report_declarations(
     _write_line("sample_skipped_typedefs:")
     for skipped in declarations.skipped_typedefs[:sample_size]:
         _write_line(f"  {skipped.name}: {skipped.reason_code} :: {skipped.reason}")
+    _write_line("sample_opaque_record_typedefs:")
+    for record_typedef in opaque_record_typedefs[:sample_size]:
+        _write_line(
+            "  "
+            f"{record_typedef.name}: {record_typedef.unsupported_code} :: "
+            f"{record_typedef.unsupported_reason}"
+        )
 
 
 def _load_patterns(

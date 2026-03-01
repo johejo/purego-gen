@@ -16,13 +16,13 @@ type (
 	// *************************************
 	// Explicit context
 	// *************************************
-	purego_type_ZSTD_CCtx = uintptr
-	purego_type_ZSTD_DCtx = uintptr
+	purego_type_ZSTD_CCtx uintptr
+	purego_type_ZSTD_DCtx uintptr
 	// *********************************
 	// Bulk processing dictionary API
 	// ********************************
-	purego_type_ZSTD_CDict = uintptr
-	purego_type_ZSTD_DDict = uintptr
+	purego_type_ZSTD_CDict uintptr
+	purego_type_ZSTD_DDict uintptr
 )
 
 var (

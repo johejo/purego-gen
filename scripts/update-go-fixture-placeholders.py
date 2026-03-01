@@ -139,8 +139,6 @@ def _append_type_mapping_flags(command: list[str], *, type_mapping: TypeMappingO
     """Append enabled type-mapping option flags to one purego-gen command."""
     if type_mapping.const_char_as_string:
         command.append("--const-char-as-string")
-    if type_mapping.strict_opaque_handles:
-        command.append("--strict-opaque-handles")
     if type_mapping.strict_enum_typedefs:
         command.append("--strict-enum-typedefs")
     if type_mapping.typed_sentinel_constants:

@@ -13,6 +13,7 @@ TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE: Final[str] = "PG_TYPE_UNSUPPORTED_F
 TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF: Final[str] = "PG_TYPE_UNSUPPORTED_UNION_TYPEDEF"
 TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD_KIND: Final[str] = "PG_TYPE_UNSUPPORTED_RECORD_KIND"
 TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS: Final[str] = "PG_TYPE_NO_SUPPORTED_FIELDS"
+TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT: Final[str] = "PG_TYPE_OPAQUE_INCOMPLETE_STRUCT"
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,7 +34,6 @@ class TypeMappingOptions:
     """Type-mapping policy toggles for generated Go function signatures."""
 
     const_char_as_string: bool = False
-    strict_opaque_handles: bool = False
     strict_enum_typedefs: bool = False
     typed_sentinel_constants: bool = False
 
@@ -106,6 +106,8 @@ class RecordTypedefDecl:
     supported: bool
     unsupported_code: str | None
     unsupported_reason: str | None
+    is_incomplete: bool = False
+    is_opaque: bool = False
 
 
 @dataclass(frozen=True, slots=True)

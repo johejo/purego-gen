@@ -8,7 +8,7 @@ from pathlib import Path
 
 from purego_gen.clang_parser import parse_declarations
 from purego_gen.model import (
-    TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
+    TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
 )
@@ -72,5 +72,7 @@ def test_parse_record_typedef_model_for_pre_m4_abi() -> None:
 
     opaque_record = record_typedef_map["fixture_opaque_t"]
     assert not opaque_record.supported
-    assert opaque_record.unsupported_code == TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS
+    assert opaque_record.unsupported_code == TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT
     assert opaque_record.fields == ()
+    assert opaque_record.is_incomplete
+    assert opaque_record.is_opaque

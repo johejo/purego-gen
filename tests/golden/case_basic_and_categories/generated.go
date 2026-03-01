@@ -15,7 +15,7 @@ var (
 type (
 	purego_type_my_int    = int32
 	purego_type_my_handle = uintptr
-	purego_type_not_basic = uintptr
+	purego_type_not_basic uintptr
 	purego_type_my_uint   = uint32
 )
 

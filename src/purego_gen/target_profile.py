@@ -33,7 +33,6 @@ _ALLOWED_COMPONENT_KEYS: Final[frozenset[str]] = frozenset({
 _ALLOWED_PROFILE_KEYS: Final[frozenset[str]] = _ALLOWED_COMPONENT_KEYS | frozenset({"compose"})
 _ALLOWED_TYPE_MAPPING_KEYS: Final[frozenset[str]] = frozenset({
     "const_char_as_string",
-    "strict_opaque_handles",
     "strict_enum_typedefs",
     "typed_sentinel_constants",
 })
@@ -317,15 +316,8 @@ def _build_type_mapping(
             "`type_mapping.const_char_as_string`."
         )
         raise RuntimeError(message)
-    if "strict_opaque_handles" not in resolved_type_mapping:
-        message = (
-            f"catalog `{path}` profile `{profile_id}` must resolve "
-            "`type_mapping.strict_opaque_handles`."
-        )
-        raise RuntimeError(message)
     return TypeMappingOptions(
         const_char_as_string=resolved_type_mapping["const_char_as_string"],
-        strict_opaque_handles=resolved_type_mapping["strict_opaque_handles"],
         strict_enum_typedefs=resolved_type_mapping.get("strict_enum_typedefs", False),
         typed_sentinel_constants=resolved_type_mapping.get("typed_sentinel_constants", False),
     )

@@ -35,7 +35,6 @@ def test_load_target_profile_catalog_applies_compose_order_and_overrides(tmp_pat
                     "required_types": ["BaseType"],
                     "type_mapping": {
                         "const_char_as_string": True,
-                        "strict_opaque_handles": False,
                     },
                 },
                 "strict_defaults": {
@@ -44,7 +43,6 @@ def test_load_target_profile_catalog_applies_compose_order_and_overrides(tmp_pat
                     "required_types": ["BaseType", "ErrType"],
                     "required_constants": ["ERR_ONE", "ERR_TWO"],
                     "type_mapping": {
-                        "strict_opaque_handles": True,
                         "strict_enum_typedefs": True,
                     },
                 },
@@ -70,7 +68,6 @@ def test_load_target_profile_catalog_applies_compose_order_and_overrides(tmp_pat
     assert profile.type_filter == build_exact_symbol_regex(("BaseType", "ErrType"))
     assert profile.const_filter == build_exact_symbol_regex(("ERR_ONE", "ERR_TWO"))
     assert profile.type_mapping.const_char_as_string is True
-    assert profile.type_mapping.strict_opaque_handles is True
     assert profile.type_mapping.strict_enum_typedefs is True
     assert profile.type_mapping.typed_sentinel_constants is True
 
@@ -89,7 +86,6 @@ def test_load_target_profile_catalog_requires_resolved_header_names(tmp_path: Pa
                     "required_types": ["Ty"],
                     "type_mapping": {
                         "const_char_as_string": True,
-                        "strict_opaque_handles": False,
                     },
                 }
             },
@@ -115,7 +111,6 @@ def test_load_target_profile_catalog_errors_on_unknown_preset(tmp_path: Path) ->
                     "required_types": ["Ty"],
                     "type_mapping": {
                         "const_char_as_string": True,
-                        "strict_opaque_handles": False,
                     },
                 }
             },
@@ -140,7 +135,6 @@ def test_load_target_profile_catalog_errors_on_missing_required_fields(tmp_path:
                     "required_types": ["Ty"],
                     "type_mapping": {
                         "const_char_as_string": True,
-                        "strict_opaque_handles": False,
                     },
                 }
             },
@@ -166,7 +160,6 @@ def test_load_target_profile_catalog_errors_on_unknown_profile_id(tmp_path: Path
                     "required_types": ["Ty"],
                     "type_mapping": {
                         "const_char_as_string": True,
-                        "strict_opaque_handles": False,
                     },
                 }
             },

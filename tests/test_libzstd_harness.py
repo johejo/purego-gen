@@ -175,8 +175,6 @@ def _run_cli_for_libzstd(
         command.extend(["--const-filter", profile.const_filter])
     if profile.type_mapping.const_char_as_string:
         command.append("--const-char-as-string")
-    if profile.type_mapping.strict_opaque_handles:
-        command.append("--strict-opaque-handles")
     if profile.type_mapping.strict_enum_typedefs:
         command.append("--strict-enum-typedefs")
     if profile.type_mapping.typed_sentinel_constants:
