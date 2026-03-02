@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from purego_gen.go_test_harness import run_go_test_in_generated_module
 from purego_gen.pkg_config import run_pkg_config_stdout, run_pkg_config_tokens
 from purego_gen.target_profile import TargetProfile, load_target_profile_catalog
+from tests.helper.go_test_harness import run_go_test_in_generated_module
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SRC_DIR = _REPO_ROOT / "src"

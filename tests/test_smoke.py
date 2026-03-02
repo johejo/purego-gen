@@ -9,14 +9,14 @@ import subprocess  # noqa: S404
 import sys
 from pathlib import Path
 
-from purego_gen.go_test_harness import run_go_test_in_generated_module
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
 )
-from purego_gen.toolchain import resolve_c_compiler_command
+from tests.helper.go_test_harness import run_go_test_in_generated_module
+from tests.helper.toolchain import resolve_c_compiler_command
 
 _ARGPARSE_USAGE_ERROR = 2
 _REPO_ROOT = Path(__file__).resolve().parents[1]
