@@ -1,0 +1,335 @@
+# Copyright (c) 2026 purego-gen contributors.
+# ruff: noqa: DOC201
+# pyright: reportPrivateUsage=false, reportUnusedFunction=false
+
+"""libclang-to-model type mapping helpers."""
+
+from __future__ import annotations
+
+from typing import Final
+
+from purego_gen.clang_types import (
+    _CursorLike,
+    _RecordTypeMappingResult,
+    _TypeLike,
+    _UnsupportedTypeDiagnostic,
+)
+from purego_gen.identifier_utils import sanitize_struct_field_identifier
+from purego_gen.model import (
+    TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
+    TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_ANONYMOUS_FIELD,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD_KIND,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
+    RecordFieldDecl,
+    RecordTypedefDecl,
+    TypeMappingOptions,
+)
+
+_TYPE_KIND_TO_GO_TYPE: Final[dict[str, str]] = {
+    "BOOL": "bool",
+    "CHAR_S": "int8",
+    "SCHAR": "int8",
+    "CHAR_U": "uint8",
+    "UCHAR": "uint8",
+    "SHORT": "int16",
+    "USHORT": "uint16",
+    "INT": "int32",
+    "UINT": "uint32",
+    "LONG": "int64",
+    "ULONG": "uint64",
+    "LONGLONG": "int64",
+    "ULONGLONG": "uint64",
+    "FLOAT": "float32",
+    "DOUBLE": "float64",
+    "ENUM": "int32",
+}
+_FUNCTION_TYPE_KINDS: Final[frozenset[str]] = frozenset({"FUNCTIONPROTO", "FUNCTIONNOPROTO"})
+_CHAR_TYPE_KINDS: Final[frozenset[str]] = frozenset({"CHAR_S", "CHAR_U"})
+_RECORD_TYPE_KIND_NAME: Final[str] = "RECORD"
+_FIELD_DECL_KIND_NAME: Final[str] = "FIELD_DECL"
+_STRUCT_DECL_KIND_NAME: Final[str] = "STRUCT_DECL"
+_UNION_DECL_KIND_NAME: Final[str] = "UNION_DECL"
+
+
+def _map_type_to_go_name(clang_type: _TypeLike) -> str | None:
+    """Map libclang type into a basic Go type."""
+    canonical = clang_type.get_canonical()
+    kind_name = canonical.kind.name
+
+    mapped = _TYPE_KIND_TO_GO_TYPE.get(kind_name)
+    if mapped is not None:
+        return mapped
+    if kind_name == "POINTER":
+        pointee_kind_name = canonical.get_pointee().get_canonical().kind.name
+        if pointee_kind_name in _FUNCTION_TYPE_KINDS:
+            return "uintptr"
+    if kind_name == "POINTER":
+        return "uintptr"
+    if kind_name == _RECORD_TYPE_KIND_NAME:
+        return _map_record_type_to_go_name(canonical).go_type
+    return None
+
+
+def _allocate_unique_field_name(base_name: str, seen_field_names: set[str]) -> str:
+    """Allocate a unique Go field name within one struct literal."""
+    field_name = base_name
+    suffix = 2
+    while field_name in seen_field_names:
+        field_name = f"{base_name}_{suffix}"
+        suffix += 1
+    return field_name
+
+
+def _normalize_clang_metric(raw_value: int) -> int | None:
+    """Normalize clang layout metric value."""
+    if raw_value < 0:
+        return None
+    return int(raw_value)
+
+
+def _safe_type_size_bytes(clang_type: _TypeLike) -> int | None:
+    """Read type size in bytes from clang, tolerating unsupported cases."""
+    try:
+        return _normalize_clang_metric(clang_type.get_size())
+    except RuntimeError, TypeError, ValueError:
+        return None
+
+
+def _safe_type_align_bytes(clang_type: _TypeLike) -> int | None:
+    """Read type alignment in bytes from clang, tolerating unsupported cases."""
+    try:
+        return _normalize_clang_metric(clang_type.get_align())
+    except RuntimeError, TypeError, ValueError:
+        return None
+
+
+def _safe_field_offset_bits(field_cursor: _CursorLike) -> int | None:
+    """Read field offset in bits from clang, tolerating unsupported cases."""
+    try:
+        return _normalize_clang_metric(field_cursor.get_field_offsetof())
+    except RuntimeError, TypeError, ValueError:
+        return None
+
+
+def _safe_bitfield_width(field_cursor: _CursorLike) -> int | None:
+    """Read bitfield width from clang, tolerating unsupported cases."""
+    try:
+        return _normalize_clang_metric(field_cursor.get_bitfield_width())
+    except RuntimeError, TypeError, ValueError:
+        return None
+
+
+def _evaluate_record_field_support(
+    field_cursor: _CursorLike,
+    *,
+    index: int,
+) -> tuple[str | None, _UnsupportedTypeDiagnostic | None]:
+    """Evaluate whether one record field is supported by v1 mapping."""
+    field_name_for_message = str(field_cursor.spelling) or f"<anonymous field #{index}>"
+    if not field_cursor.spelling:
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_ANONYMOUS_FIELD,
+            message=f"anonymous field {field_name_for_message} is not supported in v1",
+        )
+        return None, diagnostic
+    if field_cursor.is_bitfield():
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
+            message=f"bitfield {field_name_for_message} is not supported in v1",
+        )
+        return None, diagnostic
+
+    go_type = _map_type_to_go_name(field_cursor.type)
+    if go_type is None:
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
+            message=(
+                f"unsupported field type for {field_name_for_message}: {field_cursor.type.spelling}"
+            ),
+        )
+        return None, diagnostic
+    return go_type, None
+
+
+def _map_record_field_to_go_line(
+    field_cursor: _CursorLike,
+    *,
+    index: int,
+    seen_field_names: set[str],
+) -> tuple[str | None, _UnsupportedTypeDiagnostic | None]:
+    """Map one record field cursor to a Go field line."""
+    go_type, unsupported_diagnostic = _evaluate_record_field_support(field_cursor, index=index)
+    if unsupported_diagnostic is not None:
+        return None, unsupported_diagnostic
+    if go_type is None:
+        fallback_diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
+            message="unsupported field type",
+        )
+        return None, fallback_diagnostic
+
+    base_name = sanitize_struct_field_identifier(
+        str(field_cursor.spelling),
+        fallback=f"field_{index}",
+    )
+    field_name = _allocate_unique_field_name(base_name, seen_field_names)
+    seen_field_names.add(field_name)
+    return f"\t{field_name} {go_type}", None
+
+
+def _extract_record_field_decl(field_cursor: _CursorLike, *, index: int) -> RecordFieldDecl:
+    """Extract structured metadata for one record field."""
+    canonical_field_type = field_cursor.type.get_canonical()
+    go_type, unsupported_diagnostic = _evaluate_record_field_support(field_cursor, index=index)
+    _ = go_type
+    is_bitfield = field_cursor.is_bitfield()
+    return RecordFieldDecl(
+        name=str(field_cursor.spelling) or f"<anonymous field #{index}>",
+        c_type=str(field_cursor.type.spelling),
+        kind=str(field_cursor.kind.name),
+        offset_bits=_safe_field_offset_bits(field_cursor),
+        size_bytes=_safe_type_size_bytes(canonical_field_type),
+        align_bytes=_safe_type_align_bytes(canonical_field_type),
+        is_bitfield=is_bitfield,
+        bitfield_width=_safe_bitfield_width(field_cursor) if is_bitfield else None,
+        supported=unsupported_diagnostic is None,
+        unsupported_code=(
+            unsupported_diagnostic.code if unsupported_diagnostic is not None else None
+        ),
+        unsupported_reason=(
+            unsupported_diagnostic.message if unsupported_diagnostic is not None else None
+        ),
+    )
+
+
+def _map_record_type_to_go_name(clang_type: _TypeLike) -> _RecordTypeMappingResult:
+    """Map a simple C record type to a Go struct type literal."""
+    declaration = clang_type.get_declaration()
+    declaration_kind_name = declaration.kind.name
+    if declaration_kind_name == _UNION_DECL_KIND_NAME:
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
+            message="union typedefs are not supported in v1",
+        )
+        return _RecordTypeMappingResult(go_type=None, unsupported_diagnostic=diagnostic)
+    if declaration_kind_name != _STRUCT_DECL_KIND_NAME:
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD_KIND,
+            message=f"record kind {declaration_kind_name} is not supported in v1",
+        )
+        return _RecordTypeMappingResult(go_type=None, unsupported_diagnostic=diagnostic)
+    if not declaration.is_definition():
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
+            message="incomplete struct typedef is treated as opaque handle",
+        )
+        return _RecordTypeMappingResult(go_type=None, unsupported_diagnostic=diagnostic)
+
+    field_lines: list[str] = []
+    seen_field_names: set[str] = set()
+    for index, child in enumerate(declaration.get_children(), start=1):
+        if child.kind.name != _FIELD_DECL_KIND_NAME:
+            continue
+        field_line, unsupported_diagnostic = _map_record_field_to_go_line(
+            child,
+            index=index,
+            seen_field_names=seen_field_names,
+        )
+        if unsupported_diagnostic is not None:
+            return _RecordTypeMappingResult(
+                go_type=None,
+                unsupported_diagnostic=unsupported_diagnostic,
+            )
+        if field_line is None:
+            continue
+        field_lines.append(field_line)
+    if not field_lines:
+        diagnostic = _UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
+            message="struct has no supported fields in v1",
+        )
+        return _RecordTypeMappingResult(go_type=None, unsupported_diagnostic=diagnostic)
+    return _RecordTypeMappingResult(
+        go_type="struct {\n" + "\n".join(field_lines) + "\n}",
+        unsupported_diagnostic=None,
+    )
+
+
+def _extract_record_typedef_decl(
+    cursor: _CursorLike,
+    *,
+    canonical_record_type: _TypeLike,
+    mapping_result: _RecordTypeMappingResult,
+) -> RecordTypedefDecl:
+    """Extract structured record typedef metadata for ABI validation."""
+    declaration = canonical_record_type.get_declaration()
+    is_incomplete = (
+        declaration.kind.name == _STRUCT_DECL_KIND_NAME and not declaration.is_definition()
+    )
+    fields = tuple(
+        _extract_record_field_decl(field_cursor, index=index)
+        for index, field_cursor in enumerate(declaration.get_children(), start=1)
+        if field_cursor.kind.name == _FIELD_DECL_KIND_NAME
+    )
+    return RecordTypedefDecl(
+        name=str(cursor.spelling),
+        c_type=str(cursor.underlying_typedef_type.spelling),
+        record_kind=str(declaration.kind.name),
+        size_bytes=_safe_type_size_bytes(canonical_record_type),
+        align_bytes=_safe_type_align_bytes(canonical_record_type),
+        fields=fields,
+        supported=mapping_result.go_type is not None,
+        unsupported_code=(
+            mapping_result.unsupported_diagnostic.code
+            if mapping_result.unsupported_diagnostic is not None
+            else None
+        ),
+        unsupported_reason=(
+            mapping_result.unsupported_diagnostic.message
+            if mapping_result.unsupported_diagnostic is not None
+            else None
+        ),
+        is_incomplete=is_incomplete,
+        is_opaque=is_incomplete,
+    )
+
+
+def _is_opaque_record_typedef(canonical_record_type: _TypeLike) -> bool:
+    """Check whether a record typedef refers to an incomplete struct declaration."""
+    declaration = canonical_record_type.get_declaration()
+    return declaration.kind.name == _STRUCT_DECL_KIND_NAME and not declaration.is_definition()
+
+
+def _map_function_parameter_type_to_go_name(
+    clang_type: _TypeLike, *, type_mapping: TypeMappingOptions
+) -> str:
+    """Map one function parameter type into a Go type."""
+    canonical = clang_type.get_canonical()
+    if type_mapping.const_char_as_string and canonical.kind.name == "POINTER":
+        pointee = canonical.get_pointee().get_canonical()
+        if pointee.kind.name in _CHAR_TYPE_KINDS and pointee.is_const_qualified():
+            return "string"
+    mapped = _map_type_to_go_name(clang_type)
+    if mapped is not None:
+        return mapped
+    return "uintptr"
+
+
+def _map_function_result_type_to_go_name(
+    clang_type: _TypeLike, *, type_mapping: TypeMappingOptions
+) -> str | None:
+    """Map one function result type into a Go type."""
+    canonical = clang_type.get_canonical()
+    if canonical.kind.name == "VOID":
+        return None
+    if type_mapping.const_char_as_string and canonical.kind.name == "POINTER":
+        pointee = canonical.get_pointee().get_canonical()
+        if pointee.kind.name in _CHAR_TYPE_KINDS and pointee.is_const_qualified():
+            return "string"
+    mapped = _map_type_to_go_name(clang_type)
+    if mapped is not None:
+        return mapped
+    return "uintptr"

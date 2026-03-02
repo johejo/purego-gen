@@ -23,7 +23,8 @@ from purego_gen.abi_layout import (
     validate_record_layout_with_fallback,
 )
 from purego_gen.clang_parser import parse_declarations
-from tests.helper.toolchain import resolve_c_compiler_command
+
+from .helper.toolchain import resolve_c_compiler_command
 
 if TYPE_CHECKING:
     from purego_gen.model import RecordTypedefDecl

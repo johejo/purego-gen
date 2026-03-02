@@ -15,8 +15,9 @@ from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
 )
-from tests.helper.go_test_harness import run_go_test_in_generated_module
-from tests.helper.toolchain import resolve_c_compiler_command
+
+from .helper.go_test_harness import run_go_test_in_generated_module
+from .helper.toolchain import resolve_c_compiler_command
 
 _ARGPARSE_USAGE_ERROR = 2
 _REPO_ROOT = Path(__file__).resolve().parents[1]

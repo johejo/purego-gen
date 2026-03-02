@@ -66,6 +66,7 @@ reportUnnecessaryTypeIgnoreComment = "error"
 [tool.pyrefly]
 project-includes = ["src/**/*.py", "tests/**/*.py", "scripts/**/*.py"]
 project-excludes = [".git/**", ".venv/**", "build/**", "dist/**"]
+search-path = ["src", "tests"]
 python-version = "3.14"
 ignore-errors-in-generated-code = false
 untyped-def-behavior = "check-and-infer-return-type"

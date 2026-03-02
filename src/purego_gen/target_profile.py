@@ -1,4 +1,5 @@
 # Copyright (c) 2026 purego-gen contributors.
+# ruff: noqa: DOC201, DOC501, C901
 
 """Target profile catalog loader for harness/script internal workflows."""
 
@@ -69,17 +70,29 @@ class TargetProfile:
 
 
 @dataclass(frozen=True, slots=True)
+class _ComponentSpec:
+    header_names: tuple[str, ...] | None = None
+    emit_kinds: str | None = None
+    required_functions: tuple[str, ...] | None = None
+    required_types: tuple[str, ...] | None = None
+    required_constants: tuple[str, ...] | None = None
+    type_mapping: dict[str, bool] | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class _ProfileSpec:
     compose: tuple[str, ...]
-    values: dict[str, object]
+    component: _ComponentSpec
+
+
+@dataclass(frozen=True, slots=True)
+class _CatalogSpec:
+    presets: dict[str, _ComponentSpec]
+    profiles: dict[str, _ProfileSpec]
 
 
 def build_exact_symbol_regex(symbols: tuple[str, ...]) -> str:
-    """Build an exact-match regex that matches only the provided symbols.
-
-    Returns:
-        Anchored regular-expression pattern.
-    """
+    """Build an exact-match regex that matches only the provided symbols."""
     escaped = [re.escape(symbol) for symbol in symbols]
     return "^(" + "|".join(escaped) + ")$"
 
@@ -95,7 +108,6 @@ def _read_non_empty_string_array(value: object, *, context: str) -> tuple[str, .
     if not isinstance(value, list) or not value:
         message = f"{context} must be a non-empty array."
         raise TypeError(message)
-
     items: list[str] = []
     for index, element in enumerate(cast("list[object]", value)):
         if not isinstance(element, str) or not element:
@@ -135,7 +147,7 @@ def _read_component(
     *,
     context: str,
     allowed_keys: frozenset[str],
-) -> dict[str, object]:
+) -> _ComponentSpec:
     if not isinstance(raw_component, dict):
         message = f"{context} must be a JSON object."
         raise TypeError(message)
@@ -145,32 +157,54 @@ def _read_component(
         message = f"{context} has unsupported key(s): {', '.join(unknown_keys)}"
         raise RuntimeError(message)
 
-    normalized: dict[str, object] = {}
-    for field_name in ("header_names", "required_functions", "required_types"):
-        if field_name in component:
-            normalized[field_name] = _read_non_empty_string_array(
-                component[field_name],
-                context=f"{context}.{field_name}",
-            )
+    header_names: tuple[str, ...] | None = None
+    required_functions: tuple[str, ...] | None = None
+    required_types: tuple[str, ...] | None = None
+    required_constants: tuple[str, ...] | None = None
+    emit_kinds: str | None = None
+    type_mapping: dict[str, bool] | None = None
+
+    if "header_names" in component:
+        header_names = _read_non_empty_string_array(
+            component["header_names"],
+            context=f"{context}.header_names",
+        )
+    if "required_functions" in component:
+        required_functions = _read_non_empty_string_array(
+            component["required_functions"],
+            context=f"{context}.required_functions",
+        )
+    if "required_types" in component:
+        required_types = _read_non_empty_string_array(
+            component["required_types"],
+            context=f"{context}.required_types",
+        )
     if "required_constants" in component:
-        normalized["required_constants"] = _read_optional_string_array(
+        required_constants = _read_optional_string_array(
             component["required_constants"],
             context=f"{context}.required_constants",
         )
     if "emit_kinds" in component:
-        normalized["emit_kinds"] = _read_non_empty_string(
+        emit_kinds = _read_non_empty_string(
             component["emit_kinds"],
             context=f"{context}.emit_kinds",
         )
     if "type_mapping" in component:
-        normalized["type_mapping"] = _read_type_mapping(
+        type_mapping = _read_type_mapping(
             component["type_mapping"],
             context=f"{context}.type_mapping",
         )
-    return normalized
+    return _ComponentSpec(
+        header_names=header_names,
+        emit_kinds=emit_kinds,
+        required_functions=required_functions,
+        required_types=required_types,
+        required_constants=required_constants,
+        type_mapping=type_mapping,
+    )
 
 
-def _load_catalog_root(path: Path) -> dict[str, object]:
+def _load_catalog_spec(path: Path) -> _CatalogSpec:
     if not path.is_file():
         message = f"target profile catalog not found: {path}"
         raise RuntimeError(message)
@@ -198,32 +232,28 @@ def _load_catalog_root(path: Path) -> dict[str, object]:
             f"expected {_SCHEMA_VERSION_V1}."
         )
         raise RuntimeError(message)
-    return root
 
-
-def _read_presets(path: Path, raw_presets: object) -> dict[str, dict[str, object]]:
+    raw_presets = root.get("presets")
     if not isinstance(raw_presets, dict) or not raw_presets:
         message = f"target profile catalog `{path}` must define non-empty object `presets`."
         raise RuntimeError(message)
-    presets_by_id: dict[str, dict[str, object]] = {}
+    presets: dict[str, _ComponentSpec] = {}
     for preset_id, raw_preset in cast("dict[str, object]", raw_presets).items():
         normalized_preset_id = _read_non_empty_string(
             preset_id,
             context=f"catalog `{path}` preset id",
         )
-        presets_by_id[normalized_preset_id] = _read_component(
+        presets[normalized_preset_id] = _read_component(
             raw_preset,
             context=f"catalog `{path}` preset `{normalized_preset_id}`",
             allowed_keys=_ALLOWED_COMPONENT_KEYS,
         )
-    return presets_by_id
 
-
-def _read_profiles(path: Path, raw_profiles: object) -> dict[str, _ProfileSpec]:
+    raw_profiles = root.get("profiles")
     if not isinstance(raw_profiles, dict) or not raw_profiles:
         message = f"target profile catalog `{path}` must define non-empty object `profiles`."
         raise RuntimeError(message)
-    profiles_by_id: dict[str, _ProfileSpec] = {}
+    profiles: dict[str, _ProfileSpec] = {}
     for raw_profile_id, raw_profile in cast("dict[str, object]", raw_profiles).items():
         normalized_profile_id = _read_non_empty_string(
             raw_profile_id,
@@ -241,21 +271,29 @@ def _read_profiles(path: Path, raw_profiles: object) -> dict[str, _ProfileSpec]:
             cast("dict[str, object]", raw_profile).get("compose"),
             context=f"catalog `{path}` profile `{normalized_profile_id}`.compose",
         )
-        profiles_by_id[normalized_profile_id] = _ProfileSpec(compose=compose, values=component)
-    return profiles_by_id
+        profiles[normalized_profile_id] = _ProfileSpec(compose=compose, component=component)
+
+    return _CatalogSpec(presets=presets, profiles=profiles)
 
 
 def _merge_component_values(
-    component: dict[str, object],
+    component: _ComponentSpec,
     *,
     resolved_values: dict[str, object],
     resolved_type_mapping: dict[str, bool],
 ) -> None:
-    for key, value in component.items():
-        if key == "type_mapping":
-            resolved_type_mapping.update(cast("dict[str, bool]", value))
-            continue
-        resolved_values[key] = value
+    if component.header_names is not None:
+        resolved_values["header_names"] = component.header_names
+    if component.emit_kinds is not None:
+        resolved_values["emit_kinds"] = component.emit_kinds
+    if component.required_functions is not None:
+        resolved_values["required_functions"] = component.required_functions
+    if component.required_types is not None:
+        resolved_values["required_types"] = component.required_types
+    if component.required_constants is not None:
+        resolved_values["required_constants"] = component.required_constants
+    if component.type_mapping is not None:
+        resolved_type_mapping.update(component.type_mapping)
 
 
 def _resolve_profile_values(
@@ -263,7 +301,7 @@ def _resolve_profile_values(
     path: Path,
     profile_id: str,
     profile_spec: _ProfileSpec,
-    presets_by_id: dict[str, dict[str, object]],
+    presets_by_id: dict[str, _ComponentSpec],
 ) -> tuple[dict[str, object], dict[str, bool]]:
     resolved_values: dict[str, object] = {}
     resolved_type_mapping: dict[str, bool] = {}
@@ -283,7 +321,7 @@ def _resolve_profile_values(
         )
 
     _merge_component_values(
-        profile_spec.values,
+        profile_spec.component,
         resolved_values=resolved_values,
         resolved_type_mapping=resolved_type_mapping,
     )
@@ -324,20 +362,11 @@ def _build_type_mapping(
 
 
 def load_target_profile_catalog(path: Path, profile_id: str) -> TargetProfile:
-    """Load and resolve one profile from a target-profile catalog JSON file.
-
-    Returns:
-        Resolved target profile.
-
-    Raises:
-        RuntimeError: Catalog/profile/preset resolution fails.
-    """
-    root = _load_catalog_root(path)
-    presets_by_id = _read_presets(path, root.get("presets"))
-    profiles_by_id = _read_profiles(path, root.get("profiles"))
-    profile_spec = profiles_by_id.get(profile_id)
+    """Load and resolve one profile from a target-profile catalog JSON file."""
+    catalog = _load_catalog_spec(path)
+    profile_spec = catalog.profiles.get(profile_id)
     if profile_spec is None:
-        known_profiles = ", ".join(sorted(profiles_by_id))
+        known_profiles = ", ".join(sorted(catalog.profiles))
         message = (
             f"target profile `{profile_id}` not found in `{path}`. "
             f"available profiles: {known_profiles}"
@@ -348,9 +377,8 @@ def load_target_profile_catalog(path: Path, profile_id: str) -> TargetProfile:
         path=path,
         profile_id=profile_id,
         profile_spec=profile_spec,
-        presets_by_id=presets_by_id,
+        presets_by_id=catalog.presets,
     )
-
     emit_kinds = _require_resolved_value(
         path=path,
         profile_id=profile_id,

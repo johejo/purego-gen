@@ -16,6 +16,18 @@ from jinja2 import (
     UndefinedError,
 )
 
+from purego_gen.c_type_utils import (
+    extract_enum_typedef_name,
+    extract_pointer_typedef_name,
+    normalize_c_type_for_lookup,
+)
+from purego_gen.emit_kinds import validate_emit_kinds
+from purego_gen.identifier_utils import (
+    GO_KEYWORDS,
+    allocate_unique_identifier,
+    build_unique_identifiers,
+    is_go_identifier,
+)
 from purego_gen.model import TypeMappingOptions
 
 if TYPE_CHECKING:
@@ -23,44 +35,8 @@ if TYPE_CHECKING:
 
     from purego_gen.model import ParsedDeclarations
 
-_ALLOWED_EMIT_KINDS: Final[frozenset[str]] = frozenset({"func", "type", "const", "var"})
-_GO_KEYWORDS: Final[frozenset[str]] = frozenset({
-    "break",
-    "default",
-    "func",
-    "interface",
-    "select",
-    "case",
-    "defer",
-    "go",
-    "map",
-    "struct",
-    "chan",
-    "else",
-    "goto",
-    "package",
-    "switch",
-    "const",
-    "fallthrough",
-    "if",
-    "range",
-    "type",
-    "continue",
-    "for",
-    "import",
-    "return",
-    "var",
-})
 _TEMPLATE_DIR: Final[Path] = Path(__file__).resolve().parents[2] / "templates"
 _MAIN_TEMPLATE_NAME: Final[str] = "go_file.go.j2"
-_OPAQUE_POINTER_TYPEDEF_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^(?:(?:const|volatile|restrict)\s+)*([A-Za-z_][A-Za-z0-9_]*)\s*\*(?:\s*(?:const|volatile|restrict))*$"
-)
-_ENUM_TYPEDEF_C_TYPE_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^enum\s+([A-Za-z_][A-Za-z0-9_]*)$"
-)
-_GO_IDENTIFIER_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-_C_TYPE_QUALIFIERS: Final[frozenset[str]] = frozenset({"const", "volatile", "restrict"})
 _MAX_INT64: Final[int] = (1 << 63) - 1
 _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "package",
@@ -128,87 +104,6 @@ class _TemplateContext(TypedDict):
     runtime_vars: tuple[_RuntimeVarContext, ...]
 
 
-def _sanitize_identifier(raw: str, *, fallback: str) -> str:
-    """Sanitize source identifier into a Go-syntax-safe suffix.
-
-    Returns:
-        Safe identifier suffix that preserves source casing as much as possible.
-    """
-    normalized = re.sub(r"[^0-9A-Za-z_]+", "_", raw)
-    if not normalized:
-        normalized = fallback
-    if normalized[0].isdigit():
-        normalized = f"n_{normalized}"
-    if normalized in _GO_KEYWORDS:
-        normalized = f"{normalized}_"
-    return normalized
-
-
-def _allocate_unique_identifier(base_identifier: str, *, seen: set[str]) -> str:
-    """Allocate deterministic unique identifier in one declaration category.
-
-    Returns:
-        Unique identifier string.
-    """
-    if base_identifier not in seen:
-        seen.add(base_identifier)
-        return base_identifier
-
-    suffix = 2
-    while f"{base_identifier}_{suffix}" in seen:
-        suffix += 1
-    resolved = f"{base_identifier}_{suffix}"
-    seen.add(resolved)
-    return resolved
-
-
-def _build_unique_identifiers(
-    raw_names: tuple[str, ...],
-    *,
-    fallback_prefix: str,
-) -> tuple[str, ...]:
-    """Build deterministic unique identifiers for one declaration category.
-
-    Returns:
-        Identifier tuple with stable ordering and deterministic dedupe suffixes.
-    """
-    seen: set[str] = set()
-    resolved: list[str] = []
-    for index, raw_name in enumerate(raw_names, start=1):
-        base_identifier = _sanitize_identifier(raw_name, fallback=f"{fallback_prefix}_{index}")
-        resolved_identifier = _allocate_unique_identifier(base_identifier, seen=seen)
-        resolved.append(resolved_identifier)
-    return tuple(resolved)
-
-
-def _validate_emit_kinds(emit_kinds: tuple[str, ...]) -> None:
-    """Validate emit categories used by the renderer.
-
-    Raises:
-        RendererError: One or more categories are unsupported.
-    """
-    invalid = [kind for kind in emit_kinds if kind not in _ALLOWED_EMIT_KINDS]
-    if invalid:
-        message = (
-            f"renderer received unsupported emit categories: {', '.join(invalid)}. "
-            "Supported values: func,type,const,var."
-        )
-        raise RendererError(message)
-
-
-def _extract_typedef_name_from_pointer_c_type(c_type: str) -> str | None:
-    """Extract typedef name from one single-pointer C type spelling.
-
-    Returns:
-        Typedef name when `c_type` is a supported single-pointer spelling.
-    """
-    normalized = " ".join(c_type.split())
-    matched = _OPAQUE_POINTER_TYPEDEF_PATTERN.fullmatch(normalized)
-    if matched is None:
-        return None
-    return matched.group(1)
-
-
 def _build_emitted_opaque_struct_typedef_names(
     *,
     emit_kinds: tuple[str, ...],
@@ -259,29 +154,6 @@ def _build_opaque_alias_type_by_typedef_name(
     return opaque_alias_type_by_typedef_name
 
 
-def _normalize_c_type_for_lookup(c_type: str) -> str:
-    """Normalize C type spelling for deterministic typedef-name lookup.
-
-    Returns:
-        Normalized C type token sequence without qualifiers.
-    """
-    tokens = [token for token in c_type.split() if token not in _C_TYPE_QUALIFIERS]
-    return " ".join(tokens)
-
-
-def _extract_enum_typedef_name(c_type: str) -> str | None:
-    """Extract enum typedef target name from typedef C type spelling.
-
-    Returns:
-        Enum target name when `c_type` spells an enum typedef, otherwise `None`.
-    """
-    normalized = _normalize_c_type_for_lookup(c_type)
-    matched = _ENUM_TYPEDEF_C_TYPE_PATTERN.fullmatch(normalized)
-    if matched is None:
-        return None
-    return matched.group(1)
-
-
 def _build_emitted_strict_enum_typedef_names(
     *,
     emit_kinds: tuple[str, ...],
@@ -298,7 +170,7 @@ def _build_emitted_strict_enum_typedef_names(
     return {
         typedef.name
         for typedef in declarations.typedefs
-        if _extract_enum_typedef_name(typedef.c_type) is not None
+        if extract_enum_typedef_name(typedef.c_type) is not None
     }
 
 
@@ -329,7 +201,7 @@ def _build_enum_alias_type_by_typedef_name(
         typedef = typedef_by_name.get(typedef_name)
         if typedef is None:
             continue
-        enum_target_name = _extract_enum_typedef_name(typedef.c_type)
+        enum_target_name = extract_enum_typedef_name(typedef.c_type)
         if enum_target_name is None:
             continue
         enum_alias_type_by_typedef_name[enum_target_name] = alias_name
@@ -361,13 +233,13 @@ def _resolve_function_signature_type(
         Resolved Go type preserving `uintptr` fallback behavior.
     """
     if go_type == "int32":
-        normalized_c_type = _normalize_c_type_for_lookup(c_type)
+        normalized_c_type = normalize_c_type_for_lookup(c_type)
         strict_enum_alias = enum_alias_type_by_typedef_name.get(normalized_c_type)
         if strict_enum_alias is not None:
             return strict_enum_alias
     if go_type != "uintptr":
         return go_type
-    typedef_name = _extract_typedef_name_from_pointer_c_type(c_type)
+    typedef_name = extract_pointer_typedef_name(c_type)
     if typedef_name is None:
         return go_type
     return opaque_alias_type_by_typedef_name.get(typedef_name, go_type)
@@ -382,9 +254,9 @@ def _sanitize_function_parameter_name(raw_name: str, *, index: int) -> str:
     normalized = re.sub(r"[^0-9A-Za-z_]+", "_", raw_name)
     if not normalized or normalized == "_" or normalized[0].isdigit():
         normalized = f"arg{index}"
-    if _GO_IDENTIFIER_PATTERN.fullmatch(normalized) is None:
+    if not is_go_identifier(normalized):
         normalized = f"arg{index}"
-    if normalized in _GO_KEYWORDS:
+    if normalized in GO_KEYWORDS:
         normalized = f"{normalized}_"
     return normalized
 
@@ -466,7 +338,7 @@ def _build_function_parameters_context(
         start=1,
     ):
         resolved_name = _sanitize_function_parameter_name(parameter_name, index=index)
-        resolved_name = _allocate_unique_identifier(resolved_name, seen=seen_names)
+        resolved_name = allocate_unique_identifier(resolved_name, seen=seen_names)
         parameters.append({
             "name": resolved_name,
             "type": _resolve_function_signature_type(
@@ -491,21 +363,27 @@ def _build_context(
 
     Returns:
         Context dictionary passed to Jinja2 template rendering.
+
+    Raises:
+        RendererError: Emit kinds are invalid for renderer context building.
     """
-    _validate_emit_kinds(emit_kinds)
-    type_identifiers = _build_unique_identifiers(
+    try:
+        validate_emit_kinds(emit_kinds, context="renderer")
+    except ValueError as error:
+        raise RendererError(str(error)) from error
+    type_identifiers = build_unique_identifiers(
         tuple(typedef.name for typedef in declarations.typedefs),
         fallback_prefix="type",
     )
-    constant_identifiers = _build_unique_identifiers(
+    constant_identifiers = build_unique_identifiers(
         tuple(constant.name for constant in declarations.constants),
         fallback_prefix="const",
     )
-    function_identifiers = _build_unique_identifiers(
+    function_identifiers = build_unique_identifiers(
         tuple(function.name for function in declarations.functions),
         fallback_prefix="func",
     )
-    runtime_var_identifiers = _build_unique_identifiers(
+    runtime_var_identifiers = build_unique_identifiers(
         tuple(runtime_var.name for runtime_var in declarations.runtime_vars),
         fallback_prefix="var",
     )

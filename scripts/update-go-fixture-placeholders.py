@@ -6,13 +6,16 @@
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess  # noqa: S404
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
+from purego_gen.cli_invocation import (
+    PuregoGenInvocation,
+    build_purego_gen_command,
+    build_src_pythonpath_env,
+)
 from purego_gen.model import TypeMappingOptions
 from purego_gen.pkg_config import run_pkg_config_stdout, run_pkg_config_tokens
 from purego_gen.target_profile import load_target_profile_catalog
@@ -37,21 +40,6 @@ class _ParsedArgs(argparse.Namespace):
     check: bool
 
 
-@dataclass(frozen=True, slots=True)
-class _PuregoGenInvocation:
-    """One purego-gen CLI invocation configuration."""
-
-    lib_id: str
-    header_paths: tuple[Path, ...]
-    package_name: str
-    emit_kinds: str
-    clang_args: tuple[str, ...] = ()
-    func_filter: str | None = None
-    type_filter: str | None = None
-    const_filter: str | None = None
-    type_mapping: TypeMappingOptions = field(default_factory=TypeMappingOptions)
-
-
 def _write_line(message: str) -> None:
     """Write one line to stdout."""
     sys.stdout.write(f"{message}\n")
@@ -74,7 +62,7 @@ def _parse_args() -> _ParsedArgs:
     return cast("_ParsedArgs", parser.parse_args())
 
 
-def _run_purego_gen(invocation: _PuregoGenInvocation) -> str:
+def _run_purego_gen(invocation: PuregoGenInvocation) -> str:
     """Run purego-gen CLI and return generated source.
 
     Returns:
@@ -83,36 +71,13 @@ def _run_purego_gen(invocation: _PuregoGenInvocation) -> str:
     Raises:
         RuntimeError: CLI execution fails.
     """
-    command = [
-        sys.executable,
-        "-m",
-        "purego_gen",
-        "--lib-id",
-        invocation.lib_id,
-        "--pkg",
-        invocation.package_name,
-        "--emit",
-        invocation.emit_kinds,
-    ]
-    for header_path in invocation.header_paths:
-        command.extend(["--header", str(header_path)])
-    _append_optional_filter_flags(command, invocation=invocation)
-    _append_type_mapping_flags(command, type_mapping=invocation.type_mapping)
-    if invocation.clang_args:
-        command.extend(["--", *invocation.clang_args])
-
-    env = os.environ.copy()
-    existing_pythonpath = env.get("PYTHONPATH")
-    src_path = str(_SRC_DIR)
-    env["PYTHONPATH"] = (
-        src_path if existing_pythonpath is None else f"{src_path}:{existing_pythonpath}"
-    )
+    command = build_purego_gen_command(invocation, python_executable=sys.executable)
     result = subprocess.run(  # noqa: S603
         command,
         capture_output=True,
         check=False,
         cwd=_REPO_ROOT,
-        env=env,
+        env=build_src_pythonpath_env(src_dir=_SRC_DIR),
         text=True,
     )
     if result.returncode != 0:
@@ -123,26 +88,6 @@ def _run_purego_gen(invocation: _PuregoGenInvocation) -> str:
         )
         raise RuntimeError(message)
     return result.stdout
-
-
-def _append_optional_filter_flags(command: list[str], *, invocation: _PuregoGenInvocation) -> None:
-    """Append optional declaration-filter flags to one purego-gen command."""
-    if invocation.func_filter is not None:
-        command.extend(["--func-filter", invocation.func_filter])
-    if invocation.type_filter is not None:
-        command.extend(["--type-filter", invocation.type_filter])
-    if invocation.const_filter is not None:
-        command.extend(["--const-filter", invocation.const_filter])
-
-
-def _append_type_mapping_flags(command: list[str], *, type_mapping: TypeMappingOptions) -> None:
-    """Append enabled type-mapping option flags to one purego-gen command."""
-    if type_mapping.const_char_as_string:
-        command.append("--const-char-as-string")
-    if type_mapping.strict_enum_typedefs:
-        command.append("--strict-enum-typedefs")
-    if type_mapping.typed_sentinel_constants:
-        command.append("--typed-sentinel-constants")
 
 
 def _resolve_libzstd_include_dir_and_cflags() -> tuple[Path, tuple[str, ...]]:
@@ -188,7 +133,7 @@ def _generated_fixture_sources() -> dict[Path, str]:
         Mapping of output path to generated source.
     """
     smoke_source = _run_purego_gen(
-        _PuregoGenInvocation(
+        PuregoGenInvocation(
             lib_id="fixture_lib",
             header_paths=(_SMOKE_HEADER_PATH.resolve(),),
             package_name="fixture",
@@ -196,7 +141,7 @@ def _generated_fixture_sources() -> dict[Path, str]:
         )
     )
     smoke_string_source = _run_purego_gen(
-        _PuregoGenInvocation(
+        PuregoGenInvocation(
             lib_id="fixture_lib",
             header_paths=(_SMOKE_STRING_HEADER_PATH.resolve(),),
             package_name="fixture",
@@ -209,7 +154,7 @@ def _generated_fixture_sources() -> dict[Path, str]:
     zstd_profile = load_target_profile_catalog(_TARGET_PROFILE_CATALOG_PATH, _LIBZSTD_PROFILE_ID)
     zstd_header_paths = _resolve_header_paths(include_dir, zstd_profile.header_names)
     zstd_source = _run_purego_gen(
-        _PuregoGenInvocation(
+        PuregoGenInvocation(
             lib_id="zstd",
             header_paths=zstd_header_paths,
             package_name="zstdfixture",
@@ -228,7 +173,7 @@ def _generated_fixture_sources() -> dict[Path, str]:
     )
     zstd_strict_header_paths = _resolve_header_paths(include_dir, zstd_strict_profile.header_names)
     zstd_strict_source = _run_purego_gen(
-        _PuregoGenInvocation(
+        PuregoGenInvocation(
             lib_id="zstd",
             header_paths=zstd_strict_header_paths,
             package_name="zstdfixturestrict",

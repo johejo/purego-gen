@@ -6,20 +6,28 @@
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from purego_gen.clang_parser import parse_declarations
-from purego_gen.model import ParsedDeclarations
+from purego_gen.declaration_filters import (
+    CompiledDeclarationFilters,
+    apply_declaration_filters,
+    compile_filter,
+)
+from purego_gen.emit_kinds import parse_emit_kinds
+from purego_gen.identifier_utils import normalize_lib_id
 from purego_gen.pkg_config import run_pkg_config_stdout, run_pkg_config_tokens
 from purego_gen.renderer import render_go_source
 
+if TYPE_CHECKING:
+    from purego_gen.model import ParsedDeclarations
+
 _DEFAULT_SAMPLE_SIZE = 12
 _DEFAULT_EMIT_KINDS = "func,type,const,var"
-_ALLOWED_EMIT_KINDS: frozenset[str] = frozenset({"func", "type", "const", "var"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,94 +60,17 @@ def _write_line(message: str = "") -> None:
     sys.stdout.write(f"{message}\n")
 
 
-def _parse_emit_kinds(value: str) -> tuple[str, ...]:
-    """Parse and validate emit kinds.
-
-    Returns:
-        Parsed emit kinds.
-
-    Raises:
-        ValueError: The value is empty or contains unsupported kinds.
-    """
-    parsed = tuple(part.strip() for part in value.split(",") if part.strip())
-    if not parsed:
-        message = "--render-emit must contain at least one category."
-        raise ValueError(message)
-    invalid = [kind for kind in parsed if kind not in _ALLOWED_EMIT_KINDS]
-    if invalid:
-        message = (
-            f"unsupported emit category: {', '.join(invalid)}. "
-            "supported values: func,type,const,var."
-        )
-        raise ValueError(message)
-    return parsed
-
-
-def _compile_optional_pattern(value: str | None) -> re.Pattern[str] | None:
-    """Compile optional regex pattern.
-
-    Returns:
-        Compiled regex when provided, otherwise `None`.
-
-    Raises:
-        ValueError: Pattern has invalid syntax.
-    """
-    if value is None:
-        return None
-    try:
-        return re.compile(value)
-    except re.error as error:
-        message = f"invalid regex pattern {value!r}: {error}"
-        raise ValueError(message) from error
-
-
 def _filter_declarations(
     declarations: ParsedDeclarations,
     *,
-    func_filter: re.Pattern[str] | None,
-    type_filter: re.Pattern[str] | None,
-    const_filter: re.Pattern[str] | None,
-    var_filter: re.Pattern[str] | None,
+    filters: CompiledDeclarationFilters,
 ) -> ParsedDeclarations:
     """Filter declarations by optional category regex patterns.
 
     Returns:
         Filtered declarations.
     """
-    functions = declarations.functions
-    if func_filter is not None:
-        functions = tuple(function for function in functions if func_filter.search(function.name))
-
-    typedefs = declarations.typedefs
-    if type_filter is not None:
-        typedefs = tuple(typedef for typedef in typedefs if type_filter.search(typedef.name))
-
-    record_typedefs = declarations.record_typedefs
-    if type_filter is not None:
-        record_typedefs = tuple(
-            record_typedef
-            for record_typedef in record_typedefs
-            if type_filter.search(record_typedef.name)
-        )
-
-    constants = declarations.constants
-    if const_filter is not None:
-        constants = tuple(constant for constant in constants if const_filter.search(constant.name))
-
-    runtime_vars = declarations.runtime_vars
-    if var_filter is not None:
-        runtime_vars = tuple(
-            runtime_var for runtime_var in runtime_vars if var_filter.search(runtime_var.name)
-        )
-
-    return ParsedDeclarations(
-        functions=functions,
-        typedefs=typedefs,
-        constants=constants,
-        runtime_vars=runtime_vars,
-        skipped_typedefs=declarations.skipped_typedefs,
-        record_typedefs=record_typedefs,
-    )
+    return apply_declaration_filters(declarations, filters=filters)
 
 
 def _default_lib_id(package_name: str) -> str:
@@ -148,13 +79,10 @@ def _default_lib_id(package_name: str) -> str:
     Returns:
         Normalized lib id.
     """
-    base = package_name.removeprefix("lib")
-    sanitized = re.sub(r"[^0-9A-Za-z]+", "_", base).strip("_").lower()
-    if not sanitized:
+    try:
+        return normalize_lib_id(package_name.removeprefix("lib"))
+    except ValueError:
         return "bindings"
-    if sanitized[0].isdigit():
-        return f"lib_{sanitized}"
-    return sanitized
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -280,22 +208,17 @@ def _report_declarations(
 
 def _load_patterns(
     namespace: _ParsedArgs,
-) -> tuple[
-    re.Pattern[str] | None,
-    re.Pattern[str] | None,
-    re.Pattern[str] | None,
-    re.Pattern[str] | None,
-]:
+) -> CompiledDeclarationFilters:
     """Compile regex filters from parsed args.
 
     Returns:
         Compiled filter tuple in func/type/const/var order.
     """
-    return (
-        _compile_optional_pattern(namespace.func_filter),
-        _compile_optional_pattern(namespace.type_filter),
-        _compile_optional_pattern(namespace.const_filter),
-        _compile_optional_pattern(namespace.var_filter),
+    return CompiledDeclarationFilters(
+        func=compile_filter(namespace.func_filter, option_name="--func-filter"),
+        type_=compile_filter(namespace.type_filter, option_name="--type-filter"),
+        const=compile_filter(namespace.const_filter, option_name="--const-filter"),
+        var=compile_filter(namespace.var_filter, option_name="--var-filter"),
     )
 
 
@@ -313,21 +236,15 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
-        emit_kinds = _parse_emit_kinds(namespace.render_emit)
-        func_filter, type_filter, const_filter, var_filter = _load_patterns(namespace)
+        emit_kinds = parse_emit_kinds(namespace.render_emit, option_name="--render-emit")
+        filters = _load_patterns(namespace)
         target = _resolve_target(str(namespace.pkg_config_package), str(namespace.header))
     except (RuntimeError, ValueError) as error:
         _write_line(str(error))
         return 1
 
     declarations = parse_declarations(headers=(str(target.header_path),), clang_args=target.cflags)
-    filtered = _filter_declarations(
-        declarations,
-        func_filter=func_filter,
-        type_filter=type_filter,
-        const_filter=const_filter,
-        var_filter=var_filter,
-    )
+    filtered = _filter_declarations(declarations, filters=filters)
     _report_declarations(target, filtered, namespace.sample_size)
 
     render_out = namespace.render_out

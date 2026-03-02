@@ -12,9 +12,15 @@ from pathlib import Path
 
 import pytest
 
+from purego_gen.cli_invocation import (
+    PuregoGenInvocation,
+    build_purego_gen_command,
+    build_src_pythonpath_env,
+)
 from purego_gen.pkg_config import run_pkg_config_stdout, run_pkg_config_tokens
 from purego_gen.target_profile import TargetProfile, load_target_profile_catalog
-from tests.helper.go_test_harness import run_go_test_in_generated_module
+
+from .helper.go_test_harness import run_go_test_in_generated_module
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SRC_DIR = _REPO_ROOT / "src"
@@ -154,46 +160,26 @@ def _run_cli_for_libzstd(
     Returns:
         Completed process result for the CLI invocation.
     """
-    command = [
-        sys.executable,
-        "-m",
-        "purego_gen",
-        "--lib-id",
-        "zstd",
-        "--pkg",
-        package,
-        "--emit",
-        profile.emit_kinds,
-    ]
-    for header_path in _resolve_profile_headers(config, profile=profile):
-        command.extend(["--header", str(header_path)])
-    if profile.function_filter:
-        command.extend(["--func-filter", profile.function_filter])
-    if profile.type_filter:
-        command.extend(["--type-filter", profile.type_filter])
-    if profile.const_filter:
-        command.extend(["--const-filter", profile.const_filter])
-    if profile.type_mapping.const_char_as_string:
-        command.append("--const-char-as-string")
-    if profile.type_mapping.strict_enum_typedefs:
-        command.append("--strict-enum-typedefs")
-    if profile.type_mapping.typed_sentinel_constants:
-        command.append("--typed-sentinel-constants")
-    if config.clang_args:
-        command.extend(["--", *config.clang_args])
-
-    env = os.environ.copy()
-    existing_pythonpath = env.get("PYTHONPATH")
-    src_path = str(_SRC_DIR)
-    env["PYTHONPATH"] = (
-        src_path if existing_pythonpath is None else f"{src_path}:{existing_pythonpath}"
+    command = build_purego_gen_command(
+        PuregoGenInvocation(
+            lib_id="zstd",
+            header_paths=_resolve_profile_headers(config, profile=profile),
+            package_name=package,
+            emit_kinds=profile.emit_kinds,
+            clang_args=config.clang_args,
+            func_filter=profile.function_filter,
+            type_filter=profile.type_filter,
+            const_filter=profile.const_filter,
+            type_mapping=profile.type_mapping,
+        ),
+        python_executable=sys.executable,
     )
     return subprocess.run(  # noqa: S603
         command,
         capture_output=True,
         check=False,
         cwd=_REPO_ROOT,
-        env=env,
+        env=build_src_pythonpath_env(src_dir=_SRC_DIR),
         text=True,
     )
 
@@ -216,36 +202,23 @@ def _run_cli_for_libzstd_constants(
     if not header_path.is_file():
         message = f"failed to locate zstd.h from pkg-config includedir: {header_path}"
         raise RuntimeError(message)
-    command = [
-        sys.executable,
-        "-m",
-        "purego_gen",
-        "--lib-id",
-        "zstd",
-        "--header",
-        str(header_path),
-        "--pkg",
-        package,
-        "--emit",
-        "const",
-        "--const-filter",
-        const_filter,
-    ]
-    if config.clang_args:
-        command.extend(["--", *config.clang_args])
-
-    env = os.environ.copy()
-    existing_pythonpath = env.get("PYTHONPATH")
-    src_path = str(_SRC_DIR)
-    env["PYTHONPATH"] = (
-        src_path if existing_pythonpath is None else f"{src_path}:{existing_pythonpath}"
+    command = build_purego_gen_command(
+        PuregoGenInvocation(
+            lib_id="zstd",
+            header_paths=(header_path,),
+            package_name=package,
+            emit_kinds="const",
+            clang_args=config.clang_args,
+            const_filter=const_filter,
+        ),
+        python_executable=sys.executable,
     )
     return subprocess.run(  # noqa: S603
         command,
         capture_output=True,
         check=False,
         cwd=_REPO_ROOT,
-        env=env,
+        env=build_src_pythonpath_env(src_dir=_SRC_DIR),
         text=True,
     )
 
