@@ -23,7 +23,6 @@ def parse_declarations(
     clang_args: tuple[str, ...],
     *,
     type_mapping: TypeMappingOptions | None = None,
-    map_const_char_pointer_to_string: bool | None = None,
 ) -> ParsedDeclarations:
     """Parse declaration categories from headers via libclang.
 
@@ -32,24 +31,8 @@ def parse_declarations(
 
     Raises:
         ClangParserError: libclang is unavailable or parsing fails.
-        ValueError: Type-mapping options are mutually inconsistent.
     """
     resolved_type_mapping = type_mapping if type_mapping is not None else TypeMappingOptions()
-    if map_const_char_pointer_to_string is not None:
-        if (
-            type_mapping is not None
-            and type_mapping.const_char_as_string != map_const_char_pointer_to_string
-        ):
-            message = (
-                "conflicting type mapping options: `type_mapping.const_char_as_string` and "
-                "`map_const_char_pointer_to_string` differ"
-            )
-            raise ValueError(message)
-        resolved_type_mapping = TypeMappingOptions(
-            const_char_as_string=map_const_char_pointer_to_string,
-            strict_enum_typedefs=resolved_type_mapping.strict_enum_typedefs,
-            typed_sentinel_constants=resolved_type_mapping.typed_sentinel_constants,
-        )
 
     cindex = _load_cindex()
     _configure_libclang(cindex)
