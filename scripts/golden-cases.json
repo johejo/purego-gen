@@ -93,6 +93,15 @@
       ],
       "emit_kinds": "func,type,const,var",
       "clang_args": "-fparse-all-comments"
+    },
+    {
+      "id": "case_parameter_names",
+      "output_path": "tests/golden/case_parameter_names/generated.go",
+      "header_paths": [
+        "tests/fixtures/parameter_names.h"
+      ],
+      "emit_kinds": "func",
+      "clang_args": ""
     }
   ]
 }

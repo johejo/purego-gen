@@ -38,6 +38,7 @@ _PRIMARY_HEADER = _FIXTURES_DIR / "basic.h"
 _CATEGORY_HEADER = _FIXTURES_DIR / "categories.h"
 _MACRO_CONSTANTS_HEADER = _FIXTURES_DIR / "macro_constants.h"
 _FUNCTION_SIGNATURES_HEADER = _FIXTURES_DIR / "function_signatures.h"
+_PARAMETER_NAMES_HEADER = _FIXTURES_DIR / "parameter_names.h"
 _CONDITIONAL_HEADER = _FIXTURES_DIR / "conditional.h"
 _COMMENTS_HEADER = _FIXTURES_DIR / "comments.h"
 _M3_TYPES_HEADER = _FIXTURES_DIR / "abi_types.h"
@@ -404,6 +405,25 @@ def test_const_char_pointer_string_mapping_is_opt_in(tmp_path: Path) -> None:
     assert "purego_func_fixture_lookup_name func( key string, ) string" in normalized_enabled
     _assert_go_source_compiles(result_default.stdout, tmp_path / "default")
     _assert_go_source_compiles(result_enabled.stdout, tmp_path / "enabled")
+
+
+def test_generates_parameter_names_golden_output(tmp_path: Path) -> None:
+    """CLI should keep parameter-name extraction and sanitization deterministic."""
+    result = _run_cli(
+        "--lib-id",
+        _FIXTURE_LIB_ID,
+        "--header",
+        str(_PARAMETER_NAMES_HEADER),
+        "--pkg",
+        _FIXTURE_PACKAGE,
+        "--emit",
+        "func",
+    )
+
+    expected = _golden_path("case_parameter_names").read_text(encoding="utf-8")
+    assert result.returncode == 0
+    assert result.stdout == expected
+    _assert_go_source_compiles(result.stdout, tmp_path)
 
 
 def test_opaque_handle_mapping_is_default(tmp_path: Path) -> None:
