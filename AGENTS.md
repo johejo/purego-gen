@@ -26,7 +26,7 @@ Do not duplicate volatile details in this file.
 - In Codex sandbox, use `nix develop .#coding-agent -c ...` (plain `nix develop -c ...` is intentionally rejected in Codex).
 - In Codex sandbox, use `just agent-check` / `just agent-ci` for validation tasks.
 - For automated checks outside Codex sandbox (agents/CI), run `just ci` directly.
-- For target-library coverage investigation, prefer `scripts/inspect-target-library.py` (e.g. `just inspect-libzstd`) over ad-hoc one-off commands.
+- For target-library coverage investigation, prefer `scripts/inspect_target_library.py` (e.g. `just inspect-libzstd`) over ad-hoc one-off commands.
 
 ## Maintenance policy
 

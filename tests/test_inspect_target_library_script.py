@@ -1,6 +1,6 @@
 # Copyright (c) 2026 purego-gen contributors.
 
-"""Smoke tests for `scripts/inspect-target-library.py`."""
+"""Smoke tests for `scripts/inspect_target_library.py`."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from purego_gen.process_exec import CommandResult, run_command
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SRC_DIR = _REPO_ROOT / "src"
-_SCRIPT_PATH = _REPO_ROOT / "scripts" / "inspect-target-library.py"
+_SCRIPT_PATH = _REPO_ROOT / "scripts" / "inspect_target_library.py"
 
 
 def _run_script(*args: str) -> CommandResult:

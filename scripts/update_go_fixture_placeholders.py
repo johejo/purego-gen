@@ -216,7 +216,7 @@ def _check_or_write_generated_sources(*, check: bool) -> int:
     _write_line("go fixture placeholders are stale:")
     for path in stale_paths:
         _write_line(f"- {path}")
-    _write_line("run: scripts/uv-run-python-src.sh scripts/update-go-fixture-placeholders.py")
+    _write_line("run: scripts/uv-run-python-src.sh scripts/update_go_fixture_placeholders.py")
     return 1
 
 

@@ -14,7 +14,7 @@ from purego_gen.process_exec import CommandResult, run_command
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FIXTURES_ROOT = _REPO_ROOT / "tests" / "fixtures"
 _SRC_DIR = _REPO_ROOT / "src"
-_PLACEHOLDER_SCRIPT = _REPO_ROOT / "scripts" / "update-go-fixture-placeholders.py"
+_PLACEHOLDER_SCRIPT = _REPO_ROOT / "scripts" / "update_go_fixture_placeholders.py"
 _RUNTIME_FIXTURE_DIRS = (
     _FIXTURES_ROOT / "go_runtime_module",
     _FIXTURES_ROOT / "go_runtime_string_module",
