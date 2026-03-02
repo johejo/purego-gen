@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+# Copyright (c) 2026 purego-gen contributors.
 
 class Config:
     loaded: bool
@@ -7,11 +6,9 @@ class Config:
     @staticmethod
     def set_library_path(path: str) -> None: ...
 
-
 class TranslationUnit:
     PARSE_SKIP_FUNCTION_BODIES: int
     PARSE_DETAILED_PROCESSING_RECORD: int
-
 
 class CursorKind:
     FUNCTION_DECL: object
@@ -20,9 +17,7 @@ class CursorKind:
     VAR_DECL: object
     MACRO_DEFINITION: object
 
-
 class Cursor: ...
-
 
 class _IndexInstance:
     def parse(
@@ -33,13 +28,9 @@ class _IndexInstance:
         options: int,
     ) -> object: ...
 
-
 class Index:
     @staticmethod
     def create() -> _IndexInstance: ...
 
-
 class TranslationUnitLoadError(Exception): ...
-
-
 class LibclangError(Exception): ...

@@ -9,7 +9,6 @@ from ctypes import c_uint
 from typing import TYPE_CHECKING, cast
 
 from clang import cindex
-
 from purego_gen.clang_types import (
     CIndexModule,
     CursorBoolProbeLike,
