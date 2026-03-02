@@ -1,5 +1,5 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: DOC201, PLR0911
+# ruff: noqa: DOC201
 
 """CLI entrypoint for purego-gen."""
 
@@ -27,6 +27,12 @@ def _system_exit_to_code(error: SystemExit) -> int:
     return 1
 
 
+def _fail(message: str) -> int:
+    """Write one prefixed error message and return failure code."""
+    sys.stderr.write(f"purego-gen: {message}\n")
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI entrypoint."""
     args = list(argv) if argv is not None else sys.argv[1:]
@@ -37,12 +43,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         declarations, filtered_declarations = parse_and_filter(options)
-    except ClangParserError as error:
-        sys.stderr.write(f"purego-gen: {error}\n")
-        return 1
-    except ValueError as error:
-        sys.stderr.write(f"purego-gen: {error}\n")
-        return 1
+    except (ClangParserError, ValueError) as error:
+        return _fail(str(error))
 
     emit_generation_diagnostics(
         stream=sys.stderr,
@@ -53,18 +55,13 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         formatted = render_formatted_go_source(options, filtered_declarations)
-    except RendererError as error:
-        sys.stderr.write(f"purego-gen: {error}\n")
-        return 1
-    except RuntimeError as error:
-        sys.stderr.write(f"purego-gen: {error}\n")
-        return 1
+    except (RendererError, RuntimeError) as error:
+        return _fail(str(error))
 
     try:
         write_output(formatted, options.out)
     except OSError as error:
-        sys.stderr.write(f"purego-gen: failed to write output: {error}\n")
-        return 1
+        return _fail(f"failed to write output: {error}")
 
     sys.stderr.write(
         "purego-gen: generated bindings from function declarations and basic typedefs.\n"
