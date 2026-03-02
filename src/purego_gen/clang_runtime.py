@@ -6,11 +6,12 @@
 
 from __future__ import annotations
 
-import importlib
 import os
 from collections.abc import Callable
 from ctypes import c_uint
 from typing import cast
+
+from clang import cindex  # pyright: ignore[reportMissingTypeStubs]
 
 from purego_gen.clang_types import (
     _CIndexModule,
@@ -25,16 +26,8 @@ class ClangParserError(RuntimeError):
 
 
 def _load_cindex() -> _CIndexModule:
-    """Import `clang.cindex` module."""
-    try:
-        module = importlib.import_module("clang.cindex")
-    except ImportError as error:
-        message = (
-            "clang Python bindings are not installed. "
-            "Install the dependency group that includes `clang`."
-        )
-        raise ClangParserError(message) from error
-    return cast("_CIndexModule", module)
+    """Return statically imported `clang.cindex` module."""
+    return cast("_CIndexModule", cindex)
 
 
 def _configure_libclang(cindex: _CIndexModule) -> None:
