@@ -1,29 +1,35 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: DOC201, DOC501, TC001
 
 """Generation pipeline helpers for CLI orchestration."""
 
 from __future__ import annotations
 
 import shutil
-import subprocess  # noqa: S404
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from purego_gen.clang_parser import ClangParserError, parse_declarations
-from purego_gen.cli_args import CliOptions
 from purego_gen.declaration_filters import (
     CompiledDeclarationFilters,
     apply_declaration_filters,
     compile_filter,
     validate_filter_match,
 )
-from purego_gen.model import ParsedDeclarations
+from purego_gen.process_exec import run_command
 from purego_gen.renderer import RendererError, render_go_source
+
+if TYPE_CHECKING:
+    from purego_gen.cli_args import CliOptions
+    from purego_gen.model import ParsedDeclarations
 
 
 def _compile_filters(options: CliOptions) -> CompiledDeclarationFilters:
-    """Compile all regex filters from CLI options."""
+    """Compile all regex filters from CLI options.
+
+    Returns:
+        Compiled per-category regex filters.
+    """
     return CompiledDeclarationFilters(
         func=compile_filter(options.func_filter, option_name="--func-filter"),
         type_=compile_filter(options.type_filter, option_name="--type-filter"),
@@ -33,7 +39,11 @@ def _compile_filters(options: CliOptions) -> CompiledDeclarationFilters:
 
 
 def apply_cli_filters(options: CliOptions, declarations: ParsedDeclarations) -> ParsedDeclarations:
-    """Apply CLI category-specific declaration filters with match validation."""
+    """Apply CLI category-specific declaration filters with match validation.
+
+    Returns:
+        Filtered declarations that satisfy configured CLI filters.
+    """
     filtered = apply_declaration_filters(declarations, filters=_compile_filters(options))
     validate_filter_match(
         emit_kinds=options.emit_kinds,
@@ -67,7 +77,11 @@ def apply_cli_filters(options: CliOptions, declarations: ParsedDeclarations) -> 
 
 
 def parse_and_filter(options: CliOptions) -> tuple[ParsedDeclarations, ParsedDeclarations]:
-    """Parse declarations then apply CLI filters."""
+    """Parse declarations then apply CLI filters.
+
+    Returns:
+        Pair of all parsed declarations and filtered declarations.
+    """
     declarations = parse_declarations(
         options.headers,
         options.clang_args,
@@ -77,7 +91,11 @@ def parse_and_filter(options: CliOptions) -> tuple[ParsedDeclarations, ParsedDec
 
 
 def render_formatted_go_source(options: CliOptions, declarations: ParsedDeclarations) -> str:
-    """Render Go source and format via gofmt."""
+    """Render Go source and format via gofmt.
+
+    Returns:
+        Rendered and gofmt-formatted Go source text.
+    """
     rendered = render_go_source(
         package=options.package,
         lib_id=options.lib_id,
@@ -89,18 +107,22 @@ def render_formatted_go_source(options: CliOptions, declarations: ParsedDeclarat
 
 
 def format_go_source(source: str) -> str:
-    """Format generated Go source code using `gofmt`."""
+    """Format generated Go source code using `gofmt`.
+
+    Returns:
+        Formatted Go source text.
+
+    Raises:
+        RuntimeError: `gofmt` is unavailable or formatting fails.
+    """
     gofmt_path = shutil.which("gofmt")
     if gofmt_path is None:
         message = "gofmt is not available in PATH."
         raise RuntimeError(message)
 
-    result = subprocess.run(  # noqa: S603
+    result = run_command(
         [gofmt_path],
-        capture_output=True,
-        check=False,
-        input=source,
-        text=True,
+        stdin_text=source,
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or "gofmt failed."

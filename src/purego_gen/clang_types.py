@@ -1,6 +1,4 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: TC001, PYI046
-# pyright: reportPrivateUsage=false, reportUnusedClass=false
 
 """Shared internal typing definitions for libclang parser modules."""
 
@@ -9,22 +7,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
-from purego_gen.model import (
-    ConstantDecl,
-    FunctionDecl,
-    RecordTypedefDecl,
-    RuntimeVarDecl,
-    SkippedTypedefDecl,
-    TypedefDecl,
-    TypeMappingOptions,
-)
-
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from purego_gen.model import (
+        ConstantDecl,
+        FunctionDecl,
+        RecordTypedefDecl,
+        RuntimeVarDecl,
+        SkippedTypedefDecl,
+        TypedefDecl,
+        TypeMappingOptions,
+    )
+
 
 @dataclass(slots=True)
-class _SeenDeclarations:
+class SeenDeclarations:
     """Deduplication keys for extracted declarations."""
 
     function_names: set[str]
@@ -34,7 +32,7 @@ class _SeenDeclarations:
 
 
 @dataclass(slots=True)
-class _CollectedDeclarations:
+class CollectedDeclarations:
     """Mutable declaration buffers for one parse run."""
 
     functions: list[FunctionDecl]
@@ -63,54 +61,97 @@ class _CursorKindLike(Protocol):
     name: str
 
 
-class _TypeLike(Protocol):
+class TypeLike(Protocol):
+    """Minimal libclang type protocol used by parser helpers."""
+
     spelling: str
     kind: _TypeKindLike
 
-    def get_canonical(self) -> _TypeLike: ...
-    def get_pointee(self) -> _TypeLike: ...
-    def get_declaration(self) -> _CursorLike: ...
-    def get_size(self) -> int: ...
-    def get_align(self) -> int: ...
-    def is_const_qualified(self) -> bool: ...
+    def get_canonical(self) -> TypeLike:
+        """Return canonicalized type view."""
+        ...
+
+    def get_pointee(self) -> TypeLike:
+        """Return pointed-at type for pointer-like kinds."""
+        ...
+
+    def get_declaration(self) -> CursorLike:
+        """Return declaration cursor for this type."""
+        ...
+
+    def get_size(self) -> int:
+        """Return type size in bytes or negative sentinel."""
+        ...
+
+    def get_align(self) -> int:
+        """Return type alignment in bytes or negative sentinel."""
+        ...
+
+    def is_const_qualified(self) -> bool:
+        """Return whether type is const qualified."""
+        ...
 
 
 class _ArgumentLike(Protocol):
     spelling: str
-    type: _TypeLike
+    type: TypeLike
 
 
-class _CursorLike(Protocol):
+class CursorLike(Protocol):
+    """Minimal libclang cursor protocol used by parser helpers."""
+
     kind: _CursorKindLike
     spelling: str
     raw_comment: str
     location: _SourceLocationLike
-    result_type: _TypeLike
-    underlying_typedef_type: _TypeLike
-    type: _TypeLike
+    result_type: TypeLike
+    underlying_typedef_type: TypeLike
+    type: TypeLike
     enum_value: int
     storage_class: _StorageClassLike
 
-    def get_children(self) -> list[_CursorLike]: ...
-    def get_tokens(self) -> list[_TokenLike]: ...
-    def get_arguments(self) -> list[_ArgumentLike]: ...
-    def is_bitfield(self) -> bool: ...
-    def is_definition(self) -> bool: ...
-    def get_bitfield_width(self) -> int: ...
-    def get_field_offsetof(self) -> int: ...
+    def get_children(self) -> list[CursorLike]:
+        """Return direct child cursors."""
+        ...
+
+    def get_tokens(self) -> list[_TokenLike]:
+        """Return source tokens under this cursor."""
+        ...
+
+    def get_arguments(self) -> list[_ArgumentLike]:
+        """Return function argument cursors."""
+        ...
+
+    def is_bitfield(self) -> bool:
+        """Return whether cursor represents a bitfield."""
+        ...
+
+    def is_definition(self) -> bool:
+        """Return whether cursor is a full definition."""
+        ...
+
+    def get_bitfield_width(self) -> int:
+        """Return bitfield width or negative sentinel."""
+        ...
+
+    def get_field_offsetof(self) -> int:
+        """Return field offset in bits or negative sentinel."""
+        ...
 
 
 class _TokenLike(Protocol):
     spelling: str
 
 
-class _CursorBoolProbeLike(Protocol):
+class CursorBoolProbeLike(Protocol):
     """ctypes-backed libclang probe with cursor argument and bool-like result."""
 
     argtypes: list[object]
     restype: object
 
-    def __call__(self, cursor: object) -> int: ...
+    def __call__(self, cursor: object) -> int:
+        """Call probe and return libclang bool-like integer value."""
+        ...
 
 
 class _DiagnosticLike(Protocol):
@@ -119,13 +160,15 @@ class _DiagnosticLike(Protocol):
     spelling: str
 
 
-class _TranslationUnitLike(Protocol):
+class TranslationUnitLike(Protocol):
+    """Minimal libclang translation unit protocol."""
+
     diagnostics: list[_DiagnosticLike]
-    cursor: _CursorLike | None
+    cursor: CursorLike | None
 
 
 @dataclass(frozen=True, slots=True)
-class _UnsupportedTypeDiagnostic:
+class UnsupportedTypeDiagnostic:
     """Stable diagnostic payload for unsupported type patterns."""
 
     code: str
@@ -133,11 +176,11 @@ class _UnsupportedTypeDiagnostic:
 
 
 @dataclass(frozen=True, slots=True)
-class _RecordTypeMappingResult:
+class RecordTypeMappingResult:
     """Result of mapping a C record type into Go."""
 
     go_type: str | None
-    unsupported_diagnostic: _UnsupportedTypeDiagnostic | None
+    unsupported_diagnostic: UnsupportedTypeDiagnostic | None
 
 
 class _ConfigLike(Protocol):
@@ -169,14 +212,16 @@ class _IndexLike(Protocol):
         path: str,
         args: list[str],
         options: int,
-    ) -> _TranslationUnitLike: ...
+    ) -> TranslationUnitLike: ...
 
 
 class _IndexFactoryLike(Protocol):
     def create(self) -> _IndexLike: ...
 
 
-class _CIndexModule(Protocol):
+class CIndexModule(Protocol):
+    """Minimal `clang.cindex` module protocol used by parser runtime."""
+
     Config: _ConfigLike
     TranslationUnit: _TranslationUnitConfigLike
     CursorKind: _CursorKindConfigLike
@@ -187,27 +232,27 @@ class _CIndexModule(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
-class _MacroCursorPredicates:
+class MacroCursorPredicates:
     """libclang-backed cursor predicates used by macro extraction."""
 
-    is_function_like: Callable[[_CursorLike], bool]
-    is_builtin: Callable[[_CursorLike], bool]
+    is_function_like: Callable[[CursorLike], bool]
+    is_builtin: Callable[[CursorLike], bool]
 
 
 @dataclass(slots=True)
-class _MacroCollectionState:
+class MacroCollectionState:
     """Mutable state shared by macro constant collection in one header."""
 
     known_constant_values: dict[str, int]
-    cursor_predicates: _MacroCursorPredicates
+    cursor_predicates: MacroCursorPredicates
 
 
 @dataclass(frozen=True, slots=True)
-class _ParseContext:
+class ParseContext:
     """Shared parse context reused across headers in one parse run."""
 
-    cindex: _CIndexModule
+    cindex: CIndexModule
     index: _IndexLike
     clang_args: tuple[str, ...]
-    macro_cursor_predicates: _MacroCursorPredicates
+    macro_cursor_predicates: MacroCursorPredicates
     type_mapping: TypeMappingOptions

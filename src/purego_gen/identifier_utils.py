@@ -1,5 +1,4 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: DOC201, DOC501
 
 """Identifier normalization helpers shared by parser/renderer/CLI layers."""
 
@@ -39,7 +38,11 @@ GO_KEYWORDS: Final[frozenset[str]] = frozenset({
 
 
 def is_go_identifier(value: str) -> bool:
-    """Check whether one token is a valid Go identifier."""
+    """Check whether one token is a valid Go identifier.
+
+    Returns:
+        `True` when `value` is a valid Go identifier.
+    """
     return GO_IDENTIFIER_PATTERN.fullmatch(value) is not None
 
 
@@ -50,7 +53,11 @@ def sanitize_identifier(
     digit_prefix: str,
     strip_outer_underscores: bool,
 ) -> str:
-    """Normalize arbitrary text into one Go identifier token."""
+    """Normalize arbitrary text into one Go identifier token.
+
+    Returns:
+        Sanitized identifier token.
+    """
     normalized = re.sub(r"[^0-9A-Za-z_]+", "_", raw)
     if strip_outer_underscores:
         normalized = normalized.strip("_")
@@ -64,7 +71,11 @@ def sanitize_identifier(
 
 
 def sanitize_struct_field_identifier(raw: str, *, fallback: str) -> str:
-    """Normalize struct-field names for parser struct literal emission."""
+    """Normalize struct-field names for parser struct literal emission.
+
+    Returns:
+        Sanitized struct field identifier.
+    """
     return sanitize_identifier(
         raw,
         fallback=fallback,
@@ -74,7 +85,11 @@ def sanitize_struct_field_identifier(raw: str, *, fallback: str) -> str:
 
 
 def sanitize_symbol_suffix(raw: str, *, fallback: str) -> str:
-    """Normalize generated declaration suffix preserving source casing."""
+    """Normalize generated declaration suffix preserving source casing.
+
+    Returns:
+        Sanitized declaration suffix identifier.
+    """
     return sanitize_identifier(
         raw,
         fallback=fallback,
@@ -84,7 +99,11 @@ def sanitize_symbol_suffix(raw: str, *, fallback: str) -> str:
 
 
 def allocate_unique_identifier(base_identifier: str, *, seen: set[str]) -> str:
-    """Allocate a deterministic unique identifier in one category."""
+    """Allocate a deterministic unique identifier in one category.
+
+    Returns:
+        Unique identifier that is recorded in `seen`.
+    """
     if base_identifier not in seen:
         seen.add(base_identifier)
         return base_identifier
@@ -102,7 +121,11 @@ def build_unique_identifiers(
     *,
     fallback_prefix: str,
 ) -> tuple[str, ...]:
-    """Build deterministic unique identifiers for one declaration category."""
+    """Build deterministic unique identifiers for one declaration category.
+
+    Returns:
+        Identifier tuple in the same order as `raw_names`.
+    """
     seen: set[str] = set()
     resolved: list[str] = []
     for index, raw_name in enumerate(raw_names, start=1):
@@ -112,7 +135,14 @@ def build_unique_identifiers(
 
 
 def normalize_lib_id(value: str) -> str:
-    """Normalize library id text to snake_case-safe identifier."""
+    """Normalize library id text to snake_case-safe identifier.
+
+    Returns:
+        Normalized library identifier.
+
+    Raises:
+        ValueError: Input contains no alphanumeric character.
+    """
     normalized = re.sub(r"[^0-9A-Za-z]+", "_", value).strip("_").lower()
     if not normalized:
         message = "--lib-id must contain at least one alphanumeric character."

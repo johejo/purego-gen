@@ -1,5 +1,4 @@
 # Copyright (c) 2026 purego-gen contributors.
-# pyright: reportPrivateUsage=false
 
 """libclang-backed declaration parser."""
 
@@ -7,14 +6,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from purego_gen.clang_collect import _parse_header
+from purego_gen.clang_collect import parse_header
 from purego_gen.clang_runtime import (
     ClangParserError,
-    _build_macro_cursor_predicates,
-    _configure_libclang,
-    _load_cindex,
+    build_macro_cursor_predicates,
+    configure_libclang,
+    load_cindex,
 )
-from purego_gen.clang_types import _CollectedDeclarations, _ParseContext, _SeenDeclarations
+from purego_gen.clang_types import CollectedDeclarations, ParseContext, SeenDeclarations
 from purego_gen.model import ParsedDeclarations, TypeMappingOptions
 
 
@@ -34,8 +33,8 @@ def parse_declarations(
     """
     resolved_type_mapping = type_mapping if type_mapping is not None else TypeMappingOptions()
 
-    cindex = _load_cindex()
-    _configure_libclang(cindex)
+    cindex = load_cindex()
+    configure_libclang(cindex)
 
     try:
         index = cindex.Index.create()
@@ -44,15 +43,15 @@ def parse_declarations(
             "failed to load libclang. Set `LIBCLANG_PATH` to the directory containing libclang."
         )
         raise ClangParserError(message) from error
-    parse_context = _ParseContext(
+    parse_context = ParseContext(
         cindex=cindex,
         index=index,
         clang_args=clang_args,
-        macro_cursor_predicates=_build_macro_cursor_predicates(cindex),
+        macro_cursor_predicates=build_macro_cursor_predicates(cindex),
         type_mapping=resolved_type_mapping,
     )
 
-    all_declarations = _CollectedDeclarations(
+    all_declarations = CollectedDeclarations(
         functions=[],
         typedefs=[],
         constants=[],
@@ -60,7 +59,7 @@ def parse_declarations(
         skipped_typedefs=[],
         record_typedefs=[],
     )
-    seen = _SeenDeclarations(
+    seen = SeenDeclarations(
         function_names=set(),
         typedef_names=set(),
         constant_names=set(),
@@ -80,7 +79,7 @@ def parse_declarations(
             parsed_runtime_vars,
             parsed_skipped_typedefs,
             parsed_record_typedefs,
-        ) = _parse_header(
+        ) = parse_header(
             parse_context=parse_context,
             header_path=header_path,
             seen=seen,

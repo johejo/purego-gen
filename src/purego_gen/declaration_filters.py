@@ -1,5 +1,4 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: DOC201, DOC501
 
 """Shared declaration-filter compilation and application helpers."""
 
@@ -22,7 +21,14 @@ class CompiledDeclarationFilters:
 
 
 def compile_filter(pattern: str | None, *, option_name: str) -> re.Pattern[str] | None:
-    """Compile one optional regex filter."""
+    """Compile one optional regex filter.
+
+    Returns:
+        Compiled regular expression when provided, otherwise `None`.
+
+    Raises:
+        ValueError: Regex compilation fails.
+    """
     if pattern is None:
         return None
     try:
@@ -37,7 +43,11 @@ def apply_declaration_filters(
     *,
     filters: CompiledDeclarationFilters,
 ) -> ParsedDeclarations:
-    """Apply category-specific filters to parsed declarations."""
+    """Apply category-specific filters to parsed declarations.
+
+    Returns:
+        Filtered declaration payload.
+    """
     functions = declarations.functions
     if filters.func is not None:
         functions = tuple(function for function in functions if filters.func.search(function.name))
@@ -82,7 +92,11 @@ def validate_filter_match(
     emit_kind: str,
     has_match: bool,
 ) -> None:
-    """Ensure configured filter matches at least one declaration."""
+    """Ensure configured filter matches at least one declaration.
+
+    Raises:
+        ValueError: Configured filter matches no declarations in the enabled category.
+    """
     if option_value is None or emit_kind not in emit_kinds or has_match:
         return
     message = f"no declarations matched {option_name}: {option_value}"

@@ -6,8 +6,9 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess  # noqa: S404
 from typing import TYPE_CHECKING
+
+from purego_gen.process_exec import CommandResult, run_command
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -21,7 +22,7 @@ def run_go_test_in_generated_module(
     generated_source: str,
     output_dir_name: str,
     env_overrides: Mapping[str, str] | None = None,
-) -> subprocess.CompletedProcess[str]:
+) -> CommandResult:
     """Run `go test ./...` after writing generated source into a fixture module.
 
     Args:
@@ -32,7 +33,7 @@ def run_go_test_in_generated_module(
         env_overrides: Optional environment key-value overrides.
 
     Returns:
-        Completed process result from `go test`.
+        Command result from `go test`.
 
     Raises:
         RuntimeError: `go` binary is unavailable in `PATH`.
@@ -58,11 +59,8 @@ def run_go_test_in_generated_module(
     if env_overrides is not None:
         env.update(env_overrides)
 
-    return subprocess.run(  # noqa: S603
+    return run_command(
         [go_binary, "test", "./..."],
-        capture_output=True,
-        check=False,
         cwd=module_dir,
         env=env,
-        text=True,
     )

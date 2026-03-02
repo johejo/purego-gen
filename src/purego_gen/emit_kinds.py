@@ -1,5 +1,4 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: DOC201, DOC501
 
 """Shared emit-kind parsing and validation helpers."""
 
@@ -11,7 +10,14 @@ ALLOWED_EMIT_KINDS: Final[frozenset[str]] = frozenset({"func", "type", "const", 
 
 
 def parse_emit_kinds(value: str, *, option_name: str) -> tuple[str, ...]:
-    """Parse and validate comma-separated emit kinds."""
+    """Parse and validate comma-separated emit kinds.
+
+    Returns:
+        Parsed emit-kind tuple.
+
+    Raises:
+        ValueError: Input is empty or contains unsupported values.
+    """
     parsed = tuple(part.strip() for part in value.split(",") if part.strip())
     if not parsed:
         message = f"{option_name} must contain at least one category."
@@ -28,7 +34,11 @@ def parse_emit_kinds(value: str, *, option_name: str) -> tuple[str, ...]:
 
 
 def validate_emit_kinds(emit_kinds: tuple[str, ...], *, context: str) -> None:
-    """Validate emit kinds in one internal processing context."""
+    """Validate emit kinds in one internal processing context.
+
+    Raises:
+        ValueError: Unsupported emit kind is present.
+    """
     invalid = [kind for kind in emit_kinds if kind not in ALLOWED_EMIT_KINDS]
     if invalid:
         message = (

@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import os
-import subprocess  # noqa: S404
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +17,7 @@ from purego_gen.cli_invocation import (
     build_src_pythonpath_env,
 )
 from purego_gen.pkg_config import run_pkg_config_stdout, run_pkg_config_tokens
+from purego_gen.process_exec import CommandResult, run_command
 from purego_gen.target_profile import TargetProfile, load_target_profile_catalog
 
 from .helper.go_test_harness import run_go_test_in_generated_module
@@ -154,7 +154,7 @@ def _run_cli_for_libzstd(
     *,
     profile: TargetProfile,
     package: str,
-) -> subprocess.CompletedProcess[str]:
+) -> CommandResult:
     """Run purego-gen against discovered libzstd header with deterministic filter.
 
     Returns:
@@ -174,13 +174,10 @@ def _run_cli_for_libzstd(
         ),
         python_executable=sys.executable,
     )
-    return subprocess.run(  # noqa: S603
+    return run_command(
         command,
-        capture_output=True,
-        check=False,
         cwd=_REPO_ROOT,
         env=build_src_pythonpath_env(src_dir=_SRC_DIR),
-        text=True,
     )
 
 
@@ -189,7 +186,7 @@ def _run_cli_for_libzstd_constants(
     *,
     package: str,
     const_filter: str,
-) -> subprocess.CompletedProcess[str]:
+) -> CommandResult:
     """Run purego-gen against discovered libzstd header for constant extraction.
 
     Returns:
@@ -213,13 +210,10 @@ def _run_cli_for_libzstd_constants(
         ),
         python_executable=sys.executable,
     )
-    return subprocess.run(  # noqa: S603
+    return run_command(
         command,
-        capture_output=True,
-        check=False,
         cwd=_REPO_ROOT,
         env=build_src_pythonpath_env(src_dir=_SRC_DIR),
-        text=True,
     )
 
 

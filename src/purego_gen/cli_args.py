@@ -1,5 +1,4 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: DOC201, DOC501
 
 """CLI argument parsing and validated options for purego-gen."""
 
@@ -48,7 +47,14 @@ class _ParsedArgs(argparse.Namespace):
 
 
 def _parse_emit_kinds_arg(value: str) -> tuple[str, ...]:
-    """Parse and validate `--emit` argument for argparse."""
+    """Parse and validate `--emit` argument for argparse.
+
+    Returns:
+        Normalized emit-kind tuple.
+
+    Raises:
+        argparse.ArgumentTypeError: Emit-kind validation fails.
+    """
     try:
         return parse_emit_kinds(value, option_name="--emit")
     except ValueError as error:
@@ -56,7 +62,14 @@ def _parse_emit_kinds_arg(value: str) -> tuple[str, ...]:
 
 
 def _parse_package_name(value: str) -> str:
-    """Validate Go package name syntax."""
+    """Validate Go package name syntax.
+
+    Returns:
+        Validated package name.
+
+    Raises:
+        argparse.ArgumentTypeError: Package name is not a valid Go identifier.
+    """
     if not is_go_identifier(value):
         message = "Go package name must match ^[A-Za-z_][A-Za-z0-9_]*$."
         raise argparse.ArgumentTypeError(message)
@@ -64,7 +77,14 @@ def _parse_package_name(value: str) -> str:
 
 
 def _normalize_lib_id(value: str) -> str:
-    """Normalize `--lib-id` to safe snake_case."""
+    """Normalize `--lib-id` to safe snake_case.
+
+    Returns:
+        Normalized library identifier.
+
+    Raises:
+        argparse.ArgumentTypeError: Library identifier is invalid.
+    """
     try:
         return normalize_lib_id(value)
     except ValueError as error:
@@ -72,7 +92,11 @@ def _normalize_lib_id(value: str) -> str:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    """Create the top-level CLI parser."""
+    """Create the top-level CLI parser.
+
+    Returns:
+        Configured argument parser.
+    """
     parser = argparse.ArgumentParser(
         prog="purego-gen",
         description="Generate low-level Go bindings for ebitengine/purego.",
@@ -132,7 +156,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _split_cli_and_clang_args(argv: list[str]) -> tuple[list[str], tuple[str, ...]]:
-    """Split generator args from clang args using `--` separator."""
+    """Split generator args from clang args using `--` separator.
+
+    Returns:
+        Generator-argument list and clang-argument tuple.
+    """
     if "--" not in argv:
         return list(argv), ()
     separator_index = argv.index("--")
@@ -140,7 +168,11 @@ def _split_cli_and_clang_args(argv: list[str]) -> tuple[list[str], tuple[str, ..
 
 
 def parse_options(argv: list[str]) -> CliOptions:
-    """Parse CLI arguments into validated options."""
+    """Parse CLI arguments into validated options.
+
+    Returns:
+        Validated CLI option payload.
+    """
     parser = _build_parser()
     cli_argv, clang_argv = _split_cli_and_clang_args(argv)
     namespace = parser.parse_args(cli_argv, namespace=_ParsedArgs())

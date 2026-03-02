@@ -14,6 +14,7 @@ from jinja2 import (
     StrictUndefined,
     TemplateNotFound,
     UndefinedError,
+    select_autoescape,
 )
 
 from purego_gen.c_type_utils import (
@@ -49,7 +50,7 @@ _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
 })
 _ENVIRONMENT: Final[Environment] = Environment(
     loader=FileSystemLoader(str(_TEMPLATE_DIR)),
-    autoescape=False,  # noqa: S701
+    autoescape=select_autoescape(default_for_string=False, default=False),
     trim_blocks=True,
     lstrip_blocks=True,
     undefined=StrictUndefined,

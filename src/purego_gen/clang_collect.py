@@ -1,47 +1,51 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: DOC201, DOC501, TC001
-# pyright: reportPrivateUsage=false, reportUnusedFunction=false
 
 """Translation-unit walking and declaration collection helpers."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Final, cast
+from typing import TYPE_CHECKING, Final, cast
 
 from purego_gen.clang_extractor import (
-    _collect_constant,
-    _collect_function,
-    _collect_macro_constant,
-    _collect_runtime_var,
-    _collect_typedef,
+    collect_constant,
+    collect_function,
+    collect_macro_constant,
+    collect_runtime_var,
+    collect_typedef,
 )
 from purego_gen.clang_runtime import ClangParserError
 from purego_gen.clang_types import (
-    _CollectedDeclarations,
-    _CursorLike,
-    _MacroCollectionState,
-    _ParseContext,
-    _SeenDeclarations,
-    _TranslationUnitLike,
+    CollectedDeclarations,
+    CursorLike,
+    MacroCollectionState,
+    ParseContext,
+    SeenDeclarations,
+    TranslationUnitLike,
 )
-from purego_gen.model import (
-    ConstantDecl,
-    FunctionDecl,
-    RecordTypedefDecl,
-    RuntimeVarDecl,
-    SkippedTypedefDecl,
-    TypedefDecl,
-)
+
+if TYPE_CHECKING:
+    from purego_gen.model import (
+        ConstantDecl,
+        FunctionDecl,
+        RecordTypedefDecl,
+        RuntimeVarDecl,
+        SkippedTypedefDecl,
+        TypedefDecl,
+    )
 
 _SEVERITY_ERROR: Final[int] = 3
 
 
 def _collect_diagnostics(
-    translation_unit: _TranslationUnitLike,
+    translation_unit: TranslationUnitLike,
     header_path: Path,
 ) -> tuple[str, ...]:
-    """Collect error-level diagnostics."""
+    """Collect error-level diagnostics.
+
+    Returns:
+        Tuple of diagnostic lines, empty when no error-level diagnostics exist.
+    """
     diagnostics: list[str] = []
     for diagnostic in translation_unit.diagnostics:
         if diagnostic.severity < _SEVERITY_ERROR:
@@ -56,16 +60,24 @@ def _collect_diagnostics(
     return (f"failed to parse {header_path}:", *diagnostics)
 
 
-def _walk_preorder(cursor: _CursorLike) -> tuple[_CursorLike, ...]:
-    """Collect all cursor nodes in preorder."""
-    nodes: list[_CursorLike] = [cursor]
+def _walk_preorder(cursor: CursorLike) -> tuple[CursorLike, ...]:
+    """Collect all cursor nodes in preorder.
+
+    Returns:
+        Preorder cursor tuple rooted at `cursor`.
+    """
+    nodes: list[CursorLike] = [cursor]
     for child in cursor.get_children():
         nodes.extend(_walk_preorder(child))
     return tuple(nodes)
 
 
-def _is_cursor_from_header(cursor: _CursorLike, header_path: Path) -> bool:
-    """Check if cursor originates from target header."""
+def _is_cursor_from_header(cursor: CursorLike, header_path: Path) -> bool:
+    """Check if cursor originates from target header.
+
+    Returns:
+        `True` when cursor source file exactly matches `header_path`.
+    """
     location = cursor.location
     if location.file is None:
         return False
@@ -73,10 +85,17 @@ def _is_cursor_from_header(cursor: _CursorLike, header_path: Path) -> bool:
 
 
 def _parse_translation_unit(
-    parse_context: _ParseContext,
+    parse_context: ParseContext,
     header_path: Path,
-) -> _TranslationUnitLike:
-    """Create translation unit for one header."""
+) -> TranslationUnitLike:
+    """Create translation unit for one header.
+
+    Returns:
+        Parsed translation unit.
+
+    Raises:
+        ClangParserError: libclang fails to load translation unit.
+    """
     cindex = parse_context.cindex
     parse_options = int(cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES)
     detailed_preprocessing_record = getattr(
@@ -96,10 +115,10 @@ def _parse_translation_unit(
         raise ClangParserError(message) from error
 
 
-def _parse_header(
-    parse_context: _ParseContext,
+def parse_header(
+    parse_context: ParseContext,
     header_path: Path,
-    seen: _SeenDeclarations,
+    seen: SeenDeclarations,
 ) -> tuple[
     list[FunctionDecl],
     list[TypedefDecl],
@@ -108,7 +127,14 @@ def _parse_header(
     list[SkippedTypedefDecl],
     list[RecordTypedefDecl],
 ]:
-    """Parse one header and extract supported declarations."""
+    """Parse one header and extract supported declarations.
+
+    Returns:
+        Declaration lists grouped by category.
+
+    Raises:
+        ClangParserError: Translation unit parsing or diagnostics fail.
+    """
     cindex = parse_context.cindex
     translation_unit = _parse_translation_unit(parse_context, header_path)
     diagnostic_messages = _collect_diagnostics(translation_unit, header_path)
@@ -119,7 +145,7 @@ def _parse_header(
     if root_cursor is None:
         return [], [], [], [], [], []
 
-    declarations = _CollectedDeclarations(
+    declarations = CollectedDeclarations(
         functions=[],
         typedefs=[],
         constants=[],
@@ -127,7 +153,7 @@ def _parse_header(
         skipped_typedefs=[],
         record_typedefs=[],
     )
-    macro_state = _MacroCollectionState(
+    macro_state = MacroCollectionState(
         known_constant_values={},
         cursor_predicates=parse_context.macro_cursor_predicates,
     )
@@ -139,7 +165,7 @@ def _parse_header(
         if not _is_cursor_from_header(cursor, header_path):
             continue
 
-        if _collect_function(
+        if collect_function(
             cursor,
             cindex.CursorKind.FUNCTION_DECL,
             seen,
@@ -147,14 +173,14 @@ def _parse_header(
             type_mapping=parse_context.type_mapping,
         ):
             continue
-        if _collect_typedef(
+        if collect_typedef(
             cursor,
             cindex.CursorKind.TYPEDEF_DECL,
             seen,
             declarations,
         ):
             continue
-        if _collect_constant(
+        if collect_constant(
             cursor,
             cindex.CursorKind.ENUM_CONSTANT_DECL,
             seen,
@@ -162,7 +188,7 @@ def _parse_header(
         ):
             macro_state.known_constant_values[str(cursor.spelling)] = int(cursor.enum_value)
             continue
-        if macro_definition_kind is not None and _collect_macro_constant(
+        if macro_definition_kind is not None and collect_macro_constant(
             cursor,
             macro_definition_kind,
             seen,
@@ -170,7 +196,7 @@ def _parse_header(
             macro_state,
         ):
             continue
-        if _collect_runtime_var(
+        if collect_runtime_var(
             cursor,
             cindex.CursorKind.VAR_DECL,
             seen,

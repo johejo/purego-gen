@@ -18,12 +18,13 @@ if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
 
-def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
+def pytest_sessionstart(session: pytest.Session) -> None:
     """Fail fast when libclang is not configured for tests.
 
     Raises:
         pytest.UsageError: `LIBCLANG_PATH` is not set.
     """
+    _ = session
     if os.environ.get("LIBCLANG_PATH"):
         return
     message = "LIBCLANG_PATH must be set for tests."

@@ -1,12 +1,10 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: INP001
 
 """Update/check Go fixture placeholder files by invoking purego-gen CLI."""
 
 from __future__ import annotations
 
 import argparse
-import subprocess  # noqa: S404
 import sys
 from pathlib import Path
 from typing import cast
@@ -18,6 +16,7 @@ from purego_gen.cli_invocation import (
 )
 from purego_gen.model import TypeMappingOptions
 from purego_gen.pkg_config import run_pkg_config_stdout, run_pkg_config_tokens
+from purego_gen.process_exec import run_command
 from purego_gen.target_profile import load_target_profile_catalog
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -72,13 +71,10 @@ def _run_purego_gen(invocation: PuregoGenInvocation) -> str:
         RuntimeError: CLI execution fails.
     """
     command = build_purego_gen_command(invocation, python_executable=sys.executable)
-    result = subprocess.run(  # noqa: S603
+    result = run_command(
         command,
-        capture_output=True,
-        check=False,
         cwd=_REPO_ROOT,
         env=build_src_pythonpath_env(src_dir=_SRC_DIR),
-        text=True,
     )
     if result.returncode != 0:
         message = (

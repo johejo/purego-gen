@@ -1,26 +1,18 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: DOC201, TC001
-# pyright: reportPrivateUsage=false, reportUnusedFunction=false
 
 """Declaration extraction and collection helpers for libclang parser."""
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from purego_gen.clang_type_mapping import (
-    _extract_record_typedef_decl,
-    _is_opaque_record_typedef,
-    _map_function_parameter_type_to_go_name,
-    _map_function_result_type_to_go_name,
-    _map_record_type_to_go_name,
-    _map_type_to_go_name,
-)
-from purego_gen.clang_types import (
-    _CollectedDeclarations,
-    _CursorLike,
-    _MacroCollectionState,
-    _MacroCursorPredicates,
-    _SeenDeclarations,
-    _UnsupportedTypeDiagnostic,
+    extract_record_typedef_decl,
+    is_opaque_record_typedef,
+    map_function_parameter_type_to_go_name,
+    map_function_result_type_to_go_name,
+    map_record_type_to_go_name,
+    map_type_to_go_name,
 )
 from purego_gen.macro_constants import evaluate_object_like_macro_definition
 from purego_gen.model import (
@@ -33,24 +25,42 @@ from purego_gen.model import (
     TypeMappingOptions,
 )
 
+if TYPE_CHECKING:
+    from purego_gen.clang_types import (
+        CollectedDeclarations,
+        CursorLike,
+        MacroCollectionState,
+        MacroCursorPredicates,
+        SeenDeclarations,
+        UnsupportedTypeDiagnostic,
+    )
+
 _RECORD_TYPE_KIND_NAME = "RECORD"
 
 
-def _extract_cursor_comment(cursor: _CursorLike) -> str | None:
-    """Extract one cursor raw comment when available."""
+def _extract_cursor_comment(cursor: CursorLike) -> str | None:
+    """Extract one cursor raw comment when available.
+
+    Returns:
+        Raw comment string when present, otherwise `None`.
+    """
     raw_comment = str(getattr(cursor, "raw_comment", "") or "")
     if not raw_comment.strip():
         return None
     return raw_comment
 
 
-def _extract_function(cursor: _CursorLike, *, type_mapping: TypeMappingOptions) -> FunctionDecl:
-    """Convert a function cursor to model."""
+def _extract_function(cursor: CursorLike, *, type_mapping: TypeMappingOptions) -> FunctionDecl:
+    """Convert a function cursor to model.
+
+    Returns:
+        Function declaration model.
+    """
     arguments = tuple(cursor.get_arguments())
     parameters = tuple(argument.type.spelling for argument in arguments)
     parameter_names = tuple(str(argument.spelling) for argument in arguments)
     go_parameter_types = tuple(
-        _map_function_parameter_type_to_go_name(
+        map_function_parameter_type_to_go_name(
             argument.type,
             type_mapping=type_mapping,
         )
@@ -61,7 +71,7 @@ def _extract_function(cursor: _CursorLike, *, type_mapping: TypeMappingOptions) 
         result_c_type=str(cursor.result_type.spelling),
         parameter_c_types=parameters,
         parameter_names=parameter_names,
-        go_result_type=_map_function_result_type_to_go_name(
+        go_result_type=map_function_result_type_to_go_name(
             cursor.result_type,
             type_mapping=type_mapping,
         ),
@@ -71,20 +81,24 @@ def _extract_function(cursor: _CursorLike, *, type_mapping: TypeMappingOptions) 
 
 
 def _extract_typedef(
-    cursor: _CursorLike,
-) -> tuple[TypedefDecl | None, _UnsupportedTypeDiagnostic | None, RecordTypedefDecl | None]:
-    """Convert a typedef cursor to model when it is basic."""
+    cursor: CursorLike,
+) -> tuple[TypedefDecl | None, UnsupportedTypeDiagnostic | None, RecordTypedefDecl | None]:
+    """Convert a typedef cursor to model when it is basic.
+
+    Returns:
+        Typedef result, optional unsupported diagnostic, and optional record metadata.
+    """
     underlying = cursor.underlying_typedef_type
     canonical = underlying.get_canonical()
     if canonical.kind.name == _RECORD_TYPE_KIND_NAME:
-        mapping_result = _map_record_type_to_go_name(canonical)
-        record_typedef = _extract_record_typedef_decl(
+        mapping_result = map_record_type_to_go_name(canonical)
+        record_typedef = extract_record_typedef_decl(
             cursor,
             canonical_record_type=canonical,
             mapping_result=mapping_result,
         )
         if mapping_result.go_type is None:
-            if _is_opaque_record_typedef(canonical):
+            if is_opaque_record_typedef(canonical):
                 return (
                     TypedefDecl(
                         name=str(cursor.spelling),
@@ -107,7 +121,7 @@ def _extract_typedef(
             record_typedef,
         )
 
-    go_type = _map_type_to_go_name(underlying)
+    go_type = map_type_to_go_name(underlying)
     if go_type is None:
         return None, None, None
     return (
@@ -122,8 +136,12 @@ def _extract_typedef(
     )
 
 
-def _extract_constant(cursor: _CursorLike) -> ConstantDecl:
-    """Convert an enum constant cursor to model."""
+def _extract_constant(cursor: CursorLike) -> ConstantDecl:
+    """Convert an enum constant cursor to model.
+
+    Returns:
+        Constant declaration model.
+    """
     return ConstantDecl(
         name=str(cursor.spelling),
         value=int(cursor.enum_value),
@@ -132,12 +150,16 @@ def _extract_constant(cursor: _CursorLike) -> ConstantDecl:
 
 
 def _extract_macro_constant(
-    cursor: _CursorLike,
+    cursor: CursorLike,
     *,
     known_constant_values: dict[str, int],
-    macro_cursor_predicates: _MacroCursorPredicates,
+    macro_cursor_predicates: MacroCursorPredicates,
 ) -> ConstantDecl | None:
-    """Extract one object-like macro constant when expression is supported."""
+    """Extract one object-like macro constant when expression is supported.
+
+    Returns:
+        Constant declaration when expression is supported, otherwise `None`.
+    """
     if macro_cursor_predicates.is_builtin(cursor):
         return None
 
@@ -156,8 +178,12 @@ def _extract_macro_constant(
     )
 
 
-def _extract_runtime_var(cursor: _CursorLike) -> RuntimeVarDecl:
-    """Convert a runtime variable cursor to model."""
+def _extract_runtime_var(cursor: CursorLike) -> RuntimeVarDecl:
+    """Convert a runtime variable cursor to model.
+
+    Returns:
+        Runtime variable declaration model.
+    """
     return RuntimeVarDecl(
         name=str(cursor.spelling),
         c_type=str(cursor.type.spelling),
@@ -165,20 +191,28 @@ def _extract_runtime_var(cursor: _CursorLike) -> RuntimeVarDecl:
     )
 
 
-def _is_extern_runtime_var(cursor: _CursorLike) -> bool:
-    """Check whether a variable declaration represents an extern data symbol."""
+def _is_extern_runtime_var(cursor: CursorLike) -> bool:
+    """Check whether a variable declaration represents an extern data symbol.
+
+    Returns:
+        `True` when cursor is an extern variable declaration.
+    """
     return cursor.storage_class.name == "EXTERN"
 
 
-def _collect_function(
-    cursor: _CursorLike,
+def collect_function(
+    cursor: CursorLike,
     function_decl_kind: object,
-    seen: _SeenDeclarations,
+    seen: SeenDeclarations,
     functions: list[FunctionDecl],
     *,
     type_mapping: TypeMappingOptions,
 ) -> bool:
-    """Collect one function declaration when applicable."""
+    """Collect one function declaration when applicable.
+
+    Returns:
+        `True` when cursor kind was handled by this collector.
+    """
     if cursor.kind != function_decl_kind:
         return False
     if cursor.spelling in seen.function_names:
@@ -188,13 +222,17 @@ def _collect_function(
     return True
 
 
-def _collect_typedef(
-    cursor: _CursorLike,
+def collect_typedef(
+    cursor: CursorLike,
     typedef_decl_kind: object,
-    seen: _SeenDeclarations,
-    declarations: _CollectedDeclarations,
+    seen: SeenDeclarations,
+    declarations: CollectedDeclarations,
 ) -> bool:
-    """Collect one typedef declaration when applicable."""
+    """Collect one typedef declaration when applicable.
+
+    Returns:
+        `True` when cursor kind was handled by this collector.
+    """
     if cursor.kind != typedef_decl_kind:
         return False
     if cursor.spelling in seen.typedef_names:
@@ -219,13 +257,17 @@ def _collect_typedef(
     return True
 
 
-def _collect_constant(
-    cursor: _CursorLike,
+def collect_constant(
+    cursor: CursorLike,
     enum_constant_decl_kind: object,
-    seen: _SeenDeclarations,
+    seen: SeenDeclarations,
     constants: list[ConstantDecl],
 ) -> bool:
-    """Collect one compile-time constant declaration when applicable."""
+    """Collect one compile-time constant declaration when applicable.
+
+    Returns:
+        `True` when cursor kind was handled by this collector.
+    """
     if cursor.kind != enum_constant_decl_kind:
         return False
     if cursor.spelling in seen.constant_names:
@@ -235,14 +277,18 @@ def _collect_constant(
     return True
 
 
-def _collect_macro_constant(
-    cursor: _CursorLike,
+def collect_macro_constant(
+    cursor: CursorLike,
     macro_definition_kind: object,
-    seen: _SeenDeclarations,
+    seen: SeenDeclarations,
     constants: list[ConstantDecl],
-    macro_state: _MacroCollectionState,
+    macro_state: MacroCollectionState,
 ) -> bool:
-    """Collect one object-like macro constant when expression is supported."""
+    """Collect one object-like macro constant when expression is supported.
+
+    Returns:
+        `True` when cursor kind was handled by this collector.
+    """
     if cursor.kind != macro_definition_kind:
         return False
     if cursor.spelling in seen.constant_names:
@@ -261,13 +307,17 @@ def _collect_macro_constant(
     return True
 
 
-def _collect_runtime_var(
-    cursor: _CursorLike,
+def collect_runtime_var(
+    cursor: CursorLike,
     var_decl_kind: object,
-    seen: _SeenDeclarations,
+    seen: SeenDeclarations,
     runtime_vars: list[RuntimeVarDecl],
 ) -> bool:
-    """Collect one runtime variable declaration when applicable."""
+    """Collect one runtime variable declaration when applicable.
+
+    Returns:
+        `True` when cursor kind was handled by this collector.
+    """
     if cursor.kind != var_decl_kind:
         return False
     if not _is_extern_runtime_var(cursor):

@@ -1,14 +1,15 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: DOC201, TC001, FURB122
 
 """CLI diagnostics helpers."""
 
 from __future__ import annotations
 
-from typing import Final, TextIO
+from typing import TYPE_CHECKING, Final, TextIO
 
 from purego_gen.c_type_utils import extract_pointer_typedef_name
-from purego_gen.model import ParsedDeclarations
+
+if TYPE_CHECKING:
+    from purego_gen.model import ParsedDeclarations
 
 OPAQUE_DIAGNOSTIC_CODE_EMITTED_COUNT: Final[str] = "PG_OPAQUE_EMITTED_COUNT"
 OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT: Final[str] = "PG_OPAQUE_FALLBACK_UINTPTR_COUNT"
@@ -19,7 +20,11 @@ def count_opaque_diagnostics(
     emit_kinds: tuple[str, ...],
     declarations: ParsedDeclarations,
 ) -> tuple[int, int]:
-    """Count opaque-emission and fallback-to-uintptr diagnostics."""
+    """Count opaque-emission and fallback-to-uintptr diagnostics.
+
+    Returns:
+        Pair of emitted opaque typedef count and uintptr fallback slot count.
+    """
     opaque_typedef_names = {
         record_typedef.name
         for record_typedef in declarations.record_typedefs
@@ -58,12 +63,14 @@ def emit_generation_diagnostics(
     emit_kinds: tuple[str, ...],
 ) -> None:
     """Emit stable skipped/opaque diagnostics to stderr."""
-    for skipped_typedef in all_declarations.skipped_typedefs:
-        stream.write(
+    stream.writelines(
+        (
             "purego-gen: skipped typedef "
             f"{skipped_typedef.name} ({skipped_typedef.c_type}) "
             f"[{skipped_typedef.reason_code}]: {skipped_typedef.reason}\n"
         )
+        for skipped_typedef in all_declarations.skipped_typedefs
+    )
     opaque_emitted_count, opaque_fallback_count = count_opaque_diagnostics(
         emit_kinds=emit_kinds,
         declarations=filtered_declarations,

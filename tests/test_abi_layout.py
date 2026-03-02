@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import subprocess  # noqa: S404
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -23,6 +22,7 @@ from purego_gen.abi_layout import (
     validate_record_layout_with_fallback,
 )
 from purego_gen.clang_parser import parse_declarations
+from purego_gen.process_exec import run_command
 
 from .helper.toolchain import resolve_c_compiler_command
 
@@ -126,20 +126,14 @@ def _run_c_layout_probe(tmp_path: Path) -> dict[str, _ProbeRecordLayout]:
         Parsed record layout mapping from probe output.
     """
     probe_binary_path = tmp_path / "abi_probe_abi_types"
-    compile_result = subprocess.run(  # noqa: S603
+    compile_result = run_command(
         _build_probe_compile_command(probe_binary_path),
-        capture_output=True,
-        check=False,
         cwd=_REPO_ROOT,
-        text=True,
     )
     assert compile_result.returncode == 0, compile_result.stderr
-    run_result = subprocess.run(  # noqa: S603
+    run_result = run_command(
         [str(probe_binary_path)],
-        capture_output=True,
-        check=False,
         cwd=_REPO_ROOT,
-        text=True,
     )
     assert run_result.returncode == 0, run_result.stderr
     return _parse_probe_layout_output(run_result.stdout)

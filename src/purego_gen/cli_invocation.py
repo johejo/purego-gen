@@ -1,5 +1,4 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: DOC201, TC003
 
 """Helpers for building purego-gen CLI invocation commands."""
 
@@ -7,9 +6,12 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from purego_gen.model import TypeMappingOptions
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,7 +57,11 @@ def build_purego_gen_command(
     *,
     python_executable: str,
 ) -> list[str]:
-    """Build a `python -m purego_gen ...` command."""
+    """Build a `python -m purego_gen ...` command.
+
+    Returns:
+        Tokenized command suitable for process execution.
+    """
     command = [
         python_executable,
         "-m",
@@ -77,7 +83,11 @@ def build_purego_gen_command(
 
 
 def build_src_pythonpath_env(*, src_dir: Path) -> dict[str, str]:
-    """Build subprocess environment with `src` prepended to `PYTHONPATH`."""
+    """Build process environment with `src` prepended to `PYTHONPATH`.
+
+    Returns:
+        Environment mapping used for Python module execution from `src`.
+    """
     env = os.environ.copy()
     existing_pythonpath = env.get("PYTHONPATH")
     src_path = str(src_dir)

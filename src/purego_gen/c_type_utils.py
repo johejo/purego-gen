@@ -1,5 +1,4 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: DOC201
 
 """C type spelling helpers shared by CLI and renderer."""
 
@@ -18,7 +17,11 @@ _C_TYPE_QUALIFIERS: Final[frozenset[str]] = frozenset({"const", "volatile", "res
 
 
 def extract_pointer_typedef_name(c_type: str) -> str | None:
-    """Extract typedef name from one single-pointer C type spelling."""
+    """Extract typedef name from one single-pointer C type spelling.
+
+    Returns:
+        Matched typedef name when pattern matches, otherwise `None`.
+    """
     normalized = " ".join(c_type.split())
     matched = _OPAQUE_POINTER_TYPEDEF_PATTERN.fullmatch(normalized)
     if matched is None:
@@ -27,13 +30,21 @@ def extract_pointer_typedef_name(c_type: str) -> str | None:
 
 
 def normalize_c_type_for_lookup(c_type: str) -> str:
-    """Normalize C type spelling for deterministic lookup keys."""
+    """Normalize C type spelling for deterministic lookup keys.
+
+    Returns:
+        Normalized C type string without qualifiers used in lookup keys.
+    """
     tokens = [token for token in c_type.split() if token not in _C_TYPE_QUALIFIERS]
     return " ".join(tokens)
 
 
 def extract_enum_typedef_name(c_type: str) -> str | None:
-    """Extract enum target name from typedef C type spelling."""
+    """Extract enum target name from typedef C type spelling.
+
+    Returns:
+        Enum target name when pattern matches, otherwise `None`.
+    """
     normalized = normalize_c_type_for_lookup(c_type)
     matched = _ENUM_TYPEDEF_C_TYPE_PATTERN.fullmatch(normalized)
     if matched is None:

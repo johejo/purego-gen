@@ -6,9 +6,10 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess  # noqa: S404
 import sys
 from pathlib import Path
+
+from purego_gen.process_exec import CommandResult, run_command
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FIXTURES_ROOT = _REPO_ROOT / "tests" / "fixtures"
@@ -22,7 +23,7 @@ _RUNTIME_FIXTURE_DIRS = (
 )
 
 
-def _run_fixture_compile_check(tmp_path: Path) -> subprocess.CompletedProcess[str]:
+def _run_fixture_compile_check(tmp_path: Path) -> CommandResult:
     """Run compile-only `go test` for fixture modules.
 
     Returns:
@@ -41,17 +42,14 @@ def _run_fixture_compile_check(tmp_path: Path) -> subprocess.CompletedProcess[st
     go_cache_dir.mkdir(parents=True, exist_ok=True)
     env["GOCACHE"] = str(go_cache_dir)
 
-    return subprocess.run(  # noqa: S603
+    return run_command(
         [go_binary, "test", "-run", "^$", "./..."],
-        capture_output=True,
-        check=False,
         cwd=_FIXTURES_ROOT,
         env=env,
-        text=True,
     )
 
 
-def _run_placeholder_sync_check() -> subprocess.CompletedProcess[str]:
+def _run_placeholder_sync_check() -> CommandResult:
     """Run placeholder-sync check script in check mode.
 
     Returns:
@@ -63,13 +61,10 @@ def _run_placeholder_sync_check() -> subprocess.CompletedProcess[str]:
     env["PYTHONPATH"] = (
         src_path if existing_pythonpath is None else f"{src_path}:{existing_pythonpath}"
     )
-    return subprocess.run(  # noqa: S603
+    return run_command(
         [sys.executable, str(_PLACEHOLDER_SCRIPT), "--check"],
-        capture_output=True,
-        check=False,
         cwd=_REPO_ROOT,
         env=env,
-        text=True,
     )
 
 

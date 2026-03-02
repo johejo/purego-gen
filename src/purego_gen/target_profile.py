@@ -1,5 +1,4 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: DOC201, DOC501, C901
 
 """Target profile catalog loader for harness/script internal workflows."""
 
@@ -92,7 +91,11 @@ class _CatalogSpec:
 
 
 def build_exact_symbol_regex(symbols: tuple[str, ...]) -> str:
-    """Build an exact-match regex that matches only the provided symbols."""
+    """Build an exact-match regex that matches only the provided symbols.
+
+    Returns:
+        Regular expression string matching exactly the provided symbols.
+    """
     escaped = [re.escape(symbol) for symbol in symbols]
     return "^(" + "|".join(escaped) + ")$"
 
@@ -204,7 +207,16 @@ def _read_component(
     )
 
 
-def _load_catalog_spec(path: Path) -> _CatalogSpec:
+def _read_catalog_root(path: Path) -> dict[str, object]:
+    """Read and validate top-level catalog JSON object shape.
+
+    Returns:
+        Catalog root object as dictionary.
+
+    Raises:
+        RuntimeError: Catalog file is missing or JSON parsing fails.
+        TypeError: Catalog root is not a JSON object.
+    """
     if not path.is_file():
         message = f"target profile catalog not found: {path}"
         raise RuntimeError(message)
@@ -216,7 +228,16 @@ def _load_catalog_spec(path: Path) -> _CatalogSpec:
     if not isinstance(raw_object, dict):
         message = f"target profile catalog root must be a JSON object: {path}"
         raise TypeError(message)
-    root = cast("dict[str, object]", raw_object)
+    return cast("dict[str, object]", raw_object)
+
+
+def _validate_catalog_root(path: Path, root: dict[str, object]) -> None:
+    """Validate catalog root keys and schema version.
+
+    Raises:
+        RuntimeError: Root keys or schema version are invalid.
+        TypeError: Schema version is not an integer.
+    """
     unknown_keys = sorted(set(root) - set(_ALLOWED_ROOT_KEYS))
     if unknown_keys:
         message = f"target profile catalog has unsupported key(s): {', '.join(unknown_keys)}"
@@ -233,7 +254,16 @@ def _load_catalog_spec(path: Path) -> _CatalogSpec:
         )
         raise RuntimeError(message)
 
-    raw_presets = root.get("presets")
+
+def _load_presets(path: Path, raw_presets: object) -> dict[str, _ComponentSpec]:
+    """Load preset definitions from catalog root value.
+
+    Returns:
+        Preset mapping keyed by preset ID.
+
+    Raises:
+        RuntimeError: Preset section is missing or invalid.
+    """
     if not isinstance(raw_presets, dict) or not raw_presets:
         message = f"target profile catalog `{path}` must define non-empty object `presets`."
         raise RuntimeError(message)
@@ -248,8 +278,19 @@ def _load_catalog_spec(path: Path) -> _CatalogSpec:
             context=f"catalog `{path}` preset `{normalized_preset_id}`",
             allowed_keys=_ALLOWED_COMPONENT_KEYS,
         )
+    return presets
 
-    raw_profiles = root.get("profiles")
+
+def _load_profiles(path: Path, raw_profiles: object) -> dict[str, _ProfileSpec]:
+    """Load profile definitions from catalog root value.
+
+    Returns:
+        Profile mapping keyed by profile ID.
+
+    Raises:
+        RuntimeError: Profile section is missing or invalid.
+        TypeError: Profile entry is not a JSON object.
+    """
     if not isinstance(raw_profiles, dict) or not raw_profiles:
         message = f"target profile catalog `{path}` must define non-empty object `profiles`."
         raise RuntimeError(message)
@@ -272,8 +313,21 @@ def _load_catalog_spec(path: Path) -> _CatalogSpec:
             context=f"catalog `{path}` profile `{normalized_profile_id}`.compose",
         )
         profiles[normalized_profile_id] = _ProfileSpec(compose=compose, component=component)
+    return profiles
 
-    return _CatalogSpec(presets=presets, profiles=profiles)
+
+def _load_catalog_spec(path: Path) -> _CatalogSpec:
+    """Load and validate catalog specification.
+
+    Returns:
+        Parsed catalog specification payload.
+    """
+    root = _read_catalog_root(path)
+    _validate_catalog_root(path, root)
+    return _CatalogSpec(
+        presets=_load_presets(path, root.get("presets")),
+        profiles=_load_profiles(path, root.get("profiles")),
+    )
 
 
 def _merge_component_values(
@@ -362,7 +416,14 @@ def _build_type_mapping(
 
 
 def load_target_profile_catalog(path: Path, profile_id: str) -> TargetProfile:
-    """Load and resolve one profile from a target-profile catalog JSON file."""
+    """Load and resolve one profile from a target-profile catalog JSON file.
+
+    Returns:
+        Resolved target profile configuration.
+
+    Raises:
+        RuntimeError: Profile resolution fails.
+    """
     catalog = _load_catalog_spec(path)
     profile_spec = catalog.profiles.get(profile_id)
     if profile_spec is None:

@@ -6,7 +6,8 @@ from __future__ import annotations
 
 import shlex
 import shutil
-import subprocess  # noqa: S404
+
+from purego_gen.process_exec import run_command
 
 
 def run_pkg_config_stdout(package: str, *query_args: str) -> str:
@@ -28,11 +29,8 @@ def run_pkg_config_stdout(package: str, *query_args: str) -> str:
         raise RuntimeError(message)
 
     command = [pkg_config_binary, *query_args, package]
-    result = subprocess.run(  # noqa: S603
+    result = run_command(
         command,
-        capture_output=True,
-        check=False,
-        text=True,
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip() or "pkg-config query failed"

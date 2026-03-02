@@ -1,5 +1,4 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: INP001
 
 """Inspect target-library parsing coverage using pkg-config + libclang."""
 

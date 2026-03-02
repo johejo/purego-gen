@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import os
-import subprocess  # noqa: S404
 import sys
 from pathlib import Path
 
@@ -15,6 +14,7 @@ from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
 )
+from purego_gen.process_exec import CommandResult, run_command
 
 from .helper.go_test_harness import run_go_test_in_generated_module
 from .helper.toolchain import resolve_c_compiler_command
@@ -60,7 +60,7 @@ def _golden_path(case_id: str) -> Path:
     return _GOLDEN_DIR / case_id / "generated.go"
 
 
-def _run_cli(*args: str) -> subprocess.CompletedProcess[str]:
+def _run_cli(*args: str) -> CommandResult:
     """Run the CLI via module execution for an end-to-end smoke check.
 
     Returns:
@@ -72,13 +72,10 @@ def _run_cli(*args: str) -> subprocess.CompletedProcess[str]:
     env["PYTHONPATH"] = (
         src_path if existing_pythonpath is None else f"{src_path}:{existing_pythonpath}"
     )
-    return subprocess.run(  # noqa: S603
+    return run_command(
         [sys.executable, "-m", "purego_gen", *args],
-        capture_output=True,
-        check=False,
         cwd=_REPO_ROOT,
         env=env,
-        text=True,
     )
 
 
@@ -115,12 +112,9 @@ def _build_runtime_smoke_library(
         command.extend(["-shared", "-fPIC"])
     command.extend(["-o", str(output_path), str(source_path)])
 
-    result = subprocess.run(  # noqa: S603
+    result = run_command(
         command,
-        capture_output=True,
-        check=False,
         cwd=_REPO_ROOT,
-        text=True,
     )
     assert result.returncode == 0, result.stderr
     return output_path
@@ -149,11 +143,11 @@ def _run_runtime_smoke(
     *,
     shared_library_path: Path,
     fixture_module_dir: Path = _GO_RUNTIME_FIXTURE_DIR,
-) -> subprocess.CompletedProcess[str]:
+) -> CommandResult:
     """Run `go test` for runtime smoke fixture and return the process result.
 
     Returns:
-        Completed process result for assertions.
+        Completed command result for assertions.
     """
     return run_go_test_in_generated_module(
         fixture_module_dir=fixture_module_dir,

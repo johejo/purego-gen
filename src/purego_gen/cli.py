@@ -1,5 +1,4 @@
 # Copyright (c) 2026 purego-gen contributors.
-# ruff: noqa: DOC201
 
 """CLI entrypoint for purego-gen."""
 
@@ -19,7 +18,11 @@ from purego_gen.generation_pipeline import (
 
 
 def _system_exit_to_code(error: SystemExit) -> int:
-    """Convert `SystemExit` payload into process-style code."""
+    """Convert `SystemExit` payload into process-style code.
+
+    Returns:
+        Process-style exit code derived from `SystemExit`.
+    """
     if isinstance(error.code, int):
         return error.code
     if error.code is None:
@@ -28,13 +31,21 @@ def _system_exit_to_code(error: SystemExit) -> int:
 
 
 def _fail(message: str) -> int:
-    """Write one prefixed error message and return failure code."""
+    """Write one prefixed error message and return failure code.
+
+    Returns:
+        Process-style failure code.
+    """
     sys.stderr.write(f"purego-gen: {message}\n")
     return 1
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the CLI entrypoint."""
+    """Run the CLI entrypoint.
+
+    Returns:
+        Process-style exit code.
+    """
     args = list(argv) if argv is not None else sys.argv[1:]
     try:
         options = parse_options(args)
