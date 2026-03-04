@@ -45,6 +45,8 @@ in
     includes = [
       "tests/fixtures/*.h"
       "tests/fixtures/*.c"
+      "tests/cases/**/*.h"
+      "tests/cases/**/*.c"
     ];
   };
 

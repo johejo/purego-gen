@@ -52,6 +52,13 @@ Run strict CI-equivalent checks before pushing (including `djlint` version parit
 just ci
 ```
 
+Golden/runtime regression tests are case-driven under
+[`tests/cases`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/tests/cases):
+- each case directory defines `profile.json` and expected `generated.go`
+- optional `runtime_test.go` enables runtime `go test`; otherwise compile-only `go test -run '^$'` is used
+- `just golden-update` regenerates all case `generated.go`
+- `just golden-check` runs generation drift checks and Go compile/runtime validation
+
 The default dev shell respects existing user/environment cache settings.
 Codex-specific sandbox workflow is documented in
 [`AGENTS.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/AGENTS.md).

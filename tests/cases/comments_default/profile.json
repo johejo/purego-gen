@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "lib_id": "fixture_lib",
+  "package": "fixture",
+  "emit": "func,type,const,var",
+  "headers": {
+    "kind": "local",
+    "paths": [
+      "headers/comments.h"
+    ]
+  }
+}

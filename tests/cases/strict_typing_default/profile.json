@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "lib_id": "fixture_lib",
+  "package": "fixture",
+  "emit": "func,type,const",
+  "headers": {
+    "kind": "local",
+    "paths": [
+      "headers/strict_typing_demo.h"
+    ]
+  }
+}

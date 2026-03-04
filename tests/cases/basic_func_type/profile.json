@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "lib_id": "fixture_lib",
+  "package": "fixture",
+  "emit": "func,type",
+  "headers": {
+    "kind": "local",
+    "paths": [
+      "headers/basic.h"
+    ]
+  },
+  "clang_args": [
+    "-I./include"
+  ]
+}

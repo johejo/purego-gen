@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "lib_id": "fixture_lib",
+  "package": "fixture",
+  "emit": "func",
+  "headers": {
+    "kind": "local",
+    "paths": [
+      "headers/parameter_names.h"
+    ]
+  }
+}

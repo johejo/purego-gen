@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "lib_id": "fixture_lib",
+  "package": "fixture",
+  "emit": "func,const,var",
+  "headers": {
+    "kind": "local",
+    "paths": [
+      "headers/categories.h"
+    ]
+  },
+  "filters": {
+    "func": "^add$",
+    "const": "^FIXTURE_STATUS_OK$",
+    "var": "^build_id$"
+  }
+}

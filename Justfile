@@ -42,20 +42,14 @@ test:
 inspect-libzstd:
   {{python_src_prefix}} scripts/inspect_target_library.py --pkg-config-package libzstd --header zstd.h
 
-go-fixture-update:
-  {{python_src_prefix}} scripts/update_go_fixture_placeholders.py
-
-go-fixture-check:
-  {{python_src_prefix}} scripts/update_go_fixture_placeholders.py --check
-
 golden-update:
-  scripts/update-golden.sh
+  {{python_src_prefix}} scripts/golden_cases.py --mode update
 
 golden-check:
-  scripts/check-golden.sh
+  {{python_src_prefix}} scripts/golden_cases.py --mode check
 
 golden-check-ci:
-  GOLDEN_CHECK_STRICT_HEAD=1 scripts/check-golden.sh
+  {{python_src_prefix}} scripts/golden_cases.py --mode check --strict-head
 
 tool-version-check:
   scripts/check-tool-versions.sh

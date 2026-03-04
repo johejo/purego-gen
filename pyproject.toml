@@ -45,6 +45,7 @@ indent-style = "space"
 pythonVersion = "3.14"
 typeCheckingMode = "strict"
 include = ["src", "tests", "scripts", "typings"]
+extraPaths = ["src", "scripts"]
 exclude = [
   ".direnv",
   ".git",
@@ -66,7 +67,7 @@ reportUnnecessaryTypeIgnoreComment = "error"
 [tool.pyrefly]
 project-includes = ["src/**/*.py", "tests/**/*.py", "scripts/**/*.py", "typings/**/*.pyi"]
 project-excludes = [".git/**", ".venv/**", "build/**", "dist/**"]
-search-path = ["src", "tests", "typings"]
+search-path = ["src", "tests", "scripts", "typings"]
 python-version = "3.14"
 ignore-errors-in-generated-code = false
 untyped-def-behavior = "check-and-infer-return-type"

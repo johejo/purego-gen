@@ -23,8 +23,7 @@ from purego_gen.abi_layout import (
 )
 from purego_gen.clang_parser import parse_declarations
 from purego_gen.process_exec import run_command
-
-from .helper.toolchain import resolve_c_compiler_command
+from purego_gen.toolchain import resolve_c_compiler_command
 
 if TYPE_CHECKING:
     from purego_gen.model import RecordTypedefDecl

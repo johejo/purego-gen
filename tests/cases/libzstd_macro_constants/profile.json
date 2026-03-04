@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "lib_id": "zstd",
+  "package": "fixture",
+  "emit": "const",
+  "headers": {
+    "kind": "pkg_config",
+    "package": "libzstd",
+    "header_names": [
+      "zstd.h"
+    ],
+    "use_cflags": true
+  },
+  "filters": {
+    "const": "^(ZSTD_VERSION_MAJOR|ZSTD_VERSION_MINOR|ZSTD_VERSION_RELEASE|ZSTD_MAGICNUMBER|ZSTD_CONTENTSIZE_UNKNOWN|ZSTD_CONTENTSIZE_ERROR)$"
+  }
+}

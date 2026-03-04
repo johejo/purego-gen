@@ -44,7 +44,7 @@
 - [x] Configure Jinja2 environment with strict undefined handling for deterministic failures.
 - [x] Add initial Go file template(s) under `templates/` and migrate existing emit categories (`func`, `type`, `const`, `var`) without behavior changes.
 - [x] Keep `gofmt` as the final formatting step after template rendering.
-- [x] Preserve golden output equivalence for current fixtures (`tests/golden/*.go`), allowing only formatting-equivalent differences.
+- [x] Preserve golden output equivalence for current fixtures (`tests/cases/*/generated.go`), allowing only formatting-equivalent differences.
 - [x] Add focused tests for template rendering context validation and missing-variable failures.
 - [x] Remove obsolete string-concatenation render helpers from `cli.py` after migration.
 - [x] Preserve C-side symbol casing in generated identifier suffixes while keeping `func_/type_/const_/var_` category prefixes.

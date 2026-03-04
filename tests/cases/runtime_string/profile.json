@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "lib_id": "fixture_lib",
+  "package": "fixture",
+  "emit": "func",
+  "headers": {
+    "kind": "local",
+    "paths": [
+      "headers/smoke_string_runtime.h"
+    ]
+  },
+  "type_mapping": {
+    "const_char_as_string": true
+  }
+}

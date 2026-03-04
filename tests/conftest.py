@@ -12,10 +12,13 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SRC_DIR = _REPO_ROOT / "src"
+_SCRIPTS_DIR = _REPO_ROOT / "scripts"
 
 
 if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
