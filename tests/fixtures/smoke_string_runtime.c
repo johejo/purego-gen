@@ -2,9 +2,7 @@
 
 #include <string.h>
 
-const char* smoke_const_greeting(void) {
-  return "hello-from-c";
-}
+const char* smoke_const_greeting(void) { return "hello-from-c"; }
 
 int smoke_const_is_expected(const char* value) {
   if (value == 0) {

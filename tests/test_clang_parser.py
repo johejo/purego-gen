@@ -121,4 +121,3 @@ def test_parse_type_mapping_edge_cases() -> None:
         "FIXTURE_MODE_OFF",
         "FIXTURE_MODE_ON",
     )
-

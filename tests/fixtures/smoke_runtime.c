@@ -14,6 +14,4 @@ int smoke_increment(void) {
   return smoke_counter;
 }
 
-int smoke_get_counter(void) {
-  return smoke_counter;
-}
+int smoke_get_counter(void) { return smoke_counter; }

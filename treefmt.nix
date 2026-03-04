@@ -1,4 +1,7 @@
 { pkgs, ... }:
+let
+  lib = pkgs.lib;
+in
 {
   projectRootFile = "flake.nix";
 
@@ -11,15 +14,13 @@
   ];
 
   settings.formatter.nix = {
-    command = "${pkgs.nixfmt}/bin/nixfmt";
+    command = lib.getExe pkgs.nixfmt;
     includes = [ "*.nix" ];
   };
 
   settings.formatter.python = {
-    command = "${pkgs.ruff}/bin/ruff";
-    options = [
-      "format"
-    ];
+    command = lib.getExe pkgs.ruff;
+    options = [ "format" ];
     includes = [ "*.py" ];
   };
 
@@ -30,31 +31,34 @@
   };
 
   settings.formatter.shell = {
-    command = "${pkgs.shfmt}/bin/shfmt";
+    command = lib.getExe pkgs.shfmt;
     options = [ "-w" ];
     includes = [ "scripts/*.sh" ];
   };
 
-  settings.formatter.c_header = {
+  settings.formatter.c = {
     command = "${pkgs.clang-tools}/bin/clang-format";
     options = [
       "-i"
       "--style=file"
     ];
-    includes = [ "tests/fixtures/*.h" ];
+    includes = [
+      "tests/fixtures/*.h"
+      "tests/fixtures/*.c"
+    ];
   };
 
   settings.formatter.jinja_template = {
-    command = "${pkgs.zsh}/bin/zsh";
+    command = lib.getExe pkgs.bash;
     options = [
       "-c"
       "PATH=${
-        pkgs.lib.makeBinPath [
+        lib.makeBinPath [
           pkgs.coreutils
           pkgs.diffutils
           pkgs.djlint
         ]
-      }:$PATH ${pkgs.bash}/bin/bash scripts/format-template-go.sh \"$@\""
+      }:$PATH ${lib.getExe pkgs.bash} scripts/format-template-go.sh \"$@\""
       "--"
     ];
     includes = [ "templates/*.j2" ];
