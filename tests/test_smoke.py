@@ -39,6 +39,7 @@ _CATEGORY_HEADER = _FIXTURES_DIR / "categories.h"
 _MACRO_CONSTANTS_HEADER = _FIXTURES_DIR / "macro_constants.h"
 _FUNCTION_SIGNATURES_HEADER = _FIXTURES_DIR / "function_signatures.h"
 _PARAMETER_NAMES_HEADER = _FIXTURES_DIR / "parameter_names.h"
+_STRICT_TYPING_DEMO_HEADER = _FIXTURES_DIR / "strict_typing_demo.h"
 _CONDITIONAL_HEADER = _FIXTURES_DIR / "conditional.h"
 _COMMENTS_HEADER = _FIXTURES_DIR / "comments.h"
 _M3_TYPES_HEADER = _FIXTURES_DIR / "abi_types.h"
@@ -403,6 +404,64 @@ def test_const_char_pointer_string_mapping_is_opt_in(tmp_path: Path) -> None:
     assert "purego_func_fixture_lookup_name func( key uintptr, ) uintptr" in normalized_default
     assert "purego_func_fixture_const_name func() string" in normalized_enabled
     assert "purego_func_fixture_lookup_name func( key string, ) string" in normalized_enabled
+    _assert_go_source_compiles(result_default.stdout, tmp_path / "default")
+    _assert_go_source_compiles(result_enabled.stdout, tmp_path / "enabled")
+
+
+def test_strict_typing_flags_change_enum_and_sentinel_output(tmp_path: Path) -> None:
+    """Strict typing flags should create an explicit enum alias and typed sentinels."""
+    result_default = _run_cli(
+        "--lib-id",
+        _FIXTURE_LIB_ID,
+        "--header",
+        str(_STRICT_TYPING_DEMO_HEADER),
+        "--pkg",
+        _FIXTURE_PACKAGE,
+        "--emit",
+        "func,type,const",
+    )
+    result_enabled = _run_cli(
+        "--lib-id",
+        _FIXTURE_LIB_ID,
+        "--header",
+        str(_STRICT_TYPING_DEMO_HEADER),
+        "--pkg",
+        _FIXTURE_PACKAGE,
+        "--emit",
+        "func,type,const",
+        "--strict-enum-typedefs",
+        "--typed-sentinel-constants",
+    )
+
+    expected_default = _golden_path("case_strict_typing_default").read_text(encoding="utf-8")
+    expected_enabled = _golden_path("case_strict_typing_enabled").read_text(encoding="utf-8")
+    assert result_default.returncode == 0
+    assert result_enabled.returncode == 0
+    assert result_default.stdout == expected_default
+    assert result_enabled.stdout == expected_enabled
+    assert result_default.stdout != result_enabled.stdout
+
+    normalized_default = " ".join(result_default.stdout.split())
+    normalized_enabled = " ".join(result_enabled.stdout.split())
+    assert (
+        "purego_func_strict_typing_demo_get_error_code func( result uint64, ) int32"
+        in normalized_default
+    )
+    assert "purego_type_strict_typing_demo_error_code_t int32" not in normalized_default
+    assert (
+        "purego_const_STRICT_TYPING_DEMO_CONTENTSIZE_UNKNOWN = 18446744073709551615"
+        in normalized_default
+    )
+    assert (
+        "purego_func_strict_typing_demo_get_error_code func( result uint64, ) "
+        "purego_type_strict_typing_demo_error_code_t"
+    ) in normalized_enabled
+    assert "purego_type_strict_typing_demo_error_code_t int32" in normalized_enabled
+    assert (
+        "purego_const_STRICT_TYPING_DEMO_CONTENTSIZE_UNKNOWN uint64 = 18446744073709551615"
+        in normalized_enabled
+    )
+
     _assert_go_source_compiles(result_default.stdout, tmp_path / "default")
     _assert_go_source_compiles(result_enabled.stdout, tmp_path / "enabled")
 

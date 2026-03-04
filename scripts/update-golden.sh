@@ -19,6 +19,8 @@ update_case() {
 	type_filter=$7
 	const_filter=$8
 	var_filter=$9
+	strict_enum_typedefs=${10}
+	typed_sentinel_constants=${11}
 	: "$case_id"
 
 	render_golden_case \
@@ -29,7 +31,9 @@ update_case() {
 		"$func_filter" \
 		"$type_filter" \
 		"$const_filter" \
-		"$var_filter"
+		"$var_filter" \
+		"$strict_enum_typedefs" \
+		"$typed_sentinel_constants"
 }
 
 for_each_golden_case update_case "$GOLDEN_CASES_FILE"

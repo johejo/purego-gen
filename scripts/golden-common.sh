@@ -14,6 +14,8 @@ for_each_golden_case() {
 		type_filter="$(printf '%s' "$case_entry" | jq -r '.type_filter // ""')"
 		const_filter="$(printf '%s' "$case_entry" | jq -r '.const_filter // ""')"
 		var_filter="$(printf '%s' "$case_entry" | jq -r '.var_filter // ""')"
+		strict_enum_typedefs="$(printf '%s' "$case_entry" | jq -r '.strict_enum_typedefs // false')"
+		typed_sentinel_constants="$(printf '%s' "$case_entry" | jq -r '.typed_sentinel_constants // false')"
 
 		"$case_callback" \
 			"$case_id" \
@@ -24,7 +26,9 @@ for_each_golden_case() {
 			"$func_filter" \
 			"$type_filter" \
 			"$const_filter" \
-			"$var_filter"
+			"$var_filter" \
+			"$strict_enum_typedefs" \
+			"$typed_sentinel_constants"
 	done
 }
 
@@ -37,6 +41,8 @@ render_golden_case() {
 	render_type_filter=$6
 	render_const_filter=$7
 	render_var_filter=$8
+	render_strict_enum_typedefs=$9
+	render_typed_sentinel_constants=${10}
 
 	mkdir -p "$(dirname -- "$render_output_path")"
 
@@ -65,6 +71,12 @@ render_golden_case() {
 	fi
 	if [ -n "$render_var_filter" ]; then
 		set -- "$@" --var-filter "$render_var_filter"
+	fi
+	if [ "$render_strict_enum_typedefs" = "true" ]; then
+		set -- "$@" --strict-enum-typedefs
+	fi
+	if [ "$render_typed_sentinel_constants" = "true" ]; then
+		set -- "$@" --typed-sentinel-constants
 	fi
 
 	if [ -n "$render_clang_args" ]; then

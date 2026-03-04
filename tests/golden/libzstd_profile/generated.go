@@ -21,8 +21,14 @@ type (
 	// *********************************
 	// Bulk processing dictionary API
 	// ********************************
-	purego_type_ZSTD_CDict uintptr
-	purego_type_ZSTD_DDict uintptr
+	purego_type_ZSTD_CDict     uintptr
+	purego_type_ZSTD_DDict     uintptr
+	purego_type_ZSTD_ErrorCode int32
+)
+
+const (
+	purego_const_ZSTD_CONTENTSIZE_UNKNOWN uint64 = 18446744073709551615
+	purego_const_ZSTD_CONTENTSIZE_ERROR   uint64 = 18446744073709551614
 )
 
 var (
@@ -87,7 +93,7 @@ var (
 	) uint32
 	purego_func_ZSTD_getErrorCode func(
 		functionResult uint64,
-	) int32
+	) purego_type_ZSTD_ErrorCode
 	purego_func_ZSTD_getErrorName func(
 		result uint64,
 	) string

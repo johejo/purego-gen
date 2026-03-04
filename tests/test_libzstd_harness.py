@@ -29,14 +29,11 @@ _GOLDEN_DIR = _REPO_ROOT / "tests" / "golden"
 _GO_COMPILE_FIXTURE_DIR = _FIXTURES_DIR / "go_compile_module"
 _GO_RUNTIME_FIXTURE_DIR = _FIXTURES_DIR / "go_runtime_zstd_module"
 _LIBZSTD_PROFILE_GOLDEN_PATH = _GOLDEN_DIR / "libzstd_profile" / "generated.go"
-_LIBZSTD_STRICT_PROFILE_GOLDEN_PATH = _GOLDEN_DIR / "libzstd_strict_profile" / "generated.go"
 _TARGET_PROFILES_DIR = _FIXTURES_DIR / "target_profiles"
 _TARGET_PROFILE_CATALOG_PATH = _TARGET_PROFILES_DIR / "libzstd_profiles.json"
-_LIBZSTD_PROFILE_ID = "libzstd_v1"
-_LIBZSTD_STRICT_PROFILE_ID = "libzstd_strict"
+_LIBZSTD_PROFILE_ID = "libzstd"
 _LIBRARY_OVERRIDE_ENV = "PUREGO_GEN_TEST_LIBZSTD"
 _GOLDEN_OUTPUT_PACKAGE = "fixture"
-_STRICT_GOLDEN_OUTPUT_PACKAGE = "zstdfixturestrict"
 _RUNTIME_PACKAGE = "zstdfixture"
 _LIBZSTD_MACRO_FILTER = (
     "^("
@@ -260,22 +257,12 @@ def libzstd_harness_config() -> _LibzstdHarnessConfig:
 
 @pytest.fixture(scope="session")
 def libzstd_profile() -> TargetProfile:
-    """Load stable libzstd profile for harness tests.
+    """Load strict libzstd profile for harness tests.
 
     Returns:
-        Parsed profile used to build generation filters.
+        Parsed profile used to build generation filters and strict typing behavior.
     """
     return load_target_profile_catalog(_TARGET_PROFILE_CATALOG_PATH, _LIBZSTD_PROFILE_ID)
-
-
-@pytest.fixture(scope="session")
-def libzstd_strict_profile() -> TargetProfile:
-    """Load strict libzstd profile for strict typing harness tests.
-
-    Returns:
-        Parsed strict profile used to build generation filters.
-    """
-    return load_target_profile_catalog(_TARGET_PROFILE_CATALOG_PATH, _LIBZSTD_STRICT_PROFILE_ID)
 
 
 def test_generates_libzstd_golden_output(
@@ -292,6 +279,11 @@ def test_generates_libzstd_golden_output(
     expected = _LIBZSTD_PROFILE_GOLDEN_PATH.read_text(encoding="utf-8")
     assert result.returncode == 0, result.stderr
     assert result.stdout == expected
+    assert "purego_type_ZSTD_ErrorCode int32" in result.stdout
+    assert ") purego_type_ZSTD_ErrorCode" in result.stdout
+    assert "purego_const_ZSTD_CONTENTSIZE_UNKNOWN uint64" in result.stdout
+    assert "purego_const_ZSTD_CONTENTSIZE_ERROR" in result.stdout
+    assert "uint64 = 18446744073709551614" in result.stdout
     _assert_go_source_compiles(result.stdout, tmp_path)
 
 
@@ -312,28 +304,6 @@ def test_runtime_harness_resolves_libzstd_symbols(
         tmp_path,
         shared_library_path=libzstd_harness_config.shared_library_path,
     )
-
-
-def test_generates_libzstd_strict_golden_output(
-    tmp_path: Path,
-    libzstd_harness_config: _LibzstdHarnessConfig,
-    libzstd_strict_profile: TargetProfile,
-) -> None:
-    """Strict profile output should match committed strict golden output."""
-    result = _run_cli_for_libzstd(
-        libzstd_harness_config,
-        profile=libzstd_strict_profile,
-        package=_STRICT_GOLDEN_OUTPUT_PACKAGE,
-    )
-    expected = _LIBZSTD_STRICT_PROFILE_GOLDEN_PATH.read_text(encoding="utf-8")
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == expected
-    assert "purego_type_ZSTD_ErrorCode int32" in result.stdout
-    assert ") purego_type_ZSTD_ErrorCode" in result.stdout
-    assert "purego_const_ZSTD_CONTENTSIZE_UNKNOWN uint64" in result.stdout
-    assert "purego_const_ZSTD_CONTENTSIZE_ERROR" in result.stdout
-    assert "uint64 = 18446744073709551614" in result.stdout
-    _assert_go_source_compiles(result.stdout, tmp_path)
 
 
 def test_extracts_libzstd_object_like_macro_constants(

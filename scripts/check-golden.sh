@@ -27,6 +27,8 @@ check_case() {
 	type_filter=$7
 	const_filter=$8
 	var_filter=$9
+	strict_enum_typedefs=${10}
+	typed_sentinel_constants=${11}
 
 	generated_path="$TMP_DIR/${case_id}.generated.go"
 	expected_path="$TMP_DIR/${case_id}.expected.go"
@@ -40,7 +42,9 @@ check_case() {
 		"$func_filter" \
 		"$type_filter" \
 		"$const_filter" \
-		"$var_filter"
+		"$var_filter" \
+		"$strict_enum_typedefs" \
+		"$typed_sentinel_constants"
 
 	if git cat-file -e "HEAD:$output_path" 2>/dev/null; then
 		git show "HEAD:$output_path" >"$expected_path"

@@ -27,10 +27,8 @@ _SMOKE_OUTPUT_PATH = _FIXTURES_DIR / "go_runtime_module" / "generated.go"
 _SMOKE_STRING_HEADER_PATH = _FIXTURES_DIR / "smoke_string_runtime.h"
 _SMOKE_STRING_OUTPUT_PATH = _FIXTURES_DIR / "go_runtime_string_module" / "generated.go"
 _TARGET_PROFILE_CATALOG_PATH = _FIXTURES_DIR / "target_profiles" / "libzstd_profiles.json"
-_LIBZSTD_PROFILE_ID = "libzstd_v1"
-_LIBZSTD_STRICT_PROFILE_ID = "libzstd_strict"
+_LIBZSTD_PROFILE_ID = "libzstd"
 _ZSTD_OUTPUT_PATH = _FIXTURES_DIR / "go_runtime_zstd_module" / "generated.go"
-_ZSTD_STRICT_OUTPUT_PATH = _FIXTURES_DIR / "go_runtime_zstd_strict_module" / "generated.go"
 
 
 class _ParsedArgs(argparse.Namespace):
@@ -147,45 +145,25 @@ def _generated_fixture_sources() -> dict[Path, str]:
     )
 
     include_dir, zstd_cflags = _resolve_libzstd_include_dir_and_cflags()
-    zstd_profile = load_target_profile_catalog(_TARGET_PROFILE_CATALOG_PATH, _LIBZSTD_PROFILE_ID)
-    zstd_header_paths = _resolve_header_paths(include_dir, zstd_profile.header_names)
+    libzstd_profile = load_target_profile_catalog(_TARGET_PROFILE_CATALOG_PATH, _LIBZSTD_PROFILE_ID)
+    zstd_header_paths = _resolve_header_paths(include_dir, libzstd_profile.header_names)
     zstd_source = _run_purego_gen(
         PuregoGenInvocation(
             lib_id="zstd",
             header_paths=zstd_header_paths,
             package_name="zstdfixture",
-            emit_kinds=zstd_profile.emit_kinds,
+            emit_kinds=libzstd_profile.emit_kinds,
             clang_args=zstd_cflags,
-            func_filter=zstd_profile.function_filter,
-            type_filter=zstd_profile.type_filter,
-            const_filter=zstd_profile.const_filter,
-            type_mapping=zstd_profile.type_mapping,
-        )
-    )
-
-    zstd_strict_profile = load_target_profile_catalog(
-        _TARGET_PROFILE_CATALOG_PATH,
-        _LIBZSTD_STRICT_PROFILE_ID,
-    )
-    zstd_strict_header_paths = _resolve_header_paths(include_dir, zstd_strict_profile.header_names)
-    zstd_strict_source = _run_purego_gen(
-        PuregoGenInvocation(
-            lib_id="zstd",
-            header_paths=zstd_strict_header_paths,
-            package_name="zstdfixturestrict",
-            emit_kinds=zstd_strict_profile.emit_kinds,
-            clang_args=zstd_cflags,
-            func_filter=zstd_strict_profile.function_filter,
-            type_filter=zstd_strict_profile.type_filter,
-            const_filter=zstd_strict_profile.const_filter,
-            type_mapping=zstd_strict_profile.type_mapping,
+            func_filter=libzstd_profile.function_filter,
+            type_filter=libzstd_profile.type_filter,
+            const_filter=libzstd_profile.const_filter,
+            type_mapping=libzstd_profile.type_mapping,
         )
     )
     return {
         _SMOKE_OUTPUT_PATH: smoke_source,
         _SMOKE_STRING_OUTPUT_PATH: smoke_string_source,
         _ZSTD_OUTPUT_PATH: zstd_source,
-        _ZSTD_STRICT_OUTPUT_PATH: zstd_strict_source,
     }
 
 

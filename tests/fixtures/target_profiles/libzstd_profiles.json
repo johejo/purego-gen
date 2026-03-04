@@ -62,13 +62,7 @@
     }
   },
   "profiles": {
-    "libzstd_v1": {
-      "description": "Stable v1 libzstd subset used by objective harness tests.",
-      "compose": [
-        "libzstd_common"
-      ]
-    },
-    "libzstd_strict": {
+    "libzstd": {
       "description": "Strict libzstd subset profile with enum and sentinel constant typing enabled.",
       "compose": [
         "libzstd_common",

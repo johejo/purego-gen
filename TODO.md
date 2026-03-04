@@ -90,7 +90,7 @@
 - [x] Add runtime harness scenario that performs real block compress/decompress roundtrip using generated bindings (not symbol-resolution only).
 - [x] Define and document a stable `libzstd` API subset profile for v1 generation tests (allowlist-based to reduce cross-version drift).
 - [x] Use emitted opaque-handle aliases (`purego_type_ZSTD_CCtx` etc.) directly in generated function signatures instead of raw `uintptr` for those parameters/returns.
-- [x] Add a strict-typing variant profile for libzstd (keep `libzstd_v1` stable; add separate strict profile for enum/sentinel strictness).
+- [x] Add a strict-typing variant profile for libzstd (keep baseline profile stable; add separate strict profile for enum/sentinel strictness).
 - [x] Evaluate enum/constant typing improvements for libzstd-facing signatures and sentinel values while preserving v1 low-level defaults.
 - [x] Improve target profile UX by reducing repetitive profile fields (shared presets/composition) without adding CLI subcommands.
 

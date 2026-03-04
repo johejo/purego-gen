@@ -28,6 +28,26 @@
       "clang_args": ""
     },
     {
+      "id": "case_strict_typing_default",
+      "output_path": "tests/golden/case_strict_typing_default/generated.go",
+      "header_paths": [
+        "tests/fixtures/strict_typing_demo.h"
+      ],
+      "emit_kinds": "func,type,const",
+      "clang_args": ""
+    },
+    {
+      "id": "case_strict_typing_enabled",
+      "output_path": "tests/golden/case_strict_typing_enabled/generated.go",
+      "header_paths": [
+        "tests/fixtures/strict_typing_demo.h"
+      ],
+      "emit_kinds": "func,type,const",
+      "clang_args": "",
+      "strict_enum_typedefs": true,
+      "typed_sentinel_constants": true
+    },
+    {
       "id": "case_categories_mixed_filtered",
       "output_path": "tests/golden/case_categories_mixed_filtered/generated.go",
       "header_paths": [

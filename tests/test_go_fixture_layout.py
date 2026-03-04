@@ -19,7 +19,6 @@ _RUNTIME_FIXTURE_DIRS = (
     _FIXTURES_ROOT / "go_runtime_module",
     _FIXTURES_ROOT / "go_runtime_string_module",
     _FIXTURES_ROOT / "go_runtime_zstd_module",
-    _FIXTURES_ROOT / "go_runtime_zstd_strict_module",
 )
 
 
