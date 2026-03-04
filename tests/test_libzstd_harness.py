@@ -21,6 +21,7 @@ from purego_gen.process_exec import CommandResult, run_command
 from purego_gen.target_profile import TargetProfile, load_target_profile_catalog
 
 from .helper.go_test_harness import run_go_test_in_generated_module
+from .helper.stdout_assertions import assert_text_contains_fragments
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SRC_DIR = _REPO_ROOT / "src"
@@ -279,11 +280,6 @@ def test_generates_libzstd_golden_output(
     expected = _LIBZSTD_PROFILE_GOLDEN_PATH.read_text(encoding="utf-8")
     assert result.returncode == 0, result.stderr
     assert result.stdout == expected
-    assert "purego_type_ZSTD_ErrorCode int32" in result.stdout
-    assert ") purego_type_ZSTD_ErrorCode" in result.stdout
-    assert "purego_const_ZSTD_CONTENTSIZE_UNKNOWN uint64" in result.stdout
-    assert "purego_const_ZSTD_CONTENTSIZE_ERROR" in result.stdout
-    assert "uint64 = 18446744073709551614" in result.stdout
     _assert_go_source_compiles(result.stdout, tmp_path)
 
 
@@ -317,10 +313,15 @@ def test_extracts_libzstd_object_like_macro_constants(
         const_filter=_LIBZSTD_MACRO_FILTER,
     )
     assert result.returncode == 0, result.stderr
-    assert "purego_const_ZSTD_VERSION_MAJOR" in result.stdout
-    assert "purego_const_ZSTD_VERSION_MINOR" in result.stdout
-    assert "purego_const_ZSTD_VERSION_RELEASE" in result.stdout
-    assert "purego_const_ZSTD_MAGICNUMBER" in result.stdout
-    assert "purego_const_ZSTD_CONTENTSIZE_UNKNOWN" in result.stdout
-    assert "purego_const_ZSTD_CONTENTSIZE_ERROR" in result.stdout
+    assert_text_contains_fragments(
+        result.stdout,
+        (
+            "purego_const_ZSTD_VERSION_MAJOR",
+            "purego_const_ZSTD_VERSION_MINOR",
+            "purego_const_ZSTD_VERSION_RELEASE",
+            "purego_const_ZSTD_MAGICNUMBER",
+            "purego_const_ZSTD_CONTENTSIZE_UNKNOWN",
+            "purego_const_ZSTD_CONTENTSIZE_ERROR",
+        ),
+    )
     _assert_go_source_compiles(result.stdout, tmp_path)

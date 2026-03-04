@@ -17,6 +17,11 @@ from purego_gen.model import (
 from purego_gen.process_exec import CommandResult, run_command
 
 from .helper.go_test_harness import run_go_test_in_generated_module
+from .helper.stdout_assertions import (
+    assert_text_contains_fragments,
+    collapse_whitespace,
+    combined_output,
+)
 from .helper.toolchain import resolve_c_compiler_command
 
 _ARGPARSE_USAGE_ERROR = 2
@@ -398,12 +403,22 @@ def test_const_char_pointer_string_mapping_is_opt_in(tmp_path: Path) -> None:
 
     assert result_default.returncode == 0
     assert result_enabled.returncode == 0
-    normalized_default = " ".join(result_default.stdout.split())
-    normalized_enabled = " ".join(result_enabled.stdout.split())
-    assert "purego_func_fixture_const_name func() uintptr" in normalized_default
-    assert "purego_func_fixture_lookup_name func( key uintptr, ) uintptr" in normalized_default
-    assert "purego_func_fixture_const_name func() string" in normalized_enabled
-    assert "purego_func_fixture_lookup_name func( key string, ) string" in normalized_enabled
+    assert_text_contains_fragments(
+        result_default.stdout,
+        (
+            "purego_func_fixture_const_name func() uintptr",
+            "purego_func_fixture_lookup_name func( key uintptr, ) uintptr",
+        ),
+        normalize_whitespace=True,
+    )
+    assert_text_contains_fragments(
+        result_enabled.stdout,
+        (
+            "purego_func_fixture_const_name func() string",
+            "purego_func_fixture_lookup_name func( key string, ) string",
+        ),
+        normalize_whitespace=True,
+    )
     _assert_go_source_compiles(result_default.stdout, tmp_path / "default")
     _assert_go_source_compiles(result_enabled.stdout, tmp_path / "enabled")
 
@@ -441,25 +456,27 @@ def test_strict_typing_flags_change_enum_and_sentinel_output(tmp_path: Path) -> 
     assert result_enabled.stdout == expected_enabled
     assert result_default.stdout != result_enabled.stdout
 
-    normalized_default = " ".join(result_default.stdout.split())
-    normalized_enabled = " ".join(result_enabled.stdout.split())
-    assert (
-        "purego_func_strict_typing_demo_get_error_code func( result uint64, ) int32"
-        in normalized_default
+    assert_text_contains_fragments(
+        result_default.stdout,
+        (
+            "purego_func_strict_typing_demo_get_error_code func( result uint64, ) int32",
+            "purego_const_STRICT_TYPING_DEMO_CONTENTSIZE_UNKNOWN = 18446744073709551615",
+        ),
+        normalize_whitespace=True,
     )
-    assert "purego_type_strict_typing_demo_error_code_t int32" not in normalized_default
-    assert (
-        "purego_const_STRICT_TYPING_DEMO_CONTENTSIZE_UNKNOWN = 18446744073709551615"
-        in normalized_default
-    )
-    assert (
-        "purego_func_strict_typing_demo_get_error_code func( result uint64, ) "
-        "purego_type_strict_typing_demo_error_code_t"
-    ) in normalized_enabled
-    assert "purego_type_strict_typing_demo_error_code_t int32" in normalized_enabled
-    assert (
-        "purego_const_STRICT_TYPING_DEMO_CONTENTSIZE_UNKNOWN uint64 = 18446744073709551615"
-        in normalized_enabled
+    collapsed_default = collapse_whitespace(result_default.stdout)
+    assert "purego_type_strict_typing_demo_error_code_t int32" not in collapsed_default
+    assert_text_contains_fragments(
+        result_enabled.stdout,
+        (
+            (
+                "purego_func_strict_typing_demo_get_error_code func( result uint64, ) "
+                "purego_type_strict_typing_demo_error_code_t"
+            ),
+            "purego_type_strict_typing_demo_error_code_t int32",
+            "purego_const_STRICT_TYPING_DEMO_CONTENTSIZE_UNKNOWN uint64 = 18446744073709551615",
+        ),
+        normalize_whitespace=True,
     )
 
     _assert_go_source_compiles(result_default.stdout, tmp_path / "default")
@@ -684,10 +701,15 @@ def test_runtime_smoke_const_char_string_round_trip(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    normalized_stdout = " ".join(result.stdout.split())
-    assert "purego_func_smoke_const_greeting func() string" in normalized_stdout
-    assert "purego_func_smoke_const_is_expected func( value string, ) int32" in normalized_stdout
-    assert "purego_func_smoke_const_roundtrip func( value string, ) string" in normalized_stdout
+    assert_text_contains_fragments(
+        result.stdout,
+        (
+            "purego_func_smoke_const_greeting func() string",
+            "purego_func_smoke_const_is_expected func( value string, ) int32",
+            "purego_func_smoke_const_roundtrip func( value string, ) string",
+        ),
+        normalize_whitespace=True,
+    )
     _assert_runtime_smoke_passes(
         result.stdout,
         tmp_path,
@@ -716,8 +738,8 @@ def test_runtime_smoke_reports_unresolved_symbols(tmp_path: Path) -> None:
         result.stdout, tmp_path, shared_library_path=shared_library_path
     )
     assert runtime_result.returncode != 0
-    combined_output = runtime_result.stdout + runtime_result.stderr
-    assert "smoke_missing" in combined_output
+    runtime_output = combined_output(runtime_result.stdout, runtime_result.stderr)
+    assert "smoke_missing" in runtime_output
 
 
 def test_runtime_smoke_reports_unresolved_runtime_var_symbols(tmp_path: Path) -> None:
@@ -740,5 +762,5 @@ def test_runtime_smoke_reports_unresolved_runtime_var_symbols(tmp_path: Path) ->
         result.stdout, tmp_path, shared_library_path=shared_library_path
     )
     assert runtime_result.returncode != 0
-    combined_output = runtime_result.stdout + runtime_result.stderr
-    assert "smoke_missing_var" in combined_output
+    runtime_output = combined_output(runtime_result.stdout, runtime_result.stderr)
+    assert "smoke_missing_var" in runtime_output

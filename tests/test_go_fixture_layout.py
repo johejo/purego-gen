@@ -11,6 +11,8 @@ from pathlib import Path
 
 from purego_gen.process_exec import CommandResult, run_command
 
+from .helper.stdout_assertions import combined_output
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FIXTURES_ROOT = _REPO_ROOT / "tests" / "fixtures"
 _SRC_DIR = _REPO_ROOT / "src"
@@ -83,4 +85,4 @@ def test_runtime_go_fixtures_compile_for_editor_sanity(tmp_path: Path) -> None:
 def test_runtime_go_fixtures_generated_placeholders_are_in_sync() -> None:
     """Runtime fixture placeholders should match current CLI-generated output."""
     result = _run_placeholder_sync_check()
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.returncode == 0, combined_output(result.stdout, result.stderr)

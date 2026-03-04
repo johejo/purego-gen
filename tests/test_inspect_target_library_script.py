@@ -10,6 +10,8 @@ from pathlib import Path
 
 from purego_gen.process_exec import CommandResult, run_command
 
+from .helper.stdout_assertions import assert_text_contains_fragments
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SRC_DIR = _REPO_ROOT / "src"
 _SCRIPT_PATH = _REPO_ROOT / "scripts" / "inspect_target_library.py"
@@ -45,5 +47,10 @@ def test_inspect_script_exits_zero_for_libzstd() -> None:
         "0",
     )
     assert result.returncode == 0, result.stderr
-    assert "opaque_record_typedefs=" in result.stdout
-    assert "sample_opaque_record_typedefs:" in result.stdout
+    assert_text_contains_fragments(
+        result.stdout,
+        (
+            "opaque_record_typedefs=",
+            "sample_opaque_record_typedefs:",
+        ),
+    )
