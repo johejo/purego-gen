@@ -4,38 +4,23 @@
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Final, cast
+from typing import TYPE_CHECKING, cast
+
+from pydantic import ValidationError
 
 from purego_gen.model import TypeMappingOptions
+from purego_gen.target_profile_schema import (
+    CatalogInput,
+    ComponentInput,
+    ProfileInput,
+    TypeMappingInput,
+)
+from purego_gen.validation_error_format import format_validation_error
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-_SCHEMA_VERSION_V1: Final[int] = 1
-_ALLOWED_ROOT_KEYS: Final[frozenset[str]] = frozenset({
-    "schema_version",
-    "description",
-    "presets",
-    "profiles",
-})
-_ALLOWED_COMPONENT_KEYS: Final[frozenset[str]] = frozenset({
-    "description",
-    "header_names",
-    "emit_kinds",
-    "required_functions",
-    "required_types",
-    "required_constants",
-    "type_mapping",
-})
-_ALLOWED_PROFILE_KEYS: Final[frozenset[str]] = _ALLOWED_COMPONENT_KEYS | frozenset({"compose"})
-_ALLOWED_TYPE_MAPPING_KEYS: Final[frozenset[str]] = frozenset({
-    "const_char_as_string",
-    "strict_enum_typedefs",
-    "typed_sentinel_constants",
-})
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,28 +53,6 @@ class TargetProfile:
         return build_exact_symbol_regex(self.required_constants)
 
 
-@dataclass(frozen=True, slots=True)
-class _ComponentSpec:
-    header_names: tuple[str, ...] | None = None
-    emit_kinds: str | None = None
-    required_functions: tuple[str, ...] | None = None
-    required_types: tuple[str, ...] | None = None
-    required_constants: tuple[str, ...] | None = None
-    type_mapping: dict[str, bool] | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class _ProfileSpec:
-    compose: tuple[str, ...]
-    component: _ComponentSpec
-
-
-@dataclass(frozen=True, slots=True)
-class _CatalogSpec:
-    presets: dict[str, _ComponentSpec]
-    profiles: dict[str, _ProfileSpec]
-
-
 def build_exact_symbol_regex(symbols: tuple[str, ...]) -> str:
     """Build an exact-match regex that matches only the provided symbols.
 
@@ -100,238 +63,40 @@ def build_exact_symbol_regex(symbols: tuple[str, ...]) -> str:
     return "^(" + "|".join(escaped) + ")$"
 
 
-def _read_non_empty_string(value: object, *, context: str) -> str:
-    if not isinstance(value, str) or not value:
-        message = f"{context} must be a non-empty string."
-        raise TypeError(message)
-    return value
+def _to_type_mapping_dict(type_mapping: TypeMappingInput | None) -> dict[str, bool] | None:
+    if type_mapping is None:
+        return None
+    return dict(type_mapping.model_dump(exclude_none=True))
 
 
-def _read_non_empty_string_array(value: object, *, context: str) -> tuple[str, ...]:
-    if not isinstance(value, list) or not value:
-        message = f"{context} must be a non-empty array."
-        raise TypeError(message)
-    items: list[str] = []
-    for index, element in enumerate(cast("list[object]", value)):
-        if not isinstance(element, str) or not element:
-            message = f"{context}[{index}] must be a non-empty string."
-            raise TypeError(message)
-        items.append(element)
-    return tuple(items)
-
-
-def _read_optional_string_array(value: object, *, context: str) -> tuple[str, ...]:
-    if value is None:
-        return ()
-    return _read_non_empty_string_array(value, context=context)
-
-
-def _read_bool(value: object, *, context: str) -> bool:
-    if not isinstance(value, bool):
-        message = f"{context} must be bool."
-        raise TypeError(message)
-    return value
-
-
-def _read_type_mapping(value: object, *, context: str) -> dict[str, bool]:
-    if not isinstance(value, dict):
-        message = f"{context} must be a JSON object."
-        raise TypeError(message)
-    raw_mapping = cast("dict[str, object]", value)
-    unknown_keys = sorted(set(raw_mapping) - set(_ALLOWED_TYPE_MAPPING_KEYS))
-    if unknown_keys:
-        message = f"{context} has unsupported key(s): {', '.join(unknown_keys)}"
-        raise RuntimeError(message)
-    return {key: _read_bool(raw, context=f"{context}.{key}") for key, raw in raw_mapping.items()}
-
-
-def _read_component(
-    raw_component: object,
-    *,
-    context: str,
-    allowed_keys: frozenset[str],
-) -> _ComponentSpec:
-    if not isinstance(raw_component, dict):
-        message = f"{context} must be a JSON object."
-        raise TypeError(message)
-    component = cast("dict[str, object]", raw_component)
-    unknown_keys = sorted(set(component) - set(allowed_keys))
-    if unknown_keys:
-        message = f"{context} has unsupported key(s): {', '.join(unknown_keys)}"
-        raise RuntimeError(message)
-
-    header_names: tuple[str, ...] | None = None
-    required_functions: tuple[str, ...] | None = None
-    required_types: tuple[str, ...] | None = None
-    required_constants: tuple[str, ...] | None = None
-    emit_kinds: str | None = None
-    type_mapping: dict[str, bool] | None = None
-
-    if "header_names" in component:
-        header_names = _read_non_empty_string_array(
-            component["header_names"],
-            context=f"{context}.header_names",
-        )
-    if "required_functions" in component:
-        required_functions = _read_non_empty_string_array(
-            component["required_functions"],
-            context=f"{context}.required_functions",
-        )
-    if "required_types" in component:
-        required_types = _read_non_empty_string_array(
-            component["required_types"],
-            context=f"{context}.required_types",
-        )
-    if "required_constants" in component:
-        required_constants = _read_optional_string_array(
-            component["required_constants"],
-            context=f"{context}.required_constants",
-        )
-    if "emit_kinds" in component:
-        emit_kinds = _read_non_empty_string(
-            component["emit_kinds"],
-            context=f"{context}.emit_kinds",
-        )
-    if "type_mapping" in component:
-        type_mapping = _read_type_mapping(
-            component["type_mapping"],
-            context=f"{context}.type_mapping",
-        )
-    return _ComponentSpec(
-        header_names=header_names,
-        emit_kinds=emit_kinds,
-        required_functions=required_functions,
-        required_types=required_types,
-        required_constants=required_constants,
-        type_mapping=type_mapping,
-    )
-
-
-def _read_catalog_root(path: Path) -> dict[str, object]:
-    """Read and validate top-level catalog JSON object shape.
+def _load_catalog(path: Path) -> CatalogInput:
+    """Load and validate catalog specification.
 
     Returns:
-        Catalog root object as dictionary.
+        Parsed catalog input model.
 
     Raises:
-        RuntimeError: Catalog file is missing or JSON parsing fails.
-        TypeError: Catalog root is not a JSON object.
+        RuntimeError: Catalog file is missing, unreadable, or schema validation fails.
     """
     if not path.is_file():
         message = f"target profile catalog not found: {path}"
         raise RuntimeError(message)
+
     try:
-        raw_object = cast("object", json.loads(path.read_text(encoding="utf-8")))
-    except json.JSONDecodeError as error:
-        message = f"failed to parse target profile catalog JSON: {error}"
+        raw_text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        message = f"failed to read target profile catalog `{path}`: {error}"
         raise RuntimeError(message) from error
-    if not isinstance(raw_object, dict):
-        message = f"target profile catalog root must be a JSON object: {path}"
-        raise TypeError(message)
-    return cast("dict[str, object]", raw_object)
+
+    try:
+        return CatalogInput.model_validate_json(raw_text)
+    except ValidationError as error:
+        message = format_validation_error(error, context=f"target profile catalog `{path}`")
+        raise RuntimeError(message) from error
 
 
-def _validate_catalog_root(path: Path, root: dict[str, object]) -> None:
-    """Validate catalog root keys and schema version.
-
-    Raises:
-        RuntimeError: Root keys or schema version are invalid.
-        TypeError: Schema version is not an integer.
-    """
-    unknown_keys = sorted(set(root) - set(_ALLOWED_ROOT_KEYS))
-    if unknown_keys:
-        message = f"target profile catalog has unsupported key(s): {', '.join(unknown_keys)}"
-        raise RuntimeError(message)
-
-    schema_version = root.get("schema_version")
-    if not isinstance(schema_version, int):
-        message = f"target profile catalog must define int `schema_version`: {path}"
-        raise TypeError(message)
-    if schema_version != _SCHEMA_VERSION_V1:
-        message = (
-            f"unsupported target profile catalog schema_version={schema_version}. "
-            f"expected {_SCHEMA_VERSION_V1}."
-        )
-        raise RuntimeError(message)
-
-
-def _load_presets(path: Path, raw_presets: object) -> dict[str, _ComponentSpec]:
-    """Load preset definitions from catalog root value.
-
-    Returns:
-        Preset mapping keyed by preset ID.
-
-    Raises:
-        RuntimeError: Preset section is missing or invalid.
-    """
-    if not isinstance(raw_presets, dict) or not raw_presets:
-        message = f"target profile catalog `{path}` must define non-empty object `presets`."
-        raise RuntimeError(message)
-    presets: dict[str, _ComponentSpec] = {}
-    for preset_id, raw_preset in cast("dict[str, object]", raw_presets).items():
-        normalized_preset_id = _read_non_empty_string(
-            preset_id,
-            context=f"catalog `{path}` preset id",
-        )
-        presets[normalized_preset_id] = _read_component(
-            raw_preset,
-            context=f"catalog `{path}` preset `{normalized_preset_id}`",
-            allowed_keys=_ALLOWED_COMPONENT_KEYS,
-        )
-    return presets
-
-
-def _load_profiles(path: Path, raw_profiles: object) -> dict[str, _ProfileSpec]:
-    """Load profile definitions from catalog root value.
-
-    Returns:
-        Profile mapping keyed by profile ID.
-
-    Raises:
-        RuntimeError: Profile section is missing or invalid.
-        TypeError: Profile entry is not a JSON object.
-    """
-    if not isinstance(raw_profiles, dict) or not raw_profiles:
-        message = f"target profile catalog `{path}` must define non-empty object `profiles`."
-        raise RuntimeError(message)
-    profiles: dict[str, _ProfileSpec] = {}
-    for raw_profile_id, raw_profile in cast("dict[str, object]", raw_profiles).items():
-        normalized_profile_id = _read_non_empty_string(
-            raw_profile_id,
-            context=f"catalog `{path}` profile id",
-        )
-        component = _read_component(
-            raw_profile,
-            context=f"catalog `{path}` profile `{normalized_profile_id}`",
-            allowed_keys=_ALLOWED_PROFILE_KEYS,
-        )
-        if not isinstance(raw_profile, dict):
-            message = f"catalog `{path}` profile `{normalized_profile_id}` must be JSON object."
-            raise TypeError(message)
-        compose = _read_non_empty_string_array(
-            cast("dict[str, object]", raw_profile).get("compose"),
-            context=f"catalog `{path}` profile `{normalized_profile_id}`.compose",
-        )
-        profiles[normalized_profile_id] = _ProfileSpec(compose=compose, component=component)
-    return profiles
-
-
-def _load_catalog_spec(path: Path) -> _CatalogSpec:
-    """Load and validate catalog specification.
-
-    Returns:
-        Parsed catalog specification payload.
-    """
-    root = _read_catalog_root(path)
-    _validate_catalog_root(path, root)
-    return _CatalogSpec(
-        presets=_load_presets(path, root.get("presets")),
-        profiles=_load_profiles(path, root.get("profiles")),
-    )
-
-
-def _merge_component_values(
-    component: _ComponentSpec,
+def _merge_component(
+    component: ComponentInput,
     *,
     resolved_values: dict[str, object],
     resolved_type_mapping: dict[str, bool],
@@ -346,21 +111,43 @@ def _merge_component_values(
         resolved_values["required_types"] = component.required_types
     if component.required_constants is not None:
         resolved_values["required_constants"] = component.required_constants
-    if component.type_mapping is not None:
-        resolved_type_mapping.update(component.type_mapping)
+    mapping = _to_type_mapping_dict(component.type_mapping)
+    if mapping is not None:
+        resolved_type_mapping.update(mapping)
+
+
+def _merge_profile_overrides(
+    profile: ProfileInput,
+    *,
+    resolved_values: dict[str, object],
+    resolved_type_mapping: dict[str, bool],
+) -> None:
+    if profile.header_names is not None:
+        resolved_values["header_names"] = profile.header_names
+    if profile.emit_kinds is not None:
+        resolved_values["emit_kinds"] = profile.emit_kinds
+    if profile.required_functions is not None:
+        resolved_values["required_functions"] = profile.required_functions
+    if profile.required_types is not None:
+        resolved_values["required_types"] = profile.required_types
+    if profile.required_constants is not None:
+        resolved_values["required_constants"] = profile.required_constants
+    mapping = _to_type_mapping_dict(profile.type_mapping)
+    if mapping is not None:
+        resolved_type_mapping.update(mapping)
 
 
 def _resolve_profile_values(
     *,
     path: Path,
     profile_id: str,
-    profile_spec: _ProfileSpec,
-    presets_by_id: dict[str, _ComponentSpec],
+    profile: ProfileInput,
+    presets_by_id: dict[str, ComponentInput],
 ) -> tuple[dict[str, object], dict[str, bool]]:
     resolved_values: dict[str, object] = {}
     resolved_type_mapping: dict[str, bool] = {}
 
-    for compose_id in profile_spec.compose:
+    for compose_id in profile.compose:
         preset = presets_by_id.get(compose_id)
         if preset is None:
             message = (
@@ -368,14 +155,14 @@ def _resolve_profile_values(
                 f"unknown preset `{compose_id}`."
             )
             raise RuntimeError(message)
-        _merge_component_values(
+        _merge_component(
             preset,
             resolved_values=resolved_values,
             resolved_type_mapping=resolved_type_mapping,
         )
 
-    _merge_component_values(
-        profile_spec.component,
+    _merge_profile_overrides(
+        profile,
         resolved_values=resolved_values,
         resolved_type_mapping=resolved_type_mapping,
     )
@@ -424,9 +211,9 @@ def load_target_profile_catalog(path: Path, profile_id: str) -> TargetProfile:
     Raises:
         RuntimeError: Profile resolution fails.
     """
-    catalog = _load_catalog_spec(path)
-    profile_spec = catalog.profiles.get(profile_id)
-    if profile_spec is None:
+    catalog = _load_catalog(path)
+    profile = catalog.profiles.get(profile_id)
+    if profile is None:
         known_profiles = ", ".join(sorted(catalog.profiles))
         message = (
             f"target profile `{profile_id}` not found in `{path}`. "
@@ -437,7 +224,7 @@ def load_target_profile_catalog(path: Path, profile_id: str) -> TargetProfile:
     resolved_values, resolved_type_mapping = _resolve_profile_values(
         path=path,
         profile_id=profile_id,
-        profile_spec=profile_spec,
+        profile=profile,
         presets_by_id=catalog.presets,
     )
     emit_kinds = _require_resolved_value(

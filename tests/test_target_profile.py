@@ -169,3 +169,59 @@ def test_load_target_profile_catalog_errors_on_unknown_profile_id(tmp_path: Path
 
     with pytest.raises(RuntimeError, match="available profiles: v1"):
         load_target_profile_catalog(catalog_path, "strict")
+
+
+def test_load_target_profile_catalog_rejects_unknown_root_key(tmp_path: Path) -> None:
+    """Unknown root keys should be reported as pydantic extra-forbidden errors."""
+    catalog_path = tmp_path / "profiles.json"
+    _write_json(
+        catalog_path,
+        {
+            "schema_version": 1,
+            "presets": {
+                "base": {
+                    "header_names": ["zstd.h"],
+                    "emit_kinds": "func,type",
+                    "required_functions": ["Fn"],
+                    "required_types": ["Ty"],
+                    "type_mapping": {
+                        "const_char_as_string": True,
+                    },
+                }
+            },
+            "profiles": {"v1": {"compose": ["base"]}},
+            "unknown": "x",
+        },
+    )
+
+    with pytest.raises(RuntimeError, match=r"unknown.*extra_forbidden"):
+        load_target_profile_catalog(catalog_path, "v1")
+
+
+def test_load_target_profile_catalog_rejects_non_bool_type_mapping_value(tmp_path: Path) -> None:
+    """String bools should fail strict validation in schema models."""
+    catalog_path = tmp_path / "profiles.json"
+    _write_json(
+        catalog_path,
+        {
+            "schema_version": 1,
+            "presets": {
+                "base": {
+                    "header_names": ["zstd.h"],
+                    "emit_kinds": "func,type",
+                    "required_functions": ["Fn"],
+                    "required_types": ["Ty"],
+                    "type_mapping": {
+                        "const_char_as_string": "true",
+                    },
+                }
+            },
+            "profiles": {"v1": {"compose": ["base"]}},
+        },
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"presets\.base\.type_mapping\.const_char_as_string.*bool_type",
+    ):
+        load_target_profile_catalog(catalog_path, "v1")

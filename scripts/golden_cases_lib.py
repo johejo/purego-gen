@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import difflib
-import json
 import os
 import shlex
 import shutil
@@ -13,7 +12,14 @@ import sys
 import tempfile
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
+
+from golden_cases_schema import (
+    CaseProfileInput,
+    CompileCRuntimeInput,
+    LocalHeadersInput,
+)
+from pydantic import ValidationError
 
 from purego_gen.cli_invocation import (
     PuregoGenInvocation,
@@ -24,42 +30,16 @@ from purego_gen.model import TypeMappingOptions
 from purego_gen.pkg_config import run_pkg_config_stdout, run_pkg_config_tokens
 from purego_gen.process_exec import run_command
 from purego_gen.toolchain import resolve_c_compiler_command
+from purego_gen.validation_error_format import format_validation_error
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Sequence
+    from collections.abc import Iterable, Sequence
 
-_SCHEMA_VERSION_V1 = 1
 _CASES_DIR = Path("tests") / "cases"
 _GO_MOD_PATH = Path("go.mod")
 _GO_SUM_PATH = Path("go.sum")
 _GENERATED_FILE_NAME = "generated.go"
 _RUNTIME_TEST_FILE_NAME = "runtime_test.go"
-
-_ALLOWED_PROFILE_KEYS = frozenset({
-    "schema_version",
-    "lib_id",
-    "package",
-    "emit",
-    "headers",
-    "filters",
-    "type_mapping",
-    "clang_args",
-    "runtime",
-})
-_ALLOWED_HEADER_LOCAL_KEYS = frozenset({"kind", "paths"})
-_ALLOWED_HEADER_PKG_CONFIG_KEYS = frozenset({"kind", "package", "header_names", "use_cflags"})
-_ALLOWED_FILTER_KEYS = frozenset({"func", "type", "const", "var"})
-_ALLOWED_TYPE_MAPPING_KEYS = frozenset({
-    "const_char_as_string",
-    "strict_enum_typedefs",
-    "typed_sentinel_constants",
-})
-_ALLOWED_RUNTIME_COMPILE_C_KEYS = frozenset({"kind", "sources", "cflags", "ldflags"})
-_ALLOWED_RUNTIME_PKG_CONFIG_KEYS = frozenset({"kind", "package", "override_env", "library_names"})
-_HEADER_KIND_LOCAL = "local"
-_HEADER_KIND_PKG_CONFIG = "pkg_config"
-_RUNTIME_KIND_COMPILE_C = "compile_c"
-_RUNTIME_KIND_PKG_CONFIG = "pkg_config"
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,170 +118,56 @@ class GoldenCase:
     profile: CaseProfile
 
 
-def _read_non_empty_string(value: object, *, context: str) -> str:
-    if not isinstance(value, str) or not value:
-        message = f"{context} must be a non-empty string."
-        raise TypeError(message)
-    return value
+def _normalize_optional_tuple(value: tuple[str, ...] | None) -> tuple[str, ...]:
+    return value if value is not None else ()
 
 
-def _read_bool(value: object, *, context: str) -> bool:
-    if not isinstance(value, bool):
-        message = f"{context} must be bool."
-        raise TypeError(message)
-    return value
+def _to_case_profile(profile: CaseProfileInput) -> CaseProfile:
+    headers: HeaderConfig
+    if isinstance(profile.headers, LocalHeadersInput):
+        headers = LocalHeaders(paths=profile.headers.paths)
+    else:
+        headers = PkgConfigHeaders(
+            package=profile.headers.package,
+            header_names=profile.headers.header_names,
+            use_cflags=profile.headers.use_cflags,
+        )
 
+    runtime: RuntimeConfig | None
+    if profile.runtime is None:
+        runtime = None
+    elif isinstance(profile.runtime, CompileCRuntimeInput):
+        runtime = CompileCRuntime(
+            sources=profile.runtime.sources,
+            cflags=_normalize_optional_tuple(profile.runtime.cflags),
+            ldflags=_normalize_optional_tuple(profile.runtime.ldflags),
+        )
+    else:
+        runtime = PkgConfigRuntime(
+            package=profile.runtime.package,
+            override_env=profile.runtime.override_env,
+            library_names=profile.runtime.library_names,
+        )
 
-def _read_optional_non_empty_string(value: object, *, context: str) -> str | None:
-    if value is None:
-        return None
-    return _read_non_empty_string(value, context=context)
-
-
-def _read_string_tuple(value: object, *, context: str) -> tuple[str, ...]:
-    if not isinstance(value, list) or not value:
-        message = f"{context} must be a non-empty array."
-        raise TypeError(message)
-    items: list[str] = []
-    for index, raw in enumerate(cast("list[object]", value)):
-        items.append(_read_non_empty_string(raw, context=f"{context}[{index}]"))
-    return tuple(items)
-
-
-def _read_optional_string_tuple(value: object, *, context: str) -> tuple[str, ...]:
-    if value is None:
-        return ()
-    return _read_string_tuple(value, context=context)
-
-
-def _validate_unknown_keys(
-    raw: dict[str, object], *, context: str, allowed: frozenset[str]
-) -> None:
-    unknown_keys = sorted(set(raw) - set(allowed))
-    if unknown_keys:
-        message = f"{context} has unsupported key(s): {', '.join(unknown_keys)}"
-        raise RuntimeError(message)
-
-
-def _read_json_object(raw_value: object, *, context: str) -> dict[str, object]:
-    if not isinstance(raw_value, dict):
-        message = f"{context} must be a JSON object."
-        raise TypeError(message)
-    return cast("dict[str, object]", raw_value)
-
-
-def _read_field[T](
-    raw: dict[str, object],
-    *,
-    key: str,
-    reader: Callable[[object], T],
-) -> T:
-    return reader(raw.get(key))
-
-
-def _read_header_local(raw: dict[str, object], *, context: str) -> LocalHeaders:
-    _validate_unknown_keys(raw, context=context, allowed=_ALLOWED_HEADER_LOCAL_KEYS)
-    return LocalHeaders(paths=_read_string_tuple(raw.get("paths"), context=f"{context}.paths"))
-
-
-def _read_header_pkg_config(raw: dict[str, object], *, context: str) -> PkgConfigHeaders:
-    _validate_unknown_keys(raw, context=context, allowed=_ALLOWED_HEADER_PKG_CONFIG_KEYS)
-    return PkgConfigHeaders(
-        package=_read_non_empty_string(raw.get("package"), context=f"{context}.package"),
-        header_names=_read_string_tuple(raw.get("header_names"), context=f"{context}.header_names"),
-        use_cflags=_read_bool(raw.get("use_cflags", False), context=f"{context}.use_cflags"),
+    return CaseProfile(
+        lib_id=profile.lib_id,
+        package=profile.package,
+        emit=profile.emit,
+        headers=headers,
+        filters=CaseFilters(
+            func=profile.filters.func,
+            type_=profile.filters.type_,
+            const=profile.filters.const,
+            var=profile.filters.var,
+        ),
+        type_mapping=TypeMappingOptions(
+            const_char_as_string=profile.type_mapping.const_char_as_string,
+            strict_enum_typedefs=profile.type_mapping.strict_enum_typedefs,
+            typed_sentinel_constants=profile.type_mapping.typed_sentinel_constants,
+        ),
+        clang_args=_normalize_optional_tuple(profile.clang_args),
+        runtime=runtime,
     )
-
-
-def _read_header_config(raw_value: object, *, context: str) -> HeaderConfig:
-    raw = _read_json_object(raw_value, context=context)
-    kind = _read_non_empty_string(raw.get("kind"), context=f"{context}.kind")
-    parsers: dict[str, Callable[[dict[str, object], str], HeaderConfig]] = {
-        _HEADER_KIND_LOCAL: lambda value, value_context: _read_header_local(
-            value, context=value_context
-        ),
-        _HEADER_KIND_PKG_CONFIG: lambda value, value_context: _read_header_pkg_config(
-            value, context=value_context
-        ),
-    }
-    parser = parsers.get(kind)
-    if parser is None:
-        message = f"{context}.kind must be one of: local, pkg_config"
-        raise RuntimeError(message)
-    return parser(raw, context)
-
-
-def _read_filters(raw_value: object, *, context: str) -> CaseFilters:
-    if raw_value is None:
-        return CaseFilters()
-    raw = _read_json_object(raw_value, context=context)
-    _validate_unknown_keys(raw, context=context, allowed=_ALLOWED_FILTER_KEYS)
-    fields: dict[str, str | None] = {
-        "func": _read_optional_non_empty_string(raw.get("func"), context=f"{context}.func"),
-        "type_": _read_optional_non_empty_string(raw.get("type"), context=f"{context}.type"),
-        "const": _read_optional_non_empty_string(raw.get("const"), context=f"{context}.const"),
-        "var": _read_optional_non_empty_string(raw.get("var"), context=f"{context}.var"),
-    }
-    return CaseFilters(**fields)
-
-
-def _read_type_mapping(raw_value: object, *, context: str) -> TypeMappingOptions:
-    if raw_value is None:
-        return TypeMappingOptions()
-    raw = _read_json_object(raw_value, context=context)
-    _validate_unknown_keys(raw, context=context, allowed=_ALLOWED_TYPE_MAPPING_KEYS)
-    defaults = {
-        "const_char_as_string": False,
-        "strict_enum_typedefs": False,
-        "typed_sentinel_constants": False,
-    }
-    values = {
-        key: _read_bool(raw.get(key, default), context=f"{context}.{key}")
-        for key, default in defaults.items()
-    }
-    return TypeMappingOptions(**values)
-
-
-def _read_runtime_compile_c(raw: dict[str, object], *, context: str) -> CompileCRuntime:
-    _validate_unknown_keys(raw, context=context, allowed=_ALLOWED_RUNTIME_COMPILE_C_KEYS)
-    return CompileCRuntime(
-        sources=_read_string_tuple(raw.get("sources"), context=f"{context}.sources"),
-        cflags=_read_optional_string_tuple(raw.get("cflags"), context=f"{context}.cflags"),
-        ldflags=_read_optional_string_tuple(raw.get("ldflags"), context=f"{context}.ldflags"),
-    )
-
-
-def _read_runtime_pkg_config(raw: dict[str, object], *, context: str) -> PkgConfigRuntime:
-    _validate_unknown_keys(raw, context=context, allowed=_ALLOWED_RUNTIME_PKG_CONFIG_KEYS)
-    return PkgConfigRuntime(
-        package=_read_non_empty_string(raw.get("package"), context=f"{context}.package"),
-        override_env=_read_optional_non_empty_string(
-            raw.get("override_env"), context=f"{context}.override_env"
-        ),
-        library_names=_read_string_tuple(
-            raw.get("library_names"), context=f"{context}.library_names"
-        ),
-    )
-
-
-def _read_runtime_config(raw_value: object, *, context: str) -> RuntimeConfig | None:
-    if raw_value is None:
-        return None
-    raw = _read_json_object(raw_value, context=context)
-    kind = _read_non_empty_string(raw.get("kind"), context=f"{context}.kind")
-    parsers: dict[str, Callable[[dict[str, object], str], RuntimeConfig]] = {
-        _RUNTIME_KIND_COMPILE_C: lambda value, value_context: _read_runtime_compile_c(
-            value, context=value_context
-        ),
-        _RUNTIME_KIND_PKG_CONFIG: lambda value, value_context: _read_runtime_pkg_config(
-            value, context=value_context
-        ),
-    }
-    parser = parsers.get(kind)
-    if parser is None:
-        message = f"{context}.kind must be one of: compile_c, pkg_config"
-        raise RuntimeError(message)
-    return parser(raw, context)
 
 
 def _load_profile(profile_path: Path) -> CaseProfile:
@@ -310,74 +176,18 @@ def _load_profile(profile_path: Path) -> CaseProfile:
         raise RuntimeError(message)
 
     try:
-        raw_root = cast("object", json.loads(profile_path.read_text(encoding="utf-8")))
-    except json.JSONDecodeError as error:
-        message = f"failed to parse profile JSON at {profile_path}: {error}"
+        raw_text = profile_path.read_text(encoding="utf-8")
+    except OSError as error:
+        message = f"failed to read profile JSON at {profile_path}: {error}"
         raise RuntimeError(message) from error
 
-    root = _read_json_object(raw_root, context=f"profile root `{profile_path}`")
-    profile_context = f"profile `{profile_path}`"
-    _validate_unknown_keys(root, context=profile_context, allowed=_ALLOWED_PROFILE_KEYS)
+    try:
+        profile = CaseProfileInput.model_validate_json(raw_text)
+    except ValidationError as error:
+        message = format_validation_error(error, context=f"profile `{profile_path}`")
+        raise RuntimeError(message) from error
 
-    schema_version = root.get("schema_version")
-    if not isinstance(schema_version, int):
-        message = f"profile `{profile_path}` must define int `schema_version`."
-        raise TypeError(message)
-    if schema_version != _SCHEMA_VERSION_V1:
-        message = (
-            f"unsupported schema_version={schema_version} in profile `{profile_path}`. "
-            f"expected {_SCHEMA_VERSION_V1}."
-        )
-        raise RuntimeError(message)
-
-    return CaseProfile(
-        lib_id=_read_field(
-            root,
-            key="lib_id",
-            reader=lambda value: _read_non_empty_string(value, context=f"{profile_context}.lib_id"),
-        ),
-        package=_read_field(
-            root,
-            key="package",
-            reader=lambda value: _read_non_empty_string(
-                value, context=f"{profile_context}.package"
-            ),
-        ),
-        emit=_read_field(
-            root,
-            key="emit",
-            reader=lambda value: _read_non_empty_string(value, context=f"{profile_context}.emit"),
-        ),
-        headers=_read_field(
-            root,
-            key="headers",
-            reader=lambda value: _read_header_config(value, context=f"{profile_context}.headers"),
-        ),
-        filters=_read_field(
-            root,
-            key="filters",
-            reader=lambda value: _read_filters(value, context=f"{profile_context}.filters"),
-        ),
-        type_mapping=_read_field(
-            root,
-            key="type_mapping",
-            reader=lambda value: _read_type_mapping(
-                value, context=f"{profile_context}.type_mapping"
-            ),
-        ),
-        clang_args=_read_field(
-            root,
-            key="clang_args",
-            reader=lambda value: _read_optional_string_tuple(
-                value, context=f"{profile_context}.clang_args"
-            ),
-        ),
-        runtime=_read_field(
-            root,
-            key="runtime",
-            reader=lambda value: _read_runtime_config(value, context=f"{profile_context}.runtime"),
-        ),
-    )
+    return _to_case_profile(profile)
 
 
 def _resolve_case_runtime(case_dir: Path, profile: CaseProfile) -> RuntimeConfig | None:

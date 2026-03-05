@@ -122,7 +122,7 @@ def test_discover_cases_rejects_unknown_profile_key(tmp_path: Path) -> None:
         },
     )
 
-    with pytest.raises(RuntimeError, match=r"unsupported key\(s\): unknown"):
+    with pytest.raises(RuntimeError, match=r"unknown.*extra_forbidden"):
         discover_cases(repo_root=repo_root, selected_case_ids=())
 
 
@@ -148,5 +148,54 @@ def test_discover_cases_rejects_compile_c_without_sources(tmp_path: Path) -> Non
         },
     )
 
-    with pytest.raises(TypeError, match=r"runtime\.sources must be a non-empty array"):
+    with pytest.raises(RuntimeError, match=r"runtime\.compile_c\.sources.*missing"):
+        discover_cases(repo_root=repo_root, selected_case_ids=())
+
+
+def test_discover_cases_rejects_unknown_runtime_kind(tmp_path: Path) -> None:
+    """Unknown runtime discriminator values should fail in validation."""
+    repo_root = _make_repo_layout(tmp_path)
+    _make_case(
+        repo_root,
+        "bad_runtime_kind",
+        {
+            "schema_version": 1,
+            "lib_id": "fixture_lib",
+            "package": "fixture",
+            "emit": "func",
+            "headers": {
+                "kind": "local",
+                "paths": ["headers/basic.h"],
+            },
+            "runtime": {
+                "kind": "unknown_runtime",
+            },
+        },
+    )
+
+    with pytest.raises(RuntimeError, match=r"runtime.*union_tag_invalid"):
+        discover_cases(repo_root=repo_root, selected_case_ids=())
+
+
+def test_discover_cases_rejects_non_bool_header_flag(tmp_path: Path) -> None:
+    """String bools should not be coerced for strict header config flags."""
+    repo_root = _make_repo_layout(tmp_path)
+    _make_case(
+        repo_root,
+        "bad_bool",
+        {
+            "schema_version": 1,
+            "lib_id": "fixture_lib",
+            "package": "fixture",
+            "emit": "func",
+            "headers": {
+                "kind": "pkg_config",
+                "package": "libzstd",
+                "header_names": ["zstd.h"],
+                "use_cflags": "true",
+            },
+        },
+    )
+
+    with pytest.raises(RuntimeError, match=r"headers\.pkg_config\.use_cflags.*bool_type"):
         discover_cases(repo_root=repo_root, selected_case_ids=())
