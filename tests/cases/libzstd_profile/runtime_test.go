@@ -1,4 +1,4 @@
-package zstdfixture
+package fixture
 
 import (
 	"bytes"

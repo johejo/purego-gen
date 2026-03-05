@@ -8,6 +8,8 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
@@ -130,48 +132,35 @@ def test_fails_when_header_has_parse_errors() -> None:
     assert "failed to parse" in result.stderr
 
 
-def test_fails_when_filter_matches_no_emitted_declarations() -> None:
+@pytest.mark.parametrize(
+    ("header_path", "emit_kind", "filter_option"),
+    [
+        pytest.param(_PRIMARY_HEADER, "func", "--func-filter", id="func"),
+        pytest.param(_M3_TYPES_HEADER, "type", "--type-filter", id="type"),
+        pytest.param(_CATEGORY_HEADER, "const", "--const-filter", id="const"),
+        pytest.param(_CATEGORY_HEADER, "var", "--var-filter", id="var"),
+    ],
+)
+def test_fails_when_filter_matches_no_emitted_declarations(
+    header_path: Path,
+    emit_kind: str,
+    filter_option: str,
+) -> None:
     """Filters should fail when they match no declaration in emitted categories."""
     result = _run_cli(
         "--lib-id",
         _FIXTURE_LIB_ID,
         "--header",
-        str(_PRIMARY_HEADER),
+        str(header_path),
         "--pkg",
         _FIXTURE_PACKAGE,
         "--emit",
-        "func",
-        "--func-filter",
+        emit_kind,
+        filter_option,
         "^does_not_exist$",
     )
-
     assert result.returncode == 1
-    assert "no declarations matched --func-filter: ^does_not_exist$" in result.stderr
-
-
-def test_fails_when_type_const_or_var_filter_matches_no_emitted_declarations() -> None:
-    """Type/const/var filters should fail on no-match only for emitted categories."""
-    cases = (
-        (_M3_TYPES_HEADER, "type", "--type-filter"),
-        (_CATEGORY_HEADER, "const", "--const-filter"),
-        (_CATEGORY_HEADER, "var", "--var-filter"),
-    )
-
-    for header_path, emit_kind, filter_option in cases:
-        result = _run_cli(
-            "--lib-id",
-            _FIXTURE_LIB_ID,
-            "--header",
-            str(header_path),
-            "--pkg",
-            _FIXTURE_PACKAGE,
-            "--emit",
-            emit_kind,
-            filter_option,
-            "^does_not_exist$",
-        )
-        assert result.returncode == 1
-        assert f"no declarations matched {filter_option}: ^does_not_exist$" in result.stderr
+    assert f"no declarations matched {filter_option}: ^does_not_exist$" in result.stderr
 
 
 def test_does_not_fail_when_filter_targets_non_emitted_category() -> None:

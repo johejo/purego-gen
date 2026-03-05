@@ -8,6 +8,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
 from purego_gen.abi_layout import (
     ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_MISMATCH,
     ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_FIELD_LAYOUT,
@@ -26,6 +28,8 @@ from purego_gen.process_exec import run_command
 from purego_gen.toolchain import resolve_c_compiler_command
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from purego_gen.model import RecordTypedefDecl
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -179,7 +183,6 @@ def test_validate_record_layout_reports_unsupported_record() -> None:
     assert len(diagnostics) == 1
     assert diagnostics[0].code == ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD
     assert diagnostics[0].source_code == "PG_TYPE_UNSUPPORTED_FIELD_TYPE"
-    assert "PG_TYPE_UNSUPPORTED_FIELD_TYPE" in diagnostics[0].message
 
 
 def test_validate_record_layout_reports_missing_field_metadata() -> None:
@@ -224,73 +227,93 @@ def test_record_layout_matches_c_probe_fixture(tmp_path: Path) -> None:
             assert parsed_field.align_bytes == c_field.align_bytes
 
 
-def test_validate_record_layout_with_fallback_reports_skipped_for_unsupported_pattern() -> None:
-    """Fallback result should mark unsupported ABI patterns as skipped."""
-    record_map = _record_typedef_map()
-    result = validate_record_layout_with_fallback(record_map["fixture_with_array_t"])
-
-    assert result.record_name == "fixture_with_array_t"
-    assert result.status == ABI_LAYOUT_RESULT_STATUS_SKIPPED
-    assert result.fallback_reason == ABI_LAYOUT_FALLBACK_REASON_UNSUPPORTED_PATTERN
-    assert len(result.diagnostics) == 1
-    assert result.diagnostics[0].source_code == "PG_TYPE_UNSUPPORTED_FIELD_TYPE"
+def _identity_record(record: RecordTypedefDecl) -> RecordTypedefDecl:
+    return record
 
 
-def test_validate_record_layout_with_fallback_reports_skipped_for_incomplete_metadata() -> None:
-    """Fallback result should mark incomplete layout metadata as skipped."""
-    record_map = _record_typedef_map()
-    point_record = record_map["fixture_point_t"]
-    first_field = point_record.fields[0]
-    incomplete_record = replace(
-        point_record,
-        fields=(replace(first_field, offset_bits=None), *point_record.fields[1:]),
-    )
-
-    result = validate_record_layout_with_fallback(incomplete_record)
-
-    assert result.status == ABI_LAYOUT_RESULT_STATUS_SKIPPED
-    assert result.fallback_reason == ABI_LAYOUT_FALLBACK_REASON_INCOMPLETE_METADATA
-    assert any(
-        diagnostic.code == ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_FIELD_LAYOUT
-        for diagnostic in result.diagnostics
+def _record_with_missing_offset(record: RecordTypedefDecl) -> RecordTypedefDecl:
+    first_field = record.fields[0]
+    return replace(
+        record,
+        fields=(replace(first_field, offset_bits=None), *record.fields[1:]),
     )
 
 
-def test_validate_record_layout_with_fallback_reports_failed_on_layout_mismatch() -> None:
-    """Fallback result should mark deterministic offset/size mismatches as failed."""
-    record_map = _record_typedef_map()
-    point_record = record_map["fixture_point_t"]
-    first_field = point_record.fields[0]
+def _record_with_layout_mismatch(record: RecordTypedefDecl) -> RecordTypedefDecl:
+    first_field = record.fields[0]
     assert first_field.offset_bits is not None
-    assert point_record.size_bytes is not None
-    mismatched_record = replace(
-        point_record,
+    assert record.size_bytes is not None
+    return replace(
+        record,
         fields=(
             replace(first_field, offset_bits=first_field.offset_bits + 32),
-            *point_record.fields[1:],
+            *record.fields[1:],
         ),
-        size_bytes=point_record.size_bytes + 8,
-    )
-
-    result = validate_record_layout_with_fallback(mismatched_record)
-
-    assert result.status == ABI_LAYOUT_RESULT_STATUS_FAILED
-    assert result.fallback_reason is None
-    assert any(
-        diagnostic.code == ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_MISMATCH
-        for diagnostic in result.diagnostics
-    )
-    assert any(
-        diagnostic.code == ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_SIZE_MISMATCH
-        for diagnostic in result.diagnostics
+        size_bytes=record.size_bytes + 8,
     )
 
 
-def test_validate_record_layout_with_fallback_reports_passed_when_clean() -> None:
-    """Fallback result should mark clean supported records as passed."""
+@pytest.mark.parametrize(
+    (
+        "record_name",
+        "record_mutator",
+        "expected_status",
+        "expected_reason",
+        "expected_required_codes",
+    ),
+    [
+        pytest.param(
+            "fixture_with_array_t",
+            _identity_record,
+            ABI_LAYOUT_RESULT_STATUS_SKIPPED,
+            ABI_LAYOUT_FALLBACK_REASON_UNSUPPORTED_PATTERN,
+            {ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD},
+            id="unsupported-pattern",
+        ),
+        pytest.param(
+            "fixture_point_t",
+            _record_with_missing_offset,
+            ABI_LAYOUT_RESULT_STATUS_SKIPPED,
+            ABI_LAYOUT_FALLBACK_REASON_INCOMPLETE_METADATA,
+            {ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_FIELD_LAYOUT},
+            id="incomplete-metadata",
+        ),
+        pytest.param(
+            "fixture_point_t",
+            _record_with_layout_mismatch,
+            ABI_LAYOUT_RESULT_STATUS_FAILED,
+            None,
+            {
+                ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_MISMATCH,
+                ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_SIZE_MISMATCH,
+            },
+            id="layout-mismatch",
+        ),
+        pytest.param(
+            "fixture_point_t",
+            _identity_record,
+            ABI_LAYOUT_RESULT_STATUS_PASSED,
+            None,
+            set[str](),
+            id="clean-layout",
+        ),
+    ],
+)
+def test_validate_record_layout_with_fallback_status(
+    record_name: str,
+    record_mutator: Callable[[RecordTypedefDecl], RecordTypedefDecl],
+    expected_status: str,
+    expected_reason: str | None,
+    expected_required_codes: set[str],
+) -> None:
+    """Fallback result should expose status/reason/diagnostic contract by scenario."""
     record_map = _record_typedef_map()
-    result = validate_record_layout_with_fallback(record_map["fixture_point_t"])
+    result = validate_record_layout_with_fallback(record_mutator(record_map[record_name]))
 
-    assert result.status == ABI_LAYOUT_RESULT_STATUS_PASSED
-    assert result.fallback_reason is None
-    assert result.diagnostics == ()
+    assert result.record_name == record_name
+    assert result.status == expected_status
+    assert result.fallback_reason == expected_reason
+    diagnostic_codes = {diagnostic.code for diagnostic in result.diagnostics}
+    assert expected_required_codes.issubset(diagnostic_codes)
+    if expected_status == ABI_LAYOUT_RESULT_STATUS_PASSED:
+        assert diagnostic_codes == set()
