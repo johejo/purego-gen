@@ -6,7 +6,7 @@
   "headers": {
     "kind": "local",
     "paths": [
-      "headers/conditional.h"
+      "conditional.h"
     ]
   },
   "clang_args": [

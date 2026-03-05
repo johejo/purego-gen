@@ -6,7 +6,7 @@
   "headers": {
     "kind": "local",
     "paths": [
-      "headers/smoke_runtime.h"
+      "smoke_runtime.h"
     ]
   }
 }

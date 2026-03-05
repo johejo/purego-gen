@@ -6,8 +6,8 @@
   "headers": {
     "kind": "local",
     "paths": [
-      "headers/basic.h",
-      "headers/categories.h"
+      "basic.h",
+      "categories.h"
     ]
   },
   "clang_args": [

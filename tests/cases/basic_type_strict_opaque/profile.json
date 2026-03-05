@@ -6,7 +6,7 @@
   "headers": {
     "kind": "local",
     "paths": [
-      "headers/basic.h"
+      "basic.h"
     ]
   }
 }

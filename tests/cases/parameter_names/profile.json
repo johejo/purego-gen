@@ -6,7 +6,7 @@
   "headers": {
     "kind": "local",
     "paths": [
-      "headers/parameter_names.h"
+      "parameter_names.h"
     ]
   }
 }
