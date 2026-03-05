@@ -42,7 +42,7 @@ def test_parse_declaration_categories() -> None:
 
 
 def test_parse_type_mapping_edge_cases() -> None:
-    """Parser should keep representative M3 type mappings stable."""
+    """Parser should keep representative ABI type mappings stable."""
     header = _FIXTURES_DIR / "abi_types.h"
 
     declarations = parse_declarations(headers=(str(header),), clang_args=())

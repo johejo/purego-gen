@@ -30,7 +30,7 @@ _OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT = "PG_OPAQUE_FALLBACK_UINTPTR_COUNT"
 
 _PRIMARY_HEADER = _FIXTURES_DIR / "basic.h"
 _CATEGORY_HEADER = _FIXTURES_DIR / "categories.h"
-_M3_TYPES_HEADER = _FIXTURES_DIR / "abi_types.h"
+_ABI_TYPES_HEADER = _FIXTURES_DIR / "abi_types.h"
 _BROKEN_HEADER = _FIXTURES_DIR / "broken_header.h"
 
 
@@ -66,7 +66,7 @@ def test_reports_skipped_typedef_diagnostics_for_unsupported_record_fields() -> 
         "--lib-id",
         _FIXTURE_LIB_ID,
         "--header",
-        str(_M3_TYPES_HEADER),
+        str(_ABI_TYPES_HEADER),
         "--pkg",
         _FIXTURE_PACKAGE,
         "--emit",
@@ -110,7 +110,7 @@ def test_fails_when_header_has_parse_errors() -> None:
     ("header_path", "emit_kind", "filter_option"),
     [
         pytest.param(_PRIMARY_HEADER, "func", "--func-filter", id="func"),
-        pytest.param(_M3_TYPES_HEADER, "type", "--type-filter", id="type"),
+        pytest.param(_ABI_TYPES_HEADER, "type", "--type-filter", id="type"),
         pytest.param(_CATEGORY_HEADER, "const", "--const-filter", id="const"),
         pytest.param(_CATEGORY_HEADER, "var", "--var-filter", id="var"),
     ],
