@@ -19,6 +19,11 @@ def _write_json(path: Path, raw: object) -> None:
     path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
 
 
+def _write_text_line(path: Path, line: str) -> None:
+    """Write one-line text file with a trailing newline."""
+    path.write_text(f"{line}\n", encoding="utf-8")
+
+
 def _make_repo_layout(tmp_path: Path) -> Path:
     """Create minimal repository layout expected by discover_cases.
 
@@ -39,7 +44,7 @@ def _make_case(repo_root: Path, case_id: str, profile: object) -> Path:
     case_dir = repo_root / "tests" / "cases" / case_id
     case_dir.mkdir(parents=True, exist_ok=True)
     _write_json(case_dir / "profile.json", profile)
-    (case_dir / "generated.go").write_text("package fixture\n", encoding="utf-8")
+    _write_text_line(case_dir / "generated.go", "package fixture")
     return case_dir
 
 
@@ -61,7 +66,7 @@ def test_discover_cases_loads_local_profile(tmp_path: Path) -> None:
         },
     )
     (case_dir / "headers").mkdir(parents=True, exist_ok=True)
-    (case_dir / "headers" / "basic.h").write_text("int add(int a, int b);\n", encoding="utf-8")
+    _write_text_line(case_dir / "headers" / "basic.h", "int add(int a, int b);")
 
     cases = discover_cases(repo_root=repo_root, selected_case_ids=())
 
@@ -91,8 +96,8 @@ def test_discover_cases_defaults_runtime_to_compile_c(tmp_path: Path) -> None:
         },
     )
     (case_dir / "headers").mkdir(parents=True, exist_ok=True)
-    (case_dir / "headers" / "smoke.h").write_text("int smoke(void);\n", encoding="utf-8")
-    (case_dir / "runtime_test.go").write_text("package fixture\n", encoding="utf-8")
+    _write_text_line(case_dir / "headers" / "smoke.h", "int smoke(void);")
+    _write_text_line(case_dir / "runtime_test.go", "package fixture")
 
     cases = discover_cases(repo_root=repo_root, selected_case_ids=())
 
