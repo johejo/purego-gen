@@ -182,12 +182,12 @@ def test_discover_cases_rejects_unknown_runtime_kind(tmp_path: Path) -> None:
         discover_cases(repo_root=repo_root, selected_case_ids=())
 
 
-def test_discover_cases_rejects_non_bool_header_flag(tmp_path: Path) -> None:
-    """String bools should not be coerced for strict header config flags."""
+def test_discover_cases_rejects_unknown_pkg_config_header_key(tmp_path: Path) -> None:
+    """Unknown pkg_config header keys should fail with strict validation."""
     repo_root = _make_repo_layout(tmp_path)
     _make_case(
         repo_root,
-        "bad_bool",
+        "bad_header_key",
         {
             "schema_version": 1,
             "lib_id": "fixture_lib",
@@ -197,10 +197,10 @@ def test_discover_cases_rejects_non_bool_header_flag(tmp_path: Path) -> None:
                 "kind": "pkg_config",
                 "package": "libzstd",
                 "header_names": ["zstd.h"],
-                "use_cflags": "true",
+                "use_cflags": True,
             },
         },
     )
 
-    with pytest.raises(RuntimeError, match=r"headers\.pkg_config\.use_cflags.*bool_type"):
+    with pytest.raises(RuntimeError, match=r"headers\.pkg_config\.use_cflags.*extra_forbidden"):
         discover_cases(repo_root=repo_root, selected_case_ids=())

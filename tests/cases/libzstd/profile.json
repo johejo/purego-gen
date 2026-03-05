@@ -9,8 +9,7 @@
     "header_names": [
       "zstd.h",
       "zstd_errors.h"
-    ],
-    "use_cflags": true
+    ]
   },
   "filters": {
     "func": "^(ZSTD_versionNumber|ZSTD_minCLevel|ZSTD_maxCLevel|ZSTD_compress|ZSTD_decompress|ZSTD_compress_usingDict|ZSTD_decompress_usingDict|ZSTD_compressBound|ZSTD_findFrameCompressedSize|ZSTD_isError|ZSTD_getErrorCode|ZSTD_getErrorName|ZSTD_getFrameContentSize|ZSTD_createCCtx|ZSTD_freeCCtx|ZSTD_compressCCtx|ZSTD_createDCtx|ZSTD_freeDCtx|ZSTD_decompressDCtx)$",

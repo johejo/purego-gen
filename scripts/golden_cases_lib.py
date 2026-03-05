@@ -27,7 +27,7 @@ from purego_gen.cli_invocation import (
     build_src_pythonpath_env,
 )
 from purego_gen.model import TypeMappingOptions
-from purego_gen.pkg_config import run_pkg_config_stdout, run_pkg_config_tokens
+from purego_gen.pkg_config import run_pkg_config_stdout
 from purego_gen.process_exec import run_command
 from purego_gen.toolchain import resolve_c_compiler_command
 from purego_gen.validation_error_format import format_validation_error
@@ -65,7 +65,6 @@ class PkgConfigHeaders:
 
     package: str
     header_names: tuple[str, ...]
-    use_cflags: bool
 
 
 HeaderConfig = LocalHeaders | PkgConfigHeaders
@@ -130,7 +129,6 @@ def _to_case_profile(profile: CaseProfileInput) -> CaseProfile:
         headers = PkgConfigHeaders(
             package=profile.headers.package,
             header_names=profile.headers.header_names,
-            use_cflags=profile.headers.use_cflags,
         )
 
     runtime: RuntimeConfig | None
@@ -280,10 +278,6 @@ def _resolve_header_paths_and_clang_args(
             message = f"case `{case.case_id}` header not found from pkg-config: {header_path}"
             raise RuntimeError(message)
         header_paths.append(header_path)
-
-    if profile.headers.use_cflags:
-        pkg_cflags = run_pkg_config_tokens(profile.headers.package, "--cflags")
-        return tuple(header_paths), (*pkg_cflags, *profile.clang_args)
 
     return tuple(header_paths), profile.clang_args
 

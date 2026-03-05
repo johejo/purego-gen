@@ -41,7 +41,6 @@ class PkgConfigHeadersInput(_StrictModel):
     kind: Literal["pkg_config"]
     package: NonEmptyStr
     header_names: NonEmptyStrTuple
-    use_cflags: StrictBool = False
 
 
 HeaderInput = Annotated[LocalHeadersInput | PkgConfigHeadersInput, Field(discriminator="kind")]
