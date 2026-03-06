@@ -7,11 +7,11 @@ from __future__ import annotations
 import pytest
 
 from purego_gen.model import (
+    TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
     ConstantDecl,
     FunctionDecl,
     ParsedDeclarations,
     RecordTypedefDecl,
-    TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
     TypedefDecl,
 )
 from purego_gen.renderer import RendererError, render_go_source, render_template
