@@ -7,13 +7,49 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Final
 
-TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_ANONYMOUS_FIELD: Final[str] = "PG_TYPE_UNSUPPORTED_ANONYMOUS_FIELD"
-TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD: Final[str] = "PG_TYPE_UNSUPPORTED_BITFIELD"
-TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE: Final[str] = "PG_TYPE_UNSUPPORTED_FIELD_TYPE"
-TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF: Final[str] = "PG_TYPE_UNSUPPORTED_UNION_TYPEDEF"
-TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD_KIND: Final[str] = "PG_TYPE_UNSUPPORTED_RECORD_KIND"
-TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS: Final[str] = "PG_TYPE_NO_SUPPORTED_FIELDS"
-TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT: Final[str] = "PG_TYPE_OPAQUE_INCOMPLETE_STRUCT"
+from purego_gen.diagnostic_codes import build_diagnostic_code
+
+TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_ANONYMOUS_FIELD: Final[str] = build_diagnostic_code(
+    "TYPE",
+    "UNSUPPORTED",
+    "ANONYMOUS",
+    "FIELD",
+)
+TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD: Final[str] = build_diagnostic_code(
+    "TYPE",
+    "UNSUPPORTED",
+    "BITFIELD",
+)
+TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE: Final[str] = build_diagnostic_code(
+    "TYPE",
+    "UNSUPPORTED",
+    "FIELD",
+    "TYPE",
+)
+TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF: Final[str] = build_diagnostic_code(
+    "TYPE",
+    "UNSUPPORTED",
+    "UNION",
+    "TYPEDEF",
+)
+TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD_KIND: Final[str] = build_diagnostic_code(
+    "TYPE",
+    "UNSUPPORTED",
+    "RECORD",
+    "KIND",
+)
+TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS: Final[str] = build_diagnostic_code(
+    "TYPE",
+    "NO",
+    "SUPPORTED",
+    "FIELDS",
+)
+TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT: Final[str] = build_diagnostic_code(
+    "TYPE",
+    "OPAQUE",
+    "INCOMPLETE",
+    "STRUCT",
+)
 
 
 @dataclass(frozen=True, slots=True)

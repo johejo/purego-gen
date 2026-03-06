@@ -7,12 +7,22 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Final, TextIO
 
 from purego_gen.c_type_utils import extract_pointer_typedef_name
+from purego_gen.diagnostic_codes import build_diagnostic_code
 
 if TYPE_CHECKING:
     from purego_gen.model import ParsedDeclarations
 
-OPAQUE_DIAGNOSTIC_CODE_EMITTED_COUNT: Final[str] = "PG_OPAQUE_EMITTED_COUNT"
-OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT: Final[str] = "PG_OPAQUE_FALLBACK_UINTPTR_COUNT"
+OPAQUE_DIAGNOSTIC_CODE_EMITTED_COUNT: Final[str] = build_diagnostic_code(
+    "OPAQUE",
+    "EMITTED",
+    "COUNT",
+)
+OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT: Final[str] = build_diagnostic_code(
+    "OPAQUE",
+    "FALLBACK",
+    "UINTPTR",
+    "COUNT",
+)
 
 
 def count_opaque_diagnostics(

@@ -24,6 +24,7 @@ from purego_gen.abi_layout import (
     validate_record_layout_with_fallback,
 )
 from purego_gen.clang_parser import parse_declarations
+from purego_gen.model import TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
 from purego_gen.process_exec import run_command
 from purego_gen.toolchain import resolve_c_compiler_command
 
@@ -182,7 +183,7 @@ def test_validate_record_layout_reports_unsupported_record() -> None:
 
     assert len(diagnostics) == 1
     assert diagnostics[0].code == ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD
-    assert diagnostics[0].source_code == "PG_TYPE_UNSUPPORTED_FIELD_TYPE"
+    assert diagnostics[0].source_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
 
 
 def test_validate_record_layout_reports_missing_field_metadata() -> None:

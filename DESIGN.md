@@ -184,11 +184,14 @@ This split removes ambiguity between "constant" and "data symbol".
 - When a typedef is skipped due to unsupported record mapping, the CLI emits a
   stderr diagnostic with both a stable diagnostic code and human-readable
   reason.
+- Current stable diagnostic code contract uses the `PUREGO_GEN_` prefix for
+  generator and ABI codes; earlier `PG_` code values are obsolete.
 - Incomplete opaque struct typedef metadata uses
-  `PG_TYPE_OPAQUE_INCOMPLETE_STRUCT` and remains distinct from
-  `PG_TYPE_NO_SUPPORTED_FIELDS` used by unsupported empty/anonymous patterns.
+  `PUREGO_GEN_TYPE_OPAQUE_INCOMPLETE_STRUCT` and remains distinct from
+  `PUREGO_GEN_TYPE_NO_SUPPORTED_FIELDS` used by unsupported empty/anonymous patterns.
 - CLI stderr also emits stable opaque-summary diagnostics:
-  `PG_OPAQUE_EMITTED_COUNT` and `PG_OPAQUE_FALLBACK_UINTPTR_COUNT`.
+  `PUREGO_GEN_OPAQUE_EMITTED_COUNT` and
+  `PUREGO_GEN_OPAQUE_FALLBACK_UINTPTR_COUNT`.
 - The parser model also retains these type-diagnostic codes (record-level and
   field-level) so ABI-focused tests can assert unsupported behavior without
   depending on exact stderr phrasing.

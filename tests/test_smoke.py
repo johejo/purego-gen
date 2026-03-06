@@ -10,6 +10,10 @@ from pathlib import Path
 
 import pytest
 
+from purego_gen.diagnostics import (
+    OPAQUE_DIAGNOSTIC_CODE_EMITTED_COUNT,
+    OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT,
+)
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
@@ -25,8 +29,6 @@ _FIXTURE_LIB_ID = "fixture_lib"
 _FIXTURE_PACKAGE = "fixture"
 _REGISTER_FUNCTIONS_SYMBOL = f"purego_{_FIXTURE_LIB_ID}_register_functions"
 _NO_SUPPORTED_FIELDS_DIAGNOSTIC_COUNT = 1
-_OPAQUE_DIAGNOSTIC_CODE_EMITTED_COUNT = "PG_OPAQUE_EMITTED_COUNT"
-_OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT = "PG_OPAQUE_FALLBACK_UINTPTR_COUNT"
 
 _PRIMARY_HEADER = _FIXTURES_DIR / "basic.h"
 _CATEGORY_HEADER = _FIXTURES_DIR / "categories.h"
@@ -85,8 +87,8 @@ def test_reports_skipped_typedef_diagnostics_for_unsupported_record_fields() -> 
         result.stderr.count(f"[{TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS}]")
         == _NO_SUPPORTED_FIELDS_DIAGNOSTIC_COUNT
     )
-    assert f"[{_OPAQUE_DIAGNOSTIC_CODE_EMITTED_COUNT}]: 1" in result.stderr
-    assert f"[{_OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT}]: 0" in result.stderr
+    assert f"[{OPAQUE_DIAGNOSTIC_CODE_EMITTED_COUNT}]: 1" in result.stderr
+    assert f"[{OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT}]: 0" in result.stderr
 
 
 def test_fails_when_header_has_parse_errors() -> None:

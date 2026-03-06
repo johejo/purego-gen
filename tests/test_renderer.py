@@ -11,6 +11,7 @@ from purego_gen.model import (
     FunctionDecl,
     ParsedDeclarations,
     RecordTypedefDecl,
+    TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
     TypedefDecl,
 )
 from purego_gen.renderer import RendererError, render_go_source, render_template
@@ -113,7 +114,7 @@ def test_render_go_source_falls_back_to_uintptr_without_type_emit() -> None:
                     align_bytes=None,
                     fields=(),
                     supported=False,
-                    unsupported_code="PG_TYPE_OPAQUE_INCOMPLETE_STRUCT",
+                    unsupported_code=TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
                     unsupported_reason="incomplete struct typedef is treated as opaque handle",
                     is_incomplete=True,
                     is_opaque=True,

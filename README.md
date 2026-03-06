@@ -35,8 +35,11 @@ nix run . -- --lib-id fixture_lib --header tests/fixtures/basic.h --pkg fixture 
   types (`type T int32`) when `--emit` includes `type`.
 - Optional `--typed-sentinel-constants` emits large sentinel-style constants
   as typed `uint64` constants.
+- Stable diagnostic code values now use the `PUREGO_GEN_` prefix; this is a
+  breaking code-value change from the earlier `PG_` prefix.
 - CLI stderr includes stable opaque-summary diagnostics:
-  `PG_OPAQUE_EMITTED_COUNT` and `PG_OPAQUE_FALLBACK_UINTPTR_COUNT`.
+  `PUREGO_GEN_OPAQUE_EMITTED_COUNT` and
+  `PUREGO_GEN_OPAQUE_FALLBACK_UINTPTR_COUNT`.
 - Declaration comments from C headers are copied to generated Go declarations
   as `//` comments when libclang provides declaration-attached comments.
 - Plain `//` / `/* */` comments are copied only when clang is invoked with

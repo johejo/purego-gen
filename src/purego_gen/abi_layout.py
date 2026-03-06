@@ -7,19 +7,69 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
+from purego_gen.diagnostic_codes import build_diagnostic_code
+
 if TYPE_CHECKING:
     from purego_gen.model import RecordFieldDecl, RecordTypedefDecl
 
-ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD: Final[str] = "PG_ABI_LAYOUT_UNSUPPORTED_RECORD"
-ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD: Final[str] = "PG_ABI_LAYOUT_UNSUPPORTED_FIELD"
-ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_RECORD_LAYOUT: Final[str] = "PG_ABI_LAYOUT_MISSING_RECORD_LAYOUT"
-ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_FIELD_LAYOUT: Final[str] = "PG_ABI_LAYOUT_MISSING_FIELD_LAYOUT"
-ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_NOT_BYTE_ALIGNED: Final[str] = (
-    "PG_ABI_LAYOUT_FIELD_OFFSET_NOT_BYTE_ALIGNED"
+ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD: Final[str] = build_diagnostic_code(
+    "ABI",
+    "LAYOUT",
+    "UNSUPPORTED",
+    "RECORD",
 )
-ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_MISMATCH: Final[str] = "PG_ABI_LAYOUT_FIELD_OFFSET_MISMATCH"
-ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_ALIGN_MISMATCH: Final[str] = "PG_ABI_LAYOUT_RECORD_ALIGN_MISMATCH"
-ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_SIZE_MISMATCH: Final[str] = "PG_ABI_LAYOUT_RECORD_SIZE_MISMATCH"
+ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD: Final[str] = build_diagnostic_code(
+    "ABI",
+    "LAYOUT",
+    "UNSUPPORTED",
+    "FIELD",
+)
+ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_RECORD_LAYOUT: Final[str] = build_diagnostic_code(
+    "ABI",
+    "LAYOUT",
+    "MISSING",
+    "RECORD",
+    "LAYOUT",
+)
+ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_FIELD_LAYOUT: Final[str] = build_diagnostic_code(
+    "ABI",
+    "LAYOUT",
+    "MISSING",
+    "FIELD",
+    "LAYOUT",
+)
+ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_NOT_BYTE_ALIGNED: Final[str] = (
+    build_diagnostic_code(
+        "ABI",
+        "LAYOUT",
+        "FIELD",
+        "OFFSET",
+        "NOT",
+        "BYTE",
+        "ALIGNED",
+    )
+)
+ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_MISMATCH: Final[str] = build_diagnostic_code(
+    "ABI",
+    "LAYOUT",
+    "FIELD",
+    "OFFSET",
+    "MISMATCH",
+)
+ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_ALIGN_MISMATCH: Final[str] = build_diagnostic_code(
+    "ABI",
+    "LAYOUT",
+    "RECORD",
+    "ALIGN",
+    "MISMATCH",
+)
+ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_SIZE_MISMATCH: Final[str] = build_diagnostic_code(
+    "ABI",
+    "LAYOUT",
+    "RECORD",
+    "SIZE",
+    "MISMATCH",
+)
 ABI_LAYOUT_RESULT_STATUS_PASSED: Final[str] = "passed"
 ABI_LAYOUT_RESULT_STATUS_FAILED: Final[str] = "failed"
 ABI_LAYOUT_RESULT_STATUS_SKIPPED: Final[str] = "skipped"
