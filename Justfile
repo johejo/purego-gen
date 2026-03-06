@@ -27,7 +27,7 @@ lint:
   shfmt -d scripts/*.sh
 
 silence-check:
-  if rg -n '# ruff: noqa|# noqa:|# pyright:|pyright: ignore' src tests scripts; then \
+  if grep -RInE '# ruff: noqa|# noqa:|# pyright:|pyright: ignore' src tests scripts; then \
     echo "inline/static-analysis silencing comments are not allowed"; \
     exit 1; \
   fi

@@ -84,6 +84,7 @@
             clang-tools
             duckdb
             go
+            gnugrep
             jq
             just
             libclang
