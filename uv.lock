@@ -216,28 +216,34 @@ wheels = [
 name = "purego-gen"
 version = "0.0.0"
 source = { virtual = "." }
+dependencies = [
+    { name = "annotated-types" },
+    { name = "clang" },
+    { name = "jinja2" },
+    { name = "pydantic" },
+]
 
 [package.dev-dependencies]
 dev = [
     { name = "basedpyright" },
-    { name = "clang" },
     { name = "djlint" },
-    { name = "jinja2" },
-    { name = "pydantic" },
     { name = "pyrefly" },
     { name = "pytest" },
     { name = "ruff" },
 ]
 
 [package.metadata]
+requires-dist = [
+    { name = "annotated-types", specifier = ">=0.7.0,<1" },
+    { name = "clang", specifier = ">=21.1.7" },
+    { name = "jinja2", specifier = ">=3.1.6,<4" },
+    { name = "pydantic", specifier = ">=2,<3" },
+]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "basedpyright", specifier = ">=1.31.2,<2" },
-    { name = "clang", specifier = ">=21.1.7" },
     { name = "djlint", specifier = ">=1.36.4,<2" },
-    { name = "jinja2", specifier = ">=3.1.6,<4" },
-    { name = "pydantic", specifier = ">=2,<3" },
     { name = "pyrefly", specifier = ">=0.18.0,<1" },
     { name = "pytest", specifier = ">=9,<10" },
     { name = "ruff", specifier = ">=0.12.11,<1" },
