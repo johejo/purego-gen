@@ -4,7 +4,9 @@
 
 from __future__ import annotations
 
+import os
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, TypedDict
 
@@ -36,7 +38,6 @@ if TYPE_CHECKING:
 
     from purego_gen.model import ParsedDeclarations
 
-_TEMPLATE_DIR: Final[Path] = Path(__file__).resolve().parents[2] / "templates"
 _MAIN_TEMPLATE_NAME: Final[str] = "go_file.go.j2"
 _MAX_INT64: Final[int] = (1 << 63) - 1
 _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
@@ -48,14 +49,6 @@ _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "functions",
     "runtime_vars",
 })
-_ENVIRONMENT: Final[Environment] = Environment(
-    loader=FileSystemLoader(str(_TEMPLATE_DIR)),
-    autoescape=select_autoescape(default_for_string=False, default=False),
-    trim_blocks=True,
-    lstrip_blocks=True,
-    undefined=StrictUndefined,
-    keep_trailing_newline=True,
-)
 
 
 class RendererError(RuntimeError):
@@ -103,6 +96,35 @@ class _TemplateContext(TypedDict):
     constants: tuple[_ConstantContext, ...]
     functions: tuple[_FunctionContext, ...]
     runtime_vars: tuple[_RuntimeVarContext, ...]
+
+
+def _resolve_template_dir() -> Path:
+    """Resolve the template directory from environment or source layout.
+
+    Returns:
+        Template directory path used by the renderer.
+    """
+    configured_dir = os.getenv("PUREGO_GEN_TEMPLATE_DIR")
+    if configured_dir:
+        return Path(configured_dir)
+    return Path(__file__).resolve().parents[2] / "templates"
+
+
+@lru_cache(maxsize=1)
+def _get_environment() -> Environment:
+    """Build and cache the Jinja2 environment.
+
+    Returns:
+        Configured Jinja2 environment.
+    """
+    return Environment(
+        loader=FileSystemLoader(str(_resolve_template_dir())),
+        autoescape=select_autoescape(default_for_string=False, default=False),
+        trim_blocks=True,
+        lstrip_blocks=True,
+        undefined=StrictUndefined,
+        keep_trailing_newline=True,
+    )
 
 
 def _build_emitted_opaque_struct_typedef_names(
@@ -505,7 +527,7 @@ def render_template(template_name: str, context: Mapping[str, object]) -> str:
     _validate_template_context(context)
 
     try:
-        template = _ENVIRONMENT.get_template(template_name)
+        template = _get_environment().get_template(template_name)
     except TemplateNotFound as error:
         message = f"template not found: {template_name}"
         raise RendererError(message) from error

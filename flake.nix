@@ -37,32 +37,33 @@
         { pkgs }:
         let
           lib = pkgs.lib;
+          pythonPkgs = pkgs.python314Packages;
           treefmt = (mkTreefmt pkgs).config.build.wrapper;
-          pythonRuntime = pkgs.python314.withPackages (pythonPkgs: [
-            pythonPkgs.libclang
-            pythonPkgs.jinja2
-            pythonPkgs.pydantic
-            pythonPkgs."annotated-types"
-          ]);
-          puregoGenPackage = pkgs.stdenvNoCC.mkDerivation {
+          puregoGenPackage = pythonPkgs.buildPythonApplication {
             pname = "purego-gen";
             version = "0.0.0";
             src = self;
+            pyproject = true;
+            build-system = with pythonPkgs; [
+              setuptools
+              wheel
+            ];
+            dependencies = with pythonPkgs; [
+              libclang
+              jinja2
+              pydantic
+              pythonPkgs."annotated-types"
+            ];
             nativeBuildInputs = [ pkgs.makeWrapper ];
-            dontBuild = true;
-            installPhase = ''
-              runHook preInstall
-
-              mkdir -p "$out/bin" "$out/share/purego-gen"
-              cp -r "$src/src" "$out/share/purego-gen/src"
+            pythonImportsCheck = [ "purego_gen" ];
+            postInstall = ''
+              mkdir -p "$out/share/purego-gen"
               cp -r "$src/templates" "$out/share/purego-gen/templates"
-
-              makeWrapper ${pythonRuntime}/bin/python "$out/bin/purego-gen" \
+            '';
+            postFixup = ''
+              wrapProgram "$out/bin/purego-gen" \
                 --set LIBCLANG_PATH "${pkgs.libclang.lib}/lib" \
-                --set PYTHONPATH "$out/share/purego-gen/src" \
-                --add-flags "-m purego_gen"
-
-              runHook postInstall
+                --set PUREGO_GEN_TEMPLATE_DIR "$out/share/purego-gen/templates"
             '';
             meta = {
               description = "Practical C-header-to-purego binding generator";
