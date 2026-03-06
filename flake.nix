@@ -39,38 +39,86 @@
           lib = pkgs.lib;
           pythonPkgs = pkgs.python314Packages;
           treefmt = (mkTreefmt pkgs).config.build.wrapper;
-          puregoGenPackage = pythonPkgs.buildPythonApplication {
-            pname = "purego-gen";
-            version = "0.0.0";
-            src = self;
-            pyproject = true;
-            build-system = with pythonPkgs; [
-              setuptools
-              wheel
-            ];
-            dependencies = with pythonPkgs; [
-              libclang
-              jinja2
-              pydantic
-              pythonPkgs."annotated-types"
-            ];
-            nativeBuildInputs = [ pkgs.makeWrapper ];
-            pythonImportsCheck = [ "purego_gen" ];
-            postInstall = ''
-              mkdir -p "$out/share/purego-gen"
-              cp -r "$src/templates" "$out/share/purego-gen/templates"
-            '';
-            postFixup = ''
-              wrapProgram "$out/bin/purego-gen" \
-                --set LIBCLANG_PATH "${pkgs.libclang.lib}/lib" \
-                --set PUREGO_GEN_TEMPLATE_DIR "$out/share/purego-gen/templates"
-            '';
-            meta = {
-              description = "Practical C-header-to-purego binding generator";
-              mainProgram = "purego-gen";
-              license = lib.licenses.asl20;
-              platforms = systems;
+          pythonAppVersion = "0.0.0";
+          commonPythonAppMeta = {
+            license = lib.licenses.asl20;
+            platforms = systems;
+          };
+          commonPythonBuildSystem = with pythonPkgs; [
+            setuptools
+            wheel
+          ];
+          commonPythonDependencies = with pythonPkgs; [
+            libclang
+            jinja2
+            pydantic
+            pythonPkgs."annotated-types"
+          ];
+          mkPythonApplication =
+            args:
+            pythonPkgs.buildPythonApplication (
+              {
+                version = pythonAppVersion;
+                src = self;
+                nativeBuildInputs = [ pkgs.makeWrapper ];
+                dependencies = commonPythonDependencies;
+                meta = commonPythonAppMeta;
+              }
+              // args
+            );
+          commonTemplateInstall = ''
+            mkdir -p "$out/share/purego-gen"
+            cp -r "$src/templates" "$out/share/purego-gen/templates"
+          '';
+          mkPackagedPuregoGenApplication =
+            {
+              pname,
+              mainProgram,
+              description,
+              pythonImportsCheck,
+              extraWrapArgs ? "",
+            }:
+            mkPythonApplication {
+              inherit pname;
+              pyproject = true;
+              build-system = commonPythonBuildSystem;
+              inherit pythonImportsCheck;
+              postInstall = commonTemplateInstall;
+              postFixup = ''
+                wrapProgram "$out/bin/${mainProgram}" \
+                  --set LIBCLANG_PATH "${pkgs.libclang.lib}/lib" \
+                  --set PUREGO_GEN_TEMPLATE_DIR "$out/share/purego-gen/templates"${extraWrapArgs}
+              '';
+              meta = commonPythonAppMeta // {
+                inherit description mainProgram;
+              };
             };
+          puregoGenPackage = mkPackagedPuregoGenApplication {
+            pname = "purego-gen";
+            mainProgram = "purego-gen";
+            description = "Practical C-header-to-purego binding generator";
+            pythonImportsCheck = [ "purego_gen" ];
+          };
+          goldenCasesRunner = mkPackagedPuregoGenApplication {
+            pname = "golden-cases";
+            mainProgram = "golden-cases";
+            description = "Run purego-gen golden cases with nix-provided Python/toolchain";
+            pythonImportsCheck = [
+              "purego_gen"
+              "purego_gen_e2e"
+            ];
+            extraWrapArgs = ''
+              \
+                  --prefix PATH : "$out/bin:${
+                    lib.makeBinPath [
+                      pkgs.clang
+                      pkgs.git
+                      pkgs.go
+                    ]
+                  }" \
+                  --set PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR "${pkgs.zstd.dev}/include" \
+                  --set PUREGO_GEN_TEST_LIBZSTD_LIB_DIR "${pkgs.zstd.out}/lib"
+            '';
           };
           codingAgentEnvGuard = pkgs.writeShellScriptBin "env" ''
             echo "purego-gen: coding-agent blocks env. In most cases, run commands directly (for example: uv run ...); required cache env vars are already set by shellHook." >&2
@@ -118,6 +166,7 @@
 
           packages = {
             purego-gen = puregoGenPackage;
+            golden-cases = goldenCasesRunner;
             default = puregoGenPackage;
           };
 
@@ -128,9 +177,15 @@
                 program = lib.getExe puregoGenPackage;
                 meta = puregoGenPackage.meta;
               };
+              goldenCasesApp = {
+                type = "app";
+                program = lib.getExe goldenCasesRunner;
+                meta = goldenCasesRunner.meta;
+              };
             in
             {
               purego-gen = puregoGenApp;
+              golden-cases = goldenCasesApp;
               default = puregoGenApp;
             };
 

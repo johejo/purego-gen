@@ -16,6 +16,7 @@ dependencies = [
 
 [project.scripts]
 purego-gen = "purego_gen.cli:main"
+golden-cases = "purego_gen_e2e.golden_cases_cli:main"
 
 [dependency-groups]
 dev = [

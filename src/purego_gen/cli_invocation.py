@@ -55,24 +55,37 @@ def append_type_mapping_flags(command: list[str], *, type_mapping: TypeMappingOp
 def build_purego_gen_command(
     invocation: PuregoGenInvocation,
     *,
-    python_executable: str,
+    python_executable: str | None = None,
+    command_prefix: tuple[str, ...] | None = None,
 ) -> list[str]:
     """Build a `python -m purego_gen ...` command.
 
     Returns:
         Tokenized command suitable for process execution.
+
+    Raises:
+        ValueError: Neither `python_executable` nor `command_prefix` is provided.
     """
-    command = [
-        python_executable,
-        "-m",
-        "purego_gen",
+    if command_prefix is None:
+        if python_executable is None:
+            message = "python_executable is required when command_prefix is not provided."
+            raise ValueError(message)
+        command = [
+            python_executable,
+            "-m",
+            "purego_gen",
+        ]
+    else:
+        command = [*command_prefix]
+
+    command.extend([
         "--lib-id",
         invocation.lib_id,
         "--pkg",
         invocation.package_name,
         "--emit",
         invocation.emit_kinds,
-    ]
+    ])
     for header_path in invocation.header_paths:
         command.extend(["--header", str(header_path)])
     append_optional_filter_flags(command, invocation=invocation)

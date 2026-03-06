@@ -51,12 +51,16 @@ golden-check:
 golden-check-ci:
   {{python_src_prefix}} scripts/golden_cases.py --mode check --strict-head
 
+golden-check-ci-nix:
+  golden_cases_runner="$(nix build .#golden-cases --print-out-paths --no-link)/bin/golden-cases"; \
+  "$golden_cases_runner" --mode check --strict-head
+
 tool-version-check:
   scripts/check-tool-versions.sh
 
 check: nix-flake-check lint typecheck golden-check test
 
-ci: nix-flake-check tool-version-check lint typecheck golden-check-ci test
+ci: nix-flake-check tool-version-check lint typecheck golden-check-ci golden-check-ci-nix test
 
 # Codex sandbox helper tasks
 

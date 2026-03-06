@@ -8,7 +8,7 @@ import json
 import sys
 from typing import TYPE_CHECKING
 
-from golden_cases_lib import (
+from purego_gen_e2e.golden_cases_lib import (
     CompileCRuntime,
     EnvIncludeHeaders,
     EnvLibdirRuntime,
