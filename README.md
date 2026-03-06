@@ -12,6 +12,13 @@ When using purego, you often need to write a lot of boilerplate code to call C f
 purego-gen --lib-id zstd --header zstd.h --out -
 ```
 
+Run the CLI directly from the flake:
+
+```sh
+nix run . -- --help
+nix run . -- --lib-id fixture_lib --header tests/fixtures/basic.h --pkg fixture --out -
+```
+
 ## Key Constraints
 
 - Non-Windows first; generator targets low-level `func/type/const/var` bindings.
