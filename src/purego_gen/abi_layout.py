@@ -38,16 +38,14 @@ ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_FIELD_LAYOUT: Final[str] = build_diagnostic_c
     "FIELD",
     "LAYOUT",
 )
-ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_NOT_BYTE_ALIGNED: Final[str] = (
-    build_diagnostic_code(
-        "ABI",
-        "LAYOUT",
-        "FIELD",
-        "OFFSET",
-        "NOT",
-        "BYTE",
-        "ALIGNED",
-    )
+ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_NOT_BYTE_ALIGNED: Final[str] = build_diagnostic_code(
+    "ABI",
+    "LAYOUT",
+    "FIELD",
+    "OFFSET",
+    "NOT",
+    "BYTE",
+    "ALIGNED",
 )
 ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_MISMATCH: Final[str] = build_diagnostic_code(
     "ABI",
