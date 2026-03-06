@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import difflib
+import json
 import os
 import shlex
 import shutil
@@ -12,7 +13,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from golden_cases_schema import (
     CaseProfileInput,
@@ -27,7 +28,6 @@ from purego_gen.cli_invocation import (
     build_src_pythonpath_env,
 )
 from purego_gen.model import TypeMappingOptions
-from purego_gen.pkg_config import run_pkg_config_stdout
 from purego_gen.process_exec import run_command
 from purego_gen.toolchain import resolve_c_compiler_command
 from purego_gen.validation_error_format import format_validation_error
@@ -60,14 +60,14 @@ class LocalHeaders:
 
 
 @dataclass(frozen=True, slots=True)
-class PkgConfigHeaders:
-    """Header source definition via pkg-config include directory."""
+class EnvIncludeHeaders:
+    """Header source definition via include-directory environment variable."""
 
-    package: str
+    include_dir_env: str
     header_names: tuple[str, ...]
 
 
-HeaderConfig = LocalHeaders | PkgConfigHeaders
+HeaderConfig = LocalHeaders | EnvIncludeHeaders
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,15 +80,14 @@ class CompileCRuntime:
 
 
 @dataclass(frozen=True, slots=True)
-class PkgConfigRuntime:
-    """Runtime library definition resolved from pkg-config metadata."""
+class EnvLibdirRuntime:
+    """Runtime library definition via library-directory environment variable."""
 
-    package: str
-    override_env: str | None
+    lib_dir_env: str
     library_names: tuple[str, ...]
 
 
-RuntimeConfig = CompileCRuntime | PkgConfigRuntime
+RuntimeConfig = CompileCRuntime | EnvLibdirRuntime
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,13 +120,38 @@ def _normalize_optional_tuple(value: tuple[str, ...] | None) -> tuple[str, ...]:
     return value if value is not None else ()
 
 
+def _reject_removed_pkg_config_kinds(raw_profile: object, *, profile_path: Path) -> None:
+    if not isinstance(raw_profile, dict):
+        return
+
+    profile_dict = cast("dict[str, object]", raw_profile)
+
+    headers = profile_dict.get("headers")
+    if isinstance(headers, dict) and cast("dict[str, object]", headers).get("kind") == "pkg_config":
+        message = (
+            f"profile `{profile_path}` uses removed headers.kind=`pkg_config`; "
+            "migrate to headers.kind=`env_include` with "
+            "`include_dir_env`+`header_names` or headers.kind=`local`."
+        )
+        raise RuntimeError(message)
+
+    runtime = profile_dict.get("runtime")
+    if isinstance(runtime, dict) and cast("dict[str, object]", runtime).get("kind") == "pkg_config":
+        message = (
+            f"profile `{profile_path}` uses removed runtime.kind=`pkg_config`; "
+            "migrate to runtime.kind=`env_libdir` with "
+            "`lib_dir_env`+`library_names` or runtime.kind=`compile_c`."
+        )
+        raise RuntimeError(message)
+
+
 def _to_case_profile(profile: CaseProfileInput) -> CaseProfile:
     headers: HeaderConfig
     if isinstance(profile.headers, LocalHeadersInput):
         headers = LocalHeaders(paths=profile.headers.paths)
     else:
-        headers = PkgConfigHeaders(
-            package=profile.headers.package,
+        headers = EnvIncludeHeaders(
+            include_dir_env=profile.headers.include_dir_env,
             header_names=profile.headers.header_names,
         )
 
@@ -141,9 +165,8 @@ def _to_case_profile(profile: CaseProfileInput) -> CaseProfile:
             ldflags=_normalize_optional_tuple(profile.runtime.ldflags),
         )
     else:
-        runtime = PkgConfigRuntime(
-            package=profile.runtime.package,
-            override_env=profile.runtime.override_env,
+        runtime = EnvLibdirRuntime(
+            lib_dir_env=profile.runtime.lib_dir_env,
             library_names=profile.runtime.library_names,
         )
 
@@ -178,6 +201,17 @@ def _load_profile(profile_path: Path) -> CaseProfile:
     except OSError as error:
         message = f"failed to read profile JSON at {profile_path}: {error}"
         raise RuntimeError(message) from error
+
+    try:
+        raw_profile = cast("object", json.loads(raw_text))
+    except json.JSONDecodeError as error:
+        message = (
+            f"failed to parse profile JSON at {profile_path}: "
+            f"{error.msg} (line {error.lineno}, column {error.colno})"
+        )
+        raise RuntimeError(message) from error
+
+    _reject_removed_pkg_config_kinds(raw_profile, profile_path=profile_path)
 
     try:
         profile = CaseProfileInput.model_validate_json(raw_text)
@@ -261,13 +295,19 @@ def _resolve_header_paths_and_clang_args(
             header_paths.append(header_path)
         return tuple(header_paths), profile.clang_args
 
-    include_dir = Path(
-        run_pkg_config_stdout(profile.headers.package, "--variable=includedir")
-    ).expanduser()
+    include_dir_value = os.environ.get(profile.headers.include_dir_env, "").strip()
+    if not include_dir_value:
+        message = (
+            f"case `{case.case_id}` requires env {profile.headers.include_dir_env} "
+            "for headers.kind=`env_include`."
+        )
+        raise RuntimeError(message)
+
+    include_dir = Path(include_dir_value).expanduser().resolve()
     if not include_dir.is_dir():
         message = (
-            f"case `{case.case_id}` pkg-config include directory does not exist for "
-            f"{profile.headers.package}: {include_dir}"
+            f"case `{case.case_id}` include directory from env "
+            f"{profile.headers.include_dir_env} does not exist: {include_dir}"
         )
         raise RuntimeError(message)
 
@@ -275,7 +315,10 @@ def _resolve_header_paths_and_clang_args(
     for header_name in profile.headers.header_names:
         header_path = (include_dir / header_name).resolve()
         if not header_path.is_file():
-            message = f"case `{case.case_id}` header not found from pkg-config: {header_path}"
+            message = (
+                f"case `{case.case_id}` header not found from env include directory "
+                f"{profile.headers.include_dir_env}: {header_path}"
+            )
             raise RuntimeError(message)
         header_paths.append(header_path)
 
@@ -361,24 +404,23 @@ def _find_go_binary() -> str:
     return go_binary
 
 
-def _resolve_pkg_config_runtime_library(runtime: PkgConfigRuntime) -> Path:
-    if runtime.override_env:
-        override_value = os.environ.get(runtime.override_env, "").strip()
-        if override_value:
-            override_path = Path(override_value).expanduser().resolve()
-            if not override_path.is_file():
-                message = (
-                    f"runtime override env {runtime.override_env} does not point to a file: "
-                    f"{override_path}"
-                )
-                raise RuntimeError(message)
-            return override_path
+def resolve_env_libdir_runtime_library(runtime: EnvLibdirRuntime) -> Path:
+    """Resolve one shared library path from env_libdir runtime config.
 
-    lib_dir = (
-        Path(run_pkg_config_stdout(runtime.package, "--variable=libdir")).expanduser().resolve()
-    )
+    Returns:
+        Resolved shared-library path.
+
+    Raises:
+        RuntimeError: Required environment variable or library path is invalid.
+    """
+    lib_dir_value = os.environ.get(runtime.lib_dir_env, "").strip()
+    if not lib_dir_value:
+        message = f"required env {runtime.lib_dir_env} is not set for runtime.kind=`env_libdir`."
+        raise RuntimeError(message)
+
+    lib_dir = Path(lib_dir_value).expanduser().resolve()
     if not lib_dir.is_dir():
-        message = f"pkg-config libdir does not exist for {runtime.package}: {lib_dir}"
+        message = f"lib directory from env {runtime.lib_dir_env} does not exist: {lib_dir}"
         raise RuntimeError(message)
 
     is_darwin = sys.platform == "darwin"
@@ -396,7 +438,10 @@ def _resolve_pkg_config_runtime_library(runtime: PkgConfigRuntime) -> Path:
                 return matches[0]
 
     names = ", ".join(runtime.library_names)
-    message = f"failed to resolve shared library from pkg-config libdir `{lib_dir}` for: {names}"
+    message = (
+        f"failed to resolve shared library from env lib directory `{lib_dir}` "
+        f"({runtime.lib_dir_env}) for: {names}"
+    )
     raise RuntimeError(message)
 
 
@@ -500,7 +545,7 @@ def _run_go_test_for_case(
                 output_dir=tmp_dir,
             )
         else:
-            shared_library_path = _resolve_pkg_config_runtime_library(runtime)
+            shared_library_path = resolve_env_libdir_runtime_library(runtime)
 
         env["PUREGO_GEN_TEST_LIB"] = str(shared_library_path)
         command = [go_binary, "test", "./..."]
@@ -580,5 +625,6 @@ __all__ = [
     "GoldenCase",
     "check_cases",
     "discover_cases",
+    "resolve_env_libdir_runtime_library",
     "update_cases",
 ]

@@ -1,6 +1,6 @@
 # Copyright (c) 2026 purego-gen contributors.
 
-"""Inspect target-library parsing coverage using pkg-config + libclang."""
+"""Inspect parser coverage for one header using explicit header/clang inputs."""
 
 from __future__ import annotations
 
@@ -18,8 +18,6 @@ from purego_gen.declaration_filters import (
     compile_filter,
 )
 from purego_gen.emit_kinds import parse_emit_kinds
-from purego_gen.identifier_utils import normalize_lib_id
-from purego_gen.pkg_config import run_pkg_config_stdout, run_pkg_config_tokens
 from purego_gen.renderer import render_go_source
 
 if TYPE_CHECKING:
@@ -33,16 +31,15 @@ _DEFAULT_EMIT_KINDS = "func,type,const,var"
 class _ResolvedTarget:
     """Resolved target header and clang flags."""
 
-    package_name: str
     header_path: Path
-    cflags: tuple[str, ...]
+    clang_args: tuple[str, ...]
 
 
 class _ParsedArgs(argparse.Namespace):
     """Typed argparse namespace for this script."""
 
-    pkg_config_package: str
-    header: str
+    header_path: str
+    clang_args: list[str]
     sample_size: int
     render_out: str | None
     render_lib_id: str | None
@@ -72,16 +69,13 @@ def _filter_declarations(
     return apply_declaration_filters(declarations, filters=filters)
 
 
-def _default_lib_id(package_name: str) -> str:
-    """Derive a default lib id from pkg-config package name.
+def _default_lib_id() -> str:
+    """Return fallback lib id for optional render mode.
 
     Returns:
-        Normalized lib id.
+        Fallback lib id.
     """
-    try:
-        return normalize_lib_id(package_name.removeprefix("lib"))
-    except ValueError:
-        return "bindings"
+    return "bindings"
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -93,8 +87,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Inspect parser coverage and optionally render generated Go source.",
     )
-    parser.add_argument("--pkg-config-package", required=True, help="pkg-config package name.")
-    parser.add_argument("--header", required=True, help="Header file name, e.g. zstd.h.")
+    parser.add_argument("--header-path", required=True, help="Header file path.")
+    parser.add_argument(
+        "--clang-arg",
+        action="append",
+        default=[],
+        dest="clang_args",
+        help="Additional clang arg. Repeat this flag as needed.",
+    )
     parser.add_argument(
         "--sample-size",
         type=int,
@@ -107,7 +107,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--render-lib-id",
-        help="Library id used when rendering (defaults to package-derived value).",
+        help="Library id used when rendering (default: bindings).",
     )
     parser.add_argument(
         "--render-pkg",
@@ -144,22 +144,20 @@ def _render_output(
     out_path.write_text(source, encoding="utf-8")
 
 
-def _resolve_target(package_name: str, header_name: str) -> _ResolvedTarget:
-    """Resolve header path and clang flags from pkg-config.
+def _resolve_target(header_path: str, *, clang_args: tuple[str, ...]) -> _ResolvedTarget:
+    """Resolve header path and clang flags from explicit inputs.
 
     Returns:
         Resolved target metadata.
 
     Raises:
-        RuntimeError: Header cannot be resolved from pkg-config.
+        RuntimeError: Header path is invalid.
     """
-    cflags = run_pkg_config_tokens(package_name, "--cflags")
-    include_dir = Path(run_pkg_config_stdout(package_name, "--variable=includedir")).expanduser()
-    header_path = (include_dir / header_name).resolve()
-    if not header_path.is_file():
-        message = f"header not found from pkg-config includedir: {header_path}"
+    resolved_header_path = Path(header_path).expanduser().resolve()
+    if not resolved_header_path.is_file():
+        message = f"header path does not exist: {resolved_header_path}"
         raise RuntimeError(message)
-    return _ResolvedTarget(package_name=package_name, header_path=header_path, cflags=cflags)
+    return _ResolvedTarget(header_path=resolved_header_path, clang_args=clang_args)
 
 
 def _report_declarations(
@@ -168,9 +166,9 @@ def _report_declarations(
     sample_size: int,
 ) -> None:
     """Write declaration summary report to stdout."""
-    _write_line(f"package={target.package_name}")
+    _write_line("package=manual")
     _write_line(f"header={target.header_path}")
-    _write_line(f"clang_args={' '.join(target.cflags)}")
+    _write_line(f"clang_args={' '.join(target.clang_args)}")
     _write_line(f"functions={len(declarations.functions)}")
     _write_line(f"typedefs={len(declarations.typedefs)}")
     _write_line(f"record_typedefs={len(declarations.record_typedefs)}")
@@ -237,19 +235,25 @@ def main(argv: list[str] | None = None) -> int:
     try:
         emit_kinds = parse_emit_kinds(namespace.render_emit, option_name="--render-emit")
         filters = _load_patterns(namespace)
-        target = _resolve_target(str(namespace.pkg_config_package), str(namespace.header))
+        target = _resolve_target(
+            str(namespace.header_path),
+            clang_args=tuple(namespace.clang_args),
+        )
     except (RuntimeError, ValueError) as error:
         _write_line(str(error))
         return 1
 
-    declarations = parse_declarations(headers=(str(target.header_path),), clang_args=target.cflags)
+    declarations = parse_declarations(
+        headers=(str(target.header_path),),
+        clang_args=target.clang_args,
+    )
     filtered = _filter_declarations(declarations, filters=filters)
     _report_declarations(target, filtered, namespace.sample_size)
 
     render_out = namespace.render_out
     if render_out is not None:
         out_path = Path(render_out).expanduser().resolve()
-        lib_id = namespace.render_lib_id or _default_lib_id(target.package_name)
+        lib_id = namespace.render_lib_id or _default_lib_id()
         _render_output(
             filtered,
             out_path=out_path,

@@ -36,13 +36,12 @@ def _run_script(*args: str) -> CommandResult:
     )
 
 
-def test_inspect_script_exits_zero_for_libzstd() -> None:
-    """Inspect script should complete successfully for `libzstd` target."""
+def test_inspect_script_exits_zero_for_local_fixture_header() -> None:
+    """Inspect script should complete successfully for local fixture header."""
+    header_path = _REPO_ROOT / "tests" / "fixtures" / "basic.h"
     result = _run_script(
-        "--pkg-config-package",
-        "libzstd",
-        "--header",
-        "zstd.h",
+        "--header-path",
+        str(header_path),
         "--sample-size",
         "0",
     )
@@ -50,6 +49,7 @@ def test_inspect_script_exits_zero_for_libzstd() -> None:
     assert_text_contains_fragments(
         result.stdout,
         (
+            "package=manual",
             "opaque_record_typedefs=",
             "sample_opaque_record_typedefs:",
         ),

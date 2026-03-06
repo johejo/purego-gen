@@ -356,14 +356,14 @@ Objective harness targets:
   - Platform-dependent target to validate Linux integration paths.
 
 M5 harness environment contract:
-- Discovery order:
-  - first: `pkg-config` (`--cflags`/`--libs`) for target libraries.
-  - fallback: standard compiler/linker flags (`CPPFLAGS`/`CFLAGS`/`LDFLAGS`)
-    and explicit include/library options (`-I`/`-L`).
-- Dedicated per-library include/lib environment variables are intentionally not
-  part of the baseline M5 contract.
-- Runtime harness tests should accept explicit shared-library path overrides via
-  environment variables rather than assuming system loader paths.
+- Target-library header/runtime resolution must be explicit and profile-driven.
+- Golden-case profiles resolve headers from either:
+  - case-local paths (`headers.kind=local`), or
+  - include-directory environment variables (`headers.kind=env_include`).
+- Runtime harness tests resolve shared libraries from either:
+  - case-local C compilation (`runtime.kind=compile_c`), or
+  - library-directory environment variables (`runtime.kind=env_libdir`).
+- Automatic library discovery via `pkg-config` / toolchain defaults is out of scope.
 
 ## Roadmap Tracking
 

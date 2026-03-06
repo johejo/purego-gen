@@ -35,15 +35,15 @@ class LocalHeadersInput(_StrictModel):
     paths: NonEmptyStrTuple
 
 
-class PkgConfigHeadersInput(_StrictModel):
-    """Header configuration resolved from pkg-config metadata."""
+class EnvIncludeHeadersInput(_StrictModel):
+    """Header configuration resolved from include-directory environment variables."""
 
-    kind: Literal["pkg_config"]
-    package: NonEmptyStr
+    kind: Literal["env_include"]
+    include_dir_env: NonEmptyStr
     header_names: NonEmptyStrTuple
 
 
-HeaderInput = Annotated[LocalHeadersInput | PkgConfigHeadersInput, Field(discriminator="kind")]
+HeaderInput = Annotated[LocalHeadersInput | EnvIncludeHeadersInput, Field(discriminator="kind")]
 
 
 class CompileCRuntimeInput(_StrictModel):
@@ -55,17 +55,16 @@ class CompileCRuntimeInput(_StrictModel):
     ldflags: NonEmptyStrTuple | None = None
 
 
-class PkgConfigRuntimeInput(_StrictModel):
-    """Runtime configuration resolved from pkg-config library metadata."""
+class EnvLibdirRuntimeInput(_StrictModel):
+    """Runtime configuration resolved from library-directory environment variables."""
 
-    kind: Literal["pkg_config"]
-    package: NonEmptyStr
-    override_env: NonEmptyStr | None = None
+    kind: Literal["env_libdir"]
+    lib_dir_env: NonEmptyStr
     library_names: NonEmptyStrTuple
 
 
 RuntimeInput = Annotated[
-    CompileCRuntimeInput | PkgConfigRuntimeInput,
+    CompileCRuntimeInput | EnvLibdirRuntimeInput,
     Field(discriminator="kind"),
 ]
 

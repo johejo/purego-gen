@@ -40,7 +40,7 @@ test:
   uv run pytest
 
 inspect-libzstd:
-  {{python_src_prefix}} scripts/inspect_target_library.py --pkg-config-package libzstd --header zstd.h
+  {{python_src_prefix}} scripts/inspect_target_library.py --header-path "$PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR/zstd.h"
 
 golden-update:
   {{python_src_prefix}} scripts/golden_cases.py --mode update

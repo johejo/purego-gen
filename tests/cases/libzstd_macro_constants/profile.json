@@ -4,8 +4,8 @@
   "package": "fixture",
   "emit": "const",
   "headers": {
-    "kind": "pkg_config",
-    "package": "libzstd",
+    "kind": "env_include",
+    "include_dir_env": "PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR",
     "header_names": [
       "zstd.h"
     ]

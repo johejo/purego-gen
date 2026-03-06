@@ -4,8 +4,8 @@
   "package": "fixture",
   "emit": "func,type,const",
   "headers": {
-    "kind": "pkg_config",
-    "package": "libzstd",
+    "kind": "env_include",
+    "include_dir_env": "PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR",
     "header_names": [
       "zstd.h",
       "zstd_errors.h"
@@ -22,9 +22,8 @@
     "typed_sentinel_constants": true
   },
   "runtime": {
-    "kind": "pkg_config",
-    "package": "libzstd",
-    "override_env": "PUREGO_GEN_TEST_LIBZSTD",
+    "kind": "env_libdir",
+    "lib_dir_env": "PUREGO_GEN_TEST_LIBZSTD_LIB_DIR",
     "library_names": [
       "zstd"
     ]
