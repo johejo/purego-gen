@@ -95,6 +95,21 @@
 - [x] Evaluate enum/constant typing improvements for libzstd-facing signatures and sentinel values while preserving v1 low-level defaults.
 - [x] Improve target profile UX by reducing repetitive profile fields (shared presets/composition) without adding CLI subcommands.
 
+## M6 Stage1 Go Bootstrap
+
+- [ ] Check in a stage0-generated `libclang` Go binding package as the bootstrap substrate for stage1.
+- [ ] Define the stage1 Go package split to mirror the current pipeline (`parse`, `normalize`, `filter`, `render`, `cli`) so parity can be checked subsystem-by-subsystem.
+- [ ] Add a stage1 CLI entrypoint that can render existing golden cases while stage0 remains the default bootstrap path.
+- [ ] Add a dual-run parity harness that compares stage0-vs-stage1 generated output for selected golden cases before widening coverage.
+- [ ] Add generator/runtime support for libclang functions that return or accept structs by value (`CXCursor`, `CXType`, `CXString`, `CXSourceLocation`, `CXUnsavedFile`, `CXToken`).
+- [ ] Add callback/trampoline support needed to drive `clang_visitChildren` from stage1 without handwritten shims.
+- [ ] Add `CXString` lifetime helpers and tests so stage1 can read cursor/type/comment text safely.
+- [ ] Add binding coverage for translation-unit traversal and type-introspection APIs needed by stage0 feature parity (cursor children/arguments, canonical types, pointee types, declaration lookup, enum values, field offsets, bitfield width, definition checks).
+- [ ] Add binding coverage for tokenization and macro-classification APIs needed to port object-like macro extraction to stage1.
+- [ ] Port macro expression evaluation and declaration normalization/filtering from Python to Go and validate them against existing golden cases.
+- [ ] Port ABI record metadata extraction/layout validation to Go and keep ABI tests green under the stage1 path.
+- [ ] Promote stage1 to the default generator only after golden/runtime parity across the existing case suite, keeping stage0 available as the bootstrap fallback until cutover is stable.
+
 ## Pre-M5 Hardening
 
 - [x] Define where ABI layout fallback results (`passed`/`failed`/`skipped`) are surfaced (CLI vs harness report).

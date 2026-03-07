@@ -20,6 +20,24 @@ type (
 	purego_type_CXTranslationUnit = uintptr
 )
 
+const (
+	// Used to indicate that the parser should construct a "detailed"
+	// preprocessing record, including all macro definitions and instantiations.
+	//
+	// Constructing a detailed preprocessing record requires more memory
+	// and time to parse, since the information contained in the record
+	// is usually not retained. However, it can be useful for
+	// applications that require more detailed information about the
+	// behavior of the preprocessor.
+	purego_const_CXTranslationUnit_DetailedPreprocessingRecord = 1
+	// Used to indicate that function/method bodies should be skipped while
+	// parsing.
+	//
+	// This option can be used to search for declarations/definitions while
+	// ignoring the usages.
+	purego_const_CXTranslationUnit_SkipFunctionBodies = 64
+)
+
 var (
 	// Provides a shared context for creating translation units.
 	//

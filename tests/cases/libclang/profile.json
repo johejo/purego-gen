@@ -2,7 +2,7 @@
   "schema_version": 1,
   "lib_id": "clang",
   "package": "fixture",
-  "emit": "func,type",
+  "emit": "func,type,const",
   "headers": {
     "kind": "env_include",
     "include_dir_env": "PUREGO_GEN_TEST_LIBCLANG_INCLUDE_DIR",
@@ -12,7 +12,8 @@
   },
   "filters": {
     "func": "^(clang_createIndex|clang_disposeIndex|clang_parseTranslationUnit|clang_disposeTranslationUnit|clang_getNumDiagnostics)$",
-    "type": "^(CXIndex|CXTranslationUnit)$"
+    "type": "^(CXIndex|CXTranslationUnit)$",
+    "const": "^(CXTranslationUnit_DetailedPreprocessingRecord|CXTranslationUnit_SkipFunctionBodies)$"
   },
   "type_mapping": {
     "const_char_as_string": true
