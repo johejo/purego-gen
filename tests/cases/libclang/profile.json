@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "lib_id": "clang",
+  "package": "fixture",
+  "emit": "func,type",
+  "headers": {
+    "kind": "env_include",
+    "include_dir_env": "PUREGO_GEN_TEST_LIBCLANG_INCLUDE_DIR",
+    "header_names": [
+      "clang-c/Index.h"
+    ]
+  },
+  "filters": {
+    "func": "^(clang_createIndex|clang_disposeIndex|clang_parseTranslationUnit|clang_disposeTranslationUnit|clang_getNumDiagnostics)$",
+    "type": "^(CXIndex|CXTranslationUnit)$"
+  },
+  "type_mapping": {
+    "const_char_as_string": true
+  },
+  "runtime": {
+    "kind": "env_libdir",
+    "lib_dir_env": "PUREGO_GEN_TEST_LIBCLANG_LIB_DIR",
+    "library_names": [
+      "clang"
+    ]
+  }
+}

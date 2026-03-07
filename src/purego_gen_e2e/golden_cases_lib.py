@@ -40,6 +40,7 @@ _GO_MOD_PATH = Path("go.mod")
 _GO_SUM_PATH = Path("go.sum")
 _GENERATED_FILE_NAME = "generated.go"
 _RUNTIME_TEST_FILE_NAME = "runtime_test.go"
+_PROFILE_FILE_NAME = "profile.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,7 +323,7 @@ def _resolve_header_paths_and_clang_args(
             raise RuntimeError(message)
         header_paths.append(header_path)
 
-    return tuple(header_paths), profile.clang_args
+    return tuple(header_paths), ("-I", str(include_dir), *profile.clang_args)
 
 
 def render_case_source(
@@ -412,6 +413,18 @@ def _find_go_binary() -> str:
         message = "go is not available in PATH."
         raise RuntimeError(message)
     return go_binary
+
+
+def _copy_case_runtime_support_files(*, case: GoldenCase, module_dir: Path) -> None:
+    """Copy case-local support files needed by runtime tests into module dir."""
+    skip_names = {
+        _GENERATED_FILE_NAME,
+        _PROFILE_FILE_NAME,
+    }
+    for entry in sorted(case.case_dir.iterdir()):
+        if not entry.is_file() or entry.name in skip_names:
+            continue
+        shutil.copy2(entry, module_dir / entry.name)
 
 
 def resolve_env_libdir_runtime_library(runtime: EnvLibdirRuntime) -> Path:
@@ -526,8 +539,7 @@ def _run_go_test_for_case(
             go_sum_path.read_text(encoding="utf-8"), encoding="utf-8"
         )
         (module_dir / _GENERATED_FILE_NAME).write_text(generated_source, encoding="utf-8")
-        if case.runtime_test_path is not None:
-            shutil.copy2(case.runtime_test_path, module_dir / _RUNTIME_TEST_FILE_NAME)
+        _copy_case_runtime_support_files(case=case, module_dir=module_dir)
 
         env = os.environ.copy()
         env["CGO_ENABLED"] = "0"

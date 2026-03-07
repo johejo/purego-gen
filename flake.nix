@@ -151,6 +151,8 @@
               {
                 packages = commonPackages;
                 LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+                PUREGO_GEN_TEST_LIBCLANG_INCLUDE_DIR = "${pkgs.libclang.dev}/include";
+                PUREGO_GEN_TEST_LIBCLANG_LIB_DIR = "${pkgs.libclang.lib}/lib";
                 PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR = "${pkgs.zstd.dev}/include";
                 PUREGO_GEN_TEST_LIBZSTD_LIB_DIR = "${pkgs.zstd.out}/lib";
               }

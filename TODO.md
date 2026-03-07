@@ -74,6 +74,7 @@
 
 ## M5 Target Libraries (Objective Harness)
 
+- [x] Add `libclang` harness fixture and golden outputs.
 - [x] Add `libzstd` harness fixture and golden outputs (must).
 - [ ] Add `libduckdb` harness fixture and golden outputs (must).
 - [ ] Add `onnxruntime` harness fixture and golden outputs.
