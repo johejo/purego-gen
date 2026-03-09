@@ -9,10 +9,9 @@ When using purego, you often need to write a lot of boilerplate code to call C f
 ## Getting Started
 
 ```sh
-nix run github:johejo/purego-gen -- --help
-nix run github:johejo/purego-gen -- --lib-id my_lib --header /path/to/header.h --output /path/to/generated.go --emit func,type,const,var
+nix run github:johejo/purego-gen -- --lib-id lib_name --header /path/to/header.h --output /path/to/generated.go
 ```
 
 ## License
 
-Apache License 2.0 (`Apache-2.0`). See [`LICENSE`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/LICENSE).
+Apache License 2.0 (`Apache-2.0`). See [`LICENSE`](./LICENSE).

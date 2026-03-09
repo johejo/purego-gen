@@ -11,7 +11,7 @@ but existing contracts should not change without explicit versioning or migratio
 
 - `README.md` is the quick-start and high-level project summary.
 - `DESIGN.md` (this file) is the normative behavior contract.
-- `TODO.md` is the execution plan and milestone tracker.
+- `TODO.md` is the active execution plan and unresolved-decision tracker.
 - Keep `README.md` concise; do not duplicate contract-level detail from this file.
 
 ## Scope
@@ -370,5 +370,5 @@ M5 harness environment contract:
 
 ## Roadmap Tracking
 
-- Milestones and open decisions are tracked in
+- Active tasks and open decisions are tracked in
   [`TODO.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/TODO.md).
