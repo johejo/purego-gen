@@ -1,228 +1,209 @@
-## Objective
+## Objective / Document Boundary
 
 Build a practical code generator that turns C headers into Go bindings for
 [ebitengine/purego](https://github.com/ebitengine/purego), with stable behavior
 and predictable output.
 
-This document defines the current implementation contract. Additions are allowed,
-but existing contracts should not change without explicit versioning or migration notes.
+This document defines the current normative contract for parsing, declaration
+modeling, code generation, generated output, and CLI behavior. Additions are
+allowed, but existing contracts should not change without explicit versioning or
+migration notes.
 
-## Document Roles
-
-- `README.md` is the quick-start and high-level project summary.
-- `DESIGN.md` (this file) is the normative behavior contract.
-- `TODO.md` is the active execution plan and unresolved-decision tracker.
-- Keep `README.md` concise; do not duplicate contract-level detail from this file.
+This document does not define:
+- Development workflow or tool invocation details. See
+  [`AGENTS.md`](./AGENTS.md).
+- Quick start or project overview. See
+  [`README.md`](./README.md).
+- Active tasks, future work, or unresolved decisions. See
+  [`TODO.md`](./TODO.md).
 
 ## Scope
 
 In scope:
 - Parse C declarations from headers via libclang.
-- Generate Go code for function bindings, selected types, constants, and runtime variables.
+- Generate Go code for function bindings, selected types, constants, and
+  runtime variables.
 - Provide deterministic output suitable for golden testing.
 - Support platform-specific parsing through user-provided clang arguments.
+- Target non-Windows platforms.
 
-Out of scope (for now):
+Out of scope:
 - Full C preprocessor emulation beyond what clang already provides.
-- Automatic library loading policy (callers own open/close lifecycle).
-- Perfect support for every C edge case in v1.
-- Generating ergonomic public Go APIs from C headers. Consumers define public wrappers manually.
-- Windows support in v1.
+- Automatic library loading policy beyond generated symbol registration and data
+  symbol lookup helpers.
+- Perfect support for every C edge case.
+- Generating ergonomic public Go APIs from C headers. Consumers define public
+  wrappers manually.
 
-## Design Principles
-
-- Use `nix flake` for reproducible development/build environment.
-- Use `just` for project automation tasks.
-- Use `uv` for Python dependency management. Do not invoke `python3` directly.
-- Use libclang Python bindings as the single source of truth for C AST/type info.
-- Use `basedpyright` and `pyrefly` for static type checks.
-- Use `ruff` for linting/formatting.
-- Use `actionlint` for GitHub Actions workflow linting.
-- Use `shellcheck` for shell script linting (`scripts/*.sh`).
-- Use `shfmt` for shell script formatting (`scripts/*.sh`).
-- Use `treefmt` as the formatter orchestrator across file types.
-- Use `clang-format` (`.clang-format`, LLVM-based) for test fixture C headers.
-- Use `pytest` for tests.
-- Prefer end-to-end golden tests for generator behavior; use unit tests for utilities.
-- Keep templates simple; keep logic in generator code.
-
-## Development Workflow Contract
-
-- Development shell is provided via `nix develop` and must include `uv`, `just`,
-  `treefmt`, Go toolchain, and libclang.
-- Development shell also includes `ccache`.
-- Default dev shell (`nix develop`) does not override user/environment cache defaults.
-- Python tool configuration lives in `pyproject.toml`; tools are invoked via
-  `uv run ...`.
-- Project automation entrypoint is `just` (`Justfile` is the source of truth
-  for recipe names and wiring).
-- GitHub Actions CI executes through `just` recipes.
-- `just check` is local-first and must work in dirty/uncommitted working trees.
-- `just ci` is strict and CI-oriented (`format-check`, strict golden drift checks,
-  and `djlint` version parity between Nix and `uv.lock`).
-- Formatting scope includes `tests/fixtures/*.h` via `clang-format` and
-  `scripts/*.sh` via `shfmt` in `treefmt`.
-
-## Architecture
+## Generation Pipeline
 
 Pipeline:
-1. Parse: Build translation unit(s) from input headers + clang args.
+1. Parse: Build translation units from input headers and clang arguments.
 2. Normalize: Convert clang AST nodes into internal declaration models.
 3. Filter: Apply category-specific filters (`func`, `type`, `const`, `var`).
-4. Emit: Render Go code from normalized models (via templates).
-5. Validate: Run formatting and compile/smoke checks in tests.
-   - Compile smoke checks use a pinned real `github.com/ebitengine/purego`
-     module in fixture modules (no local stub replacement).
+4. Emit: Render Go code from normalized models through templates.
+5. Validate: Verify output through formatting and compile or smoke checks in
+   tests.
 
-Emit layer templating contract (M2.5):
-- Rendering entrypoint lives in `src/purego_gen/renderer.py`; CLI orchestration in
-  `src/purego_gen/cli.py` must not build Go source by string concatenation.
-- Renderer prepares a normalized context, templates stay declarative:
-  - `package`, `lib_id`, `emit_kinds`
-  - `type_aliases[].identifier`, `type_aliases[].go_type`
-  - `constants[].identifier`, `constants[].value`
+Rendering contract:
+- Rendering entrypoint lives in `src/purego_gen/renderer.py`; CLI orchestration
+  in `src/purego_gen/cli.py` must not build Go source by string concatenation.
+- Renderer prepares a normalized context and templates remain declarative.
+- Required top-level template context keys are:
+  - `package`
+  - `lib_id`
+  - `emit_kinds`
+  - `type_aliases[].identifier`
+  - `type_aliases[].go_type`
+  - `constants[].identifier`
+  - `constants[].value`
   - `functions[].identifier`
   - `runtime_vars[].identifier`
-- Jinja2 environment uses `StrictUndefined` so missing template variables fail deterministically.
+- The Jinja2 environment uses `StrictUndefined` so missing template variables
+  fail deterministically.
 - Renderer validates required top-level context keys before template execution.
-- `gofmt` remains the final canonical formatting step after template rendering.
+- `gofmt` is the final canonical formatting step after template rendering.
 
-## purego Integration Strategy
+## Integration Boundaries
 
-What `purego-gen` should delegate to `purego`:
-- ABI-specific call marshalling and return decoding via `purego.RegisterFunc`.
-- Dynamic symbol loading primitives (`Dlsym`, platform-specific symbol lookup behavior).
-- Callback trampolines via `purego.NewCallback` when callback interop is explicitly needed.
+`purego-gen` delegates these responsibilities to `purego`:
+- ABI-specific call marshalling and return decoding via
+  `purego.RegisterFunc`.
+- Dynamic symbol loading primitives such as `Dlsym`.
+- Callback trampolines via `purego.NewCallback` when callback interop is
+  explicitly needed.
 
-What `purego-gen` should keep as its own responsibility:
+`purego-gen` keeps these responsibilities:
 - C header parsing, declaration modeling, filtering, and code emission.
 - ABI layout validation for generated Go structs.
-- Symbol registration/error policy and generated API shape.
+- Symbol registration and error policy.
+- Generated API shape and naming.
 
-Design constraints from upstream `purego` behavior:
-- Do not use `purego.SyscallN` for normal generated bindings; prefer `RegisterFunc` path.
-- Avoid `RegisterLibFunc` in generated registration helpers because it panics on missing symbols.
-- For v1 target OSes (non-Windows), use `Dlsym + RegisterFunc` so generated code can return typed errors instead of panicking.
-- Function pointer arguments can allocate callback slots via `NewCallback`; default generation should avoid implicit callback-heavy APIs unless explicitly requested.
-- Struct arguments/returns must follow `purego` platform support constraints; unsupported targets must fail with clear diagnostics.
+Integration constraints:
+- Generated bindings use `purego.Dlsym` plus `purego.RegisterFunc` for normal
+  function registration.
+- Generated bindings do not use `purego.SyscallN` for standard bindings.
+- Generated registration helpers do not use `RegisterLibFunc`, because missing
+  symbols must produce typed errors instead of panics.
+- Default generation keeps callback-heavy flows explicit; no signature-aware
+  callback wrapper generation is required for function-pointer declarations.
+- Struct arguments and returns must stay within `purego` platform support
+  constraints. Unsupported targets must fail with clear diagnostics.
 
-## Declaration Model
+## Declaration Categories
 
 The generator distinguishes declaration categories explicitly:
 
 - Function declarations:
   - Source: C function declarations.
-  - Output: Go function variables + register helper.
+  - Output: Go function variables plus a registration helper.
 
 - Type declarations:
-  - Source: structs/unions/enums/typedefs (supported subset by phase).
+  - Source: structs, unions, enums, and typedefs within the supported subset.
   - Output: Go type definitions with ABI-aware layout decisions.
 
 - Compile-time constants:
   - Source: enum members and supported object-like integer macros.
-  - Supported macro-expression subset: integer literals (including `U`/`L`
-    suffixes), references to already-known constants, unary `+/-/~`, and
-    binary `+ - * / % << >> | & ^` with parentheses.
+  - Supported macro-expression subset: integer literals, including `U` and `L`
+    suffixes; references to already-known constants; unary `+`, `-`, `~`; and
+    binary `+`, `-`, `*`, `/`, `%`, `<<`, `>>`, `|`, `&`, `^` with
+    parentheses.
   - Output: Go `const` values.
-  - Important: these are not loaded via `Dlsym`.
+  - These are not loaded via `Dlsym`.
 
-- Runtime variables (exported data symbols):
-  - Source: `extern` variables exported by shared library.
-  - Output: Go `uintptr` symbol-address vars populated by symbol lookup.
-  - Loaded via `Dlsym` in M2; richer typed conversion is deferred.
+- Runtime variables:
+  - Source: `extern` variables exported by a shared library.
+  - Output: Go `uintptr` symbol-address variables populated by symbol lookup.
+  - Typed conversion beyond raw symbol addresses is out of scope.
 
-This split removes ambiguity between "constant" and "data symbol".
+This split removes ambiguity between compile-time constants and exported data
+symbols.
 
-## Type Mapping Rules (M3 Baseline)
+## Type Mapping Contract
 
-- Basic numeric typedefs map to fixed-width Go primitives (`int32`, `uint32`,
-  `int64`, `uint64`, etc.) based on libclang canonical type kind.
+- Basic numeric typedefs map to fixed-width Go primitives such as `int32`,
+  `uint32`, `int64`, and `uint64`, based on libclang canonical type kind.
 - Enum typedefs map to `int32`.
 - Pointer typedefs map to `uintptr`.
-- Function-pointer typedefs are supported in v1 as raw symbol-sized values and
-  also map to `uintptr` (no callback trampoline generation yet).
+- Function-pointer typedefs map to `uintptr`.
 - Function signatures keep pointer-like C types as `uintptr` by default.
-- Optional CLI mode `--const-char-as-string` maps `const char*` function
-  result/parameter slots to Go `string`.
+- `--const-char-as-string` maps `const char*` function result and parameter
+  slots to Go `string`.
 - Mutable `char*` in function signatures remains `uintptr` even when
-  `--const-char-as-string` is enabled, to avoid treating writable/output
-  buffers as immutable strings.
-- `void*` / `const void*` in function signatures remains `uintptr` (no
-  size-heuristic or buffer-shape inference in v1), regardless of
-  `--const-char-as-string`.
-- v1 function-pointer support boundary is intentionally low-level:
-  - supported: opaque `uintptr` mapping for function-pointer declarations.
-  - unsupported: callback trampoline/codegen flows and signature-aware wrappers.
+  `--const-char-as-string` is enabled.
+- `void*` and `const void*` in function signatures remain `uintptr`,
+  regardless of `--const-char-as-string`.
+- Function-pointer support is intentionally low-level:
+  - Supported: opaque `uintptr` mapping for function-pointer declarations.
+  - Unsupported: callback trampoline code generation and signature-aware
+    wrappers.
 - Struct typedefs with fully mappable fields are emitted as Go `struct { ... }`
-  type literals (`field` types are mapped with the same baseline rules).
-- Nested struct fields are supported when nested field types are also mappable.
-- Struct field kinds currently unsupported in v1: arrays, unions, bitfields,
-  and anonymous fields.
-- Incomplete struct typedefs (forward declarations with no definition) are
-  treated as opaque handles.
+  type literals.
+- Nested struct fields are supported when nested field types are also
+  mappable.
+- Unsupported struct field kinds are arrays, unions, bitfields, and anonymous
+  fields.
+- Incomplete struct typedefs are treated as opaque handles.
 - Opaque struct-handle typedefs are emitted as strict Go types (`type T
   uintptr`) when `--emit` includes `type`.
-- Unsupported struct patterns (`array`, `union`, bitfield, anonymous field) do
-  not fall back to opaque handles.
-- Optional CLI mode `--strict-enum-typedefs` emits enum typedef aliases as
-  strict Go types (`type T int32`) when `--emit` includes `type`.
+- Unsupported struct patterns do not fall back to opaque handles.
+- `--strict-enum-typedefs` emits enum typedef aliases as strict Go types
+  (`type T int32`) when `--emit` includes `type`.
 - `--strict-enum-typedefs` has effect only when `--emit` includes `type`.
-- Optional CLI mode `--typed-sentinel-constants` emits large sentinel-style
-  compile-time constants (`value > MaxInt64`) as typed `uint64` constants.
-- When an opaque typedef alias is emitted (`--emit` includes `type`), function
-  signatures use the emitted alias (`purego_type_*`) for matching `T*` /
-  `const T*` result and parameter types instead of raw `uintptr`.
-- When strict enum typedef aliases are emitted (`--emit` includes `type` and
-  `--strict-enum-typedefs`), matching function result/parameter slots use the
-  emitted alias (`purego_type_*`) instead of raw `int32`.
-- If matching opaque aliases are not emitted (for example `--emit func` only),
-  function signatures keep `uintptr` fallback for those types.
-- If matching strict enum aliases are not emitted (for example `--emit func`
-  only), function signatures keep `int32` fallback for those types.
-- Nested/unsupported record typedefs that are not representable by the current
-  baseline mapping are skipped from emitted type aliases.
+- `--typed-sentinel-constants` emits large sentinel-style compile-time
+  constants (`value > MaxInt64`) as typed `uint64` constants.
+- When an opaque typedef alias is emitted, matching `T*` and `const T*`
+  function result and parameter types use the emitted `purego_type_*` alias
+  instead of raw `uintptr`.
+- When strict enum typedef aliases are emitted, matching function result and
+  parameter slots use the emitted `purego_type_*` alias instead of raw `int32`.
+- If matching opaque aliases are not emitted, function signatures keep the
+  `uintptr` fallback.
+- If matching strict enum aliases are not emitted, function signatures keep the
+  `int32` fallback.
+- Nested or unsupported record typedefs that are not representable by the
+  current mapping are skipped from emitted type aliases.
 - When a typedef is skipped due to unsupported record mapping, the CLI emits a
-  stderr diagnostic with both a stable diagnostic code and human-readable
+  stderr diagnostic with both a stable diagnostic code and a human-readable
   reason.
-- Current stable diagnostic code contract uses the `PUREGO_GEN_` prefix for
-  generator and ABI codes; earlier `PG_` code values are obsolete.
+- Stable generator and ABI diagnostic codes use the `PUREGO_GEN_` prefix.
 - Incomplete opaque struct typedef metadata uses
   `PUREGO_GEN_TYPE_OPAQUE_INCOMPLETE_STRUCT` and remains distinct from
-  `PUREGO_GEN_TYPE_NO_SUPPORTED_FIELDS` used by unsupported empty/anonymous patterns.
+  `PUREGO_GEN_TYPE_NO_SUPPORTED_FIELDS`, which is used by unsupported empty or
+  anonymous patterns.
 - CLI stderr also emits stable opaque-summary diagnostics:
   `PUREGO_GEN_OPAQUE_EMITTED_COUNT` and
   `PUREGO_GEN_OPAQUE_FALLBACK_UINTPTR_COUNT`.
-- The parser model also retains these type-diagnostic codes (record-level and
-  field-level) so ABI-focused tests can assert unsupported behavior without
-  depending on exact stderr phrasing.
+- The parser model retains type-diagnostic codes at record and field level so
+  ABI-focused tests can assert unsupported behavior without depending on exact
+  stderr phrasing.
 
-## M4 ABI Input Boundary (Prework)
+## ABI Validation Contract
 
-- Parser now exposes structured record typedef metadata (`record_typedefs`)
-  including record-level and field-level layout attributes (size/align/offset
-  when available from clang).
-- ABI layout utility now recomputes expected struct field offsets, struct
-  alignment, and final size from field metadata and compares them with
-  clang-reported values for supported records.
-- ABI layout utility emits stable diagnostic codes for unsupported records and
-  layout-metadata mismatches so tests can assert outcomes deterministically.
-- ABI layout diagnostics for unsupported ABI-sensitive patterns keep the source
-  type-diagnostic code (from parser metadata) so unsupported causes can be
-  asserted without depending on human-readable text.
-- ABI layout validation fallback behavior is explicit per record:
+- Parser output exposes structured record typedef metadata in
+  `record_typedefs`, including record-level and field-level layout attributes
+  such as size, alignment, and field offsets when clang reports them.
+- ABI layout validation recomputes expected struct field offsets, struct
+  alignment, and final size from field metadata and compares them with clang
+  layout data for supported records.
+- ABI layout validation emits stable diagnostic codes for unsupported records
+  and layout mismatches.
+- ABI layout diagnostics for unsupported ABI-sensitive patterns preserve the
+  source type-diagnostic code from parser metadata.
+- ABI validation produces one of these outcomes per record:
   - `passed`: no layout diagnostics.
-  - `failed`: deterministic layout mismatch diagnostics exist (offset/align/size).
-  - `skipped`: validation could not be completed due to unsupported patterns or
-    incomplete metadata; diagnostics are still emitted and carry fallback reason.
-- In v1, ABI fallback results are surfaced through harness/test reports using
-  ABI utility outputs; default `purego-gen` CLI output remains focused on
-  generation diagnostics.
-- Intended v1 ABI-check target set:
-  - struct typedefs with supported field kinds and available clang layout data.
-- Current non-target set for v1 ABI checks:
+  - `failed`: deterministic offset, alignment, or size mismatch diagnostics
+    exist.
+  - `skipped`: validation could not be completed because metadata is incomplete
+    or the record uses unsupported patterns; diagnostics still carry the reason.
+- ABI validation is targeted at struct typedefs with supported field kinds and
+  available clang layout data.
+- ABI validation does not target:
   - union typedefs
   - structs with arrays, bitfields, or anonymous fields
-  - opaque/incomplete record typedefs
+  - opaque or incomplete record typedefs
+- ABI-focused reporting is available through test and harness flows; default
+  CLI output remains focused on generation diagnostics.
 
 ## Generated Code Contract
 
@@ -239,19 +220,18 @@ Naming:
   - `purego_var_<symbol>`
 - The `<symbol>` suffix preserves C-side casing as much as possible.
 - Non-identifier characters in `<symbol>` are normalized to `_`.
-- If `<symbol>` starts with a digit, generated suffix adds `n_` prefix.
-- If `<symbol>` is a Go keyword, generated suffix appends `_`.
-- Same-category collisions after normalization use deterministic numeric suffixes
-  (`_2`, `_3`, ...).
-- Current implementation keeps the prefix fixed to `purego_` for simplicity.
-- Prefix customization may be added later if it becomes necessary.
+- If `<symbol>` starts with a digit, the generated suffix adds `n_`.
+- If `<symbol>` is a Go keyword, the generated suffix appends `_`.
+- Same-category collisions after normalization use deterministic numeric
+  suffixes such as `_2`, `_3`, and so on.
+- The generated prefix is fixed to `purego_`.
 
 Handle ownership:
 - Generated code does not keep a global library handle.
-- Callers pass `handle uintptr` to generated registration/loading functions.
+- Callers pass `handle uintptr` to generated registration and loading helpers.
 - This keeps initialization explicit and supports multiple handles safely.
 
-Required helper shape (conceptual):
+Required helper shape:
 
 ```go
 func purego_<libid>_register_functions(handle uintptr) error
@@ -259,27 +239,29 @@ func purego_<libid>_load_runtime_vars(handle uintptr) error
 ```
 
 Behavior:
-- `purego_<libid>_register_functions` resolves symbols with `purego.Dlsym` and binds with `purego.RegisterFunc`.
-- `purego_<libid>_register_functions` returns an error for missing required symbols instead of panicking.
-- Generated function placeholders are typed Go function values derived from parsed C signatures
-  (with `uintptr` fallback for currently unsupported types, and emitted opaque-handle aliases
-  used when available) and are bound via `RegisterFunc`.
-- Generated function parameter names are taken from C declarations when available and sanitized
-  into Go identifiers; unnamed/invalid slots fall back to deterministic `argN` names.
+- `purego_<libid>_register_functions` resolves symbols with `purego.Dlsym` and
+  binds them with `purego.RegisterFunc`.
+- `purego_<libid>_register_functions` returns an error for missing required
+  symbols instead of panicking.
+- Generated function placeholders are typed Go function values derived from
+  parsed C signatures, with the type-mapping fallbacks and emitted aliases
+  defined by this document.
+- Generated function parameter names are taken from C declarations when
+  available and sanitized into Go identifiers; unnamed or invalid slots fall
+  back to deterministic `argN` names.
 - Generated declarations copy libclang declaration-attached C comments into
   preceding Go `//` comments when comment metadata is available.
-- Plain C comments (`//`, `/* ... */`) are included only when clang is invoked
-  with `-fparse-all-comments`; otherwise doc-style declaration comments are the
+- Plain C comments are included only when clang is invoked with
+  `-fparse-all-comments`; otherwise doc-style declaration comments are the
   default source.
-- Function signature convenience mapping in v1 is intentionally narrow and
-  opt-in: with `--const-char-as-string`, only `const char*` is lifted to Go
-  `string`; mutable `char*` and `void*` remain low-level pointer-sized values.
-- `purego_<libid>_load_runtime_vars` resolves exported data symbols, stores their addresses in `purego_var_* uintptr`, and returns an error on missing required symbols.
-- All emitted runtime symbols are required; generated helpers return errors
-  when symbol resolution fails.
-- Compile-time constants are emitted directly as Go constants and do not require runtime loading.
-- By default constants are untyped; `--typed-sentinel-constants` only changes
-  strict sentinel-style values into typed `uint64` constants.
+- `purego_<libid>_load_runtime_vars` resolves exported data symbols, stores
+  their addresses in `purego_var_* uintptr`, and returns an error on missing
+  required symbols.
+- All emitted runtime symbols are required.
+- Compile-time constants are emitted directly as Go constants and do not
+  require runtime loading.
+- Constants are untyped by default; `--typed-sentinel-constants` changes only
+  qualifying sentinel-style values into typed `uint64` constants.
 
 ## CLI Contract
 
@@ -314,61 +296,48 @@ purego-gen \
 
 Rules:
 - `--header` is repeatable and order-preserving.
-- Multiple headers should be handled in a single invocation when they share the same generation context.
-- Running the command multiple times is allowed, but cross-run merge/de-dup/conflict handling is caller responsibility.
-- `--lib-id` is required and determines generated helper names to avoid multi-library symbol collisions.
-- `--lib-id` is normalized to a safe snake_case identifier before code emission.
+- Multiple headers should be handled in a single invocation when they share the
+  same generation context.
+- Running the command multiple times is allowed, but cross-run merge,
+  de-duplication, and conflict handling are caller responsibility.
+- `--lib-id` is required and determines generated helper names to avoid
+  multi-library symbol collisions.
+- `--lib-id` is normalized to a safe snake_case identifier before code
+  emission.
 - `--` separates generator flags from clang flags.
-- Filters are category-specific regexes and applied after normalization.
-- If a category filter is provided for an emitted category and matches nothing, CLI exits non-zero with an actionable error.
+- Filters are category-specific regular expressions applied after
+  normalization.
+- If a category filter is provided for an emitted category and matches nothing,
+  the CLI exits non-zero with an actionable error.
 - `--emit` controls which categories are generated.
 - `--const-char-as-string` is opt-in and disabled by default.
 - `--strict-enum-typedefs` is opt-in and disabled by default.
 - `--typed-sentinel-constants` is opt-in and disabled by default.
 - `--out <path>` writes to a file.
-- `--out -` or omitted `--out` writes generated code to stdout.
-- Generated Go source is formatted with `gofmt` before writing to stdout or files.
-- Current CLI is single-command (`purego-gen`) with no subcommand.
-- Diagnostics (warnings/progress/errors) must go to stderr, not stdout.
-- On failure, exit non-zero with actionable error messages and do not emit partial generated code to stdout.
-- Current interface is intentionally flag-first to keep the design slim.
-- A config file mode may be added later via `--config <file>` if repeated workflows justify it.
+- `--out -`, or omitting `--out`, writes generated code to stdout.
+- Generated Go source is formatted with `gofmt` before writing to stdout or
+  files.
+- The CLI is single-command `purego-gen` with no subcommand layer.
+- Diagnostics, including warnings, progress, and errors, go to stderr rather
+  than stdout.
+- On failure, the CLI exits non-zero with actionable error messages and does
+  not emit partial generated code to stdout.
 
 ## Testing Strategy
 
-- Unit tests:
-  - Type mapping helpers.
-  - Constant/runtime-variable classification.
-  - Name sanitization and filtering behavior.
-
-- End-to-end golden tests:
-  - Input headers + clang args -> expected generated Go file.
-  - Include platform-sensitive cases behind per-platform test fixtures.
-
-- ABI-focused checks (phased):
-  - Verify generated struct size/alignment against clang-reported layout where supported.
-  - Include a minimal C-side probe fixture that emits `sizeof`/`alignof`/`offsetof`
-    values for selected records and compare those values with parser metadata.
-
-Objective harness targets:
-- Must: `libzstd`
-  - Baseline library for stable C API coverage and deterministic golden tests.
-- Must: `onnxruntime`
-  - Stress target for complex signatures and real-world API shape.
-- Optional (Linux-only): `libsystemd`
-  - Platform-dependent target to validate Linux integration paths.
-
-M5 harness environment contract:
-- Target-library header/runtime resolution must be explicit and profile-driven.
-- Golden-case profiles resolve headers from either:
-  - case-local paths (`headers.kind=local`), or
-  - include-directory environment variables (`headers.kind=env_include`).
-- Runtime harness tests resolve shared libraries from either:
-  - case-local C compilation (`runtime.kind=compile_c`), or
-  - library-directory environment variables (`runtime.kind=env_libdir`).
-- Automatic library discovery via `pkg-config` / toolchain defaults is out of scope.
-
-## Roadmap Tracking
-
-- Active tasks and open decisions are tracked in
-  [`TODO.md`](/Users/mitsuoheijo/repos/github.com/johejo/purego-gen/TODO.md).
+- Unit tests cover:
+  - type mapping helpers
+  - constant and runtime-variable classification
+  - name sanitization and filtering behavior
+- End-to-end golden tests cover input headers plus clang arguments to expected
+  generated Go files, including platform-sensitive cases behind per-platform
+  fixtures.
+- ABI-focused checks verify generated struct size and alignment against clang
+  layout data where supported, including probe fixtures for `sizeof`,
+  `alignof`, and `offsetof` comparisons.
+- Library harness coverage should prioritize stable real-world targets such as
+  `libzstd` and `onnxruntime`; optional Linux-only coverage may include
+  `libsystemd`.
+- Target-library header and runtime resolution must be explicit and
+  profile-driven. Automatic library discovery through `pkg-config` or toolchain
+  defaults is out of scope.
