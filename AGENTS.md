@@ -14,14 +14,10 @@ Build a practical C-header-to-purego binding generator.
 
 Do not duplicate volatile details in this file.
 
-## Stable project rules (v1)
+## Stable project rules
 
 - Target scope is non-Windows first.
-- CLI is single-command: `purego-gen` (no subcommands in v1).
-- `--lib-id` is required and is used in generated helper names.
-- Generated identifiers are unexported and prefixed with `purego_`.
-- Generated code expects a caller-provided library handle.
-- Prefer panic-free registration flow (`Dlsym + RegisterFunc`) on v1 target OSes.
+- Keep the generator practical and incremental; avoid treating pre-v1 details as frozen.
 - Run `pytest` in the `nix` devshell by default because it requires `LIBCLANG_PATH`.
 - In Codex sandbox, use `nix develop .#coding-agent -c ...` (plain `nix develop -c ...` is intentionally rejected in Codex).
 - In Codex sandbox, use `just agent-check` / `just agent-ci` for validation tasks.
