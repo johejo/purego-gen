@@ -37,6 +37,11 @@
         { pkgs }:
         let
           lib = pkgs.lib;
+          isStandaloneLibclangSystem =
+            pkgs.stdenv.hostPlatform.isDarwin && pkgs.stdenv.hostPlatform.isAarch64;
+          llvmPkgs = pkgs.llvmPackages_21;
+          llvmSourceTree = llvmPkgs.llvm.src;
+          clangSourceTree = llvmPkgs.clang-unwrapped.src;
           pythonPkgs = pkgs.python314Packages;
           treefmt = (mkTreefmt pkgs).config.build.wrapper;
           pythonAppVersion = "0.0.0";
@@ -99,6 +104,119 @@
             description = "Practical C-header-to-purego binding generator";
             pythonImportsCheck = [ "purego_gen" ];
           };
+          standaloneLibclangCmakeFlags = [
+            "-G"
+            "Ninja"
+            "-DCMAKE_BUILD_TYPE=Release"
+            "-DBUILD_SHARED_LIBS=OFF"
+            "-DLLVM_ENABLE_PROJECTS=clang"
+            "-DLLVM_ENABLE_BINDINGS=OFF"
+            "-DLLVM_BUILD_LLVM_DYLIB=OFF"
+            "-DLLVM_LINK_LLVM_DYLIB=OFF"
+            "-DLLVM_INCLUDE_TESTS=OFF"
+            "-DLLVM_INCLUDE_BENCHMARKS=OFF"
+            "-DLLVM_INCLUDE_EXAMPLES=OFF"
+            "-DCLANG_INCLUDE_TESTS=OFF"
+            "-DCLANG_BUILD_EXAMPLES=OFF"
+            "-DCLANG_BUILD_TOOLS=OFF"
+            "-DLLVM_TARGETS_TO_BUILD=host"
+            "-DLLVM_ENABLE_ZSTD=OFF"
+            "-DLLVM_ENABLE_LIBXML2=OFF"
+            "-DLLVM_ENABLE_FFI=OFF"
+            "-DLLVM_ENABLE_TERMINFO=OFF"
+            "-DLLVM_ENABLE_LIBEDIT=OFF"
+            "-DZLIB_INCLUDE_DIR=${pkgs.zlib.dev}/include"
+            "-DZLIB_LIBRARY=${pkgs.zlib.static}/lib/libz.a"
+          ];
+          standaloneLibclangPackage =
+            if !isStandaloneLibclangSystem then
+              null
+            else
+              llvmPkgs.stdenv.mkDerivation {
+                pname = "standalone-libclang";
+                version = llvmPkgs.clang-unwrapped.version;
+                dontUnpack = true;
+                strictDeps = true;
+                enableParallelBuilding = true;
+                nativeBuildInputs = with pkgs; [
+                  cmake
+                  gnused
+                  ninja
+                  python314
+                ];
+                configurePhase = ''
+                  runHook preConfigure
+                  source_root="$PWD/llvm-project"
+                  mkdir -p "$source_root"
+                  for entry in ${llvmSourceTree}/*; do
+                    cp -R "$entry" "$source_root/$(basename "$entry")"
+                  done
+                  cp -R ${clangSourceTree}/clang "$source_root/clang"
+                  cp -R ${clangSourceTree}/clang-tools-extra "$source_root/clang-tools-extra"
+                  ls -1 "$source_root" | sed -n '1,20p'
+                  cmake -S "$source_root/llvm" -B build ${lib.escapeShellArgs standaloneLibclangCmakeFlags}
+                  runHook postConfigure
+                '';
+                buildPhase = ''
+                  runHook preBuild
+                  cmake --build build --target libclang
+                  runHook postBuild
+                '';
+                installPhase = ''
+                  runHook preInstall
+                  mkdir -p "$out/lib"
+                  cp build/lib/libclang.dylib "$out/lib/libclang.dylib"
+                  runHook postInstall
+                '';
+                meta = {
+                  description = "Standalone libclang dylib built without a libLLVM runtime dependency";
+                  license = lib.licenses.ncsa;
+                  platforms = [ "aarch64-darwin" ];
+                };
+              };
+          standaloneLibclangCheck =
+            if standaloneLibclangPackage == null then
+              null
+            else
+              pkgs.runCommand "standalone-libclang-smoke"
+                {
+                  nativeBuildInputs = [
+                    pkgs.darwin.cctools
+                    pkgs.python314
+                  ];
+                }
+                ''
+                  dylib="${standaloneLibclangPackage}/lib/libclang.dylib"
+                  otool -L "$dylib" > deps.txt
+                  if grep -F "libLLVM.dylib" deps.txt >/dev/null; then
+                    echo "standalone libclang still depends on libLLVM.dylib" >&2
+                    cat deps.txt >&2
+                    exit 1
+                  fi
+                  external_deps="$(tail -n +2 deps.txt | grep -v '^	@rpath/libclang.dylib')"
+                  dep_count="$(printf '%s\n' "$external_deps" | sed '/^$/d' | wc -l | tr -d ' ')"
+                  if [ "$dep_count" -ne 2 ]; then
+                    echo "unexpected dylib dependency count: $dep_count" >&2
+                    cat deps.txt >&2
+                    exit 1
+                  fi
+                  printf '%s\n' "$external_deps" | grep -F "/usr/lib/libc++.1.dylib" >/dev/null
+                  printf '%s\n' "$external_deps" | grep -F "/usr/lib/libSystem.B.dylib" >/dev/null
+                  nm -gUj "$dylib" | grep -Fx "_clang_createIndex" >/dev/null
+                  nm -gUj "$dylib" | grep -Fx "_clang_parseTranslationUnit" >/dev/null
+                  nm -gUj "$dylib" | grep -Fx "_clang_disposeIndex" >/dev/null
+                  python - <<'PY'
+                  import ctypes
+                  lib = ctypes.CDLL("${standaloneLibclangPackage}/lib/libclang.dylib")
+                  for name in (
+                      "clang_createIndex",
+                      "clang_parseTranslationUnit",
+                      "clang_disposeIndex",
+                  ):
+                      getattr(lib, name)
+                  PY
+                  touch "$out"
+                '';
           goldenCasesRunner = mkPackagedPuregoGenApplication {
             pname = "golden-cases";
             mainProgram = "golden-cases";
@@ -164,13 +282,19 @@
 
           checks = {
             formatting = (mkTreefmt pkgs).config.build.check self;
+          } // lib.optionalAttrs (standaloneLibclangCheck != null) {
+            standalone-libclang = standaloneLibclangCheck;
           };
 
-          packages = {
-            purego-gen = puregoGenPackage;
-            golden-cases = goldenCasesRunner;
-            default = puregoGenPackage;
-          };
+          packages =
+            {
+              purego-gen = puregoGenPackage;
+              golden-cases = goldenCasesRunner;
+              default = puregoGenPackage;
+            }
+            // lib.optionalAttrs (standaloneLibclangPackage != null) {
+              standalone-libclang = standaloneLibclangPackage;
+            };
 
           apps =
             let
