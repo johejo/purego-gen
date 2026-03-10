@@ -282,19 +282,19 @@
 
           checks = {
             formatting = (mkTreefmt pkgs).config.build.check self;
-          } // lib.optionalAttrs (standaloneLibclangCheck != null) {
+          }
+          // lib.optionalAttrs (standaloneLibclangCheck != null) {
             standalone-libclang = standaloneLibclangCheck;
           };
 
-          packages =
-            {
-              purego-gen = puregoGenPackage;
-              golden-cases = goldenCasesRunner;
-              default = puregoGenPackage;
-            }
-            // lib.optionalAttrs (standaloneLibclangPackage != null) {
-              standalone-libclang = standaloneLibclangPackage;
-            };
+          packages = {
+            purego-gen = puregoGenPackage;
+            golden-cases = goldenCasesRunner;
+            default = puregoGenPackage;
+          }
+          // lib.optionalAttrs (standaloneLibclangPackage != null) {
+            standalone-libclang = standaloneLibclangPackage;
+          };
 
           apps =
             let
