@@ -1,4 +1,4 @@
-module github.com/johejo/purego-gen/tests
+module github.com/johejo/purego-gen
 
 go 1.25
 
