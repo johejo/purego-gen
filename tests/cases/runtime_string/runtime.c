@@ -1,3 +1,6 @@
+//go:build purego_gen_case_runtime
+// +build purego_gen_case_runtime
+
 #include "smoke_string_runtime.h"
 
 #include <string.h>

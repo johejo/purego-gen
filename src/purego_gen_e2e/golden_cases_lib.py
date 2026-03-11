@@ -41,6 +41,7 @@ _GO_SUM_PATH = Path("go.sum")
 _GENERATED_FILE_NAME = "generated.go"
 _RUNTIME_TEST_FILE_NAME = "runtime_test.go"
 _PROFILE_FILE_NAME = "profile.json"
+_RUNTIME_BUILD_TAG = "purego_gen_case_runtime"
 
 
 @dataclass(frozen=True, slots=True)
@@ -570,7 +571,7 @@ def _run_go_test_for_case(
             shared_library_path = resolve_env_libdir_runtime_library(runtime)
 
         env["PUREGO_GEN_TEST_LIB"] = str(shared_library_path)
-        command = [go_binary, "test", "./..."]
+        command = [go_binary, "test", "-tags", _RUNTIME_BUILD_TAG, "./..."]
         result = run_command(command, cwd=module_dir, env=env)
         if result.returncode != 0:
             message = f"case `{case.case_id}` runtime check failed.\nstderr:\n{result.stderr}"

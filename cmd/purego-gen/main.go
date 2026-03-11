@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/johejo/purego-gen/cmd/internal/generator"
 	"github.com/johejo/purego-gen/cmd/internal/libclang"
 )
 
@@ -20,8 +21,6 @@ func main() {
 }
 
 func run(argv []string, stdout io.Writer, stderr io.Writer) int {
-	_ = stdout
-
 	options, err := parseOptions(argv)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -30,15 +29,14 @@ func run(argv []string, stdout io.Writer, stderr io.Writer) int {
 		return fail(stderr, err)
 	}
 
-	if options.out != "-" {
-		return fail(stderr, errors.New("generation not implemented in stage1 bootstrap"))
-	}
-
-	if err := runBootstrap(options); err != nil {
+	generatedSource, err := runStage1(options)
+	if err != nil {
 		return fail(stderr, err)
 	}
 
-	_, _ = fmt.Fprintln(stderr, "purego-gen: stage1 bootstrap parse succeeded.")
+	if err := writeOutput(options.out, generatedSource, stdout); err != nil {
+		return fail(stderr, err)
+	}
 	return 0
 }
 
@@ -51,16 +49,16 @@ func fail(stderr io.Writer, err error) int {
 	return 1
 }
 
-func runBootstrap(options cliOptions) (err error) {
+func runStage1(options cliOptions) (generatedSource string, err error) {
 	for _, header := range options.headers {
 		if _, statErr := os.Stat(header); statErr != nil {
-			return fmt.Errorf("header not found: %s", header)
+			return "", fmt.Errorf("header not found: %s", header)
 		}
 	}
 
 	library, err := libclang.Load()
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() {
 		closeErr := library.Close()
@@ -71,14 +69,14 @@ func runBootstrap(options cliOptions) (err error) {
 
 	index := library.CreateIndex(0, 0)
 	if index == 0 {
-		return errors.New("clang_createIndex returned nil index")
+		return "", errors.New("clang_createIndex returned nil index")
 	}
 	defer library.DisposeIndex(index)
 
 	for _, header := range options.headers {
 		resolvedHeader, resolveErr := filepath.Abs(header)
 		if resolveErr != nil {
-			return fmt.Errorf("failed to resolve header path %s: %w", header, resolveErr)
+			return "", fmt.Errorf("failed to resolve header path %s: %w", header, resolveErr)
 		}
 
 		translationUnit, parseErr := library.ParseTranslationUnit(
@@ -88,16 +86,57 @@ func runBootstrap(options cliOptions) (err error) {
 			libclang.DefaultParseOptions,
 		)
 		if parseErr != nil {
-			return parseErr
+			return "", parseErr
 		}
 
 		diagnosticCount := library.NumDiagnostics(translationUnit)
 		library.DisposeTranslationUnit(translationUnit)
 		if diagnosticCount != 0 {
-			return fmt.Errorf("header %s produced %d diagnostic(s)", resolvedHeader, diagnosticCount)
+			return "", fmt.Errorf("header %s produced %d diagnostic(s)", resolvedHeader, diagnosticCount)
 		}
 	}
 
+	if err := validateStage1GenerationSupport(options); err != nil {
+		return "", err
+	}
+
+	return generator.Generate(generator.Config{
+		HeaderPath:  options.headers[0],
+		PackageName: options.pkg,
+	})
+}
+
+func validateStage1GenerationSupport(options cliOptions) error {
+	if len(options.headers) != 1 {
+		return errors.New("stage1 unsupported: exactly one --header is required for generation")
+	}
+	if options.funcFilter != "" || options.typeFilter != "" || options.constFilter != "" || options.varFilter != "" {
+		return errors.New("stage1 unsupported: declaration filters are not supported")
+	}
+	if len(options.clangArgs) != 0 {
+		return errors.New("stage1 unsupported: clang args after `--` are not supported")
+	}
+	if options.constCharAsString || options.strictEnumTypedefs || options.typedSentinelConstants {
+		return errors.New("stage1 unsupported: non-default type mapping options are not supported")
+	}
+	if len(options.emitKinds) != 1 || options.emitKinds[0] != "type" {
+		return errors.New("stage1 unsupported: --emit must be exactly `type`")
+	}
+	return nil
+}
+
+func writeOutput(path string, generatedSource string, stdout io.Writer) error {
+	if path == "-" {
+		_, err := io.WriteString(stdout, generatedSource)
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("failed to create output directory for %s: %w", path, err)
+	}
+	if err := os.WriteFile(path, []byte(generatedSource), 0o644); err != nil {
+		return fmt.Errorf("failed to write output file %s: %w", path, err)
+	}
 	return nil
 }
 

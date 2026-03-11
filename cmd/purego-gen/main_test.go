@@ -14,18 +14,24 @@ func TestRunBootstrapSuccess(t *testing.T) {
 		t.Skip("LIBCLANG_PATH is not set")
 	}
 
-	headerPath := mustRepoPath(t, "tests", "cases", "libclang", "parse_input.h")
+	headerPath := mustRepoPath(t, "tests", "cases", "basic_type_strict_opaque", "basic.h")
+	expectedPath := mustRepoPath(t, "tests", "cases", "basic_type_strict_opaque", "generated.go")
+	outputPath := filepath.Join(t.TempDir(), "generated.go")
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
 	exitCode := run(
 		[]string{
 			"--lib-id",
-			"clang",
+			"fixture_lib",
 			"--header",
 			headerPath,
-			"--",
-			"-DPUREGO_GEN_STAGE1_PARSE=1",
+			"--pkg",
+			"fixture",
+			"--emit",
+			"type",
+			"--out",
+			outputPath,
 		},
 		stdout,
 		stderr,
@@ -37,8 +43,20 @@ func TestRunBootstrapSuccess(t *testing.T) {
 	if stdout.String() != "" {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	if !strings.Contains(stderr.String(), "stage1 bootstrap parse succeeded") {
-		t.Fatalf("stderr = %q, want success message", stderr.String())
+	if stderr.String() != "" {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+
+	got, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile(outputPath) error = %v", err)
+	}
+	want, err := os.ReadFile(expectedPath)
+	if err != nil {
+		t.Fatalf("ReadFile(expectedPath) error = %v", err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("generated output mismatch\n got:\n%s\nwant:\n%s", got, want)
 	}
 }
 
@@ -73,18 +91,25 @@ func TestRunBootstrapFailsOnDiagnostics(t *testing.T) {
 	}
 }
 
-func TestRunRejectsOutFileDuringBootstrap(t *testing.T) {
+func TestRunRejectsUnsupportedEmitSubset(t *testing.T) {
+	if os.Getenv("LIBCLANG_PATH") == "" {
+		t.Skip("LIBCLANG_PATH is not set")
+	}
+
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
+	headerPath := mustRepoPath(t, "tests", "cases", "basic_func_type", "basic.h")
 
 	exitCode := run(
 		[]string{
 			"--lib-id",
-			"clang",
+			"fixture_lib",
 			"--header",
-			"fixture.h",
-			"--out",
-			"generated.go",
+			headerPath,
+			"--pkg",
+			"fixture",
+			"--emit",
+			"func,type",
 		},
 		stdout,
 		stderr,
@@ -96,8 +121,8 @@ func TestRunRejectsOutFileDuringBootstrap(t *testing.T) {
 	if stdout.String() != "" {
 		t.Fatalf("stdout = %q, want empty", stdout.String())
 	}
-	if !strings.Contains(stderr.String(), "generation not implemented in stage1 bootstrap") {
-		t.Fatalf("stderr = %q, want bootstrap out error", stderr.String())
+	if !strings.Contains(stderr.String(), "stage1 unsupported: --emit must be exactly `type`") {
+		t.Fatalf("stderr = %q, want unsupported emit error", stderr.String())
 	}
 }
 
