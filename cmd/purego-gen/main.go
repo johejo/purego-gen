@@ -236,7 +236,7 @@ func parseOptions(argv []string) (cliOptions, error) {
 		return cliOptions{}, errors.New("--header is required")
 	}
 	if !isGoIdentifier(options.pkg) {
-		return cliOptions{}, errors.New("Go package name must match ^[A-Za-z_][A-Za-z0-9_]*$.")
+		return cliOptions{}, errors.New("go package name must match ^[A-Za-z_][A-Za-z0-9_]*$")
 	}
 
 	options.clangArgs = clangArgs
@@ -256,7 +256,7 @@ func normalizeLibID(value string) (string, error) {
 	normalized := invalidLibIDPattern.ReplaceAllString(strings.ToLower(value), "_")
 	normalized = strings.Trim(normalized, "_")
 	if normalized == "" {
-		return "", errors.New("--lib-id must contain at least one alphanumeric character.")
+		return "", errors.New("--lib-id must contain at least one alphanumeric character")
 	}
 	if normalized[0] >= '0' && normalized[0] <= '9' {
 		normalized = "lib_" + normalized
@@ -283,13 +283,13 @@ func parseEmitKinds(value string) ([]string, error) {
 			emitKinds = append(emitKinds, trimmed)
 		default:
 			return nil, fmt.Errorf(
-				"Unsupported emit category: %s. Supported values: func,type,const,var.",
+				"unsupported emit category: %s; supported values: func,type,const,var",
 				trimmed,
 			)
 		}
 	}
 	if len(emitKinds) == 0 {
-		return nil, errors.New("--emit must contain at least one category.")
+		return nil, errors.New("--emit must contain at least one category")
 	}
 	return emitKinds, nil
 }

@@ -2,6 +2,7 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 agent_nix_prefix := "nix develop .#coding-agent -c"
 python_src_prefix := "scripts/uv-run-python-src.sh"
+go_cache_env := "XDG_CACHE_HOME=$PWD/.cache GOMODCACHE=$PWD/.cache/gomod GOCACHE=$PWD/.cache/go-build STATICCHECK_CACHE=$PWD/.cache/staticcheck"
 
 default:
   @just --list
@@ -39,6 +40,18 @@ typecheck:
 test:
   uv run pytest
 
+go-vet:
+  mkdir -p .cache/gomod .cache/go-build .cache/staticcheck
+  env {{go_cache_env}} go vet ./...
+
+go-staticcheck:
+  mkdir -p .cache/gomod .cache/go-build .cache/staticcheck
+  env {{go_cache_env}} staticcheck ./...
+
+go-test:
+  mkdir -p .cache/gomod .cache/go-build .cache/staticcheck
+  env {{go_cache_env}} go test ./...
+
 inspect-libzstd:
   {{python_src_prefix}} scripts/inspect_target_library.py --header-path "$PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR/zstd.h"
 
@@ -58,9 +71,9 @@ golden-check-ci-nix:
 tool-version-check:
   scripts/check-tool-versions.sh
 
-check: nix-flake-check lint typecheck golden-check test
+check: nix-flake-check lint typecheck golden-check test go-vet go-staticcheck go-test
 
-ci: nix-flake-check tool-version-check lint typecheck golden-check-ci golden-check-ci-nix test
+ci: nix-flake-check tool-version-check lint typecheck golden-check-ci golden-check-ci-nix test go-vet go-staticcheck go-test
 
 # Codex sandbox helper tasks
 

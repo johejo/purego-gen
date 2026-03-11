@@ -1,6 +1,3 @@
-//go:build purego_gen_case_runtime
-// +build purego_gen_case_runtime
-
 #include "smoke_runtime.h"
 
 static int smoke_counter = 0;
