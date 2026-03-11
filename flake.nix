@@ -259,6 +259,7 @@
             python314
             shellcheck
             shfmt
+            go-tools
             uv
             zstd
             treefmt
