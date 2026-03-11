@@ -24,7 +24,6 @@ from purego_gen.abi_layout import (
     validate_record_layout_with_fallback,
 )
 from purego_gen.clang_parser import parse_declarations
-from purego_gen.model import TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
 from purego_gen.process_exec import run_command
 from purego_gen.toolchain import resolve_c_compiler_command
 
@@ -177,13 +176,13 @@ def test_validate_record_layout_detects_offset_and_size_mismatch() -> None:
 def test_validate_record_layout_reports_unsupported_record() -> None:
     """Unsupported record typedefs should return a stable unsupported diagnostic."""
     record_map = _record_typedef_map()
-    array_record = record_map["fixture_with_array_t"]
+    array_record = record_map["fixture_union_t"]
 
     diagnostics = validate_record_layout(array_record)
 
     assert len(diagnostics) == 1
     assert diagnostics[0].code == ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD
-    assert diagnostics[0].source_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
+    assert diagnostics[0].source_code is not None
 
 
 def test_validate_record_layout_reports_missing_field_metadata() -> None:
@@ -211,6 +210,7 @@ def test_record_layout_matches_c_probe_fixture(tmp_path: Path) -> None:
         "fixture_point_t",
         "fixture_point_alias_t",
         "fixture_nested_point_t",
+        "fixture_with_array_t",
     )
     for record_name, c_record in c_layouts.items():
         parsed_record = record_map[record_name]
@@ -264,7 +264,7 @@ def _record_with_layout_mismatch(record: RecordTypedefDecl) -> RecordTypedefDecl
     ),
     [
         pytest.param(
-            "fixture_with_array_t",
+            "fixture_union_t",
             _identity_record,
             ABI_LAYOUT_RESULT_STATUS_SKIPPED,
             ABI_LAYOUT_FALLBACK_REASON_UNSUPPORTED_PATTERN,

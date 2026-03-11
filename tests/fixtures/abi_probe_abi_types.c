@@ -29,5 +29,8 @@ int main(void) {
   EMIT_FIELD_LAYOUT(fixture_nested_point_t, point);
   EMIT_FIELD_LAYOUT(fixture_nested_point_t, inner);
 
+  EMIT_RECORD_LAYOUT(fixture_with_array_t);
+  EMIT_FIELD_LAYOUT(fixture_with_array_t, values);
+
   return 0;
 }

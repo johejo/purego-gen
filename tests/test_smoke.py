@@ -17,7 +17,6 @@ from purego_gen.diagnostics import (
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
-    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
 )
 from purego_gen.process_exec import CommandResult, run_command
@@ -76,8 +75,6 @@ def test_reports_skipped_typedef_diagnostics_for_unsupported_record_fields() -> 
     )
 
     assert result.returncode == 0
-    assert "skipped typedef fixture_with_array_t" in result.stderr
-    assert f"[{TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE}]" in result.stderr
     assert "skipped typedef fixture_union_t" in result.stderr
     assert f"[{TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF}]" in result.stderr
     assert "skipped typedef fixture_with_bitfield_t" in result.stderr

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"unsafe"
 
@@ -62,6 +63,12 @@ func parseHeader(
 		t.Fatal("clang_parseTranslationUnit returned nil translation unit")
 	}
 	return translationUnit
+}
+
+func consumeString(value purego_type_CXString) string {
+	text := purego_func_clang_getCString(value)
+	purego_func_clang_disposeString(value)
+	return text
 }
 
 func TestGeneratedBindingsParseHeaderWithLibclang(t *testing.T) {
@@ -121,4 +128,159 @@ func TestGeneratedBindingsParseHeaderWithLibclang(t *testing.T) {
 	if got := purego_func_clang_getNumDiagnostics(translationUnitWithDefine); got != 0 {
 		t.Fatalf("clang_getNumDiagnostics() with required define = %d, want 0", got)
 	}
+
+	rootCursor := purego_func_clang_getTranslationUnitCursor(translationUnitWithDefine)
+	if got := purego_func_clang_getCursorKind(rootCursor); got != purego_const_CXCursor_TranslationUnit {
+		t.Fatalf(
+			"clang_getCursorKind(rootCursor) = %d, want %d",
+			got,
+			purego_const_CXCursor_TranslationUnit,
+		)
+	}
+
+	functionCursor := mustCursorBySpelling(
+		t,
+		translationUnitWithDefine,
+		headerPath,
+		"purego_gen_stage1_make_point",
+	)
+	if got := purego_func_clang_getCursorKind(functionCursor); got != purego_const_CXCursor_FunctionDecl {
+		t.Fatalf("clang_getCursorKind(functionCursor) = %d, want %d", got, purego_const_CXCursor_FunctionDecl)
+	}
+	if got := consumeString(purego_func_clang_getCursorSpelling(functionCursor)); got != "purego_gen_stage1_make_point" {
+		t.Fatalf("clang_getCursorSpelling(functionCursor) = %q, want purego_gen_stage1_make_point", got)
+	}
+	if got := consumeString(purego_func_clang_Cursor_getRawCommentText(functionCursor)); !strings.Contains(got, "stage1 point docs") {
+		t.Fatalf("clang_Cursor_getRawCommentText(functionCursor) = %q", got)
+	}
+	if got := purego_func_clang_isCursorDefinition(functionCursor); got != 0 {
+		t.Fatalf("clang_isCursorDefinition(functionCursor) = %d, want 0", got)
+	}
+	if got := purego_func_clang_Cursor_getNumArguments(functionCursor); got != 1 {
+		t.Fatalf("clang_Cursor_getNumArguments(functionCursor) = %d, want 1", got)
+	}
+
+	argCursor := purego_func_clang_Cursor_getArgument(functionCursor, 0)
+	if got := purego_func_clang_getCursorKind(argCursor); got != purego_const_CXCursor_ParmDecl {
+		t.Fatalf("clang_getCursorKind(argCursor) = %d, want %d", got, purego_const_CXCursor_ParmDecl)
+	}
+	if got := consumeString(purego_func_clang_getCursorSpelling(argCursor)); got != "value" {
+		t.Fatalf("clang_getCursorSpelling(argCursor) = %q, want value", got)
+	}
+
+	resultType := purego_func_clang_getCursorResultType(functionCursor)
+	if got := consumeString(purego_func_clang_getTypeSpelling(resultType)); got != "purego_gen_stage1_point_t" {
+		t.Fatalf("clang_getTypeSpelling(resultType) = %q, want purego_gen_stage1_point_t", got)
+	}
+	canonicalResultType := purego_func_clang_getCanonicalType(resultType)
+	if got := canonicalResultType.kind; got != purego_const_CXType_Record {
+		t.Fatalf("canonicalResultType.kind = %d, want %d", got, purego_const_CXType_Record)
+	}
+	if got := purego_func_clang_Type_getSizeOf(canonicalResultType); got != 8 {
+		t.Fatalf("clang_Type_getSizeOf(canonicalResultType) = %d, want 8", got)
+	}
+	if got := purego_func_clang_Type_getAlignOf(canonicalResultType); got != 4 {
+		t.Fatalf("clang_Type_getAlignOf(canonicalResultType) = %d, want 4", got)
+	}
+
+	typeDeclaration := purego_func_clang_getTypeDeclaration(canonicalResultType)
+	if got := purego_func_clang_getCursorKind(typeDeclaration); got != purego_const_CXCursor_StructDecl {
+		t.Fatalf("clang_getCursorKind(typeDeclaration) = %d, want %d", got, purego_const_CXCursor_StructDecl)
+	}
+
+	location := purego_func_clang_getCursorLocation(functionCursor)
+	var file purego_type_CXFile
+	var line uint32
+	var column uint32
+	var offset uint32
+	purego_func_clang_getExpansionLocation(
+		location,
+		uintptr(unsafe.Pointer(&file)),
+		uintptr(unsafe.Pointer(&line)),
+		uintptr(unsafe.Pointer(&column)),
+		uintptr(unsafe.Pointer(&offset)),
+	)
+	if got := consumeString(purego_func_clang_getFileName(uintptr(file))); got != headerPath {
+		t.Fatalf("clang_getFileName(file) = %q, want %q", got, headerPath)
+	}
+	if line == 0 || column == 0 || offset == 0 {
+		t.Fatalf("clang_getExpansionLocation() line=%d column=%d offset=%d, want > 0", line, column, offset)
+	}
+
+	typedefCursor := mustCursorBySpelling(
+		t,
+		translationUnitWithDefine,
+		headerPath,
+		"purego_gen_stage1_name_t",
+	)
+	if got := purego_func_clang_getCursorKind(typedefCursor); got != purego_const_CXCursor_TypedefDecl {
+		t.Fatalf("clang_getCursorKind(typedefCursor) = %d, want %d", got, purego_const_CXCursor_TypedefDecl)
+	}
+	underlyingType := purego_func_clang_getTypedefDeclUnderlyingType(typedefCursor)
+	if got := underlyingType.kind; got != purego_const_CXType_Pointer {
+		t.Fatalf("underlyingType.kind = %d, want %d", got, purego_const_CXType_Pointer)
+	}
+	if got := purego_func_clang_isConstQualifiedType(purego_func_clang_getPointeeType(underlyingType)); got == 0 {
+		t.Fatal("clang_isConstQualifiedType(pointee(underlyingType)) = 0, want non-zero")
+	}
+
+	varCursor := mustCursorBySpelling(
+		t,
+		translationUnitWithDefine,
+		headerPath,
+		"purego_gen_stage1_counter",
+	)
+	if got := purego_func_clang_getCursorKind(varCursor); got != purego_const_CXCursor_VarDecl {
+		t.Fatalf("clang_getCursorKind(varCursor) = %d, want %d", got, purego_const_CXCursor_VarDecl)
+	}
+	if got := purego_func_clang_Cursor_getStorageClass(varCursor); got != purego_const_CX_SC_Extern {
+		t.Fatalf("clang_Cursor_getStorageClass(varCursor) = %d, want %d", got, purego_const_CX_SC_Extern)
+	}
+}
+
+func mustCursorBySpelling(
+	t *testing.T,
+	translationUnit uintptr,
+	headerPath string,
+	spelling string,
+) purego_type_CXCursor {
+	t.Helper()
+
+	line, column := mustLineColumnForToken(t, headerPath, spelling)
+	file := purego_func_clang_getFile(translationUnit, headerPath)
+	if file == 0 {
+		t.Fatalf("clang_getFile(%q) returned nil", headerPath)
+	}
+	location := purego_func_clang_getLocation(translationUnit, file, uint32(line), uint32(column))
+	cursor := purego_func_clang_getCursor(translationUnit, location)
+	if got := consumeString(purego_func_clang_getCursorSpelling(cursor)); got != spelling {
+		t.Fatalf("cursor spelling for %q = %q", spelling, got)
+	}
+	return cursor
+}
+
+func mustLineColumnForToken(t *testing.T, path string, token string) (int, int) {
+	t.Helper()
+
+	source, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+
+	index := strings.Index(string(source), token)
+	if index < 0 {
+		t.Fatalf("token %q not found in %s", token, path)
+	}
+
+	line := 1
+	column := 1
+	for _, b := range source[:index] {
+		if b == '\n' {
+			line++
+			column = 1
+			continue
+		}
+		column++
+	}
+	return line, column
 }

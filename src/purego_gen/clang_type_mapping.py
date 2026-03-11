@@ -47,9 +47,28 @@ _TYPE_KIND_TO_GO_TYPE: Final[dict[str, str]] = {
 _FUNCTION_TYPE_KINDS: Final[frozenset[str]] = frozenset({"FUNCTIONPROTO", "FUNCTIONNOPROTO"})
 _CHAR_TYPE_KINDS: Final[frozenset[str]] = frozenset({"CHAR_S", "CHAR_U"})
 _RECORD_TYPE_KIND_NAME: Final[str] = "RECORD"
+_CONSTANT_ARRAY_TYPE_KIND_NAME: Final[str] = "CONSTANTARRAY"
 _FIELD_DECL_KIND_NAME: Final[str] = "FIELD_DECL"
 _STRUCT_DECL_KIND_NAME: Final[str] = "STRUCT_DECL"
 _UNION_DECL_KIND_NAME: Final[str] = "UNION_DECL"
+
+
+def _map_pointer_type_to_go_name(canonical_type: TypeLike) -> str:
+    pointee_kind_name = canonical_type.get_pointee().get_canonical().kind.name
+    if pointee_kind_name in _FUNCTION_TYPE_KINDS:
+        return "uintptr"
+    return "uintptr"
+
+
+def _map_constant_array_type_to_go_name(canonical_type: TypeLike) -> str | None:
+    element_type = canonical_type.get_array_element_type().get_canonical()
+    element_go_type = map_type_to_go_name(element_type)
+    if element_go_type is None:
+        return None
+    array_size = canonical_type.get_array_size()
+    if array_size < 0:
+        return None
+    return f"[{array_size}]{element_go_type}"
 
 
 def map_type_to_go_name(clang_type: TypeLike) -> str | None:
@@ -65,11 +84,9 @@ def map_type_to_go_name(clang_type: TypeLike) -> str | None:
     if mapped is not None:
         return mapped
     if kind_name == "POINTER":
-        pointee_kind_name = canonical.get_pointee().get_canonical().kind.name
-        if pointee_kind_name in _FUNCTION_TYPE_KINDS:
-            return "uintptr"
-    if kind_name == "POINTER":
-        return "uintptr"
+        return _map_pointer_type_to_go_name(canonical)
+    if kind_name == _CONSTANT_ARRAY_TYPE_KIND_NAME:
+        return _map_constant_array_type_to_go_name(canonical)
     if kind_name == _RECORD_TYPE_KIND_NAME:
         return map_record_type_to_go_name(canonical).go_type
     return None

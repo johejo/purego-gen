@@ -11,6 +11,7 @@ from purego_gen.model import (
     ConstantDecl,
     FunctionDecl,
     ParsedDeclarations,
+    RecordFieldDecl,
     RecordTypedefDecl,
     TypedefDecl,
 )
@@ -125,3 +126,108 @@ def test_render_go_source_falls_back_to_uintptr_without_type_emit() -> None:
     normalized_source = " ".join(source.split())
     assert "purego_type_foo_t" not in source
     assert "purego_func_create_ctx func( ctx uintptr, ) uintptr" in normalized_source
+
+
+def test_render_go_source_reuses_record_alias_for_by_value_function_signatures() -> None:
+    """Function signatures should reuse emitted record aliases for by-value types."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func", "type"),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="roundtrip_point",
+                    result_c_type="fixture_point_t",
+                    parameter_c_types=("fixture_point_t",),
+                    parameter_names=("value",),
+                    go_result_type="struct {\n\tleft int32\n\tright int32\n}",
+                    go_parameter_types=("struct {\n\tleft int32\n\tright int32\n}",),
+                ),
+            ),
+            typedefs=(
+                TypedefDecl(
+                    name="fixture_point_t",
+                    c_type="struct fixture_point",
+                    go_type="struct {\n\tleft int32\n\tright int32\n}",
+                ),
+            ),
+            constants=(),
+            runtime_vars=(),
+            record_typedefs=(
+                RecordTypedefDecl(
+                    name="fixture_point_t",
+                    c_type="struct fixture_point",
+                    record_kind="STRUCT_DECL",
+                    size_bytes=8,
+                    align_bytes=4,
+                    fields=(
+                        RecordFieldDecl(
+                            name="left",
+                            c_type="int",
+                            kind="FIELD_DECL",
+                            offset_bits=0,
+                            size_bytes=4,
+                            align_bytes=4,
+                            is_bitfield=False,
+                            bitfield_width=None,
+                            supported=True,
+                            unsupported_code=None,
+                            unsupported_reason=None,
+                        ),
+                        RecordFieldDecl(
+                            name="right",
+                            c_type="int",
+                            kind="FIELD_DECL",
+                            offset_bits=32,
+                            size_bytes=4,
+                            align_bytes=4,
+                            is_bitfield=False,
+                            bitfield_width=None,
+                            supported=True,
+                            unsupported_code=None,
+                            unsupported_reason=None,
+                        ),
+                    ),
+                    supported=True,
+                    unsupported_code=None,
+                    unsupported_reason=None,
+                ),
+            ),
+        ),
+    )
+
+    normalized_source = " ".join(source.split())
+    assert "purego_type_fixture_point_t = struct {" in source
+    assert (
+        "purego_func_roundtrip_point func( value purego_type_fixture_point_t, ) "
+        "purego_type_fixture_point_t"
+    ) in normalized_source
+
+
+def test_render_go_source_keeps_primitive_function_signature_types() -> None:
+    """Primitive typedef-backed function signatures should keep primitive Go types."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func", "type"),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="current_mode",
+                    result_c_type="fixture_mode_t",
+                    parameter_c_types=(),
+                    parameter_names=(),
+                    go_result_type="int32",
+                    go_parameter_types=(),
+                ),
+            ),
+            typedefs=(TypedefDecl(name="fixture_mode_t", c_type="int", go_type="int32"),),
+            constants=(),
+            runtime_vars=(),
+        ),
+    )
+
+    normalized_source = " ".join(source.split())
+    assert "purego_type_fixture_mode_t = int32" in source
+    assert "purego_func_current_mode func() int32" in normalized_source

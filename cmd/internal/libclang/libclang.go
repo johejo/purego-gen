@@ -14,10 +14,70 @@ type Index = purego_type_CXIndex
 
 type TranslationUnit = purego_type_CXTranslationUnit
 
+type Cursor = purego_type_CXCursor
+
+type Type = purego_type_CXType
+
+type String = purego_type_CXString
+
+type SourceLocation = purego_type_CXSourceLocation
+
+type File = purego_type_CXFile
+
+type CursorKind = int32
+
+type TypeKind = int32
+
+type StorageClass = int32
+
+type ChildVisitResult = int32
+
 const (
 	DetailedPreprocessingRecord        = purego_const_CXTranslationUnit_DetailedPreprocessingRecord
 	SkipFunctionBodies                 = purego_const_CXTranslationUnit_SkipFunctionBodies
 	DefaultParseOptions         uint32 = DetailedPreprocessingRecord | SkipFunctionBodies
+
+	CursorStructDecl       CursorKind = purego_const_CXCursor_StructDecl
+	CursorUnionDecl        CursorKind = purego_const_CXCursor_UnionDecl
+	CursorEnumDecl         CursorKind = purego_const_CXCursor_EnumDecl
+	CursorFieldDecl        CursorKind = purego_const_CXCursor_FieldDecl
+	CursorEnumConstantDecl CursorKind = purego_const_CXCursor_EnumConstantDecl
+	CursorFunctionDecl     CursorKind = purego_const_CXCursor_FunctionDecl
+	CursorVarDecl          CursorKind = purego_const_CXCursor_VarDecl
+	CursorParmDecl         CursorKind = purego_const_CXCursor_ParmDecl
+	CursorTypedefDecl      CursorKind = purego_const_CXCursor_TypedefDecl
+	CursorTranslationUnit  CursorKind = purego_const_CXCursor_TranslationUnit
+	CursorMacroDefinition  CursorKind = purego_const_CXCursor_MacroDefinition
+
+	TypeVoid            TypeKind = purego_const_CXType_Void
+	TypeBool            TypeKind = purego_const_CXType_Bool
+	TypeCharU           TypeKind = purego_const_CXType_Char_U
+	TypeUChar           TypeKind = purego_const_CXType_UChar
+	TypeUShort          TypeKind = purego_const_CXType_UShort
+	TypeUInt            TypeKind = purego_const_CXType_UInt
+	TypeULong           TypeKind = purego_const_CXType_ULong
+	TypeULongLong       TypeKind = purego_const_CXType_ULongLong
+	TypeCharS           TypeKind = purego_const_CXType_Char_S
+	TypeSChar           TypeKind = purego_const_CXType_SChar
+	TypeShort           TypeKind = purego_const_CXType_Short
+	TypeInt             TypeKind = purego_const_CXType_Int
+	TypeLong            TypeKind = purego_const_CXType_Long
+	TypeLongLong        TypeKind = purego_const_CXType_LongLong
+	TypeFloat           TypeKind = purego_const_CXType_Float
+	TypeDouble          TypeKind = purego_const_CXType_Double
+	TypePointer         TypeKind = purego_const_CXType_Pointer
+	TypeRecord          TypeKind = purego_const_CXType_Record
+	TypeEnum            TypeKind = purego_const_CXType_Enum
+	TypeTypedef         TypeKind = purego_const_CXType_Typedef
+	TypeFunctionNoProto TypeKind = purego_const_CXType_FunctionNoProto
+	TypeFunctionProto   TypeKind = purego_const_CXType_FunctionProto
+	TypeConstantArray   TypeKind = purego_const_CXType_ConstantArray
+
+	StorageClassExtern StorageClass = purego_const_CX_SC_Extern
+
+	ChildVisitBreak    ChildVisitResult = purego_const_CXChildVisit_Break
+	ChildVisitContinue ChildVisitResult = purego_const_CXChildVisit_Continue
+	ChildVisitRecurse  ChildVisitResult = purego_const_CXChildVisit_Recurse
 )
 
 type Library struct {
@@ -108,6 +168,146 @@ func (library *Library) NumDiagnostics(translationUnit TranslationUnit) uint32 {
 		return 0
 	}
 	return purego_func_clang_getNumDiagnostics(uintptr(translationUnit))
+}
+
+func CopyString(value String) string {
+	text := purego_func_clang_getCString(value)
+	purego_func_clang_disposeString(value)
+	return text
+}
+
+func (library *Library) TranslationUnitCursor(translationUnit TranslationUnit) Cursor {
+	return purego_func_clang_getTranslationUnitCursor(uintptr(translationUnit))
+}
+
+func (library *Library) File(translationUnit TranslationUnit, fileName string) File {
+	return File(purego_func_clang_getFile(uintptr(translationUnit), fileName))
+}
+
+func (library *Library) Location(
+	translationUnit TranslationUnit,
+	file File,
+	line uint32,
+	column uint32,
+) SourceLocation {
+	return purego_func_clang_getLocation(uintptr(translationUnit), uintptr(file), line, column)
+}
+
+func (library *Library) Cursor(translationUnit TranslationUnit, location SourceLocation) Cursor {
+	return purego_func_clang_getCursor(uintptr(translationUnit), location)
+}
+
+func (library *Library) CursorKind(cursor Cursor) CursorKind {
+	return CursorKind(purego_func_clang_getCursorKind(cursor))
+}
+
+func (library *Library) CursorKindSpelling(kind CursorKind) string {
+	return CopyString(purego_func_clang_getCursorKindSpelling(int32(kind)))
+}
+
+func (library *Library) CursorSpelling(cursor Cursor) string {
+	return CopyString(purego_func_clang_getCursorSpelling(cursor))
+}
+
+func (library *Library) CursorRawCommentText(cursor Cursor) string {
+	return CopyString(purego_func_clang_Cursor_getRawCommentText(cursor))
+}
+
+func (library *Library) CursorLocation(cursor Cursor) SourceLocation {
+	return purego_func_clang_getCursorLocation(cursor)
+}
+
+func (library *Library) ExpansionLocation(location SourceLocation) (File, uint32, uint32, uint32) {
+	var file File
+	var line uint32
+	var column uint32
+	var offset uint32
+	purego_func_clang_getExpansionLocation(
+		location,
+		uintptr(unsafe.Pointer(&file)),
+		uintptr(unsafe.Pointer(&line)),
+		uintptr(unsafe.Pointer(&column)),
+		uintptr(unsafe.Pointer(&offset)),
+	)
+	return file, line, column, offset
+}
+
+func (library *Library) FileName(file File) string {
+	return CopyString(purego_func_clang_getFileName(uintptr(file)))
+}
+
+func (library *Library) CursorType(cursor Cursor) Type {
+	return purego_func_clang_getCursorType(cursor)
+}
+
+func (library *Library) CursorResultType(cursor Cursor) Type {
+	return purego_func_clang_getCursorResultType(cursor)
+}
+
+func (library *Library) CursorTypedefUnderlyingType(cursor Cursor) Type {
+	return purego_func_clang_getTypedefDeclUnderlyingType(cursor)
+}
+
+func (library *Library) CursorNumArguments(cursor Cursor) int32 {
+	return purego_func_clang_Cursor_getNumArguments(cursor)
+}
+
+func (library *Library) CursorArgument(cursor Cursor, index uint32) Cursor {
+	return purego_func_clang_Cursor_getArgument(cursor, uint32(index))
+}
+
+func (library *Library) CursorStorageClass(cursor Cursor) StorageClass {
+	return StorageClass(purego_func_clang_Cursor_getStorageClass(cursor))
+}
+
+func (library *Library) IsCursorDefinition(cursor Cursor) bool {
+	return purego_func_clang_isCursorDefinition(cursor) != 0
+}
+
+func (library *Library) CanonicalType(typ Type) Type {
+	return purego_func_clang_getCanonicalType(typ)
+}
+
+func (library *Library) PointeeType(typ Type) Type {
+	return purego_func_clang_getPointeeType(typ)
+}
+
+func (library *Library) TypeDeclaration(typ Type) Cursor {
+	return purego_func_clang_getTypeDeclaration(typ)
+}
+
+func (library *Library) TypeSpelling(typ Type) string {
+	return CopyString(purego_func_clang_getTypeSpelling(typ))
+}
+
+func (library *Library) TypeKind(typ Type) TypeKind {
+	return TypeKind(typ.kind)
+}
+
+func (library *Library) TypeKindSpelling(kind TypeKind) string {
+	return CopyString(purego_func_clang_getTypeKindSpelling(int32(kind)))
+}
+
+func (library *Library) TypeSize(typ Type) int64 {
+	return purego_func_clang_Type_getSizeOf(typ)
+}
+
+func (library *Library) TypeAlign(typ Type) int64 {
+	return purego_func_clang_Type_getAlignOf(typ)
+}
+
+func (library *Library) IsConstQualifiedType(typ Type) bool {
+	return purego_func_clang_isConstQualifiedType(typ) != 0
+}
+
+func (library *Library) VisitChildrenRaw(
+	parent Cursor,
+	visitor uintptr,
+	clientData uintptr,
+) uint32 {
+	// A typed Go callback wrapper is deferred until purego can safely bridge
+	// libclang's by-value CXCursor callback ABI.
+	return purego_func_clang_visitChildren(parent, visitor, clientData)
 }
 
 type cStringArray struct {

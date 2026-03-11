@@ -98,6 +98,12 @@ class _TemplateContext(TypedDict):
     runtime_vars: tuple[_RuntimeVarContext, ...]
 
 
+class _FunctionSignatureTypeAliases(TypedDict):
+    record: Mapping[str, str]
+    opaque: Mapping[str, str]
+    enum: Mapping[str, str]
+
+
 def _resolve_template_dir() -> Path:
     """Resolve the template directory from environment or source layout.
 
@@ -127,27 +133,76 @@ def _get_environment() -> Environment:
     )
 
 
-def _build_emitted_opaque_struct_typedef_names(
+def _build_emitted_record_typedef_names(
     *,
     emit_kinds: tuple[str, ...],
     declarations: ParsedDeclarations,
-    emitted_typedef_names: set[str],
 ) -> set[str]:
-    """Build emitted opaque struct typedef-name set.
+    """Build emitted record typedef-name set.
 
     Returns:
-        Set of opaque typedef names emitted in this render.
+        Set of record typedef names emitted in this render.
     """
     if "type" not in emit_kinds:
         return set()
 
+    emitted_typedef_names = {typedef.name for typedef in declarations.typedefs}
+    record_typedef_names: set[str] = set()
+    for record_typedef in declarations.record_typedefs:
+        if record_typedef.name not in emitted_typedef_names:
+            continue
+        record_typedef_names.add(record_typedef.name)
+    return record_typedef_names
+
+
+def _build_record_alias_type_by_typedef_name(
+    *,
+    declarations: ParsedDeclarations,
+    type_identifiers: tuple[str, ...],
+    emitted_record_typedef_names: set[str],
+) -> dict[str, str]:
+    """Build emitted record typedef alias lookup used by function signatures.
+
+    Returns:
+        Mapping of record typedef spellings to generated alias type names.
+    """
+    type_identifier_by_name = {
+        typedef.name: identifier
+        for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
+    }
+    typedef_by_name = {typedef.name: typedef for typedef in declarations.typedefs}
+    record_alias_type_by_typedef_name: dict[str, str] = {}
+    for typedef_name in emitted_record_typedef_names:
+        identifier = type_identifier_by_name.get(typedef_name)
+        if identifier is None:
+            continue
+        alias_name = f"purego_type_{identifier}"
+        record_alias_type_by_typedef_name[typedef_name] = alias_name
+        typedef = typedef_by_name.get(typedef_name)
+        if typedef is None:
+            continue
+        normalized_c_type = normalize_c_type_for_lookup(typedef.c_type)
+        record_alias_type_by_typedef_name[normalized_c_type] = alias_name
+    return record_alias_type_by_typedef_name
+
+
+def _build_emitted_opaque_struct_typedef_names(
+    *,
+    declarations: ParsedDeclarations,
+    emitted_record_typedef_names: set[str],
+) -> set[str]:
+    """Build emitted opaque struct typedef-name subset.
+
+    Returns:
+        Set of opaque typedef names emitted in this render.
+    """
     opaque_typedef_names: set[str] = set()
     for record_typedef in declarations.record_typedefs:
         if record_typedef.record_kind != "STRUCT_DECL":
             continue
         if not record_typedef.is_opaque:
             continue
-        if record_typedef.name not in emitted_typedef_names:
+        if record_typedef.name not in emitted_record_typedef_names:
             continue
         opaque_typedef_names.add(record_typedef.name)
     return opaque_typedef_names
@@ -155,26 +210,19 @@ def _build_emitted_opaque_struct_typedef_names(
 
 def _build_opaque_alias_type_by_typedef_name(
     *,
-    declarations: ParsedDeclarations,
-    type_identifiers: tuple[str, ...],
     emitted_opaque_struct_typedef_names: set[str],
+    record_alias_type_by_typedef_name: Mapping[str, str],
 ) -> dict[str, str]:
-    """Build emitted opaque typedef alias lookup used by function signatures.
+    """Build emitted opaque typedef alias lookup used by pointer signatures.
 
     Returns:
-        Mapping of typedef name to generated alias type name.
+        Mapping of opaque typedef name to generated alias type name.
     """
-    type_identifier_by_name = {
-        typedef.name: identifier
-        for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
+    return {
+        typedef_name: record_alias_type_by_typedef_name[typedef_name]
+        for typedef_name in emitted_opaque_struct_typedef_names
+        if typedef_name in record_alias_type_by_typedef_name
     }
-    opaque_alias_type_by_typedef_name: dict[str, str] = {}
-    for typedef_name in emitted_opaque_struct_typedef_names:
-        identifier = type_identifier_by_name.get(typedef_name)
-        if identifier is None:
-            continue
-        opaque_alias_type_by_typedef_name[typedef_name] = f"purego_type_{identifier}"
-    return opaque_alias_type_by_typedef_name
 
 
 def _build_emitted_strict_enum_typedef_names(
@@ -247,8 +295,7 @@ def _resolve_function_signature_type(
     *,
     go_type: str,
     c_type: str,
-    opaque_alias_type_by_typedef_name: Mapping[str, str],
-    enum_alias_type_by_typedef_name: Mapping[str, str],
+    type_aliases: _FunctionSignatureTypeAliases,
 ) -> str:
     """Resolve emitted function signature type with opaque-alias substitution.
 
@@ -257,15 +304,19 @@ def _resolve_function_signature_type(
     """
     if go_type == "int32":
         normalized_c_type = normalize_c_type_for_lookup(c_type)
-        strict_enum_alias = enum_alias_type_by_typedef_name.get(normalized_c_type)
+        strict_enum_alias = type_aliases["enum"].get(normalized_c_type)
         if strict_enum_alias is not None:
             return strict_enum_alias
+    normalized_c_type = normalize_c_type_for_lookup(c_type)
+    record_alias_type = type_aliases["record"].get(normalized_c_type)
+    if record_alias_type is not None:
+        return record_alias_type
     if go_type != "uintptr":
         return go_type
     typedef_name = extract_pointer_typedef_name(c_type)
     if typedef_name is None:
         return go_type
-    return opaque_alias_type_by_typedef_name.get(typedef_name, go_type)
+    return type_aliases["opaque"].get(typedef_name, go_type)
 
 
 def _sanitize_function_parameter_name(raw_name: str, *, index: int) -> str:
@@ -335,8 +386,7 @@ def _build_function_parameters_context(
     parameter_names: tuple[str, ...],
     go_parameter_types: tuple[str, ...],
     parameter_c_types: tuple[str, ...],
-    opaque_alias_type_by_typedef_name: Mapping[str, str],
-    enum_alias_type_by_typedef_name: Mapping[str, str],
+    type_aliases: _FunctionSignatureTypeAliases,
 ) -> tuple[_FunctionParameterContext, ...]:
     """Build resolved parameter context for one function signature.
 
@@ -367,8 +417,7 @@ def _build_function_parameters_context(
             "type": _resolve_function_signature_type(
                 go_type=go_parameter_type,
                 c_type=parameter_c_type,
-                opaque_alias_type_by_typedef_name=opaque_alias_type_by_typedef_name,
-                enum_alias_type_by_typedef_name=enum_alias_type_by_typedef_name,
+                type_aliases=type_aliases,
             ),
         })
     return tuple(parameters)
@@ -410,29 +459,38 @@ def _build_context(
         tuple(runtime_var.name for runtime_var in declarations.runtime_vars),
         fallback_prefix="var",
     )
-    emitted_typedef_names = {
-        typedef.name for typedef in declarations.typedefs if typedef.go_type == "uintptr"
-    }
-    emitted_opaque_struct_typedef_names = _build_emitted_opaque_struct_typedef_names(
+    emitted_record_typedef_names = _build_emitted_record_typedef_names(
         emit_kinds=emit_kinds,
         declarations=declarations,
-        emitted_typedef_names=emitted_typedef_names,
+    )
+    emitted_opaque_struct_typedef_names = _build_emitted_opaque_struct_typedef_names(
+        declarations=declarations,
+        emitted_record_typedef_names=emitted_record_typedef_names,
     )
     emitted_strict_enum_typedef_names = _build_emitted_strict_enum_typedef_names(
         emit_kinds=emit_kinds,
         declarations=declarations,
         type_mapping=type_mapping,
     )
-    opaque_alias_type_by_typedef_name = _build_opaque_alias_type_by_typedef_name(
+    record_alias_type_by_typedef_name = _build_record_alias_type_by_typedef_name(
         declarations=declarations,
         type_identifiers=type_identifiers,
+        emitted_record_typedef_names=emitted_record_typedef_names,
+    )
+    opaque_alias_type_by_typedef_name = _build_opaque_alias_type_by_typedef_name(
         emitted_opaque_struct_typedef_names=emitted_opaque_struct_typedef_names,
+        record_alias_type_by_typedef_name=record_alias_type_by_typedef_name,
     )
     enum_alias_type_by_typedef_name = _build_enum_alias_type_by_typedef_name(
         declarations=declarations,
         type_identifiers=type_identifiers,
         emitted_strict_enum_typedef_names=emitted_strict_enum_typedef_names,
     )
+    function_signature_type_aliases: _FunctionSignatureTypeAliases = {
+        "record": record_alias_type_by_typedef_name,
+        "opaque": opaque_alias_type_by_typedef_name,
+        "enum": enum_alias_type_by_typedef_name,
+    }
 
     return {
         "package": package,
@@ -472,14 +530,12 @@ def _build_context(
                     parameter_names=function.parameter_names,
                     go_parameter_types=function.go_parameter_types,
                     parameter_c_types=function.parameter_c_types,
-                    opaque_alias_type_by_typedef_name=opaque_alias_type_by_typedef_name,
-                    enum_alias_type_by_typedef_name=enum_alias_type_by_typedef_name,
+                    type_aliases=function_signature_type_aliases,
                 ),
                 "result_type": _resolve_function_signature_type(
                     go_type=function.go_result_type,
                     c_type=function.result_c_type,
-                    opaque_alias_type_by_typedef_name=opaque_alias_type_by_typedef_name,
-                    enum_alias_type_by_typedef_name=enum_alias_type_by_typedef_name,
+                    type_aliases=function_signature_type_aliases,
                 )
                 if function.go_result_type is not None
                 else None,

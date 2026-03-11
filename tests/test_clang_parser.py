@@ -58,7 +58,9 @@ def test_parse_type_mapping_edge_cases() -> None:
         "mode int32",
         "label uintptr",
     )
+    fixture_array_struct_type = _go_struct("values [4]int32")
     assert typedef_map["fixture_point_t"] == fixture_point_struct_type
+    assert typedef_map["fixture_with_array_t"] == fixture_array_struct_type
     assert typedef_map["fixture_opaque_t"] == "uintptr"
 
     assert tuple(typedef_map) == (
@@ -70,10 +72,10 @@ def test_parse_type_mapping_edge_cases() -> None:
         "fixture_point_t",
         "fixture_point_alias_t",
         "fixture_nested_point_t",
+        "fixture_with_array_t",
         "fixture_opaque_t",
     )
     assert tuple(typedef.name for typedef in declarations.skipped_typedefs) == (
-        "fixture_with_array_t",
         "fixture_union_t",
         "fixture_with_bitfield_t",
         "fixture_with_anonymous_field_t",

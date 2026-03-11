@@ -91,6 +91,14 @@ class TypeLike(Protocol):
         """Return whether type is const qualified."""
         ...
 
+    def get_array_element_type(self) -> TypeLike:
+        """Return element type for array-like kinds."""
+        ...
+
+    def get_array_size(self) -> int:
+        """Return array element count or negative sentinel."""
+        ...
+
 
 class _ArgumentLike(Protocol):
     spelling: str

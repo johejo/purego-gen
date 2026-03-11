@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "lib_id": "fixture_lib",
+  "package": "fixture",
+  "emit": "func,type",
+  "headers": {
+    "kind": "local",
+    "paths": [
+      "by_value_records.h"
+    ]
+  }
+}

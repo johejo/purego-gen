@@ -11,7 +11,6 @@ from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
     TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
-    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
     RecordTypedefDecl,
 )
@@ -85,13 +84,12 @@ def test_parse_record_typedef_model_unsupported_records() -> None:
     record_typedef_map = _record_typedef_map()
 
     array_record = record_typedef_map["fixture_with_array_t"]
-    assert not array_record.supported
-    assert array_record.unsupported_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
-    assert array_record.unsupported_reason is not None
-    assert "unsupported field type for values:" in array_record.unsupported_reason
+    assert array_record.supported
+    assert array_record.unsupported_code is None
+    assert array_record.unsupported_reason is None
     assert len(array_record.fields) == 1
-    assert array_record.fields[0].unsupported_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE
-    assert not array_record.fields[0].supported
+    assert array_record.fields[0].supported
+    assert array_record.fields[0].unsupported_code is None
 
     union_record = record_typedef_map["fixture_union_t"]
     assert union_record.record_kind == "UNION_DECL"

@@ -31,6 +31,9 @@ type (
 			level int32
 		}
 	}
+	purego_type_fixture_with_array_t = struct {
+		values [4]int32
+	}
 	purego_type_fixture_opaque_t uintptr
 )
 
