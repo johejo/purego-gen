@@ -1,6 +1,6 @@
 # Copyright (c) 2026 purego-gen contributors.
 
-"""Guards for accidental duplicate case profile signatures."""
+"""Guards for accidental duplicate case config signatures."""
 
 from __future__ import annotations
 
@@ -8,21 +8,16 @@ import json
 from pathlib import Path
 from typing import cast
 
+from purego_gen.config import dump_signature_payload
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CASES_DIR = _REPO_ROOT / "tests" / "cases"
-_SIGNATURE_KEYS = (
-    "schema_version",
-    "lib_id",
-    "emit",
-    "headers",
-    "filters",
-    "type_mapping",
-    "clang_args",
-)
 _ALLOWED_DUPLICATE_SIGNATURE_CASE_SETS: set[frozenset[str]] = set()
 
 type JsonScalar = str | int | float | bool | None
-type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
+type JsonValue = JsonScalar | JsonArray | JsonObject
+type JsonArray = list[JsonValue]
+type JsonObject = dict[str, JsonValue]
 
 
 def _normalize_value(value: JsonValue) -> JsonValue:
@@ -33,8 +28,19 @@ def _normalize_value(value: JsonValue) -> JsonValue:
     return value
 
 
-def _build_profile_signature(profile: dict[str, JsonValue]) -> str:
-    signature_payload = {key: profile.get(key) for key in _SIGNATURE_KEYS}
+def _build_profile_signature(profile: JsonObject) -> str:
+    generator = cast("JsonObject", profile.get("generator", {}))
+    signature_payload: JsonObject = {
+        "schema_version": profile.get("schema_version"),
+        "generator": {
+            "lib_id": generator.get("lib_id"),
+            "emit": generator.get("emit"),
+            "headers": generator.get("headers"),
+            "filters": generator.get("filters"),
+            "type_mapping": generator.get("type_mapping"),
+            "clang_args": generator.get("clang_args"),
+        },
+    }
     normalized_payload = _normalize_value(signature_payload)
     return json.dumps(normalized_payload, sort_keys=True, separators=(",", ":"))
 
@@ -42,11 +48,11 @@ def _build_profile_signature(profile: dict[str, JsonValue]) -> str:
 def test_case_profiles_are_unique_by_dedup_signature() -> None:
     """Cases should not share the same signature unless allowlisted."""
     grouped_case_ids: dict[str, list[str]] = {}
-    for profile_path in sorted(_CASES_DIR.glob("*/profile.json")):
-        case_id = profile_path.parent.name
+    for config_path in sorted(_CASES_DIR.glob("*/config.json")):
+        case_id = config_path.parent.name
         profile = cast(
-            "dict[str, JsonValue]",
-            json.loads(profile_path.read_text(encoding="utf-8")),
+            "JsonObject",
+            dump_signature_payload(config_path),
         )
         signature = _build_profile_signature(profile)
         grouped_case_ids.setdefault(signature, []).append(case_id)
@@ -70,7 +76,7 @@ def test_case_profiles_are_unique_by_dedup_signature() -> None:
         f"remove stale profile-duplicate allowlist entries: {stale_allowlist}"
     )
     assert not unexpected_duplicates, (
-        "duplicate case profile signatures detected; "
-        "adjust profile dimensions or allowlist intentionally: "
+        "duplicate case config signatures detected; "
+        "adjust config dimensions or allowlist intentionally: "
         f"{unexpected_duplicates}"
     )

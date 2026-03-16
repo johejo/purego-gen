@@ -200,24 +200,18 @@ func purego_<libid>_load_runtime_vars(handle uintptr) error
 ## CLI Contract
 
 Rules:
-- `--header` is repeatable and order-preserving.
-- Multiple headers should be handled in a single invocation when they share the
-  same generation context.
-- Running the command multiple times is allowed, but cross-run merge,
-  de-duplication, and conflict handling are caller responsibility.
-- `--lib-id` is required and determines generated helper names to avoid
-  multi-library symbol collisions.
-- `--lib-id` is normalized to a safe snake_case identifier before code
-  emission.
-- `--` separates generator flags from clang flags.
+- `--config <path>` is required and points at a JSON object with top-level
+  `schema_version`, `generator`, and optional `golden`.
+- `generator` carries generation inputs including `lib_id`, `package`,
+  `emit`, `headers`, `filters`, `type_mapping`, and `clang_args`.
+- `headers.kind` supports `local` and `env_include`.
+- JSON-local relative paths resolve from the config file directory.
+- `generator.lib_id` is normalized to a safe snake_case identifier before
+  code emission.
 - Filters are category-specific regular expressions applied after
   normalization.
 - If a category filter is provided for an emitted category and matches nothing,
   the CLI exits non-zero with an actionable error.
-- `--emit` controls which categories are generated.
-- `--const-char-as-string` is opt-in and disabled by default.
-- `--strict-enum-typedefs` is opt-in and disabled by default.
-- `--typed-sentinel-constants` is opt-in and disabled by default.
 - `--out <path>` writes to a file.
 - `--out -`, or omitting `--out`, writes generated code to stdout.
 - Generated Go source is formatted with `gofmt` before writing to stdout or
@@ -235,4 +229,4 @@ Rules:
 - ABI-focused checks cover supported struct layout validation against clang
   metadata.
 - Target-library header and runtime resolution must remain explicit and
-  profile-driven; automatic discovery is out of scope.
+  config-driven; automatic discovery is out of scope.

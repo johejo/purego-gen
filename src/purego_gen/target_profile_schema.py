@@ -7,7 +7,9 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from annotated_types import Len
-from pydantic import BaseModel, ConfigDict, StrictBool, StringConstraints
+from pydantic import BaseModel, ConfigDict, StringConstraints
+
+from purego_gen.config import TypeMappingInput as SharedTypeMappingInput
 
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 NonEmptyStrTuple = Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
@@ -17,12 +19,8 @@ class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
 
-class TypeMappingInput(_StrictModel):
+class TypeMappingInput(SharedTypeMappingInput):
     """Optional type-mapping overrides for one catalog component."""
-
-    const_char_as_string: StrictBool | None = None
-    strict_enum_typedefs: StrictBool | None = None
-    typed_sentinel_constants: StrictBool | None = None
 
 
 class ComponentInput(_StrictModel):

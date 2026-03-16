@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": "func,var",
+    "headers": {
+      "kind": "local",
+      "headers": [
+        "smoke_runtime.h"
+      ]
+    }
+  },
+  "golden": {
+    "runtime": {
+      "kind": "compile_c",
+      "sources": [
+        "runtime/runtime.c"
+      ],
+      "cflags": [
+        "-I."
+      ]
+    }
+  }
+}

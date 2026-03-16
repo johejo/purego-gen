@@ -9,7 +9,7 @@ When using purego, you often need to write a lot of boilerplate code to call C f
 ## Getting Started
 
 ```sh
-nix run github:johejo/purego-gen -- --lib-id lib_name --header /path/to/header.h --output /path/to/generated.go
+nix run github:johejo/purego-gen -- --config /path/to/config.json --out /path/to/generated.go
 ```
 
 ## License

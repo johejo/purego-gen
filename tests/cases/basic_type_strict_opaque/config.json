@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": "type",
+    "headers": {
+      "kind": "local",
+      "headers": [
+        "basic.h"
+      ]
+    }
+  }
+}

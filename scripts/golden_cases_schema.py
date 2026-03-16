@@ -3,6 +3,7 @@
 """Compatibility wrapper for the packaged golden-cases schema."""
 
 from purego_gen_e2e.golden_cases_schema import (
+    AppConfigInput,
     CaseFiltersInput,
     CaseProfileInput,
     CompileCRuntimeInput,
@@ -17,6 +18,7 @@ from purego_gen_e2e.golden_cases_schema import (
 )
 
 __all__ = [
+    "AppConfigInput",
     "CaseFiltersInput",
     "CaseProfileInput",
     "CompileCRuntimeInput",

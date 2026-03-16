@@ -20,55 +20,58 @@ from purego_gen.process_exec import run_command
 from purego_gen.renderer import RendererError, render_go_source
 
 if TYPE_CHECKING:
-    from purego_gen.cli_args import CliOptions
+    from purego_gen.generator_config import GeneratorConfig
     from purego_gen.model import ParsedDeclarations
 
 
-def _compile_filters(options: CliOptions) -> CompiledDeclarationFilters:
+def _compile_filters(config: GeneratorConfig) -> CompiledDeclarationFilters:
     """Compile all regex filters from CLI options.
 
     Returns:
         Compiled per-category regex filters.
     """
     return CompiledDeclarationFilters(
-        func=compile_filter(options.func_filter, option_name="--func-filter"),
-        type_=compile_filter(options.type_filter, option_name="--type-filter"),
-        const=compile_filter(options.const_filter, option_name="--const-filter"),
-        var=compile_filter(options.var_filter, option_name="--var-filter"),
+        func=compile_filter(config.func_filter, option_name="--func-filter"),
+        type_=compile_filter(config.type_filter, option_name="--type-filter"),
+        const=compile_filter(config.const_filter, option_name="--const-filter"),
+        var=compile_filter(config.var_filter, option_name="--var-filter"),
     )
 
 
-def apply_cli_filters(options: CliOptions, declarations: ParsedDeclarations) -> ParsedDeclarations:
+def apply_cli_filters(
+    config: GeneratorConfig,
+    declarations: ParsedDeclarations,
+) -> ParsedDeclarations:
     """Apply CLI category-specific declaration filters with match validation.
 
     Returns:
         Filtered declarations that satisfy configured CLI filters.
     """
-    filtered = apply_declaration_filters(declarations, filters=_compile_filters(options))
+    filtered = apply_declaration_filters(declarations, filters=_compile_filters(config))
     validate_filter_match(
-        emit_kinds=options.emit_kinds,
-        option_value=options.func_filter,
+        emit_kinds=config.emit_kinds,
+        option_value=config.func_filter,
         option_name="--func-filter",
         emit_kind="func",
         has_match=bool(filtered.functions),
     )
     validate_filter_match(
-        emit_kinds=options.emit_kinds,
-        option_value=options.type_filter,
+        emit_kinds=config.emit_kinds,
+        option_value=config.type_filter,
         option_name="--type-filter",
         emit_kind="type",
         has_match=bool(filtered.typedefs),
     )
     validate_filter_match(
-        emit_kinds=options.emit_kinds,
-        option_value=options.const_filter,
+        emit_kinds=config.emit_kinds,
+        option_value=config.const_filter,
         option_name="--const-filter",
         emit_kind="const",
         has_match=bool(filtered.constants),
     )
     validate_filter_match(
-        emit_kinds=options.emit_kinds,
-        option_value=options.var_filter,
+        emit_kinds=config.emit_kinds,
+        option_value=config.var_filter,
         option_name="--var-filter",
         emit_kind="var",
         has_match=bool(filtered.runtime_vars),
@@ -76,32 +79,32 @@ def apply_cli_filters(options: CliOptions, declarations: ParsedDeclarations) -> 
     return filtered
 
 
-def parse_and_filter(options: CliOptions) -> tuple[ParsedDeclarations, ParsedDeclarations]:
+def parse_and_filter(config: GeneratorConfig) -> tuple[ParsedDeclarations, ParsedDeclarations]:
     """Parse declarations then apply CLI filters.
 
     Returns:
         Pair of all parsed declarations and filtered declarations.
     """
     declarations = parse_declarations(
-        options.headers,
-        options.clang_args,
-        type_mapping=options.type_mapping,
+        config.headers,
+        config.clang_args,
+        type_mapping=config.type_mapping,
     )
-    return declarations, apply_cli_filters(options, declarations)
+    return declarations, apply_cli_filters(config, declarations)
 
 
-def render_formatted_go_source(options: CliOptions, declarations: ParsedDeclarations) -> str:
+def render_formatted_go_source(config: GeneratorConfig, declarations: ParsedDeclarations) -> str:
     """Render Go source and format via gofmt.
 
     Returns:
         Rendered and gofmt-formatted Go source text.
     """
     rendered = render_go_source(
-        package=options.package,
-        lib_id=options.lib_id,
-        emit_kinds=options.emit_kinds,
+        package=config.package,
+        lib_id=config.lib_id,
+        emit_kinds=config.emit_kinds,
         declarations=declarations,
-        type_mapping=options.type_mapping,
+        type_mapping=config.type_mapping,
     )
     return format_go_source(rendered)
 

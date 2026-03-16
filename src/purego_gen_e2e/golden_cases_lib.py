@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import difflib
-import json
 import os
 import shlex
 import shutil
@@ -13,24 +12,27 @@ import sys
 import tempfile
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
-from pydantic import ValidationError
-
-from purego_gen.cli_invocation import (
-    PuregoGenInvocation,
-    build_purego_gen_command,
-    build_src_pythonpath_env,
+from purego_gen.config import (
+    AppConfig,
+    CompileCRuntime,
+    EnvIncludeHeaders,
+    EnvLibdirRuntime,
+    GoldenConfig,
+    LocalHeaders,
+    RuntimeConfig,
+    load_app_config,
+    resolve_generator_config,
 )
-from purego_gen.model import TypeMappingOptions
+from purego_gen.generation_pipeline import (
+    ClangParserError,
+    RendererError,
+    parse_and_filter,
+    render_formatted_go_source,
+)
 from purego_gen.process_exec import run_command
 from purego_gen.toolchain import resolve_c_compiler_command
-from purego_gen.validation_error_format import format_validation_error
-from purego_gen_e2e.golden_cases_schema import (
-    CaseProfileInput,
-    CompileCRuntimeInput,
-    LocalHeadersInput,
-)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -40,70 +42,8 @@ _GO_MOD_PATH = Path("go.mod")
 _GO_SUM_PATH = Path("go.sum")
 _GENERATED_FILE_NAME = "generated.go"
 _RUNTIME_TEST_FILE_NAME = "runtime_test.go"
-_PROFILE_FILE_NAME = "profile.json"
+_CONFIG_FILE_NAME = "config.json"
 _RUNTIME_BUILD_TAG = "purego_gen_case_runtime"
-
-
-@dataclass(frozen=True, slots=True)
-class CaseFilters:
-    """Optional per-category declaration filters."""
-
-    func: str | None = None
-    type_: str | None = None
-    const: str | None = None
-    var: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class LocalHeaders:
-    """Header source definition for local case files."""
-
-    paths: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class EnvIncludeHeaders:
-    """Header source definition via include-directory environment variable."""
-
-    include_dir_env: str
-    header_names: tuple[str, ...]
-
-
-HeaderConfig = LocalHeaders | EnvIncludeHeaders
-
-
-@dataclass(frozen=True, slots=True)
-class CompileCRuntime:
-    """Runtime library definition by compiling case-local C sources."""
-
-    sources: tuple[str, ...]
-    cflags: tuple[str, ...]
-    ldflags: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class EnvLibdirRuntime:
-    """Runtime library definition via library-directory environment variable."""
-
-    lib_dir_env: str
-    library_names: tuple[str, ...]
-
-
-RuntimeConfig = CompileCRuntime | EnvLibdirRuntime
-
-
-@dataclass(frozen=True, slots=True)
-class CaseProfile:
-    """One parsed case profile loaded from profile.json."""
-
-    lib_id: str
-    package: str
-    emit: str
-    headers: HeaderConfig
-    filters: CaseFilters
-    type_mapping: TypeMappingOptions
-    clang_args: tuple[str, ...]
-    runtime: RuntimeConfig | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,138 +52,44 @@ class GoldenCase:
 
     case_id: str
     case_dir: Path
-    profile_path: Path
+    config_path: Path
     generated_path: Path
     runtime_test_path: Path | None
-    profile: CaseProfile
+    config: AppConfig
 
 
-def _normalize_optional_tuple(value: tuple[str, ...] | None) -> tuple[str, ...]:
-    return value if value is not None else ()
-
-
-def _reject_removed_pkg_config_kinds(raw_profile: object, *, profile_path: Path) -> None:
-    if not isinstance(raw_profile, dict):
-        return
-
-    profile_dict = cast("dict[str, object]", raw_profile)
-
-    headers = profile_dict.get("headers")
-    if isinstance(headers, dict) and cast("dict[str, object]", headers).get("kind") == "pkg_config":
-        message = (
-            f"profile `{profile_path}` uses removed headers.kind=`pkg_config`; "
-            "migrate to headers.kind=`env_include` with "
-            "`include_dir_env`+`header_names` or headers.kind=`local`."
-        )
-        raise RuntimeError(message)
-
-    runtime = profile_dict.get("runtime")
-    if isinstance(runtime, dict) and cast("dict[str, object]", runtime).get("kind") == "pkg_config":
-        message = (
-            f"profile `{profile_path}` uses removed runtime.kind=`pkg_config`; "
-            "migrate to runtime.kind=`env_libdir` with "
-            "`lib_dir_env`+`library_names` or runtime.kind=`compile_c`."
-        )
-        raise RuntimeError(message)
-
-
-def _to_case_profile(profile: CaseProfileInput) -> CaseProfile:
-    headers: HeaderConfig
-    if isinstance(profile.headers, LocalHeadersInput):
-        headers = LocalHeaders(paths=profile.headers.paths)
-    else:
-        headers = EnvIncludeHeaders(
-            include_dir_env=profile.headers.include_dir_env,
-            header_names=profile.headers.header_names,
-        )
-
-    runtime: RuntimeConfig | None
-    if profile.runtime is None:
-        runtime = None
-    elif isinstance(profile.runtime, CompileCRuntimeInput):
-        runtime = CompileCRuntime(
-            sources=profile.runtime.sources,
-            cflags=_normalize_optional_tuple(profile.runtime.cflags),
-            ldflags=_normalize_optional_tuple(profile.runtime.ldflags),
-        )
-    else:
-        runtime = EnvLibdirRuntime(
-            lib_dir_env=profile.runtime.lib_dir_env,
-            library_names=profile.runtime.library_names,
-        )
-
-    return CaseProfile(
-        lib_id=profile.lib_id,
-        package=profile.package,
-        emit=profile.emit,
-        headers=headers,
-        filters=CaseFilters(
-            func=profile.filters.func,
-            type_=profile.filters.type_,
-            const=profile.filters.const,
-            var=profile.filters.var,
-        ),
-        type_mapping=TypeMappingOptions(
-            const_char_as_string=profile.type_mapping.const_char_as_string,
-            strict_enum_typedefs=profile.type_mapping.strict_enum_typedefs,
-            typed_sentinel_constants=profile.type_mapping.typed_sentinel_constants,
-        ),
-        clang_args=_normalize_optional_tuple(profile.clang_args),
-        runtime=runtime,
-    )
-
-
-def _load_profile(profile_path: Path) -> CaseProfile:
-    if not profile_path.is_file():
-        message = f"profile not found: {profile_path}"
-        raise RuntimeError(message)
-
-    try:
-        raw_text = profile_path.read_text(encoding="utf-8")
-    except OSError as error:
-        message = f"failed to read profile JSON at {profile_path}: {error}"
-        raise RuntimeError(message) from error
-
-    try:
-        raw_profile = cast("object", json.loads(raw_text))
-    except json.JSONDecodeError as error:
-        message = (
-            f"failed to parse profile JSON at {profile_path}: "
-            f"{error.msg} (line {error.lineno}, column {error.colno})"
-        )
-        raise RuntimeError(message) from error
-
-    _reject_removed_pkg_config_kinds(raw_profile, profile_path=profile_path)
-
-    try:
-        profile = CaseProfileInput.model_validate_json(raw_text)
-    except ValidationError as error:
-        message = format_validation_error(error, context=f"profile `{profile_path}`")
-        raise RuntimeError(message) from error
-
-    return _to_case_profile(profile)
-
-
-def _resolve_case_runtime(case_dir: Path, profile: CaseProfile) -> RuntimeConfig | None:
+def _resolve_case_runtime(case_dir: Path, golden: GoldenConfig | None) -> GoldenConfig | None:
     runtime_test_path = case_dir / _RUNTIME_TEST_FILE_NAME
-    if runtime_test_path.is_file() and profile.runtime is None:
-        return CompileCRuntime(sources=("runtime.c",), cflags=(), ldflags=())
-    return profile.runtime
+    if runtime_test_path.is_file() and (golden is None or golden.runtime is None):
+        default_runtime = CompileCRuntime(
+            sources=((case_dir / "runtime.c").resolve(),),
+            cflags=(),
+            ldflags=(),
+        )
+        return (
+            GoldenConfig(runtime=default_runtime)
+            if golden is None
+            else replace(golden, runtime=default_runtime)
+        )
+    return golden
 
 
 def _load_case(case_dir: Path) -> GoldenCase:
-    profile_path = case_dir / "profile.json"
-    profile = _load_profile(profile_path)
+    config_path = case_dir / _CONFIG_FILE_NAME
+    app_config = load_app_config(config_path)
     runtime_test_path = case_dir / _RUNTIME_TEST_FILE_NAME
     normalized_runtime_test_path = runtime_test_path if runtime_test_path.is_file() else None
-    normalized_profile = replace(profile, runtime=_resolve_case_runtime(case_dir, profile))
+    normalized_config = replace(
+        app_config,
+        golden=_resolve_case_runtime(case_dir, app_config.golden),
+    )
     return GoldenCase(
         case_id=case_dir.name,
         case_dir=case_dir,
-        profile_path=profile_path,
+        config_path=config_path,
         generated_path=case_dir / _GENERATED_FILE_NAME,
         runtime_test_path=normalized_runtime_test_path,
-        profile=normalized_profile,
+        config=normalized_config,
     )
 
 
@@ -266,9 +112,9 @@ def discover_cases(
         raise RuntimeError(message)
 
     case_dirs = sorted(path for path in cases_root.iterdir() if path.is_dir())
-    discovered = {path.name: path for path in case_dirs if (path / "profile.json").is_file()}
+    discovered = {path.name: path for path in case_dirs if (path / _CONFIG_FILE_NAME).is_file()}
     if not discovered:
-        message = f"no case directories with profile.json found under: {cases_root}"
+        message = f"no case directories with {_CONFIG_FILE_NAME} found under: {cases_root}"
         raise RuntimeError(message)
 
     if not selected_case_ids:
@@ -283,96 +129,22 @@ def discover_cases(
     return tuple(_load_case(discovered[case_id]) for case_id in deduplicated)
 
 
-def _resolve_header_paths_and_clang_args(
-    case: GoldenCase,
-) -> tuple[tuple[Path, ...], tuple[str, ...]]:
-    profile = case.profile
-    if isinstance(profile.headers, LocalHeaders):
-        header_paths: list[Path] = []
-        for relative_path in profile.headers.paths:
-            header_path = (case.case_dir / relative_path).resolve()
-            if not header_path.is_file():
-                message = f"case `{case.case_id}` header not found: {header_path}"
-                raise RuntimeError(message)
-            header_paths.append(header_path)
-        return tuple(header_paths), profile.clang_args
-
-    include_dir_value = os.environ.get(profile.headers.include_dir_env, "").strip()
-    if not include_dir_value:
-        message = (
-            f"case `{case.case_id}` requires env {profile.headers.include_dir_env} "
-            "for headers.kind=`env_include`."
-        )
-        raise RuntimeError(message)
-
-    include_dir = Path(include_dir_value).expanduser().resolve()
-    if not include_dir.is_dir():
-        message = (
-            f"case `{case.case_id}` include directory from env "
-            f"{profile.headers.include_dir_env} does not exist: {include_dir}"
-        )
-        raise RuntimeError(message)
-
-    header_paths = []
-    for header_name in profile.headers.header_names:
-        header_path = (include_dir / header_name).resolve()
-        if not header_path.is_file():
-            message = (
-                f"case `{case.case_id}` header not found from env include directory "
-                f"{profile.headers.include_dir_env}: {header_path}"
-            )
-            raise RuntimeError(message)
-        header_paths.append(header_path)
-
-    return tuple(header_paths), ("-I", str(include_dir), *profile.clang_args)
-
-
-def render_case_source(
-    case: GoldenCase,
-    *,
-    repo_root: Path,
-    python_executable: str,
-    purego_gen_command: tuple[str, ...] | None = None,
-) -> str:
-    """Render generated Go source for one case profile.
+def render_case_source(case: GoldenCase) -> str:
+    """Render generated Go source for one case config.
 
     Returns:
-        Rendered source text.
+        Generated and formatted Go source.
 
     Raises:
-        RuntimeError: Header resolution or generation command execution fails.
+        RuntimeError: Config resolution, parsing, filtering, or rendering fails.
     """
-    header_paths, clang_args = _resolve_header_paths_and_clang_args(case)
-
-    invocation = PuregoGenInvocation(
-        lib_id=case.profile.lib_id,
-        header_paths=header_paths,
-        package_name=case.profile.package,
-        emit_kinds=case.profile.emit,
-        clang_args=clang_args,
-        func_filter=case.profile.filters.func,
-        type_filter=case.profile.filters.type_,
-        const_filter=case.profile.filters.const,
-        var_filter=case.profile.filters.var,
-        type_mapping=case.profile.type_mapping,
-    )
-    command = build_purego_gen_command(
-        invocation,
-        python_executable=python_executable,
-        command_prefix=purego_gen_command,
-    )
-    result = run_command(
-        command, cwd=repo_root, env=build_src_pythonpath_env(src_dir=repo_root / "src")
-    )
-    if result.returncode != 0:
-        command_rendered = shlex.join(command)
-        message = (
-            f"case `{case.case_id}` generation failed.\n"
-            f"command: {command_rendered}\n"
-            f"stderr:\n{result.stderr}"
-        )
-        raise RuntimeError(message)
-    return result.stdout
+    try:
+        generator_config = resolve_generator_config(case.config.generator)
+        _declarations, filtered_declarations = parse_and_filter(generator_config)
+        return render_formatted_go_source(generator_config, filtered_declarations)
+    except (ClangParserError, RendererError, ValueError, RuntimeError) as error:
+        message = f"case `{case.case_id}` generation failed.\nerror: {error}"
+        raise RuntimeError(message) from error
 
 
 def _git_show_head_file(*, repo_root: Path, file_path: Path) -> str | None:
@@ -417,10 +189,9 @@ def _find_go_binary() -> str:
 
 
 def _copy_case_runtime_support_files(*, case: GoldenCase, module_dir: Path) -> None:
-    """Copy case-local support files needed by runtime tests into module dir."""
     skip_names = {
         _GENERATED_FILE_NAME,
-        _PROFILE_FILE_NAME,
+        _CONFIG_FILE_NAME,
     }
     for entry in sorted(case.case_dir.iterdir()):
         if not entry.is_file() or entry.name in skip_names:
@@ -483,13 +254,11 @@ def _build_runtime_library_for_compile_c(
     )
     output_path = output_dir / output_name
 
-    source_paths: list[str] = []
-    for source in runtime.sources:
-        source_path = (case.case_dir / source).resolve()
+    source_paths = [str(source_path) for source_path in runtime.sources]
+    for source_path in runtime.sources:
         if not source_path.is_file():
             message = f"case `{case.case_id}` runtime source not found: {source_path}"
             raise RuntimeError(message)
-        source_paths.append(str(source_path))
 
     command = [*compiler_command]
     if sys.platform == "darwin":
@@ -553,7 +322,7 @@ def _run_go_test_for_case(
                 raise RuntimeError(message)
             return
 
-        runtime = case.profile.runtime
+        runtime = None if case.config.golden is None else case.config.golden.runtime
         if runtime is None:
             message = (
                 f"case `{case.case_id}` has runtime_test.go but runtime config "
@@ -593,17 +362,10 @@ def update_cases(
     *,
     cases: Iterable[GoldenCase],
     repo_root: Path,
-    python_executable: str,
-    purego_gen_command: tuple[str, ...] | None = None,
 ) -> None:
     """Regenerate and write generated.go for all selected cases."""
     for case in cases:
-        generated_source = render_case_source(
-            case,
-            repo_root=repo_root,
-            python_executable=python_executable,
-            purego_gen_command=purego_gen_command,
-        )
+        generated_source = render_case_source(case)
         case.generated_path.parent.mkdir(parents=True, exist_ok=True)
         case.generated_path.write_text(generated_source, encoding="utf-8")
         _write_line(f"updated: {case.generated_path.relative_to(repo_root)}")
@@ -613,29 +375,26 @@ def check_cases(
     *,
     cases: Iterable[GoldenCase],
     repo_root: Path,
-    python_executable: str,
     strict_head: bool,
-    purego_gen_command: tuple[str, ...] | None = None,
 ) -> None:
     """Run generation, golden diff, and go test checks for all selected cases.
 
     Raises:
-        RuntimeError: Generation, golden diff, or go test validation fails.
+        RuntimeError: Generation, drift detection, or go test validation fails.
     """
     for case in cases:
         _write_line(f"checking: {case.case_id}")
-        generated_source = render_case_source(
-            case,
-            repo_root=repo_root,
-            python_executable=python_executable,
-            purego_gen_command=purego_gen_command,
-        )
+        generated_source = render_case_source(case)
         expected_source = _load_expected_source(
-            repo_root=repo_root, case=case, strict_head=strict_head
+            repo_root=repo_root,
+            case=case,
+            strict_head=strict_head,
         )
         if generated_source != expected_source:
             diff = _diff_text(
-                expected=expected_source, actual=generated_source, case_id=case.case_id
+                expected=expected_source,
+                actual=generated_source,
+                case_id=case.case_id,
             )
             message = (
                 f"case `{case.case_id}` golden drift detected.\n"
@@ -649,9 +408,15 @@ def check_cases(
 
 
 __all__ = [
+    "CompileCRuntime",
+    "EnvIncludeHeaders",
+    "EnvLibdirRuntime",
     "GoldenCase",
+    "LocalHeaders",
+    "RuntimeConfig",
     "check_cases",
     "discover_cases",
+    "render_case_source",
     "resolve_env_libdir_runtime_library",
     "update_cases",
 ]

@@ -5,8 +5,10 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from purego_gen.cli_args import CliOptions, parse_options
+from purego_gen.config import load_app_config, resolve_generator_config
 from purego_gen.diagnostics import emit_generation_diagnostics
 from purego_gen.generation_pipeline import (
     ClangParserError,
@@ -53,7 +55,13 @@ def main(argv: list[str] | None = None) -> int:
         return _system_exit_to_code(error)
 
     try:
-        declarations, filtered_declarations = parse_and_filter(options)
+        app_config = load_app_config(Path(options.config_path))
+        generator_config = resolve_generator_config(app_config.generator)
+    except RuntimeError as error:
+        return _fail(str(error))
+
+    try:
+        declarations, filtered_declarations = parse_and_filter(generator_config)
     except (ClangParserError, ValueError) as error:
         return _fail(str(error))
 
@@ -61,11 +69,11 @@ def main(argv: list[str] | None = None) -> int:
         stream=sys.stderr,
         all_declarations=declarations,
         filtered_declarations=filtered_declarations,
-        emit_kinds=options.emit_kinds,
+        emit_kinds=generator_config.emit_kinds,
     )
 
     try:
-        formatted = render_formatted_go_source(options, filtered_declarations)
+        formatted = render_formatted_go_source(generator_config, filtered_declarations)
     except (RendererError, RuntimeError) as error:
         return _fail(str(error))
 

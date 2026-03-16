@@ -6,7 +6,9 @@ from __future__ import annotations
 
 import os
 import sys
+from json import dumps
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -33,6 +35,44 @@ _PRIMARY_HEADER = _FIXTURES_DIR / "basic.h"
 _CATEGORY_HEADER = _FIXTURES_DIR / "categories.h"
 _ABI_TYPES_HEADER = _FIXTURES_DIR / "abi_types.h"
 _BROKEN_HEADER = _FIXTURES_DIR / "broken_header.h"
+
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | JsonArray | JsonObject
+type JsonArray = list[JsonValue]
+type JsonObject = dict[str, JsonValue]
+
+
+def _write_config(
+    tmp_path: Path,
+    *,
+    generator_overrides: JsonObject,
+) -> Path:
+    config_path = tmp_path / "config.json"
+    generator: JsonObject = {
+        "lib_id": _FIXTURE_LIB_ID,
+        "package": _FIXTURE_PACKAGE,
+        "emit": "func",
+        "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
+        "filters": {},
+        "type_mapping": {},
+        "clang_args": [],
+    }
+    generator.update(generator_overrides)
+    config_path.write_text(
+        dumps(
+            {
+                "schema_version": 1,
+                "generator": generator,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return config_path
+
+
+def _json_object(value: JsonObject) -> JsonObject:
+    return value
 
 
 def _run_cli(*args: str) -> CommandResult:
@@ -61,17 +101,19 @@ def test_help() -> None:
     assert "usage: purego-gen" in result.stdout
 
 
-def test_reports_skipped_typedef_diagnostics_for_unsupported_record_fields() -> None:
+def test_reports_skipped_typedef_diagnostics_for_unsupported_record_fields(tmp_path: Path) -> None:
     """CLI should report skipped typedef diagnostics for unsupported record patterns."""
     result = _run_cli(
-        "--lib-id",
-        _FIXTURE_LIB_ID,
-        "--header",
-        str(_ABI_TYPES_HEADER),
-        "--pkg",
-        _FIXTURE_PACKAGE,
-        "--emit",
-        "type,const",
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_ABI_TYPES_HEADER)]},
+                    "emit": "type,const",
+                }),
+            )
+        ),
     )
 
     assert result.returncode == 0
@@ -88,17 +130,18 @@ def test_reports_skipped_typedef_diagnostics_for_unsupported_record_fields() -> 
     assert f"[{OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT}]: 0" in result.stderr
 
 
-def test_fails_when_header_has_parse_errors() -> None:
+def test_fails_when_header_has_parse_errors(tmp_path: Path) -> None:
     """Invalid C headers should fail fast with parse diagnostics."""
     result = _run_cli(
-        "--lib-id",
-        _FIXTURE_LIB_ID,
-        "--header",
-        str(_BROKEN_HEADER),
-        "--pkg",
-        _FIXTURE_PACKAGE,
-        "--emit",
-        "func",
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_BROKEN_HEADER)]},
+                }),
+            )
+        ),
     )
 
     assert result.returncode == 1
@@ -106,49 +149,85 @@ def test_fails_when_header_has_parse_errors() -> None:
 
 
 @pytest.mark.parametrize(
-    ("header_path", "emit_kind", "filter_option"),
+    ("header_path", "emit_kind", "filters"),
     [
-        pytest.param(_PRIMARY_HEADER, "func", "--func-filter", id="func"),
-        pytest.param(_ABI_TYPES_HEADER, "type", "--type-filter", id="type"),
-        pytest.param(_CATEGORY_HEADER, "const", "--const-filter", id="const"),
-        pytest.param(_CATEGORY_HEADER, "var", "--var-filter", id="var"),
+        pytest.param(_PRIMARY_HEADER, "func", {"func": "^does_not_exist$"}, id="func"),
+        pytest.param(_ABI_TYPES_HEADER, "type", {"type": "^does_not_exist$"}, id="type"),
+        pytest.param(_CATEGORY_HEADER, "const", {"const": "^does_not_exist$"}, id="const"),
+        pytest.param(_CATEGORY_HEADER, "var", {"var": "^does_not_exist$"}, id="var"),
     ],
 )
 def test_fails_when_filter_matches_no_emitted_declarations(
+    tmp_path: Path,
     header_path: Path,
     emit_kind: str,
-    filter_option: str,
+    filters: dict[str, str],
 ) -> None:
-    """Filters should fail when they match no declaration in emitted categories."""
+    """Config filters should fail when they match no declaration in emitted categories."""
     result = _run_cli(
-        "--lib-id",
-        _FIXTURE_LIB_ID,
-        "--header",
-        str(header_path),
-        "--pkg",
-        _FIXTURE_PACKAGE,
-        "--emit",
-        emit_kind,
-        filter_option,
-        "^does_not_exist$",
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(header_path)]},
+                    "emit": emit_kind,
+                    "filters": cast("JsonObject", filters),
+                }),
+            )
+        ),
     )
     assert result.returncode == 1
-    assert f"no declarations matched {filter_option}: ^does_not_exist$" in result.stderr
+    filter_name = next(iter(filters))
+    assert f"no declarations matched --{filter_name}-filter: ^does_not_exist$" in result.stderr
 
 
-def test_does_not_fail_when_filter_targets_non_emitted_category() -> None:
-    """Filters for categories outside `--emit` should not trigger no-match failures."""
+def test_does_not_fail_when_filter_targets_non_emitted_category(tmp_path: Path) -> None:
+    """Config filters outside `emit` should not trigger no-match failures."""
     result = _run_cli(
-        "--lib-id",
-        _FIXTURE_LIB_ID,
-        "--header",
-        str(_CATEGORY_HEADER),
-        "--pkg",
-        _FIXTURE_PACKAGE,
-        "--emit",
-        "func",
-        "--const-filter",
-        "^does_not_exist$",
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_CATEGORY_HEADER)]},
+                    "filters": {"const": "^does_not_exist$"},
+                }),
+            )
+        ),
     )
+    assert result.returncode == 0
+    assert _REGISTER_FUNCTIONS_SYMBOL in result.stdout
+
+
+def test_env_include_headers_work_from_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Config env-backed headers should resolve during generation."""
+    include_dir = tmp_path / "include"
+    include_dir.mkdir(parents=True, exist_ok=True)
+    (include_dir / "basic.h").write_text(
+        _PRIMARY_HEADER.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PUREGO_GEN_TEST_INCLUDE_DIR", str(include_dir))
+
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {
+                        "kind": "env_include",
+                        "include_dir_env": "PUREGO_GEN_TEST_INCLUDE_DIR",
+                        "headers": ["basic.h"],
+                    },
+                }),
+            )
+        ),
+    )
+
     assert result.returncode == 0
     assert _REGISTER_FUNCTIONS_SYMBOL in result.stdout

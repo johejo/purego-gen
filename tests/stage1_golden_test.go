@@ -23,12 +23,18 @@ const (
 type stage1GoldenCase struct {
 	caseID          string
 	caseDir         string
+	configPath      string
 	generatedPath   string
 	runtimeTestPath string
-	profile         stage1CaseProfile
+	config          stage1CaseConfig
 }
 
-type stage1CaseProfile struct {
+type stage1CaseConfig struct {
+	Generator stage1GeneratorConfig `json:"generator"`
+	Golden    *stage1GoldenConfig   `json:"golden"`
+}
+
+type stage1GeneratorConfig struct {
 	LibID       string                `json:"lib_id"`
 	PackageName string                `json:"package"`
 	Emit        string                `json:"emit"`
@@ -36,12 +42,15 @@ type stage1CaseProfile struct {
 	Filters     stage1CaseFilters     `json:"filters"`
 	TypeMapping stage1CaseTypeMapping `json:"type_mapping"`
 	ClangArgs   []string              `json:"clang_args"`
-	Runtime     json.RawMessage       `json:"runtime"`
+}
+
+type stage1GoldenConfig struct {
+	Runtime json.RawMessage `json:"runtime"`
 }
 
 type stage1CaseHeaders struct {
-	Kind  string   `json:"kind"`
-	Paths []string `json:"paths"`
+	Kind    string   `json:"kind"`
+	Headers []string `json:"headers"`
 }
 
 type stage1CaseFilters struct {
@@ -127,15 +136,15 @@ func discoverStage1GoldenCases(t *testing.T) []stage1GoldenCase {
 		}
 
 		caseDir := filepath.Join(casesDir, entry.Name())
-		profilePath := filepath.Join(caseDir, "profile.json")
-		profileData, err := os.ReadFile(profilePath)
+		configPath := filepath.Join(caseDir, "config.json")
+		profileData, err := os.ReadFile(configPath)
 		if err != nil {
-			t.Fatalf("ReadFile(%q) error = %v", profilePath, err)
+			t.Fatalf("ReadFile(%q) error = %v", configPath, err)
 		}
 
-		var profile stage1CaseProfile
-		if err := json.Unmarshal(profileData, &profile); err != nil {
-			t.Fatalf("Unmarshal(%q) error = %v", profilePath, err)
+		var config stage1CaseConfig
+		if err := json.Unmarshal(profileData, &config); err != nil {
+			t.Fatalf("Unmarshal(%q) error = %v", configPath, err)
 		}
 
 		runtimeTestPath := filepath.Join(caseDir, "runtime_test.go")
@@ -149,64 +158,68 @@ func discoverStage1GoldenCases(t *testing.T) []stage1GoldenCase {
 		cases = append(cases, stage1GoldenCase{
 			caseID:          entry.Name(),
 			caseDir:         caseDir,
+			configPath:      configPath,
 			generatedPath:   filepath.Join(caseDir, "generated.go"),
 			runtimeTestPath: runtimeTestPath,
-			profile:         profile,
+			config:          config,
 		})
 	}
 	return cases
 }
 
 func stage1CaseSkipReason(goldenCase stage1GoldenCase) string {
-	if goldenCase.profile.Headers.Kind != "local" {
+	if goldenCase.config.Generator.Headers.Kind != "local" {
 		return stage1SkipReasonEnvInclude
 	}
-	if len(goldenCase.profile.Headers.Paths) != 1 {
+	if len(goldenCase.config.Generator.Headers.Headers) != 1 {
 		return stage1SkipReasonHeaders
 	}
-	if goldenCase.profile.Filters.Func != "" ||
-		goldenCase.profile.Filters.Type != "" ||
-		goldenCase.profile.Filters.Const != "" ||
-		goldenCase.profile.Filters.Var != "" {
+	if goldenCase.config.Generator.Filters.Func != "" ||
+		goldenCase.config.Generator.Filters.Type != "" ||
+		goldenCase.config.Generator.Filters.Const != "" ||
+		goldenCase.config.Generator.Filters.Var != "" {
 		return stage1SkipReasonFilters
 	}
-	if len(goldenCase.profile.ClangArgs) != 0 {
+	if len(goldenCase.config.Generator.ClangArgs) != 0 {
 		return stage1SkipReasonClangArgs
 	}
-	if goldenCase.profile.TypeMapping.ConstCharAsString ||
-		goldenCase.profile.TypeMapping.StrictEnumTypedefs ||
-		goldenCase.profile.TypeMapping.TypedSentinelConstants {
+	if goldenCase.config.Generator.TypeMapping.ConstCharAsString ||
+		goldenCase.config.Generator.TypeMapping.StrictEnumTypedefs ||
+		goldenCase.config.Generator.TypeMapping.TypedSentinelConstants {
 		return stage1SkipReasonTypeMapping
 	}
-	if goldenCase.runtimeTestPath != "" || hasRuntimeConfig(goldenCase.profile.Runtime) {
+	if goldenCase.runtimeTestPath != "" || hasRuntimeConfig(goldenCase.config.Golden) {
 		return stage1SkipReasonRuntime
 	}
-	if goldenCase.profile.Emit != "type" {
+	if goldenCase.config.Generator.Emit != "type" {
 		return stage1SkipReasonEmit
 	}
 	return ""
 }
 
-func hasRuntimeConfig(raw json.RawMessage) bool {
-	return len(bytes.TrimSpace(raw)) != 0 && string(bytes.TrimSpace(raw)) != "null"
+func hasRuntimeConfig(golden *stage1GoldenConfig) bool {
+	if golden == nil {
+		return false
+	}
+	return len(bytes.TrimSpace(golden.Runtime)) != 0 && string(bytes.TrimSpace(golden.Runtime)) != "null"
 }
 
 func runStage1CLI(t *testing.T, goldenCase stage1GoldenCase) (string, string) {
 	t.Helper()
 
-	headerPath := filepath.Join(goldenCase.caseDir, goldenCase.profile.Headers.Paths[0])
+	headerPath := filepath.Join(goldenCase.caseDir, goldenCase.config.Generator.Headers.Headers[0])
 	command := exec.Command(
 		"go",
 		"run",
 		"./cmd/purego-gen",
 		"--lib-id",
-		goldenCase.profile.LibID,
+		goldenCase.config.Generator.LibID,
 		"--header",
 		headerPath,
 		"--pkg",
-		goldenCase.profile.PackageName,
+		goldenCase.config.Generator.PackageName,
 		"--emit",
-		goldenCase.profile.Emit,
+		goldenCase.config.Generator.Emit,
 	)
 	command.Dir = repoRoot(t)
 	command.Env = os.Environ()

@@ -1,6 +1,6 @@
 # Copyright (c) 2026 purego-gen contributors.
 
-"""Tests for case-driven golden profile loading and validation."""
+"""Tests for case-driven golden config loading and validation."""
 
 from __future__ import annotations
 
@@ -45,14 +45,14 @@ def _make_repo_layout(tmp_path: Path) -> Path:
 
 
 def _make_case(repo_root: Path, case_id: str, profile: object) -> Path:
-    """Create one case directory with profile and placeholder generated.go.
+    """Create one case directory with config and placeholder generated.go.
 
     Returns:
         Created case directory path.
     """
     case_dir = repo_root / "tests" / "cases" / case_id
     case_dir.mkdir(parents=True, exist_ok=True)
-    _write_json(case_dir / "profile.json", profile)
+    _write_json(case_dir / "config.json", profile)
     _write_text_line(case_dir / "generated.go", "package fixture")
     return case_dir
 
@@ -65,12 +65,14 @@ def test_discover_cases_loads_local_profile(tmp_path: Path) -> None:
         "one",
         {
             "schema_version": 1,
-            "lib_id": "fixture_lib",
-            "package": "fixture",
-            "emit": "func",
-            "headers": {
-                "kind": "local",
-                "paths": ["headers/basic.h"],
+            "generator": {
+                "lib_id": "fixture_lib",
+                "package": "fixture",
+                "emit": "func",
+                "headers": {
+                    "kind": "local",
+                    "headers": ["headers/basic.h"],
+                },
             },
         },
     )
@@ -82,9 +84,9 @@ def test_discover_cases_loads_local_profile(tmp_path: Path) -> None:
     assert len(cases) == 1
     case = cases[0]
     assert case.case_id == "one"
-    assert isinstance(case.profile.headers, LocalHeaders)
-    assert case.profile.headers.paths == ("headers/basic.h",)
-    assert case.profile.runtime is None
+    assert isinstance(case.config.generator.headers, LocalHeaders)
+    assert case.config.generator.headers.headers == ((case_dir / "headers" / "basic.h").resolve(),)
+    assert case.config.golden is None
 
 
 def test_discover_cases_loads_env_include_profile(
@@ -98,13 +100,15 @@ def test_discover_cases_loads_env_include_profile(
         "env_include",
         {
             "schema_version": 1,
-            "lib_id": "fixture_lib",
-            "package": "fixture",
-            "emit": "func",
-            "headers": {
-                "kind": "env_include",
-                "include_dir_env": "PUREGO_GEN_TEST_INCLUDE_DIR",
-                "header_names": ["env_basic.h"],
+            "generator": {
+                "lib_id": "fixture_lib",
+                "package": "fixture",
+                "emit": "func",
+                "headers": {
+                    "kind": "env_include",
+                    "include_dir_env": "PUREGO_GEN_TEST_INCLUDE_DIR",
+                    "headers": ["env_basic.h"],
+                },
             },
         },
     )
@@ -117,9 +121,9 @@ def test_discover_cases_loads_env_include_profile(
 
     assert len(cases) == 1
     case = cases[0]
-    assert isinstance(case.profile.headers, EnvIncludeHeaders)
-    assert case.profile.headers.include_dir_env == "PUREGO_GEN_TEST_INCLUDE_DIR"
-    assert case.profile.headers.header_names == ("env_basic.h",)
+    assert isinstance(case.config.generator.headers, EnvIncludeHeaders)
+    assert case.config.generator.headers.include_dir_env == "PUREGO_GEN_TEST_INCLUDE_DIR"
+    assert case.config.generator.headers.headers == ("env_basic.h",)
 
 
 def test_discover_cases_defaults_runtime_to_compile_c(tmp_path: Path) -> None:
@@ -130,12 +134,14 @@ def test_discover_cases_defaults_runtime_to_compile_c(tmp_path: Path) -> None:
         "runtime",
         {
             "schema_version": 1,
-            "lib_id": "fixture_lib",
-            "package": "fixture",
-            "emit": "func",
-            "headers": {
-                "kind": "local",
-                "paths": ["headers/smoke.h"],
+            "generator": {
+                "lib_id": "fixture_lib",
+                "package": "fixture",
+                "emit": "func",
+                "headers": {
+                    "kind": "local",
+                    "headers": ["headers/smoke.h"],
+                },
             },
         },
     )
@@ -145,9 +151,9 @@ def test_discover_cases_defaults_runtime_to_compile_c(tmp_path: Path) -> None:
 
     cases = discover_cases(repo_root=repo_root, selected_case_ids=())
 
-    runtime = cases[0].profile.runtime
+    runtime = None if cases[0].config.golden is None else cases[0].config.golden.runtime
     assert isinstance(runtime, CompileCRuntime)
-    assert runtime.sources == ("runtime.c",)
+    assert runtime.sources == ((case_dir / "runtime.c").resolve(),)
     assert runtime.cflags == ()
     assert runtime.ldflags == ()
 

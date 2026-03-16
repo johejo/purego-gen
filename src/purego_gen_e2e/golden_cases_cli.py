@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import argparse
-import shutil
 import sys
 from pathlib import Path
 from typing import cast
@@ -46,13 +45,6 @@ def _parse_args(argv: list[str] | None = None) -> _ParsedArgs:
     return cast("_ParsedArgs", parser.parse_args(argv))
 
 
-def _resolve_installed_purego_gen_command() -> tuple[str, ...] | None:
-    purego_gen_binary = shutil.which("purego-gen")
-    if purego_gen_binary is None:
-        return None
-    return (purego_gen_binary,)
-
-
 def main(
     argv: list[str] | None = None,
     *,
@@ -65,24 +57,16 @@ def main(
     """
     args = _parse_args(argv)
     resolved_repo_root = repo_root if repo_root is not None else Path.cwd()
-    purego_gen_command = _resolve_installed_purego_gen_command()
 
     try:
         cases = discover_cases(repo_root=resolved_repo_root, selected_case_ids=args.cases)
         if args.mode == "update":
-            update_cases(
-                cases=cases,
-                repo_root=resolved_repo_root,
-                python_executable=sys.executable,
-                purego_gen_command=purego_gen_command,
-            )
+            update_cases(cases=cases, repo_root=resolved_repo_root)
         else:
             check_cases(
                 cases=cases,
                 repo_root=resolved_repo_root,
-                python_executable=sys.executable,
                 strict_head=args.strict_head,
-                purego_gen_command=purego_gen_command,
             )
     except (RuntimeError, TypeError, ValueError) as error:
         sys.stderr.write(f"{error}\n")

@@ -25,5 +25,4 @@ Completed work is intentionally omitted.
 
 - [ ] Decide macro evaluation boundary beyond enum-like constants.
 - [ ] Decide whether enum mapping should stay on `int32` or use libclang-derived underlying size/signedness for ABI-accurate fixed-width Go types.
-- [ ] Define trigger criteria for introducing `--config <file>`.
 - [ ] Re-evaluate Windows support scope after v1 (API and symbol-loading strategy).
