@@ -232,10 +232,13 @@
                       pkgs.clang
                       pkgs.git
                       pkgs.go
+                      pkgs.sqlite
                     ]
                   }" \
                   --set PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR "${pkgs.zstd.dev}/include" \
-                  --set PUREGO_GEN_TEST_LIBZSTD_LIB_DIR "${pkgs.zstd.out}/lib"
+                  --set PUREGO_GEN_TEST_LIBZSTD_LIB_DIR "${pkgs.zstd.out}/lib" \
+                  --set PUREGO_GEN_TEST_LIBSQLITE3_INCLUDE_DIR "${pkgs.sqlite.dev}/include" \
+                  --set PUREGO_GEN_TEST_LIBSQLITE3_LIB_DIR "${pkgs.sqlite.out}/lib"
             '';
           };
           codingAgentEnvGuard = pkgs.writeShellScriptBin "env" ''
@@ -261,6 +264,7 @@
             shfmt
             go-tools
             uv
+            sqlite
             zstd
             treefmt
           ];
@@ -274,6 +278,8 @@
                 PUREGO_GEN_TEST_LIBCLANG_LIB_DIR = "${pkgs.libclang.lib}/lib";
                 PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR = "${pkgs.zstd.dev}/include";
                 PUREGO_GEN_TEST_LIBZSTD_LIB_DIR = "${pkgs.zstd.out}/lib";
+                PUREGO_GEN_TEST_LIBSQLITE3_INCLUDE_DIR = "${pkgs.sqlite.dev}/include";
+                PUREGO_GEN_TEST_LIBSQLITE3_LIB_DIR = "${pkgs.sqlite.out}/lib";
               }
               // extra
             );

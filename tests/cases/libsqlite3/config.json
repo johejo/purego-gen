@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "generator": {
+    "lib_id": "sqlite3",
+    "package": "fixture",
+    "emit": "func,type,const",
+    "headers": {
+      "kind": "env_include",
+      "include_dir_env": "PUREGO_GEN_TEST_LIBSQLITE3_INCLUDE_DIR",
+      "headers": [
+        "sqlite3.h"
+      ]
+    },
+    "filters": {
+      "func": "^(sqlite3_libversion|sqlite3_open|sqlite3_close|sqlite3_errmsg|sqlite3_prepare_v2|sqlite3_step|sqlite3_column_int|sqlite3_finalize)$",
+      "type": "^(sqlite3|sqlite3_stmt)$",
+      "const": "^(SQLITE_OK|SQLITE_ROW|SQLITE_DONE)$"
+    },
+    "type_mapping": {
+      "const_char_as_string": true
+    }
+  },
+  "golden": {
+    "runtime": {
+      "kind": "env_libdir",
+      "lib_dir_env": "PUREGO_GEN_TEST_LIBSQLITE3_LIB_DIR",
+      "library_names": [
+        "sqlite3"
+      ]
+    }
+  }
+}
