@@ -8,8 +8,9 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from purego_gen.config_load import build_generator_spec, read_config_text, resolve_config_path
+from purego_gen.config_load import read_config_text
 from purego_gen.config_model import GeneratorSpec
+from purego_gen.config_normalize import build_generator_spec, resolve_config_path
 from purego_gen.config_schema import GeneratorInput, NonEmptyStr, NonEmptyStrTuple
 from purego_gen.validation_error_format import format_validation_error
 
