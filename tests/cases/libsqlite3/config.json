@@ -23,18 +23,34 @@
         "sqlite3_column_text",
         "sqlite3_bind_text",
         "sqlite3_exec",
+        "sqlite3_create_function_v2",
+        "sqlite3_create_collation_v2",
+        "sqlite3_commit_hook",
+        "sqlite3_rollback_hook",
+        "sqlite3_update_hook",
+        "sqlite3_progress_handler",
+        "sqlite3_value_text",
+        "sqlite3_value_int",
+        "sqlite3_result_text",
+        "sqlite3_result_int",
+        "sqlite3_user_data",
         "sqlite3_finalize"
       ],
       "type": [
         "sqlite3",
         "sqlite3_stmt",
         "sqlite3_callback",
+        "sqlite3_context",
+        "sqlite3_value",
+        "sqlite3_int64",
         "sqlite3_destructor_type"
       ],
       "const": [
         "SQLITE_OK",
         "SQLITE_ROW",
         "SQLITE_DONE",
+        "SQLITE_UTF8",
+        "SQLITE_INSERT",
         "SQLITE_STATIC",
         "SQLITE_TRANSIENT"
       ]
