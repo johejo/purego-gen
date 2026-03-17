@@ -1,6 +1,3 @@
-//go:build purego_gen_case_runtime
-// +build purego_gen_case_runtime
-
 package fixture
 
 import (
@@ -13,6 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/johejo/purego-gen/tests/testruntime"
 )
 
 type cStringArray struct {
@@ -73,10 +71,11 @@ func consumeString(value purego_type_CXString) string {
 }
 
 func TestGeneratedBindingsParseHeaderWithLibclang(t *testing.T) {
-	libraryPath := os.Getenv("PUREGO_GEN_TEST_LIB")
-	if libraryPath == "" {
-		t.Fatal("PUREGO_GEN_TEST_LIB must be set")
-	}
+	libraryPath := testruntime.ResolveLibraryPathFromLibDirEnv(
+		t,
+		"PUREGO_GEN_TEST_LIBCLANG_LIB_DIR",
+		"clang",
+	)
 
 	handle, err := purego.Dlopen(libraryPath, purego.RTLD_NOW|purego.RTLD_LOCAL)
 	if err != nil {
@@ -383,7 +382,8 @@ func tokenizeCursor(
 	if tokensPtr == 0 || tokenCount == 0 {
 		t.Fatal("clang_tokenize returned no tokens")
 	}
-	return unsafe.Slice((*purego_type_CXToken)(unsafe.Pointer(tokensPtr)), int(tokenCount))
+	tokenData := *(*unsafe.Pointer)(unsafe.Pointer(&tokensPtr))
+	return unsafe.Slice((*purego_type_CXToken)(tokenData), int(tokenCount))
 }
 
 func disposeTokens(translationUnit uintptr, tokens []purego_type_CXToken) {

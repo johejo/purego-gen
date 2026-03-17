@@ -117,6 +117,8 @@
                       pkgs.sqlite
                     ]
                   }" \
+                  --set PUREGO_GEN_TEST_LIBCLANG_INCLUDE_DIR "${pkgs.libclang.dev}/include" \
+                  --set PUREGO_GEN_TEST_LIBCLANG_LIB_DIR "${pkgs.libclang.lib}/lib" \
                   --set PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR "${pkgs.zstd.dev}/include" \
                   --set PUREGO_GEN_TEST_LIBZSTD_LIB_DIR "${pkgs.zstd.out}/lib" \
                   --set PUREGO_GEN_TEST_LIBSQLITE3_INCLUDE_DIR "${pkgs.sqlite.dev}/include" \

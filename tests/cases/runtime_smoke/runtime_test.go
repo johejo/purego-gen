@@ -1,25 +1,20 @@
-//go:build purego_gen_case_runtime
-// +build purego_gen_case_runtime
-
 package fixture
 
 import (
-	"os"
 	"testing"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/johejo/purego-gen/tests/testruntime"
 )
 
 func int32At(address uintptr) int32 {
-	return *(*int32)(unsafe.Pointer(address))
+	pointer := *(*unsafe.Pointer)(unsafe.Pointer(&address))
+	return *(*int32)(pointer)
 }
 
 func TestGeneratedBindingsCallSharedLibrary(t *testing.T) {
-	libraryPath := os.Getenv("PUREGO_GEN_TEST_LIB")
-	if libraryPath == "" {
-		t.Fatal("PUREGO_GEN_TEST_LIB must be set")
-	}
+	libraryPath := testruntime.ResolveLibraryPathFromEnv(t, "PUREGO_GEN_TEST_LIB")
 
 	handle, err := purego.Dlopen(libraryPath, purego.RTLD_NOW|purego.RTLD_LOCAL)
 	if err != nil {

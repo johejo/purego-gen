@@ -1,14 +1,11 @@
-//go:build purego_gen_case_runtime
-// +build purego_gen_case_runtime
-
 package fixture
 
 import (
-	"os"
 	"testing"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/johejo/purego-gen/tests/testruntime"
 )
 
 func sqliteErrmsg(db purego_type_sqlite3) string {
@@ -21,10 +18,11 @@ func sqliteErrmsg(db purego_type_sqlite3) string {
 func openSQLiteHandle(t *testing.T) (uintptr, purego_type_sqlite3) {
 	t.Helper()
 
-	libraryPath := os.Getenv("PUREGO_GEN_TEST_LIB")
-	if libraryPath == "" {
-		t.Fatal("PUREGO_GEN_TEST_LIB must be set")
-	}
+	libraryPath := testruntime.ResolveLibraryPathFromLibDirEnv(
+		t,
+		"PUREGO_GEN_TEST_LIBSQLITE3_LIB_DIR",
+		"sqlite3",
+	)
 
 	handle, err := purego.Dlopen(libraryPath, purego.RTLD_NOW|purego.RTLD_LOCAL)
 	if err != nil {
@@ -124,7 +122,7 @@ func cString(ptr *byte) string {
 		return ""
 	}
 	length := 0
-	for *(*byte)(unsafe.Pointer(uintptr(unsafe.Pointer(ptr)) + uintptr(length))) != 0 {
+	for *(*byte)(unsafe.Add(unsafe.Pointer(ptr), length)) != 0 {
 		length++
 	}
 	return string(unsafe.Slice(ptr, length))
@@ -134,7 +132,8 @@ func cStringArray(values uintptr, count int32) []string {
 	if values == 0 || count <= 0 {
 		return nil
 	}
-	pointers := unsafe.Slice((**byte)(unsafe.Pointer(values)), int(count))
+	pointerData := *(*unsafe.Pointer)(unsafe.Pointer(&values))
+	pointers := unsafe.Slice((**byte)(pointerData), int(count))
 	result := make([]string, len(pointers))
 	for index, pointer := range pointers {
 		result[index] = cString(pointer)

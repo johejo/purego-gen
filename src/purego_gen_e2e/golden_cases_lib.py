@@ -42,7 +42,7 @@ _GO_SUM_PATH = Path("go.sum")
 _GENERATED_FILE_NAME = "generated.go"
 _RUNTIME_TEST_FILE_NAME = "runtime_test.go"
 _CONFIG_FILE_NAME = "config.json"
-_RUNTIME_BUILD_TAG = "purego_gen_case_runtime"
+_GO_TEST_SUPPORT_DIR = Path("tests") / "testruntime"
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,6 +198,15 @@ def _copy_case_runtime_support_files(*, case: GoldenCase, module_dir: Path) -> N
         shutil.copy2(entry, module_dir / entry.name)
 
 
+def _copy_go_test_support_package(*, repo_root: Path, module_dir: Path) -> None:
+    source_dir = repo_root / _GO_TEST_SUPPORT_DIR
+    if not source_dir.is_dir():
+        message = f"go test support directory not found: {source_dir}"
+        raise RuntimeError(message)
+    destination_dir = module_dir / _GO_TEST_SUPPORT_DIR
+    shutil.copytree(source_dir, destination_dir)
+
+
 def resolve_env_libdir_runtime_library(runtime: EnvLibdirRuntime) -> Path:
     """Resolve one shared library path from env_libdir runtime config.
 
@@ -309,6 +318,7 @@ def _run_go_test_for_case(
         )
         (module_dir / _GENERATED_FILE_NAME).write_text(generated_source, encoding="utf-8")
         _copy_case_runtime_support_files(case=case, module_dir=module_dir)
+        _copy_go_test_support_package(repo_root=repo_root, module_dir=module_dir)
 
         env = os.environ.copy()
         env["CGO_ENABLED"] = "0"
@@ -338,8 +348,12 @@ def _run_go_test_for_case(
         else:
             shared_library_path = resolve_env_libdir_runtime_library(runtime)
 
-        env["PUREGO_GEN_TEST_LIB"] = str(shared_library_path)
-        command = [go_binary, "test", "-tags", _RUNTIME_BUILD_TAG, "./..."]
+        # Runtime tests are always compiled. compile_c cases still need one
+        # concrete shared-library path, while env_libdir cases use their
+        # existing *_LIB_DIR environment variables directly.
+        if isinstance(runtime, CompileCRuntime):
+            env["PUREGO_GEN_TEST_LIB"] = str(shared_library_path)
+        command = [go_binary, "test", "./..."]
         result = run_command(command, cwd=module_dir, env=env)
         if result.returncode != 0:
             message = f"case `{case.case_id}` runtime check failed.\nstderr:\n{result.stderr}"

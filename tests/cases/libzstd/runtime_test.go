@@ -1,15 +1,12 @@
-//go:build purego_gen_case_runtime
-// +build purego_gen_case_runtime
-
 package fixture
 
 import (
 	"bytes"
-	"os"
 	"testing"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/johejo/purego-gen/tests/testruntime"
 )
 
 func bytesPtr(data []byte) uintptr {
@@ -20,10 +17,11 @@ func bytesPtr(data []byte) uintptr {
 }
 
 func TestGeneratedBindingsResolveLibzstdSymbols(t *testing.T) {
-	libraryPath := os.Getenv("PUREGO_GEN_TEST_LIB")
-	if libraryPath == "" {
-		t.Fatal("PUREGO_GEN_TEST_LIB must be set")
-	}
+	libraryPath := testruntime.ResolveLibraryPathFromLibDirEnv(
+		t,
+		"PUREGO_GEN_TEST_LIBZSTD_LIB_DIR",
+		"zstd",
+	)
 
 	handle, err := purego.Dlopen(libraryPath, purego.RTLD_NOW|purego.RTLD_LOCAL)
 	if err != nil {

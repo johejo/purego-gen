@@ -1,20 +1,14 @@
-//go:build purego_gen_case_runtime
-// +build purego_gen_case_runtime
-
 package fixture
 
 import (
-	"os"
 	"testing"
 
 	"github.com/ebitengine/purego"
+	"github.com/johejo/purego-gen/tests/testruntime"
 )
 
 func TestGeneratedBindingsExchangeConstCharStrings(t *testing.T) {
-	libraryPath := os.Getenv("PUREGO_GEN_TEST_LIB")
-	if libraryPath == "" {
-		t.Fatal("PUREGO_GEN_TEST_LIB must be set")
-	}
+	libraryPath := testruntime.ResolveLibraryPathFromEnv(t, "PUREGO_GEN_TEST_LIB")
 
 	handle, err := purego.Dlopen(libraryPath, purego.RTLD_NOW|purego.RTLD_LOCAL)
 	if err != nil {
