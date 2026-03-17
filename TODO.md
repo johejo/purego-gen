@@ -14,6 +14,8 @@ Completed work is intentionally omitted.
 ## Future Capabilities
 
 - [ ] Add support for in-memory overlays via `CXUnsavedFile` so parsing can work without relying on on-disk headers.
+- [ ] Add string mapping for `const unsigned char *` results/parameters so APIs like `sqlite3_column_text()` do not fall back to `uintptr`.
+- [ ] Add a first-class strategy for callback/destructor function pointers in generated bindings so APIs like `sqlite3_exec()` and `sqlite3_bind_text()` are practical to use.
 
 ## Open Decisions
 
