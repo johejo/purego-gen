@@ -14,7 +14,7 @@ Completed work is intentionally omitted.
 ## Future Capabilities
 
 - [ ] Add support for in-memory overlays via `CXUnsavedFile` so parsing can work without relying on on-disk headers.
-- [ ] Extend callback/destructor runtime coverage beyond the libsqlite3 first wave (`sqlite3_create_function*`, `sqlite3_create_collation*`, hook families).
+- [ ] Extend remaining `libsqlite3` callback/destructor runtime coverage for APIs left out of the second wave (`sqlite3_create_function`, `sqlite3_create_function16`, `sqlite3_create_collation`, `sqlite3_create_collation16`, `sqlite3_trace_v2`).
 
 ## Open Decisions
 
