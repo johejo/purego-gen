@@ -12,6 +12,7 @@ from __future__ import annotations
 import ast
 import operator
 import re
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
@@ -37,6 +38,7 @@ _ALLOWED_MACRO_OPERATOR_TOKENS: Final[frozenset[str]] = frozenset({
     ")",
 })
 _MACRO_MIN_OBJECT_LIKE_TOKEN_COUNT: Final[int] = 2
+_CASTED_SENTINEL_MACRO_MIN_TOKEN_COUNT: Final[int] = 6
 _UNSIGNED_WRAP_BITS: Final[int] = 64
 
 _BINARY_OPERATOR_HANDLERS: Final[dict[type[ast.operator], Callable[[int, int], int]]] = {
@@ -49,6 +51,15 @@ _BINARY_OPERATOR_HANDLERS: Final[dict[type[ast.operator], Callable[[int, int], i
     ast.BitAnd: operator.and_,
     ast.BitXor: operator.xor,
 }
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluatedMacroConstant:
+    """Evaluated object-like macro constant payload."""
+
+    value: int
+    c_type: str | None = None
+    go_expression: str | None = None
 
 
 def _normalize_macro_literal_token(token: str) -> tuple[str, bool] | None:
@@ -173,12 +184,56 @@ def _evaluate_c_integer_expression(expression: str) -> int | None:
     return _evaluate_integer_expression_ast(parsed)
 
 
+def _evaluate_casted_sentinel_macro_definition(
+    *,
+    expression_tokens: tuple[str, ...],
+) -> EvaluatedMacroConstant | None:
+    """Evaluate one narrowly-supported casted sentinel macro definition.
+
+    Supported forms are limited to object-like macros shaped like:
+    `((typedef_name)0)` and `((typedef_name)-1)`.
+
+    Returns:
+        Evaluated macro payload when the token sequence matches one supported
+        casted sentinel form, otherwise `None`.
+    """
+    if (
+        len(expression_tokens) < _CASTED_SENTINEL_MACRO_MIN_TOKEN_COUNT
+        or expression_tokens[:2] != ("(", "(")
+        or expression_tokens[-1] != ")"
+    ):
+        return None
+
+    try:
+        type_close_index = expression_tokens.index(")", 2)
+    except ValueError:
+        return None
+    type_tokens = expression_tokens[2:type_close_index]
+    if len(type_tokens) != 1:
+        return None
+    c_type = type_tokens[0]
+    if _IDENTIFIER_PATTERN.fullmatch(c_type) is None:
+        return None
+
+    cast_value_tokens = expression_tokens[type_close_index + 1 : -1]
+    result: EvaluatedMacroConstant | None = None
+    if cast_value_tokens == ("0",):
+        result = EvaluatedMacroConstant(value=0, c_type=c_type)
+    elif cast_value_tokens == ("-", "1"):
+        result = EvaluatedMacroConstant(
+            value=(1 << _UNSIGNED_WRAP_BITS) - 1,
+            c_type=c_type,
+            go_expression="^uintptr(0)",
+        )
+    return result
+
+
 def evaluate_object_like_macro_definition(
     *,
     token_spellings: tuple[str, ...],
     known_constant_values: Mapping[str, int],
     is_function_like: bool,
-) -> int | None:
+) -> EvaluatedMacroConstant | None:
     """Evaluate one macro definition as an integer constant when supported.
 
     Args:
@@ -187,12 +242,19 @@ def evaluate_object_like_macro_definition(
         is_function_like: Externally-resolved function-like classification.
 
     Returns:
-        Integer value for supported object-like macro definitions, otherwise `None`.
+        Evaluated macro payload for supported object-like macro definitions,
+        otherwise `None`.
     """
     if not token_spellings or len(token_spellings) < _MACRO_MIN_OBJECT_LIKE_TOKEN_COUNT:
         return None
     if is_function_like:
         return None
+
+    casted_sentinel = _evaluate_casted_sentinel_macro_definition(
+        expression_tokens=token_spellings[1:],
+    )
+    if casted_sentinel is not None:
+        return casted_sentinel
 
     expression = _build_macro_expression(
         expression_tokens=token_spellings[1:],
@@ -207,4 +269,4 @@ def evaluate_object_like_macro_definition(
         return None
     if has_unsigned_literal and evaluated < 0:
         evaluated %= 1 << _UNSIGNED_WRAP_BITS
-    return evaluated
+    return EvaluatedMacroConstant(value=evaluated)

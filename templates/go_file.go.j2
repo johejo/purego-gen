@@ -39,9 +39,9 @@ const (
             {% endfor %}
         {% endif %}
         {% if constant.const_type is not none %}
-    purego_const_{{ constant.identifier }} {{ constant.const_type }} = {{ constant.value }}
+    purego_const_{{ constant.identifier }} {{ constant.const_type }} = {{ constant.expression }}
         {% else %}
-    purego_const_{{ constant.identifier }} = {{ constant.value }}
+    purego_const_{{ constant.identifier }} = {{ constant.expression }}
         {% endif %}
     {% endfor %}
 )

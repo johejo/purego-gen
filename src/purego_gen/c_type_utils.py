@@ -10,6 +10,7 @@ from typing import Final
 _OPAQUE_POINTER_TYPEDEF_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^(?:(?:const|volatile|restrict)\s+)*([A-Za-z_][A-Za-z0-9_]*)\s*\*(?:\s*(?:const|volatile|restrict))*$"
 )
+_FUNCTION_POINTER_C_TYPE_PATTERN: Final[re.Pattern[str]] = re.compile(r"\(\s*\*\s*\)")
 _ENUM_TYPEDEF_C_TYPE_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^enum\s+([A-Za-z_][A-Za-z0-9_]*)$"
 )
@@ -37,6 +38,24 @@ def normalize_c_type_for_lookup(c_type: str) -> str:
     """
     tokens = [token for token in c_type.split() if token not in _C_TYPE_QUALIFIERS]
     return " ".join(tokens)
+
+
+def is_function_pointer_c_type(c_type: str) -> bool:
+    """Check whether one C type spelling represents a function pointer.
+
+    Returns:
+        `True` when the type spelling contains a function-pointer declarator.
+    """
+    return _FUNCTION_POINTER_C_TYPE_PATTERN.search(normalize_c_type_for_lookup(c_type)) is not None
+
+
+def normalize_function_pointer_c_type_for_lookup(c_type: str) -> str:
+    """Normalize function-pointer type spelling for deterministic lookup keys.
+
+    Returns:
+        Whitespace-free lookup key for function-pointer type spellings.
+    """
+    return re.sub(r"\s+", "", normalize_c_type_for_lookup(c_type))
 
 
 def extract_enum_typedef_name(c_type: str) -> str | None:

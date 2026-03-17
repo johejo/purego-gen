@@ -14,6 +14,7 @@ from purego_gen.model import (
     RecordFieldDecl,
     RecordTypedefDecl,
     TypedefDecl,
+    TypeMappingOptions,
 )
 from purego_gen.renderer import RendererError, render_go_source, render_template
 
@@ -231,3 +232,77 @@ def test_render_go_source_keeps_primitive_function_signature_types() -> None:
     normalized_source = " ".join(source.split())
     assert "purego_type_fixture_mode_t = int32" in source
     assert "purego_func_current_mode func() int32" in normalized_source
+
+
+def test_render_go_source_reuses_function_pointer_typedef_aliases() -> None:
+    """Anonymous function-pointer slots should reuse emitted typedef aliases."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func", "type"),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="run_callback",
+                    result_c_type="int",
+                    parameter_c_types=("int (*)(void *, int)",),
+                    parameter_names=("callback",),
+                    go_result_type="int32",
+                    go_parameter_types=("uintptr",),
+                ),
+            ),
+            typedefs=(
+                TypedefDecl(
+                    name="fixture_callback_t",
+                    c_type="int (*)(void *, int)",
+                    go_type="uintptr",
+                ),
+            ),
+            constants=(),
+            runtime_vars=(),
+        ),
+    )
+
+    normalized_source = " ".join(source.split())
+    assert "purego_type_fixture_callback_t = uintptr" in source
+    assert (
+        "purego_func_run_callback func( callback purego_type_fixture_callback_t, ) int32"
+        in normalized_source
+    )
+
+
+def test_render_go_source_types_casted_sentinel_constants_with_typedef_alias() -> None:
+    """Typed sentinel constants should reuse emitted typedef aliases and expressions."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("const", "type"),
+        declarations=ParsedDeclarations(
+            functions=(),
+            typedefs=(
+                TypedefDecl(
+                    name="fixture_destructor_t",
+                    c_type="void (*)(void *)",
+                    go_type="uintptr",
+                ),
+            ),
+            constants=(
+                ConstantDecl(
+                    name="FIXTURE_STATIC",
+                    value=0,
+                    c_type="fixture_destructor_t",
+                ),
+                ConstantDecl(
+                    name="FIXTURE_TRANSIENT",
+                    value=(1 << 64) - 1,
+                    c_type="fixture_destructor_t",
+                    go_expression="^uintptr(0)",
+                ),
+            ),
+            runtime_vars=(),
+        ),
+        type_mapping=TypeMappingOptions(typed_sentinel_constants=True),
+    )
+
+    assert "purego_const_FIXTURE_STATIC purego_type_fixture_destructor_t = 0" in source
+    assert "purego_const_FIXTURE_TRANSIENT purego_type_fixture_destructor_t = ^uintptr(0)" in source

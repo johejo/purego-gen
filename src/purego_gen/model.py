@@ -91,6 +91,8 @@ class ConstantDecl:
     name: str
     value: int
     comment: str | None = None
+    c_type: str | None = None
+    go_expression: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -173,7 +173,9 @@ def _extract_macro_constant(
         return None
     return ConstantDecl(
         name=str(cursor.spelling),
-        value=evaluated,
+        value=evaluated.value,
+        c_type=evaluated.c_type,
+        go_expression=evaluated.go_expression,
         comment=_extract_cursor_comment(cursor),
     )
 

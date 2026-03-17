@@ -7,6 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from purego_gen.clang_parser import parse_declarations
+from purego_gen.model import TypeMappingOptions
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
@@ -84,3 +85,38 @@ def test_parse_type_mapping_edge_cases() -> None:
         "FIXTURE_MODE_OFF",
         "FIXTURE_MODE_ON",
     )
+
+
+def test_parse_const_unsigned_char_string_mapping_toggle() -> None:
+    """Parser should map const unsigned char* to string only when enabled."""
+    header = _FIXTURES_DIR / "unsigned_char_strings.h"
+
+    default_declarations = parse_declarations(headers=(str(header),), clang_args=())
+    mapped_declarations = parse_declarations(
+        headers=(str(header),),
+        clang_args=(),
+        type_mapping=TypeMappingOptions(const_char_as_string=True),
+    )
+
+    default_functions = {function.name: function for function in default_declarations.functions}
+    mapped_functions = {function.name: function for function in mapped_declarations.functions}
+
+    assert default_functions["fixture_text_result"].go_result_type == "uintptr"
+    assert default_functions["fixture_text_param"].go_parameter_types == ("uintptr",)
+    assert mapped_functions["fixture_text_result"].go_result_type == "string"
+    assert mapped_functions["fixture_text_param"].go_parameter_types == ("string",)
+
+
+def test_parse_casted_sentinel_macros_preserves_type_metadata() -> None:
+    """Parser should keep narrow casted sentinel macro metadata for renderer use."""
+    header = _FIXTURES_DIR / "macro_sentinels.h"
+
+    declarations = parse_declarations(headers=(str(header),), clang_args=())
+
+    constants = {constant.name: constant for constant in declarations.constants}
+    assert constants["FIXTURE_STATIC"].value == 0
+    assert constants["FIXTURE_STATIC"].c_type == "fixture_destructor_t"
+    assert constants["FIXTURE_STATIC"].go_expression is None
+    assert constants["FIXTURE_TRANSIENT"].value == (1 << 64) - 1
+    assert constants["FIXTURE_TRANSIENT"].c_type == "fixture_destructor_t"
+    assert constants["FIXTURE_TRANSIENT"].go_expression == "^uintptr(0)"

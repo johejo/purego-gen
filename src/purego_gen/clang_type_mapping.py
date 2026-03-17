@@ -45,7 +45,7 @@ _TYPE_KIND_TO_GO_TYPE: Final[dict[str, str]] = {
     "ENUM": "int32",
 }
 _FUNCTION_TYPE_KINDS: Final[frozenset[str]] = frozenset({"FUNCTIONPROTO", "FUNCTIONNOPROTO"})
-_CHAR_TYPE_KINDS: Final[frozenset[str]] = frozenset({"CHAR_S", "CHAR_U"})
+_STRING_POINTEE_TYPE_KINDS: Final[frozenset[str]] = frozenset({"CHAR_S", "CHAR_U", "UCHAR"})
 _RECORD_TYPE_KIND_NAME: Final[str] = "RECORD"
 _CONSTANT_ARRAY_TYPE_KIND_NAME: Final[str] = "CONSTANTARRAY"
 _FIELD_DECL_KIND_NAME: Final[str] = "FIELD_DECL"
@@ -381,7 +381,7 @@ def map_function_parameter_type_to_go_name(
     canonical = clang_type.get_canonical()
     if type_mapping.const_char_as_string and canonical.kind.name == "POINTER":
         pointee = canonical.get_pointee().get_canonical()
-        if pointee.kind.name in _CHAR_TYPE_KINDS and pointee.is_const_qualified():
+        if pointee.kind.name in _STRING_POINTEE_TYPE_KINDS and pointee.is_const_qualified():
             return "string"
     mapped = map_type_to_go_name(clang_type)
     if mapped is not None:
@@ -402,7 +402,7 @@ def map_function_result_type_to_go_name(
         return None
     if type_mapping.const_char_as_string and canonical.kind.name == "POINTER":
         pointee = canonical.get_pointee().get_canonical()
-        if pointee.kind.name in _CHAR_TYPE_KINDS and pointee.is_const_qualified():
+        if pointee.kind.name in _STRING_POINTEE_TYPE_KINDS and pointee.is_const_qualified():
             return "string"
     mapped = map_type_to_go_name(clang_type)
     if mapped is not None:

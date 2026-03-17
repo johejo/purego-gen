@@ -12,12 +12,13 @@
       ]
     },
     "filters": {
-      "func": "^(sqlite3_libversion|sqlite3_open|sqlite3_close|sqlite3_errmsg|sqlite3_prepare_v2|sqlite3_step|sqlite3_column_int|sqlite3_finalize)$",
-      "type": "^(sqlite3|sqlite3_stmt)$",
-      "const": "^(SQLITE_OK|SQLITE_ROW|SQLITE_DONE)$"
+      "func": "^(sqlite3_libversion|sqlite3_open|sqlite3_close|sqlite3_errmsg|sqlite3_prepare_v2|sqlite3_step|sqlite3_column_int|sqlite3_column_text|sqlite3_bind_text|sqlite3_exec|sqlite3_finalize)$",
+      "type": "^(sqlite3|sqlite3_stmt|sqlite3_callback|sqlite3_destructor_type)$",
+      "const": "^(SQLITE_OK|SQLITE_ROW|SQLITE_DONE|SQLITE_STATIC|SQLITE_TRANSIENT)$"
     },
     "type_mapping": {
-      "const_char_as_string": true
+      "const_char_as_string": true,
+      "typed_sentinel_constants": true
     }
   },
   "golden": {
