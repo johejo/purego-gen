@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import cast
 
-from purego_gen.config import dump_signature_payload
+from purego_gen.config_load import dump_signature_payload
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CASES_DIR = _REPO_ROOT / "tests" / "cases"

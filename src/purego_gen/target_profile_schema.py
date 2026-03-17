@@ -9,7 +9,7 @@ from typing import Annotated, Literal
 from annotated_types import Len
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
-from purego_gen.config import TypeMappingInput as SharedTypeMappingInput
+from purego_gen.config_schema import TypeMappingInput as SharedTypeMappingInput
 
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 NonEmptyStrTuple = Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]

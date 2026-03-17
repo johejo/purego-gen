@@ -14,17 +14,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from purego_gen.config import (
-    AppConfig,
-    CompileCRuntime,
-    EnvIncludeHeaders,
-    EnvLibdirRuntime,
-    GoldenConfig,
-    LocalHeaders,
-    RuntimeConfig,
-    load_app_config,
-    resolve_generator_config,
-)
+from purego_gen.config_load import resolve_generator_config
+from purego_gen.config_model import EnvIncludeHeaders, LocalHeaders
 from purego_gen.generation_pipeline import (
     ClangParserError,
     RendererError,
@@ -33,6 +24,14 @@ from purego_gen.generation_pipeline import (
 )
 from purego_gen.process_exec import run_command
 from purego_gen.toolchain import resolve_c_compiler_command
+from purego_gen_e2e.golden_cases_config import (
+    AppConfig,
+    CompileCRuntime,
+    EnvLibdirRuntime,
+    GoldenConfig,
+    RuntimeConfig,
+    load_case_config,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -76,7 +75,7 @@ def _resolve_case_runtime(case_dir: Path, golden: GoldenConfig | None) -> Golden
 
 def _load_case(case_dir: Path) -> GoldenCase:
     config_path = case_dir / _CONFIG_FILE_NAME
-    app_config = load_app_config(config_path)
+    app_config = load_case_config(config_path)
     runtime_test_path = case_dir / _RUNTIME_TEST_FILE_NAME
     normalized_runtime_test_path = runtime_test_path if runtime_test_path.is_file() else None
     normalized_config = replace(

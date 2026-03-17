@@ -1,0 +1,70 @@
+# Copyright (c) 2026 purego-gen contributors.
+
+"""Resolved shared config models for generator execution."""
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from purego_gen.model import TypeMappingOptions
+
+PathType = Path
+TypeMappingOptionsType = TypeMappingOptions
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratorFilters:
+    """Optional per-category declaration filters."""
+
+    func: str | None = None
+    type_: str | None = None
+    const: str | None = None
+    var: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class LocalHeaders:
+    """Header source definition for local file paths."""
+
+    headers: tuple[PathType, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class EnvIncludeHeaders:
+    """Header source definition via include-directory environment variable."""
+
+    include_dir_env: str
+    headers: tuple[str, ...]
+
+
+HeaderConfig = LocalHeaders | EnvIncludeHeaders
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratorSpec:
+    """Resolved generator configuration prior to env-backed header expansion."""
+
+    lib_id: str
+    package: str
+    emit_kinds: tuple[str, ...]
+    headers: HeaderConfig
+    filters: GeneratorFilters
+    type_mapping: TypeMappingOptionsType
+    clang_args: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class AppConfig:
+    """Shared generator config loaded from disk."""
+
+    config_path: PathType
+    generator: GeneratorSpec
+
+
+__all__ = [
+    "AppConfig",
+    "EnvIncludeHeaders",
+    "GeneratorFilters",
+    "GeneratorSpec",
+    "HeaderConfig",
+    "LocalHeaders",
+]

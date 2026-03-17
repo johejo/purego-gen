@@ -1,196 +1,46 @@
 # Copyright (c) 2026 purego-gen contributors.
 
-"""Shared JSON config schema and resolution helpers."""
+"""Loading and resolution helpers for shared generator config."""
 
 from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Literal, cast
+from typing import cast
 
-from annotated_types import Len
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StringConstraints, ValidationError
+from pydantic import ValidationError
 
+from purego_gen.config_model import (
+    AppConfig,
+    EnvIncludeHeaders,
+    GeneratorFilters,
+    GeneratorSpec,
+    HeaderConfig,
+    LocalHeaders,
+)
+from purego_gen.config_schema import (
+    AppConfigInput,
+    GeneratorInput,
+    LocalHeadersInput,
+    TypeMappingInput,
+)
 from purego_gen.emit_kinds import parse_emit_kinds
 from purego_gen.generator_config import GeneratorConfig
 from purego_gen.identifier_utils import is_go_identifier, normalize_lib_id
 from purego_gen.model import TypeMappingOptions
 from purego_gen.validation_error_format import format_validation_error
 
-NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
-NonEmptyStrTuple = Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
 
+def read_config_text(path: Path) -> str:
+    """Read one config file as UTF-8 text.
 
-class _StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
+    Returns:
+        File contents.
 
-
-class TypeMappingInput(_StrictModel):
-    """Optional type-mapping overrides."""
-
-    const_char_as_string: StrictBool | None = None
-    strict_enum_typedefs: StrictBool | None = None
-    typed_sentinel_constants: StrictBool | None = None
-
-
-class FiltersInput(_StrictModel):
-    """Optional declaration filters."""
-
-    model_config = ConfigDict(extra="forbid", strict=True, populate_by_name=True)
-
-    func: NonEmptyStr | None = None
-    type_: NonEmptyStr | None = Field(default=None, alias="type")
-    const: NonEmptyStr | None = None
-    var: NonEmptyStr | None = None
-
-
-class LocalHeadersInput(_StrictModel):
-    """Header configuration for local file paths."""
-
-    kind: Literal["local"]
-    headers: NonEmptyStrTuple
-
-
-class EnvIncludeHeadersInput(_StrictModel):
-    """Header configuration resolved from an include-directory environment variable."""
-
-    kind: Literal["env_include"]
-    include_dir_env: NonEmptyStr
-    headers: NonEmptyStrTuple
-
-
-HeaderInput = Annotated[LocalHeadersInput | EnvIncludeHeadersInput, Field(discriminator="kind")]
-
-
-class CompileCRuntimeInput(_StrictModel):
-    """Runtime library definition by compiling local C sources."""
-
-    kind: Literal["compile_c"]
-    sources: NonEmptyStrTuple
-    cflags: NonEmptyStrTuple | None = None
-    ldflags: NonEmptyStrTuple | None = None
-
-
-class EnvLibdirRuntimeInput(_StrictModel):
-    """Runtime library definition from a library-directory environment variable."""
-
-    kind: Literal["env_libdir"]
-    lib_dir_env: NonEmptyStr
-    library_names: NonEmptyStrTuple
-
-
-RuntimeInput = Annotated[
-    CompileCRuntimeInput | EnvLibdirRuntimeInput,
-    Field(discriminator="kind"),
-]
-
-
-class GeneratorInput(_StrictModel):
-    """Generator configuration loaded from JSON."""
-
-    lib_id: NonEmptyStr
-    package: NonEmptyStr
-    emit: NonEmptyStr
-    headers: HeaderInput
-    filters: FiltersInput = Field(default_factory=FiltersInput)
-    type_mapping: TypeMappingInput = Field(default_factory=TypeMappingInput)
-    clang_args: tuple[NonEmptyStr, ...] = ()
-
-
-class GoldenInput(_StrictModel):
-    """Harness-only configuration."""
-
-    runtime: RuntimeInput | None = None
-
-
-class AppConfigInput(_StrictModel):
-    """Top-level shared config file."""
-
-    schema_version: Literal[1]
-    generator: GeneratorInput
-    golden: GoldenInput | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class GeneratorFilters:
-    """Optional per-category declaration filters."""
-
-    func: str | None = None
-    type_: str | None = None
-    const: str | None = None
-    var: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class LocalHeaders:
-    """Header source definition for local file paths."""
-
-    headers: tuple[Path, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class EnvIncludeHeaders:
-    """Header source definition via include-directory environment variable."""
-
-    include_dir_env: str
-    headers: tuple[str, ...]
-
-
-HeaderConfig = LocalHeaders | EnvIncludeHeaders
-
-
-@dataclass(frozen=True, slots=True)
-class CompileCRuntime:
-    """Runtime library definition by compiling local C sources."""
-
-    sources: tuple[Path, ...]
-    cflags: tuple[str, ...]
-    ldflags: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class EnvLibdirRuntime:
-    """Runtime library definition via library-directory environment variable."""
-
-    lib_dir_env: str
-    library_names: tuple[str, ...]
-
-
-RuntimeConfig = CompileCRuntime | EnvLibdirRuntime
-
-
-@dataclass(frozen=True, slots=True)
-class GoldenConfig:
-    """Harness-only config block."""
-
-    runtime: RuntimeConfig | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class GeneratorSpec:
-    """Resolved generator configuration prior to env-backed header expansion."""
-
-    lib_id: str
-    package: str
-    emit_kinds: tuple[str, ...]
-    headers: HeaderConfig
-    filters: GeneratorFilters
-    type_mapping: TypeMappingOptions
-    clang_args: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class AppConfig:
-    """Shared JSON config loaded from disk."""
-
-    config_path: Path
-    generator: GeneratorSpec
-    golden: GoldenConfig | None = None
-
-
-def _read_config_text(path: Path) -> str:
+    Raises:
+        RuntimeError: The file is missing or unreadable.
+    """
     if not path.is_file():
         message = f"config not found: {path}"
         raise RuntimeError(message)
@@ -199,6 +49,16 @@ def _read_config_text(path: Path) -> str:
     except OSError as error:
         message = f"failed to read config JSON at {path}: {error}"
         raise RuntimeError(message) from error
+
+
+def resolve_config_path(base_dir: Path, raw_path: str) -> Path:
+    """Resolve one config-relative or absolute path.
+
+    Returns:
+        Absolute resolved path.
+    """
+    candidate = Path(raw_path).expanduser()
+    return candidate.resolve() if candidate.is_absolute() else (base_dir / candidate).resolve()
 
 
 def _validate_package_name(value: str) -> str:
@@ -216,27 +76,31 @@ def _normalize_type_mapping(type_mapping: TypeMappingInput) -> TypeMappingOption
     )
 
 
-def _resolve_path(base_dir: Path, raw_path: str) -> Path:
-    candidate = Path(raw_path).expanduser()
-    return candidate.resolve() if candidate.is_absolute() else (base_dir / candidate).resolve()
-
-
-def _to_generator_spec(
+def build_generator_spec(
     generator: GeneratorInput,
     *,
     base_dir: Path,
     config_path: Path,
 ) -> GeneratorSpec:
+    """Convert validated schema input into one resolved generator model.
+
+    Returns:
+        Generator config with normalized ids, emit kinds, and local paths.
+
+    Raises:
+        RuntimeError: The config contains invalid generator values.
+    """
     if isinstance(generator.headers, LocalHeadersInput):
         headers: HeaderConfig = LocalHeaders(
             headers=tuple(
-                _resolve_path(base_dir, raw_path) for raw_path in generator.headers.headers
+                resolve_config_path(base_dir, raw_path) for raw_path in generator.headers.headers
             )
         )
     else:
+        header_input = generator.headers
         headers = EnvIncludeHeaders(
-            include_dir_env=generator.headers.include_dir_env,
-            headers=generator.headers.headers,
+            include_dir_env=header_input.include_dir_env,
+            headers=header_input.headers,
         )
 
     try:
@@ -273,42 +137,17 @@ def _to_generator_spec(
     )
 
 
-def _normalize_optional_tuple(value: tuple[str, ...] | None) -> tuple[str, ...]:
-    return value if value is not None else ()
-
-
-def _to_golden_config(golden: GoldenInput | None, *, base_dir: Path) -> GoldenConfig | None:
-    if golden is None:
-        return None
-
-    runtime: RuntimeConfig | None
-    if golden.runtime is None:
-        runtime = None
-    elif isinstance(golden.runtime, CompileCRuntimeInput):
-        runtime = CompileCRuntime(
-            sources=tuple(_resolve_path(base_dir, raw_path) for raw_path in golden.runtime.sources),
-            cflags=_normalize_optional_tuple(golden.runtime.cflags),
-            ldflags=_normalize_optional_tuple(golden.runtime.ldflags),
-        )
-    else:
-        runtime = EnvLibdirRuntime(
-            lib_dir_env=golden.runtime.lib_dir_env,
-            library_names=golden.runtime.library_names,
-        )
-    return GoldenConfig(runtime=runtime)
-
-
 def load_app_config(path: Path) -> AppConfig:
-    """Load and validate a shared config file.
+    """Load and validate shared generator config.
 
     Returns:
-        Parsed config payload.
+        Parsed generator config.
 
     Raises:
         RuntimeError: File reading or schema validation fails.
     """
     resolved_path = path.expanduser().resolve()
-    raw_text = _read_config_text(resolved_path)
+    raw_text = read_config_text(resolved_path)
     try:
         parsed = AppConfigInput.model_validate_json(raw_text)
     except ValidationError as error:
@@ -318,12 +157,11 @@ def load_app_config(path: Path) -> AppConfig:
     base_dir = resolved_path.parent
     return AppConfig(
         config_path=resolved_path,
-        generator=_to_generator_spec(
+        generator=build_generator_spec(
             parsed.generator,
             base_dir=base_dir,
             config_path=resolved_path,
         ),
-        golden=_to_golden_config(parsed.golden, base_dir=base_dir),
     )
 
 
@@ -337,8 +175,7 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
         RuntimeError: Header resolution or environment lookup fails.
     """
     if isinstance(generator.headers, LocalHeaders):
-        local_headers = generator.headers
-        local_header_paths = local_headers.headers
+        local_header_paths = generator.headers.headers
         for header_path in local_header_paths:
             if not header_path.is_file():
                 message = f"header not found: {header_path}"
@@ -407,7 +244,7 @@ def dump_signature_payload(path: Path) -> dict[str, object]:
         RuntimeError: The file cannot be read or parsed as JSON.
         TypeError: The decoded JSON payload is not an object.
     """
-    raw_text = _read_config_text(path.expanduser().resolve())
+    raw_text = read_config_text(path.expanduser().resolve())
     try:
         raw_value = cast("object", json.loads(raw_text))
     except json.JSONDecodeError as error:
@@ -423,31 +260,10 @@ def dump_signature_payload(path: Path) -> dict[str, object]:
 
 
 __all__ = [
-    "AppConfig",
-    "AppConfigInput",
-    "CompileCRuntime",
-    "CompileCRuntimeInput",
-    "EnvIncludeHeaders",
-    "EnvIncludeHeadersInput",
-    "EnvLibdirRuntime",
-    "EnvLibdirRuntimeInput",
-    "FiltersInput",
-    "GeneratorConfig",
-    "GeneratorFilters",
-    "GeneratorInput",
-    "GeneratorSpec",
-    "GoldenConfig",
-    "GoldenInput",
-    "HeaderConfig",
-    "HeaderInput",
-    "LocalHeaders",
-    "LocalHeadersInput",
-    "NonEmptyStr",
-    "NonEmptyStrTuple",
-    "RuntimeConfig",
-    "RuntimeInput",
-    "TypeMappingInput",
+    "build_generator_spec",
     "dump_signature_payload",
     "load_app_config",
+    "read_config_text",
+    "resolve_config_path",
     "resolve_generator_config",
 ]

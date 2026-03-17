@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from purego_gen.cli_args import CliOptions, parse_options
-from purego_gen.config import load_app_config, resolve_generator_config
+from purego_gen.config_load import load_app_config, resolve_generator_config
 from purego_gen.diagnostics import emit_generation_diagnostics
 from purego_gen.generation_pipeline import (
     ClangParserError,
