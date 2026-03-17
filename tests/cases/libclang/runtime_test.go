@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"unsafe"
@@ -236,6 +237,77 @@ func TestGeneratedBindingsParseHeaderWithLibclang(t *testing.T) {
 	if got := purego_func_clang_Cursor_getStorageClass(varCursor); got != purego_const_CX_SC_Extern {
 		t.Fatalf("clang_Cursor_getStorageClass(varCursor) = %d, want %d", got, purego_const_CX_SC_Extern)
 	}
+
+	objectMacroCursor := mustCursorBySpelling(
+		t,
+		translationUnitWithDefine,
+		headerPath,
+		"PUREGO_GEN_STAGE1_OBJECT_MACRO",
+	)
+	if got := purego_func_clang_getCursorKind(objectMacroCursor); got != purego_const_CXCursor_MacroDefinition {
+		t.Fatalf(
+			"clang_getCursorKind(objectMacroCursor) = %d, want %d",
+			got,
+			purego_const_CXCursor_MacroDefinition,
+		)
+	}
+	if got := purego_func_clang_Cursor_isMacroFunctionLike(objectMacroCursor); got != 0 {
+		t.Fatalf("clang_Cursor_isMacroFunctionLike(objectMacroCursor) = %d, want 0", got)
+	}
+	if got := purego_func_clang_Cursor_isMacroBuiltin(objectMacroCursor); got != 0 {
+		t.Fatalf("clang_Cursor_isMacroBuiltin(objectMacroCursor) = %d, want 0", got)
+	}
+	objectMacroTokens := tokenizeCursor(t, translationUnitWithDefine, objectMacroCursor)
+	if got := purego_func_clang_getTokenKind(objectMacroTokens[0]); got != purego_const_CXToken_Identifier {
+		t.Fatalf("clang_getTokenKind(objectMacroTokens[0]) = %d, want %d", got, purego_const_CXToken_Identifier)
+	}
+	if got := tokenSpellings(translationUnitWithDefine, objectMacroTokens); !slices.Equal(
+		got,
+		[]string{"PUREGO_GEN_STAGE1_OBJECT_MACRO", "(", "1u", "<<", "3", ")"},
+	) {
+		t.Fatalf("object macro token spellings = %#v", got)
+	}
+	disposeTokens(translationUnitWithDefine, objectMacroTokens)
+
+	functionMacroCursor := mustCursorBySpelling(
+		t,
+		translationUnitWithDefine,
+		headerPath,
+		"PUREGO_GEN_STAGE1_FUNCTION_MACRO",
+	)
+	if got := purego_func_clang_getCursorKind(functionMacroCursor); got != purego_const_CXCursor_MacroDefinition {
+		t.Fatalf(
+			"clang_getCursorKind(functionMacroCursor) = %d, want %d",
+			got,
+			purego_const_CXCursor_MacroDefinition,
+		)
+	}
+	if got := purego_func_clang_Cursor_isMacroFunctionLike(functionMacroCursor); got == 0 {
+		t.Fatal("clang_Cursor_isMacroFunctionLike(functionMacroCursor) = 0, want non-zero")
+	}
+	if got := purego_func_clang_Cursor_isMacroBuiltin(functionMacroCursor); got != 0 {
+		t.Fatalf("clang_Cursor_isMacroBuiltin(functionMacroCursor) = %d, want 0", got)
+	}
+	functionMacroTokens := tokenizeCursor(t, translationUnitWithDefine, functionMacroCursor)
+	if got := tokenSpellings(translationUnitWithDefine, functionMacroTokens); !slices.Equal(
+		got,
+		[]string{
+			"PUREGO_GEN_STAGE1_FUNCTION_MACRO",
+			"(",
+			"value",
+			")",
+			"(",
+			"(",
+			"value",
+			")",
+			"+",
+			"PUREGO_GEN_STAGE1_OBJECT_MACRO",
+			")",
+		},
+	) {
+		t.Fatalf("function macro token spellings = %#v", got)
+	}
+	disposeTokens(translationUnitWithDefine, functionMacroTokens)
 }
 
 func mustCursorBySpelling(
@@ -283,4 +355,44 @@ func mustLineColumnForToken(t *testing.T, path string, token string) (int, int) 
 		column++
 	}
 	return line, column
+}
+
+func tokenizeCursor(
+	t *testing.T,
+	translationUnit uintptr,
+	cursor purego_type_CXCursor,
+) []purego_type_CXToken {
+	t.Helper()
+
+	var tokensPtr uintptr
+	var tokenCount uint32
+	purego_func_clang_tokenize(
+		translationUnit,
+		purego_func_clang_getCursorExtent(cursor),
+		uintptr(unsafe.Pointer(&tokensPtr)),
+		uintptr(unsafe.Pointer(&tokenCount)),
+	)
+	if tokensPtr == 0 || tokenCount == 0 {
+		t.Fatal("clang_tokenize returned no tokens")
+	}
+	return unsafe.Slice((*purego_type_CXToken)(unsafe.Pointer(tokensPtr)), int(tokenCount))
+}
+
+func disposeTokens(translationUnit uintptr, tokens []purego_type_CXToken) {
+	if len(tokens) == 0 {
+		return
+	}
+	purego_func_clang_disposeTokens(
+		translationUnit,
+		uintptr(unsafe.Pointer(&tokens[0])),
+		uint32(len(tokens)),
+	)
+}
+
+func tokenSpellings(translationUnit uintptr, tokens []purego_type_CXToken) []string {
+	spellings := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		spellings = append(spellings, consumeString(purego_func_clang_getTokenSpelling(translationUnit, token)))
+	}
+	return spellings
 }

@@ -22,7 +22,13 @@ type String = purego_type_CXString
 
 type SourceLocation = purego_type_CXSourceLocation
 
+type SourceRange = purego_type_CXSourceRange
+
 type File = purego_type_CXFile
+
+type Token = purego_type_CXToken
+
+type TokenKind = purego_type_CXTokenKind
 
 type CursorKind = int32
 
@@ -78,6 +84,12 @@ const (
 	ChildVisitBreak    ChildVisitResult = purego_const_CXChildVisit_Break
 	ChildVisitContinue ChildVisitResult = purego_const_CXChildVisit_Continue
 	ChildVisitRecurse  ChildVisitResult = purego_const_CXChildVisit_Recurse
+
+	TokenPunctuation TokenKind = purego_const_CXToken_Punctuation
+	TokenKeyword     TokenKind = purego_const_CXToken_Keyword
+	TokenIdentifier  TokenKind = purego_const_CXToken_Identifier
+	TokenLiteral     TokenKind = purego_const_CXToken_Literal
+	TokenComment     TokenKind = purego_const_CXToken_Comment
 )
 
 type Library struct {
@@ -217,6 +229,10 @@ func (library *Library) CursorLocation(cursor Cursor) SourceLocation {
 	return purego_func_clang_getCursorLocation(cursor)
 }
 
+func (library *Library) CursorExtent(cursor Cursor) SourceRange {
+	return purego_func_clang_getCursorExtent(cursor)
+}
+
 func (library *Library) ExpansionLocation(location SourceLocation) (File, uint32, uint32, uint32) {
 	var file File
 	var line uint32
@@ -260,6 +276,14 @@ func (library *Library) CursorStorageClass(cursor Cursor) StorageClass {
 	return StorageClass(purego_func_clang_Cursor_getStorageClass(cursor))
 }
 
+func (library *Library) IsMacroFunctionLike(cursor Cursor) bool {
+	return purego_func_clang_Cursor_isMacroFunctionLike(cursor) != 0
+}
+
+func (library *Library) IsMacroBuiltin(cursor Cursor) bool {
+	return purego_func_clang_Cursor_isMacroBuiltin(cursor) != 0
+}
+
 func (library *Library) IsCursorDefinition(cursor Cursor) bool {
 	return purego_func_clang_isCursorDefinition(cursor) != 0
 }
@@ -298,6 +322,40 @@ func (library *Library) TypeAlign(typ Type) int64 {
 
 func (library *Library) IsConstQualifiedType(typ Type) bool {
 	return purego_func_clang_isConstQualifiedType(typ) != 0
+}
+
+func (library *Library) TokenKind(token Token) TokenKind {
+	return TokenKind(purego_func_clang_getTokenKind(token))
+}
+
+func (library *Library) TokenSpelling(translationUnit TranslationUnit, token Token) string {
+	return CopyString(purego_func_clang_getTokenSpelling(uintptr(translationUnit), token))
+}
+
+func (library *Library) Tokenize(translationUnit TranslationUnit, sourceRange SourceRange) []Token {
+	var tokensPtr uintptr
+	var tokenCount uint32
+	purego_func_clang_tokenize(
+		uintptr(translationUnit),
+		sourceRange,
+		uintptr(unsafe.Pointer(&tokensPtr)),
+		uintptr(unsafe.Pointer(&tokenCount)),
+	)
+	if tokensPtr == 0 || tokenCount == 0 {
+		return nil
+	}
+	return unsafe.Slice((*Token)(unsafe.Pointer(tokensPtr)), int(tokenCount))
+}
+
+func (library *Library) DisposeTokens(translationUnit TranslationUnit, tokens []Token) {
+	if len(tokens) == 0 {
+		return
+	}
+	purego_func_clang_disposeTokens(
+		uintptr(translationUnit),
+		uintptr(unsafe.Pointer(&tokens[0])),
+		uint32(len(tokens)),
+	)
 }
 
 func (library *Library) VisitChildrenRaw(

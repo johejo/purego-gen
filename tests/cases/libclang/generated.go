@@ -44,6 +44,13 @@ type (
 		kind int32
 		data [2]uintptr
 	}
+	// Describes a kind of token.
+	purego_type_CXTokenKind = int32
+	// Describes a single preprocessing token.
+	purego_type_CXToken = struct {
+		int_data [4]uint32
+		ptr_data uintptr
+	}
 	// A character string.
 	//
 	// The \c CXString type is used to return strings from the interface when
@@ -62,6 +69,15 @@ type (
 	purego_type_CXSourceLocation = struct {
 		ptr_data [2]uintptr
 		int_data uint32
+	}
+	// Identifies a half-open character range in the source code.
+	//
+	// Use clang_getRangeStart() and clang_getRangeEnd() to retrieve the
+	// starting and end locations from a source range, respectively.
+	purego_type_CXSourceRange = struct {
+		ptr_data       [2]uintptr
+		begin_int_data uint32
+		end_int_data   uint32
 	}
 	// A particular source file that is part of a translation unit.
 	purego_type_CXFile = uintptr
@@ -188,6 +204,16 @@ const (
 	// Recursively traverse the children of this cursor, using
 	// the same visitor and client data.
 	purego_const_CXChildVisit_Recurse = 2
+	// A token that contains some kind of punctuation.
+	purego_const_CXToken_Punctuation = 0
+	// A language keyword.
+	purego_const_CXToken_Keyword = 1
+	// An identifier (that is not a keyword).
+	purego_const_CXToken_Identifier = 2
+	// A numeric, string, or character literal.
+	purego_const_CXToken_Literal = 3
+	// A comment.
+	purego_const_CXToken_Comment = 4
 )
 
 var (
@@ -321,6 +347,18 @@ var (
 	purego_func_clang_getCursorLocation func(
 		arg1 purego_type_CXCursor,
 	) purego_type_CXSourceLocation
+	// Retrieve the physical extent of the source construct referenced by
+	// the given cursor.
+	//
+	// The extent of a cursor starts with the file/line/column pointing at the
+	// first character within the source construct that the cursor refers to and
+	// ends with the last character within that source construct. For a
+	// declaration, the extent covers the declaration itself. For a reference,
+	// the extent covers the location of the reference (e.g., where the referenced
+	// entity was actually used).
+	purego_func_clang_getCursorExtent func(
+		arg1 purego_type_CXCursor,
+	) purego_type_CXSourceRange
 	// Retrieve the type of a CXCursor (if any).
 	purego_func_clang_getCursorType func(
 		C purego_type_CXCursor,
@@ -370,6 +408,16 @@ var (
 	// different level.
 	purego_func_clang_isConstQualifiedType func(
 		T purego_type_CXType,
+	) uint32
+	// Determine whether a  CXCursor that is a macro, is
+	// function like.
+	purego_func_clang_Cursor_isMacroFunctionLike func(
+		C purego_type_CXCursor,
+	) uint32
+	// Determine whether a  CXCursor that is a macro, is a
+	// builtin one.
+	purego_func_clang_Cursor_isMacroBuiltin func(
+		C purego_type_CXCursor,
 	) uint32
 	// For pointer types, returns the type of the pointee.
 	purego_func_clang_getPointeeType func(
@@ -458,6 +506,44 @@ var (
 	purego_func_clang_Cursor_getRawCommentText func(
 		C purego_type_CXCursor,
 	) purego_type_CXString
+	// Determine the kind of the given token.
+	purego_func_clang_getTokenKind func(
+		arg1 purego_type_CXToken,
+	) int32
+	// Determine the spelling of the given token.
+	//
+	// The spelling of a token is the textual representation of that token, e.g.,
+	// the text of an identifier or keyword.
+	purego_func_clang_getTokenSpelling func(
+		arg1 uintptr,
+		arg2 purego_type_CXToken,
+	) purego_type_CXString
+	// Tokenize the source code described by the given range into raw
+	// lexical tokens.
+	//
+	// \param TU the translation unit whose text is being tokenized.
+	//
+	// \param Range the source range in which text should be tokenized. All of the
+	// tokens produced by tokenization will fall within this source range,
+	//
+	// \param Tokens this pointer will be set to point to the array of tokens
+	// that occur within the given source range. The returned pointer must be
+	// freed with clang_disposeTokens() before the translation unit is destroyed.
+	//
+	// \param NumTokens will be set to the number of tokens in the \c *Tokens
+	// array.
+	purego_func_clang_tokenize func(
+		TU uintptr,
+		Range purego_type_CXSourceRange,
+		Tokens uintptr,
+		NumTokens uintptr,
+	)
+	// Free the given set of tokens.
+	purego_func_clang_disposeTokens func(
+		TU uintptr,
+		Tokens uintptr,
+		NumTokens uint32,
+	)
 	// \defgroup CINDEX_DEBUG Debugging facilities
 	//
 	// These routines are used for testing and debugging, only, and should not
@@ -568,6 +654,11 @@ func purego_clang_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol clang_getCursorLocation: %w", err)
 	}
 	purego.RegisterFunc(&purego_func_clang_getCursorLocation, purego_func_clang_getCursorLocation_symbol)
+	purego_func_clang_getCursorExtent_symbol, err := purego.Dlsym(handle, "clang_getCursorExtent")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol clang_getCursorExtent: %w", err)
+	}
+	purego.RegisterFunc(&purego_func_clang_getCursorExtent, purego_func_clang_getCursorExtent_symbol)
 	purego_func_clang_getCursorType_symbol, err := purego.Dlsym(handle, "clang_getCursorType")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol clang_getCursorType: %w", err)
@@ -603,6 +694,16 @@ func purego_clang_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol clang_isConstQualifiedType: %w", err)
 	}
 	purego.RegisterFunc(&purego_func_clang_isConstQualifiedType, purego_func_clang_isConstQualifiedType_symbol)
+	purego_func_clang_Cursor_isMacroFunctionLike_symbol, err := purego.Dlsym(handle, "clang_Cursor_isMacroFunctionLike")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol clang_Cursor_isMacroFunctionLike: %w", err)
+	}
+	purego.RegisterFunc(&purego_func_clang_Cursor_isMacroFunctionLike, purego_func_clang_Cursor_isMacroFunctionLike_symbol)
+	purego_func_clang_Cursor_isMacroBuiltin_symbol, err := purego.Dlsym(handle, "clang_Cursor_isMacroBuiltin")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol clang_Cursor_isMacroBuiltin: %w", err)
+	}
+	purego.RegisterFunc(&purego_func_clang_Cursor_isMacroBuiltin, purego_func_clang_Cursor_isMacroBuiltin_symbol)
 	purego_func_clang_getPointeeType_symbol, err := purego.Dlsym(handle, "clang_getPointeeType")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol clang_getPointeeType: %w", err)
@@ -658,6 +759,26 @@ func purego_clang_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol clang_Cursor_getRawCommentText: %w", err)
 	}
 	purego.RegisterFunc(&purego_func_clang_Cursor_getRawCommentText, purego_func_clang_Cursor_getRawCommentText_symbol)
+	purego_func_clang_getTokenKind_symbol, err := purego.Dlsym(handle, "clang_getTokenKind")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol clang_getTokenKind: %w", err)
+	}
+	purego.RegisterFunc(&purego_func_clang_getTokenKind, purego_func_clang_getTokenKind_symbol)
+	purego_func_clang_getTokenSpelling_symbol, err := purego.Dlsym(handle, "clang_getTokenSpelling")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol clang_getTokenSpelling: %w", err)
+	}
+	purego.RegisterFunc(&purego_func_clang_getTokenSpelling, purego_func_clang_getTokenSpelling_symbol)
+	purego_func_clang_tokenize_symbol, err := purego.Dlsym(handle, "clang_tokenize")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol clang_tokenize: %w", err)
+	}
+	purego.RegisterFunc(&purego_func_clang_tokenize, purego_func_clang_tokenize_symbol)
+	purego_func_clang_disposeTokens_symbol, err := purego.Dlsym(handle, "clang_disposeTokens")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol clang_disposeTokens: %w", err)
+	}
+	purego.RegisterFunc(&purego_func_clang_disposeTokens, purego_func_clang_disposeTokens_symbol)
 	purego_func_clang_getCursorKindSpelling_symbol, err := purego.Dlsym(handle, "clang_getCursorKindSpelling")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol clang_getCursorKindSpelling: %w", err)

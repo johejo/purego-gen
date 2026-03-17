@@ -2,6 +2,9 @@
 #error "PUREGO_GEN_STAGE1_PARSE must be defined"
 #endif
 
+#define PUREGO_GEN_STAGE1_OBJECT_MACRO (1u << 3)
+#define PUREGO_GEN_STAGE1_FUNCTION_MACRO(value) ((value) + PUREGO_GEN_STAGE1_OBJECT_MACRO)
+
 typedef struct purego_gen_stage1_point {
   int left;
   int right;

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -169,6 +170,77 @@ func TestParseTranslationUnitSmoke(t *testing.T) {
 	if got := library.CursorStorageClass(varCursor); got != StorageClassExtern {
 		t.Fatalf("CursorStorageClass(varCursor) = %d, want %d", got, StorageClassExtern)
 	}
+
+	objectMacroCursor := mustCursorBySpelling(
+		t,
+		library,
+		translationUnitWithDefine,
+		headerPath,
+		"PUREGO_GEN_STAGE1_OBJECT_MACRO",
+	)
+	if got := library.CursorKind(objectMacroCursor); got != CursorMacroDefinition {
+		t.Fatalf("CursorKind(objectMacroCursor) = %d, want %d", got, CursorMacroDefinition)
+	}
+	if library.IsMacroFunctionLike(objectMacroCursor) {
+		t.Fatal("IsMacroFunctionLike(objectMacroCursor) = true, want false")
+	}
+	if library.IsMacroBuiltin(objectMacroCursor) {
+		t.Fatal("IsMacroBuiltin(objectMacroCursor) = true, want false")
+	}
+	objectMacroTokens := library.Tokenize(translationUnitWithDefine, library.CursorExtent(objectMacroCursor))
+	if len(objectMacroTokens) == 0 {
+		t.Fatal("Tokenize(objectMacroCursor) returned no tokens")
+	}
+	if got := library.TokenKind(objectMacroTokens[0]); got != TokenIdentifier {
+		t.Fatalf("TokenKind(objectMacroTokens[0]) = %d, want %d", got, TokenIdentifier)
+	}
+	if got := tokenSpellings(library, translationUnitWithDefine, objectMacroTokens); !slices.Equal(
+		got,
+		[]string{"PUREGO_GEN_STAGE1_OBJECT_MACRO", "(", "1u", "<<", "3", ")"},
+	) {
+		t.Fatalf("object macro token spellings = %#v", got)
+	}
+	library.DisposeTokens(translationUnitWithDefine, objectMacroTokens)
+
+	functionMacroCursor := mustCursorBySpelling(
+		t,
+		library,
+		translationUnitWithDefine,
+		headerPath,
+		"PUREGO_GEN_STAGE1_FUNCTION_MACRO",
+	)
+	if got := library.CursorKind(functionMacroCursor); got != CursorMacroDefinition {
+		t.Fatalf("CursorKind(functionMacroCursor) = %d, want %d", got, CursorMacroDefinition)
+	}
+	if !library.IsMacroFunctionLike(functionMacroCursor) {
+		t.Fatal("IsMacroFunctionLike(functionMacroCursor) = false, want true")
+	}
+	if library.IsMacroBuiltin(functionMacroCursor) {
+		t.Fatal("IsMacroBuiltin(functionMacroCursor) = true, want false")
+	}
+	functionMacroTokens := library.Tokenize(translationUnitWithDefine, library.CursorExtent(functionMacroCursor))
+	if len(functionMacroTokens) == 0 {
+		t.Fatal("Tokenize(functionMacroCursor) returned no tokens")
+	}
+	if got := tokenSpellings(library, translationUnitWithDefine, functionMacroTokens); !slices.Equal(
+		got,
+		[]string{
+			"PUREGO_GEN_STAGE1_FUNCTION_MACRO",
+			"(",
+			"value",
+			")",
+			"(",
+			"(",
+			"value",
+			")",
+			"+",
+			"PUREGO_GEN_STAGE1_OBJECT_MACRO",
+			")",
+		},
+	) {
+		t.Fatalf("function macro token spellings = %#v", got)
+	}
+	library.DisposeTokens(translationUnitWithDefine, functionMacroTokens)
 }
 
 func mustRepoPath(t *testing.T, elements ...string) string {
@@ -229,4 +301,16 @@ func mustLineColumnForToken(t *testing.T, path string, token string) (int, int) 
 		column++
 	}
 	return line, column
+}
+
+func tokenSpellings(
+	library *Library,
+	translationUnit TranslationUnit,
+	tokens []Token,
+) []string {
+	spellings := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		spellings = append(spellings, library.TokenSpelling(translationUnit, token))
+	}
+	return spellings
 }
