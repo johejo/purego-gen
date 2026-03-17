@@ -138,6 +138,11 @@ func TestGeneratedBindingsParseHeaderWithLibclang(t *testing.T) {
 			purego_const_CXCursor_TranslationUnit,
 		)
 	}
+	if got := consumeString(
+		purego_func_clang_getCursorKindSpelling(purego_const_CXCursor_TranslationUnit),
+	); !strings.Contains(got, "TranslationUnit") {
+		t.Fatalf("clang_getCursorKindSpelling(CXCursor_TranslationUnit) = %q", got)
+	}
 
 	functionCursor := mustCursorBySpelling(
 		t,
@@ -176,6 +181,9 @@ func TestGeneratedBindingsParseHeaderWithLibclang(t *testing.T) {
 	canonicalResultType := purego_func_clang_getCanonicalType(resultType)
 	if got := canonicalResultType.kind; got != purego_const_CXType_Record {
 		t.Fatalf("canonicalResultType.kind = %d, want %d", got, purego_const_CXType_Record)
+	}
+	if got := consumeString(purego_func_clang_getTypeKindSpelling(purego_const_CXType_Record)); got != "Record" {
+		t.Fatalf("clang_getTypeKindSpelling(CXType_Record) = %q, want Record", got)
 	}
 	if got := purego_func_clang_Type_getSizeOf(canonicalResultType); got != 8 {
 		t.Fatalf("clang_Type_getSizeOf(canonicalResultType) = %d, want 8", got)
