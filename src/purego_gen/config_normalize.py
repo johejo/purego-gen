@@ -14,6 +14,7 @@ from purego_gen.config_model import (
     LocalHeaders,
 )
 from purego_gen.config_schema import GeneratorInput, LocalHeadersInput, TypeMappingInput
+from purego_gen.declaration_filters import FilterSpec, exact_names_filter, regex_filter
 from purego_gen.emit_kinds import parse_emit_kinds
 from purego_gen.identifier_utils import is_go_identifier, normalize_lib_id
 from purego_gen.model import TypeMappingOptions
@@ -42,6 +43,14 @@ def _normalize_type_mapping(type_mapping: TypeMappingInput) -> TypeMappingOption
         strict_enum_typedefs=bool(type_mapping.strict_enum_typedefs),
         typed_sentinel_constants=bool(type_mapping.typed_sentinel_constants),
     )
+
+
+def _normalize_filter(filter_value: str | tuple[str, ...] | None) -> FilterSpec | None:
+    if filter_value is None:
+        return None
+    if isinstance(filter_value, str):
+        return regex_filter(filter_value)
+    return exact_names_filter(filter_value)
 
 
 def build_generator_spec(
@@ -95,10 +104,10 @@ def build_generator_spec(
         emit_kinds=emit_kinds,
         headers=headers,
         filters=GeneratorFilters(
-            func=generator.filters.func,
-            type_=generator.filters.type_,
-            const=generator.filters.const,
-            var=generator.filters.var,
+            func=_normalize_filter(generator.filters.func),
+            type_=_normalize_filter(generator.filters.type_),
+            const=_normalize_filter(generator.filters.const),
+            var=_normalize_filter(generator.filters.var),
         ),
         type_mapping=_normalize_type_mapping(generator.type_mapping),
         clang_args=tuple(generator.clang_args),

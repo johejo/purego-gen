@@ -72,6 +72,13 @@ def test_load_target_profile_catalog_applies_compose_order_and_overrides(tmp_pat
     assert profile.type_mapping.typed_sentinel_constants is True
 
 
+def test_build_exact_symbol_regex_escapes_regex_meta_characters() -> None:
+    """Exact-name regex helper should escape literal regex meta characters."""
+    pattern = build_exact_symbol_regex(("name.with.dot", "value+plus", "paren(name)"))
+
+    assert pattern == r"^(name\.with\.dot|value\+plus|paren\(name\))$"
+
+
 def test_load_target_profile_catalog_requires_resolved_header_names(tmp_path: Path) -> None:
     """Profile should fail when composed fields do not provide header_names."""
     catalog_path = tmp_path / "profiles.json"

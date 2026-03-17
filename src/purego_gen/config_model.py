@@ -5,20 +5,22 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from purego_gen.declaration_filters import FilterSpec
 from purego_gen.model import TypeMappingOptions
 
 PathType = Path
 TypeMappingOptionsType = TypeMappingOptions
+FilterSpecType = FilterSpec
 
 
 @dataclass(frozen=True, slots=True)
 class GeneratorFilters:
     """Optional per-category declaration filters."""
 
-    func: str | None = None
-    type_: str | None = None
-    const: str | None = None
-    var: str | None = None
+    func: FilterSpecType | None = None
+    type_: FilterSpecType | None = None
+    const: FilterSpecType | None = None
+    var: FilterSpecType | None = None
 
 
 @dataclass(frozen=True, slots=True)

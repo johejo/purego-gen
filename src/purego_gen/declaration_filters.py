@@ -4,10 +4,58 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
+from typing import Final
 
 from purego_gen.model import ParsedDeclarations
+
+FILTER_KIND_REGEX: Final[str] = "regex"
+FILTER_KIND_EXACT_NAMES: Final[str] = "exact_names"
+
+
+@dataclass(frozen=True, slots=True)
+class FilterSpec:
+    """One declaration filter expressed as regex or exact-name list."""
+
+    kind: str
+    regex: str | None = None
+    exact_names: tuple[str, ...] = ()
+
+    @property
+    def regex_pattern(self) -> str:
+        """Return a regex pattern string for matching declarations.
+
+        Raises:
+            ValueError: Filter spec is internally inconsistent.
+        """
+        if self.kind == FILTER_KIND_REGEX:
+            if self.regex is None:
+                message = "regex filter requires a regex pattern."
+                raise ValueError(message)
+            return self.regex
+        if self.kind == FILTER_KIND_EXACT_NAMES:
+            return build_exact_symbol_regex(self.exact_names)
+        message = f"unsupported filter kind: {self.kind}"
+        raise ValueError(message)
+
+    @property
+    def display_value(self) -> str:
+        """Return the user-facing filter value for diagnostics.
+
+        Raises:
+            ValueError: Filter spec is internally inconsistent.
+        """
+        if self.kind == FILTER_KIND_REGEX:
+            if self.regex is None:
+                message = "regex filter requires a regex pattern."
+                raise ValueError(message)
+            return self.regex
+        if self.kind == FILTER_KIND_EXACT_NAMES:
+            return json.dumps(list(self.exact_names))
+        message = f"unsupported filter kind: {self.kind}"
+        raise ValueError(message)
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +66,34 @@ class CompiledDeclarationFilters:
     type_: re.Pattern[str] | None
     const: re.Pattern[str] | None
     var: re.Pattern[str] | None
+
+
+def build_exact_symbol_regex(symbols: tuple[str, ...]) -> str:
+    """Build an exact-match regex that matches only the provided symbols.
+
+    Returns:
+        Regular expression string matching exactly the provided symbols.
+    """
+    escaped = [re.escape(symbol) for symbol in symbols]
+    return "^(" + "|".join(escaped) + ")$"
+
+
+def regex_filter(pattern: str) -> FilterSpec:
+    """Build one regex-backed filter spec.
+
+    Returns:
+        Filter spec that preserves the regex pattern verbatim.
+    """
+    return FilterSpec(kind=FILTER_KIND_REGEX, regex=pattern)
+
+
+def exact_names_filter(names: tuple[str, ...]) -> FilterSpec:
+    """Build one exact-name filter spec.
+
+    Returns:
+        Filter spec that matches only the provided declaration names.
+    """
+    return FilterSpec(kind=FILTER_KIND_EXACT_NAMES, exact_names=names)
 
 
 def compile_filter(pattern: str | None, *, option_name: str) -> re.Pattern[str] | None:
@@ -36,6 +112,21 @@ def compile_filter(pattern: str | None, *, option_name: str) -> re.Pattern[str] 
     except re.error as error:
         message = f"invalid {option_name} regex: {error}"
         raise ValueError(message) from error
+
+
+def compile_filter_spec(
+    spec: FilterSpec | None,
+    *,
+    option_name: str,
+) -> re.Pattern[str] | None:
+    """Compile one optional filter spec into a regex pattern.
+
+    Returns:
+        Compiled regular expression when provided, otherwise `None`.
+    """
+    if spec is None:
+        return None
+    return compile_filter(spec.regex_pattern, option_name=option_name)
 
 
 def apply_declaration_filters(
@@ -87,7 +178,7 @@ def apply_declaration_filters(
 def validate_filter_match(
     *,
     emit_kinds: tuple[str, ...],
-    option_value: str | None,
+    option_value: FilterSpec | None,
     option_name: str,
     emit_kind: str,
     has_match: bool,
@@ -99,5 +190,5 @@ def validate_filter_match(
     """
     if option_value is None or emit_kind not in emit_kinds or has_match:
         return
-    message = f"no declarations matched {option_name}: {option_value}"
+    message = f"no declarations matched {option_name}: {option_value.display_value}"
     raise ValueError(message)

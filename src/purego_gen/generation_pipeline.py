@@ -13,7 +13,7 @@ from purego_gen.clang_parser import ClangParserError, parse_declarations
 from purego_gen.declaration_filters import (
     CompiledDeclarationFilters,
     apply_declaration_filters,
-    compile_filter,
+    compile_filter_spec,
     validate_filter_match,
 )
 from purego_gen.process_exec import run_command
@@ -25,16 +25,16 @@ if TYPE_CHECKING:
 
 
 def _compile_filters(config: GeneratorConfig) -> CompiledDeclarationFilters:
-    """Compile all regex filters from CLI options.
+    """Compile all configured filters into regex patterns.
 
     Returns:
         Compiled per-category regex filters.
     """
     return CompiledDeclarationFilters(
-        func=compile_filter(config.func_filter, option_name="--func-filter"),
-        type_=compile_filter(config.type_filter, option_name="--type-filter"),
-        const=compile_filter(config.const_filter, option_name="--const-filter"),
-        var=compile_filter(config.var_filter, option_name="--var-filter"),
+        func=compile_filter_spec(config.func_filter, option_name="--func-filter"),
+        type_=compile_filter_spec(config.type_filter, option_name="--type-filter"),
+        const=compile_filter_spec(config.const_filter, option_name="--const-filter"),
+        var=compile_filter_spec(config.var_filter, option_name="--var-filter"),
     )
 
 

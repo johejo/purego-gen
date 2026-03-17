@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool, StringConstraints
 
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
 NonEmptyStrTuple = Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
+FilterValueInput = NonEmptyStr | NonEmptyStrTuple
 
 
 class _StrictModel(BaseModel):
@@ -30,10 +31,10 @@ class FiltersInput(_StrictModel):
 
     model_config = ConfigDict(extra="forbid", strict=True, populate_by_name=True)
 
-    func: NonEmptyStr | None = None
-    type_: NonEmptyStr | None = Field(default=None, alias="type")
-    const: NonEmptyStr | None = None
-    var: NonEmptyStr | None = None
+    func: FilterValueInput | None = None
+    type_: FilterValueInput | None = Field(default=None, alias="type")
+    const: FilterValueInput | None = None
+    var: FilterValueInput | None = None
 
 
 class LocalHeadersInput(_StrictModel):
@@ -76,6 +77,7 @@ class AppConfigInput(_StrictModel):
 __all__ = [
     "AppConfigInput",
     "EnvIncludeHeadersInput",
+    "FilterValueInput",
     "FiltersInput",
     "GeneratorInput",
     "HeaderInput",

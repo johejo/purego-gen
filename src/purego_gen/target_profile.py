@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from pydantic import ValidationError
 
+from purego_gen.declaration_filters import build_exact_symbol_regex
 from purego_gen.model import TypeMappingOptions
 from purego_gen.target_profile_schema import (
     CatalogInput,
@@ -51,16 +51,6 @@ class TargetProfile:
         if not self.required_constants:
             return None
         return build_exact_symbol_regex(self.required_constants)
-
-
-def build_exact_symbol_regex(symbols: tuple[str, ...]) -> str:
-    """Build an exact-match regex that matches only the provided symbols.
-
-    Returns:
-        Regular expression string matching exactly the provided symbols.
-    """
-    escaped = [re.escape(symbol) for symbol in symbols]
-    return "^(" + "|".join(escaped) + ")$"
 
 
 def _to_type_mapping_dict(type_mapping: TypeMappingInput | None) -> dict[str, bool] | None:

@@ -182,6 +182,47 @@ def test_fails_when_filter_matches_no_emitted_declarations(
     assert f"no declarations matched --{filter_name}-filter: ^does_not_exist$" in result.stderr
 
 
+def test_accepts_exact_name_array_filters_in_config(tmp_path: Path) -> None:
+    """Config array filters should behave as exact-name declaration filters."""
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
+                    "emit": "func",
+                    "filters": {"func": ["add"]},
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "purego_func_add" in result.stdout
+    assert "purego_func_reset" not in result.stdout
+
+
+def test_exact_name_array_filter_no_match_reports_original_value(tmp_path: Path) -> None:
+    """No-match failures should show the original exact-name array value."""
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
+                    "emit": "func",
+                    "filters": {"func": ["does_not_exist"]},
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 1
+    assert 'no declarations matched --func-filter: ["does_not_exist"]' in result.stderr
+
+
 def test_does_not_fail_when_filter_targets_non_emitted_category(tmp_path: Path) -> None:
     """Config filters outside `emit` should not trigger no-match failures."""
     result = _run_cli(
