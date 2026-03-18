@@ -2,7 +2,9 @@ package fixture
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
+	"unicode/utf16"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -233,12 +235,44 @@ func cBytesString(ptr uintptr, length int32) string {
 	return string(unsafe.Slice((*byte)(unsafe.Pointer(ptr)), int(length)))
 }
 
+func sqliteUTF16CString(text string) []uint16 {
+	encoded := utf16.Encode([]rune(text))
+	return append(encoded, 0)
+}
+
+func sqliteUTF16CStringPointer(text string) ([]uint16, uintptr) {
+	encoded := sqliteUTF16CString(text)
+	return encoded, uintptr(unsafe.Pointer(&encoded[0]))
+}
+
+func sqliteUTF16BytesString(ptr uintptr, length int32) string {
+	if ptr == 0 || length <= 0 {
+		return ""
+	}
+	return string(utf16.Decode(unsafe.Slice((*uint16)(unsafe.Pointer(ptr)), int(length)/2)))
+}
+
 func sqliteValueArray(values uintptr, count int32) []purego_type_sqlite3_value {
 	if values == 0 || count <= 0 {
 		return nil
 	}
 	pointerData := *(*unsafe.Pointer)(unsafe.Pointer(&values))
 	return unsafe.Slice((*purego_type_sqlite3_value)(pointerData), int(count))
+}
+
+func sqliteCompareByLengthThenLex(leftText string, rightText string) int32 {
+	switch {
+	case len(leftText) < len(rightText):
+		return -1
+	case len(leftText) > len(rightText):
+		return 1
+	case leftText < rightText:
+		return -1
+	case leftText > rightText:
+		return 1
+	default:
+		return 0
+	}
 }
 
 func collectFirstColumnTextRows(
@@ -451,6 +485,140 @@ func TestGeneratedBindingsRegisterScalarFunctionWithDestructorInLibsqlite3(t *te
 	}
 }
 
+func TestGeneratedBindingsRegisterScalarFunctionWithLibsqlite3(t *testing.T) {
+	connection := openSQLiteConnection(t)
+
+	const appData = uintptr(0x51ca2b)
+	var observedUserData uintptr
+	var observedArg string
+
+	scalarCallback := purego.NewCallback(func(
+		context purego_type_sqlite3_context,
+		count int32,
+		values uintptr,
+	) {
+		sqliteValues := sqliteValueArray(values, count)
+		if len(sqliteValues) != 1 {
+			purego_func_sqlite3_result_int(context, int32(len(sqliteValues)))
+			return
+		}
+
+		observedUserData = purego_func_sqlite3_user_data(context)
+		observedArg = purego_func_sqlite3_value_text(sqliteValues[0])
+		purego_func_sqlite3_result_text(
+			context,
+			observedArg+"-from-function",
+			-1,
+			purego_const_SQLITE_TRANSIENT,
+		)
+	})
+
+	registerResult := purego_func_sqlite3_create_function(
+		connection.db,
+		"purego_echo_basic",
+		1,
+		purego_const_SQLITE_UTF8,
+		appData,
+		scalarCallback,
+		0,
+		0,
+	)
+	if registerResult != purego_const_SQLITE_OK {
+		t.Fatalf(
+			"sqlite3_create_function() = %d, want %d, errmsg=%q",
+			registerResult,
+			purego_const_SQLITE_OK,
+			sqliteErrmsg(connection.db),
+		)
+	}
+
+	statement := prepareSQLiteStatement(t, connection.db, "SELECT purego_echo_basic('callback-value')")
+	rows := collectFirstColumnTextRows(t, connection.db, statement)
+	statement.Finalize(t)
+
+	if len(rows) != 1 || rows[0] != "callback-value-from-function" {
+		t.Fatalf(
+			"SELECT purego_echo_basic(...) rows = %#v, want %#v",
+			rows,
+			[]string{"callback-value-from-function"},
+		)
+	}
+	if observedUserData != appData {
+		t.Fatalf("sqlite3_user_data() = %#x, want %#x", observedUserData, appData)
+	}
+	if observedArg != "callback-value" {
+		t.Fatalf("sqlite3_value_text() = %q, want %q", observedArg, "callback-value")
+	}
+}
+
+func TestGeneratedBindingsRegisterScalarFunction16WithLibsqlite3(t *testing.T) {
+	connection := openSQLiteConnection(t)
+
+	const appData = uintptr(0x51ca16)
+	var observedUserData uintptr
+	var observedArg string
+
+	scalarCallback := purego.NewCallback(func(
+		context purego_type_sqlite3_context,
+		count int32,
+		values uintptr,
+	) {
+		sqliteValues := sqliteValueArray(values, count)
+		if len(sqliteValues) != 1 {
+			purego_func_sqlite3_result_int(context, int32(len(sqliteValues)))
+			return
+		}
+
+		observedUserData = purego_func_sqlite3_user_data(context)
+		observedArg = purego_func_sqlite3_value_text(sqliteValues[0])
+		purego_func_sqlite3_result_text(
+			context,
+			observedArg+"-from-function16",
+			-1,
+			purego_const_SQLITE_TRANSIENT,
+		)
+	})
+
+	functionName, functionNamePtr := sqliteUTF16CStringPointer("purego_echo16")
+	registerResult := purego_func_sqlite3_create_function16(
+		connection.db,
+		functionNamePtr,
+		1,
+		purego_const_SQLITE_UTF16,
+		appData,
+		scalarCallback,
+		0,
+		0,
+	)
+	runtime.KeepAlive(functionName)
+	if registerResult != purego_const_SQLITE_OK {
+		t.Fatalf(
+			"sqlite3_create_function16() = %d, want %d, errmsg=%q",
+			registerResult,
+			purego_const_SQLITE_OK,
+			sqliteErrmsg(connection.db),
+		)
+	}
+
+	statement := prepareSQLiteStatement(t, connection.db, "SELECT purego_echo16('callback-value')")
+	rows := collectFirstColumnTextRows(t, connection.db, statement)
+	statement.Finalize(t)
+
+	if len(rows) != 1 || rows[0] != "callback-value-from-function16" {
+		t.Fatalf(
+			"SELECT purego_echo16(...) rows = %#v, want %#v",
+			rows,
+			[]string{"callback-value-from-function16"},
+		)
+	}
+	if observedUserData != appData {
+		t.Fatalf("sqlite3_user_data() = %#x, want %#x", observedUserData, appData)
+	}
+	if observedArg != "callback-value" {
+		t.Fatalf("sqlite3_value_text() = %q, want %q", observedArg, "callback-value")
+	}
+}
+
 func TestGeneratedBindingsRegisterCollationWithDestructorInLibsqlite3(t *testing.T) {
 	connection := openSQLiteConnection(t)
 
@@ -474,18 +642,7 @@ func TestGeneratedBindingsRegisterCollationWithDestructorInLibsqlite3(t *testing
 
 		leftText := cBytesString(left, leftLength)
 		rightText := cBytesString(right, rightLength)
-		switch {
-		case len(leftText) < len(rightText):
-			return -1
-		case len(leftText) > len(rightText):
-			return 1
-		case leftText < rightText:
-			return -1
-		case leftText > rightText:
-			return 1
-		default:
-			return 0
-		}
+		return sqliteCompareByLengthThenLex(leftText, rightText)
 	})
 	destroyCallback := purego.NewCallback(func(userData uintptr) {
 		destroyCount++
@@ -541,6 +698,140 @@ func TestGeneratedBindingsRegisterCollationWithDestructorInLibsqlite3(t *testing
 	}
 	if destroyArg != appData {
 		t.Fatalf("collation xDestroy arg = %#x, want %#x", destroyArg, appData)
+	}
+}
+
+func TestGeneratedBindingsRegisterCollationWithLibsqlite3(t *testing.T) {
+	connection := openSQLiteConnection(t)
+
+	const appData = uintptr(0xc011a701)
+	compareCount := 0
+	compareAppDataMismatch := false
+
+	compareCallback := purego.NewCallback(func(
+		userData uintptr,
+		leftLength int32,
+		left uintptr,
+		rightLength int32,
+		right uintptr,
+	) int32 {
+		compareCount++
+		if userData != appData {
+			compareAppDataMismatch = true
+		}
+
+		leftText := cBytesString(left, leftLength)
+		rightText := cBytesString(right, rightLength)
+		return sqliteCompareByLengthThenLex(leftText, rightText)
+	})
+
+	registerResult := purego_func_sqlite3_create_collation(
+		connection.db,
+		"purego_len_basic",
+		purego_const_SQLITE_UTF8,
+		appData,
+		compareCallback,
+	)
+	if registerResult != purego_const_SQLITE_OK {
+		t.Fatalf(
+			"sqlite3_create_collation() = %d, want %d, errmsg=%q",
+			registerResult,
+			purego_const_SQLITE_OK,
+			sqliteErrmsg(connection.db),
+		)
+	}
+
+	statement := prepareSQLiteStatement(
+		t,
+		connection.db,
+		"WITH items(value) AS (VALUES ('bbb'), ('a'), ('cc')) "+
+			"SELECT value FROM items ORDER BY value COLLATE purego_len_basic",
+	)
+	rows := collectFirstColumnTextRows(t, connection.db, statement)
+	statement.Finalize(t)
+
+	wantRows := []string{"a", "cc", "bbb"}
+	if len(rows) != len(wantRows) {
+		t.Fatalf("collation rows len = %d, want %d (%#v)", len(rows), len(wantRows), rows)
+	}
+	for index, want := range wantRows {
+		if rows[index] != want {
+			t.Fatalf("collation rows[%d] = %q, want %q (%#v)", index, rows[index], want, rows)
+		}
+	}
+	if compareCount == 0 {
+		t.Fatal("collation callback was not invoked")
+	}
+	if compareAppDataMismatch {
+		t.Fatal("collation callback received unexpected app data")
+	}
+}
+
+func TestGeneratedBindingsRegisterCollation16WithLibsqlite3(t *testing.T) {
+	connection := openSQLiteConnection(t)
+
+	const appData = uintptr(0xc011a716)
+	compareCount := 0
+	compareAppDataMismatch := false
+
+	compareCallback := purego.NewCallback(func(
+		userData uintptr,
+		leftLength int32,
+		left uintptr,
+		rightLength int32,
+		right uintptr,
+	) int32 {
+		compareCount++
+		if userData != appData {
+			compareAppDataMismatch = true
+		}
+
+		leftText := sqliteUTF16BytesString(left, leftLength)
+		rightText := sqliteUTF16BytesString(right, rightLength)
+		return sqliteCompareByLengthThenLex(leftText, rightText)
+	})
+
+	collationName, collationNamePtr := sqliteUTF16CStringPointer("purego_len16")
+	registerResult := purego_func_sqlite3_create_collation16(
+		connection.db,
+		collationNamePtr,
+		purego_const_SQLITE_UTF16,
+		appData,
+		compareCallback,
+	)
+	runtime.KeepAlive(collationName)
+	if registerResult != purego_const_SQLITE_OK {
+		t.Fatalf(
+			"sqlite3_create_collation16() = %d, want %d, errmsg=%q",
+			registerResult,
+			purego_const_SQLITE_OK,
+			sqliteErrmsg(connection.db),
+		)
+	}
+
+	statement := prepareSQLiteStatement(
+		t,
+		connection.db,
+		"WITH items(value) AS (VALUES ('bbb'), ('a'), ('cc')) "+
+			"SELECT value FROM items ORDER BY value COLLATE purego_len16",
+	)
+	rows := collectFirstColumnTextRows(t, connection.db, statement)
+	statement.Finalize(t)
+
+	wantRows := []string{"a", "cc", "bbb"}
+	if len(rows) != len(wantRows) {
+		t.Fatalf("collation rows len = %d, want %d (%#v)", len(rows), len(wantRows), rows)
+	}
+	for index, want := range wantRows {
+		if rows[index] != want {
+			t.Fatalf("collation rows[%d] = %q, want %q (%#v)", index, rows[index], want, rows)
+		}
+	}
+	if compareCount == 0 {
+		t.Fatal("collation callback was not invoked")
+	}
+	if compareAppDataMismatch {
+		t.Fatal("collation callback received unexpected app data")
 	}
 }
 
@@ -727,5 +1018,62 @@ func TestGeneratedBindingsProgressHandlerWithLibsqlite3(t *testing.T) {
 	}
 	if appDataMismatch {
 		t.Fatal("progress handler received unexpected app data")
+	}
+}
+
+func TestGeneratedBindingsTraceV2WithLibsqlite3(t *testing.T) {
+	connection := openSQLiteConnection(t)
+
+	const appData = uintptr(0x7ace02)
+	sawStmtEvent := false
+	sawRowEvent := false
+	traceCount := 0
+	appDataMismatch := false
+
+	traceResult := purego_func_sqlite3_trace_v2(
+		connection.db,
+		purego_const_SQLITE_TRACE_STMT|purego_const_SQLITE_TRACE_ROW,
+		purego.NewCallback(func(event uint32, context uintptr, _ uintptr, _ uintptr) int32 {
+			traceCount++
+			if context != appData {
+				appDataMismatch = true
+			}
+			if event == purego_const_SQLITE_TRACE_STMT {
+				sawStmtEvent = true
+			}
+			if event == purego_const_SQLITE_TRACE_ROW {
+				sawRowEvent = true
+			}
+			return 0
+		}),
+		appData,
+	)
+	if traceResult != purego_const_SQLITE_OK {
+		t.Fatalf(
+			"sqlite3_trace_v2() = %d, want %d, errmsg=%q",
+			traceResult,
+			purego_const_SQLITE_OK,
+			sqliteErrmsg(connection.db),
+		)
+	}
+
+	statement := prepareSQLiteStatement(t, connection.db, "SELECT 'trace-value'")
+	rows := collectFirstColumnTextRows(t, connection.db, statement)
+	statement.Finalize(t)
+
+	if len(rows) != 1 || rows[0] != "trace-value" {
+		t.Fatalf("trace query rows = %#v, want %#v", rows, []string{"trace-value"})
+	}
+	if traceCount == 0 {
+		t.Fatal("trace callback was not invoked")
+	}
+	if !sawStmtEvent {
+		t.Fatal("trace callback did not observe SQLITE_TRACE_STMT")
+	}
+	if !sawRowEvent {
+		t.Fatal("trace callback did not observe SQLITE_TRACE_ROW")
+	}
+	if appDataMismatch {
+		t.Fatal("trace callback received unexpected context pointer")
 	}
 }
