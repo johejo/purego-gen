@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from purego_gen.config_load import load_app_config, resolve_generator_config
 from purego_gen.config_normalize import build_generator_spec, build_type_mapping_options
 from purego_gen.config_schema import AppConfigInput
+from purego_gen.config_shared import TypeMappingInput, type_mapping_input_to_dict
 from purego_gen.declaration_filters import exact_names_filter, regex_filter
 
 if TYPE_CHECKING:
@@ -245,6 +246,15 @@ def test_build_type_mapping_options_defaults_unset_values() -> None:
     assert options.const_char_as_string is False
     assert options.strict_enum_typedefs is True
     assert options.typed_sentinel_constants is False
+
+
+def test_type_mapping_input_to_dict_omits_unset_values() -> None:
+    """Sparse type-mapping helper should only emit explicitly configured flags."""
+    mapping = type_mapping_input_to_dict(
+        TypeMappingInput(strict_enum_typedefs=True, typed_sentinel_constants=None)
+    )
+
+    assert mapping == {"strict_enum_typedefs": True}
 
 
 def test_load_app_config_formats_validation_errors_with_config_context(tmp_path: Path) -> None:

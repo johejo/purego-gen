@@ -8,13 +8,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from purego_gen.config_normalize import build_type_mapping_options
+from purego_gen.config_shared import type_mapping_input_to_dict
 from purego_gen.declaration_filters import build_exact_symbol_regex
 from purego_gen.json_load import load_json_model
 from purego_gen.target_profile_schema import (
     CatalogInput,
     ComponentInput,
     ProfileInput,
-    TypeMappingInput,
 )
 
 if TYPE_CHECKING:
@@ -53,12 +53,6 @@ class TargetProfile:
         return build_exact_symbol_regex(self.required_constants)
 
 
-def _to_type_mapping_dict(type_mapping: TypeMappingInput | None) -> dict[str, bool] | None:
-    if type_mapping is None:
-        return None
-    return dict(type_mapping.model_dump(exclude_none=True))
-
-
 def _load_catalog(path: Path) -> CatalogInput:
     """Load and validate catalog specification.
 
@@ -89,7 +83,7 @@ def _merge_component(
         resolved_values["required_types"] = component.required_types
     if component.required_constants is not None:
         resolved_values["required_constants"] = component.required_constants
-    mapping = _to_type_mapping_dict(component.type_mapping)
+    mapping = type_mapping_input_to_dict(component.type_mapping)
     if mapping is not None:
         resolved_type_mapping.update(mapping)
 
@@ -110,7 +104,7 @@ def _merge_profile_overrides(
         resolved_values["required_types"] = profile.required_types
     if profile.required_constants is not None:
         resolved_values["required_constants"] = profile.required_constants
-    mapping = _to_type_mapping_dict(profile.type_mapping)
+    mapping = type_mapping_input_to_dict(profile.type_mapping)
     if mapping is not None:
         resolved_type_mapping.update(mapping)
 

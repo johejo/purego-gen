@@ -7,47 +7,35 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from annotated_types import Len
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StringConstraints
+from pydantic import ConfigDict, Field
 
-NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
-NonEmptyStrTuple = Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
+from purego_gen.config_shared import NonEmptyStr, NonEmptyStrTuple, StrictModel, TypeMappingInput
+
 FilterValueInput = NonEmptyStr | NonEmptyStrTuple
 
 
-class _StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-
-class TypeMappingInput(_StrictModel):
-    """Optional type-mapping overrides."""
-
-    const_char_as_string: StrictBool | None = None
-    strict_enum_typedefs: StrictBool | None = None
-    typed_sentinel_constants: StrictBool | None = None
-
-
-class BufferInputPairInput(_StrictModel):
+class BufferInputPairInput(StrictModel):
     """One pointer/length parameter pair rewritten by a generated helper."""
 
     pointer: NonEmptyStr
     length: NonEmptyStr
 
 
-class BufferInputHelperInput(_StrictModel):
+class BufferInputHelperInput(StrictModel):
     """One function-specific helper definition for `[]byte` inputs."""
 
     function: NonEmptyStr
     pairs: Annotated[tuple[BufferInputPairInput, ...], Len(min_length=1)]
 
 
-class CallbackInputHelperInput(_StrictModel):
+class CallbackInputHelperInput(StrictModel):
     """One function-specific helper definition for callback parameters."""
 
     function: NonEmptyStr
     parameters: Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
 
 
-class HelpersInput(_StrictModel):
+class HelpersInput(StrictModel):
     """Optional helper-generation configuration."""
 
     buffer_inputs: Annotated[tuple[BufferInputHelperInput, ...], Len(min_length=1)] | None = None
@@ -56,7 +44,7 @@ class HelpersInput(_StrictModel):
     )
 
 
-class FiltersInput(_StrictModel):
+class FiltersInput(StrictModel):
     """Optional declaration filters."""
 
     model_config = ConfigDict(extra="forbid", strict=True, populate_by_name=True)
@@ -67,14 +55,14 @@ class FiltersInput(_StrictModel):
     var: FilterValueInput | None = None
 
 
-class LocalHeadersInput(_StrictModel):
+class LocalHeadersInput(StrictModel):
     """Header configuration for local file paths."""
 
     kind: Literal["local"]
     headers: NonEmptyStrTuple
 
 
-class EnvIncludeHeadersInput(_StrictModel):
+class EnvIncludeHeadersInput(StrictModel):
     """Header configuration resolved from an include-directory environment variable."""
 
     kind: Literal["env_include"]
@@ -85,7 +73,7 @@ class EnvIncludeHeadersInput(_StrictModel):
 HeaderInput = Annotated[LocalHeadersInput | EnvIncludeHeadersInput, Field(discriminator="kind")]
 
 
-class GeneratorInput(_StrictModel):
+class GeneratorInput(StrictModel):
     """Generator configuration loaded from JSON."""
 
     lib_id: NonEmptyStr
@@ -99,7 +87,7 @@ class GeneratorInput(_StrictModel):
     clang_args: tuple[NonEmptyStr, ...] = ()
 
 
-class AppConfigInput(_StrictModel):
+class AppConfigInput(StrictModel):
     """Top-level shared config file."""
 
     schema_version: Literal[1]

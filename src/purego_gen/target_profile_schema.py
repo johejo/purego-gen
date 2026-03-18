@@ -7,23 +7,11 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from annotated_types import Len
-from pydantic import BaseModel, ConfigDict, StringConstraints
 
-from purego_gen.config_schema import TypeMappingInput as SharedTypeMappingInput
-
-NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
-NonEmptyStrTuple = Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
+from purego_gen.config_shared import NonEmptyStr, NonEmptyStrTuple, StrictModel, TypeMappingInput
 
 
-class _StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-
-class TypeMappingInput(SharedTypeMappingInput):
-    """Optional type-mapping overrides for one catalog component."""
-
-
-class ComponentInput(_StrictModel):
+class ComponentInput(StrictModel):
     """Composable profile fields resolved from presets and profile overrides."""
 
     description: NonEmptyStr | None = None
@@ -35,7 +23,7 @@ class ComponentInput(_StrictModel):
     type_mapping: TypeMappingInput | None = None
 
 
-class ProfileInput(_StrictModel):
+class ProfileInput(StrictModel):
     """One profile entry with compose chain and local overrides."""
 
     compose: NonEmptyStrTuple
@@ -48,7 +36,7 @@ class ProfileInput(_StrictModel):
     type_mapping: TypeMappingInput | None = None
 
 
-class CatalogInput(_StrictModel):
+class CatalogInput(StrictModel):
     """Top-level target-profile catalog schema."""
 
     schema_version: Literal[1]
