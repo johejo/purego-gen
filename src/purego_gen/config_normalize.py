@@ -7,24 +7,20 @@ from __future__ import annotations
 from pathlib import Path
 
 from purego_gen.config_model import (
-    BufferInputHelper,
-    BufferInputPair,
-    CallbackInputHelper,
     EnvIncludeHeaders,
     GeneratorFilters,
-    GeneratorHelpers,
     GeneratorSpec,
     HeaderConfig,
     LocalHeaders,
 )
 from purego_gen.config_schema import (
     GeneratorInput,
-    HelpersInput,
     LocalHeadersInput,
     TypeMappingInput,
 )
 from purego_gen.declaration_filters import FilterSpec, exact_names_filter, regex_filter
 from purego_gen.emit_kinds import parse_emit_kinds
+from purego_gen.helper_config import normalize_generator_helpers
 from purego_gen.identifier_utils import is_go_identifier, normalize_lib_id
 from purego_gen.model import TypeMappingOptions
 
@@ -60,32 +56,6 @@ def _normalize_filter(filter_value: str | tuple[str, ...] | None) -> FilterSpec 
     if isinstance(filter_value, str):
         return regex_filter(filter_value)
     return exact_names_filter(filter_value)
-
-
-def _normalize_helpers(helpers: HelpersInput) -> GeneratorHelpers:
-    return GeneratorHelpers(
-        buffer_inputs=()
-        if helpers.buffer_inputs is None
-        else tuple(
-            BufferInputHelper(
-                function=helper.function,
-                pairs=tuple(
-                    BufferInputPair(pointer=pair.pointer, length=pair.length)
-                    for pair in helper.pairs
-                ),
-            )
-            for helper in helpers.buffer_inputs
-        ),
-        callback_inputs=()
-        if helpers.callback_inputs is None
-        else tuple(
-            CallbackInputHelper(
-                function=helper.function,
-                parameters=helper.parameters,
-            )
-            for helper in helpers.callback_inputs
-        ),
-    )
 
 
 def build_generator_spec(
@@ -133,7 +103,7 @@ def build_generator_spec(
         message = f"config `{config_path}` generator.emit is invalid: {error}"
         raise RuntimeError(message) from error
 
-    helpers = _normalize_helpers(generator.helpers)
+    helpers = normalize_generator_helpers(generator.helpers)
     if (helpers.buffer_inputs or helpers.callback_inputs) and "func" not in emit_kinds:
         message = (
             f"config `{config_path}` generator.helpers.buffer_inputs or "
