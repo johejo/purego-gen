@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -17,8 +18,6 @@ from purego_gen.config_shared import TypeMappingInput, type_mapping_input_to_dic
 from purego_gen.declaration_filters import exact_names_filter, regex_filter
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from _pytest.monkeypatch import MonkeyPatch
 
 
@@ -282,6 +281,20 @@ def test_load_app_config_formats_validation_errors_with_config_context(tmp_path:
         match=r"(?s)config `.*config\.json`.*generator\.unknown.*extra_forbidden",
     ):
         load_app_config(config_path)
+
+
+def test_load_app_config_resolves_config_path(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    """Config loader should record the resolved absolute config path."""
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(_config_payload(func_filter="^add$")),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    loaded = load_app_config(Path("config.json"))
+
+    assert loaded.config_path == config_path.resolve()
 
 
 def test_resolve_generator_config_preserves_shared_fields_for_local_headers(

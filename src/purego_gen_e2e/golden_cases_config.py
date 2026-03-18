@@ -6,12 +6,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
+from purego_gen.config_load import load_generator_config_input
 from purego_gen.config_model import GeneratorSpec
-from purego_gen.config_normalize import build_generator_spec, resolve_config_path
-from purego_gen.config_schema import GeneratorInput, NonEmptyStr, NonEmptyStrTuple
-from purego_gen.json_load import load_json_model
+from purego_gen.config_normalize import resolve_config_path
+from purego_gen.config_schema import GeneratorInput
+from purego_gen.config_shared import NonEmptyStr, NonEmptyStrTuple, StrictModel
 
 PathType = Path
 GeneratorSpecType = GeneratorSpec
@@ -20,11 +21,7 @@ NonEmptyStrType = NonEmptyStr
 NonEmptyStrTupleType = NonEmptyStrTuple
 
 
-class _StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-
-class CompileCRuntimeInput(_StrictModel):
+class CompileCRuntimeInput(StrictModel):
     """Runtime library definition by compiling local C sources."""
 
     kind: Literal["compile_c"]
@@ -33,7 +30,7 @@ class CompileCRuntimeInput(_StrictModel):
     ldflags: NonEmptyStrTupleType | None = None
 
 
-class EnvLibdirRuntimeInput(_StrictModel):
+class EnvLibdirRuntimeInput(StrictModel):
     """Runtime library definition from a library-directory environment variable."""
 
     kind: Literal["env_libdir"]
@@ -47,13 +44,13 @@ RuntimeInput = Annotated[
 ]
 
 
-class GoldenInput(_StrictModel):
+class GoldenInput(StrictModel):
     """Harness-only configuration."""
 
     runtime: RuntimeInput | None = None
 
 
-class AppConfigInput(_StrictModel):
+class AppConfigInput(StrictModel):
     """Top-level golden-case config file."""
 
     schema_version: Literal[1]
@@ -130,21 +127,14 @@ def load_case_config(path: Path) -> AppConfig:
     Returns:
         Parsed golden-case config.
     """
-    resolved_path = path.expanduser().resolve()
-    parsed = load_json_model(
-        resolved_path,
+    resolved_path, parsed, generator = load_generator_config_input(
+        path,
         model_type=AppConfigInput,
-        context=f"config `{resolved_path}`",
     )
-    base_dir = resolved_path.parent
     return AppConfig(
         config_path=resolved_path,
-        generator=build_generator_spec(
-            parsed.generator,
-            base_dir=base_dir,
-            config_path=resolved_path,
-        ),
-        golden=_to_golden_config(parsed.golden, base_dir=base_dir),
+        generator=generator,
+        golden=_to_golden_config(parsed.golden, base_dir=resolved_path.parent),
     )
 
 

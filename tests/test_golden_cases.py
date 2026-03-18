@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -21,8 +22,6 @@ from purego_gen_e2e.golden_cases_lib import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from _pytest.monkeypatch import MonkeyPatch
 
 
@@ -207,3 +206,33 @@ def test_load_case_config_formats_validation_errors_with_config_context(tmp_path
         match=r"(?s)config `.*config\.json`.*generator\.unknown.*extra_forbidden",
     ):
         load_case_config(config_path)
+
+
+def test_load_case_config_resolves_config_path(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Golden-case config loader should record the resolved absolute config path."""
+    config_path = tmp_path / "config.json"
+    _write_json(
+        config_path,
+        {
+            "schema_version": 1,
+            "generator": {
+                "lib_id": "fixture_lib",
+                "package": "fixture",
+                "emit": "func",
+                "headers": {
+                    "kind": "local",
+                    "headers": ["headers/basic.h"],
+                },
+            },
+        },
+    )
+    (tmp_path / "headers").mkdir(parents=True, exist_ok=True)
+    _write_text_line(tmp_path / "headers" / "basic.h", "int add(int a, int b);")
+    monkeypatch.chdir(tmp_path)
+
+    loaded = load_case_config(Path("config.json"))
+
+    assert loaded.config_path == config_path.resolve()

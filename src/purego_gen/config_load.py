@@ -7,13 +7,49 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, Protocol, cast
+
+from pydantic import BaseModel
 
 from purego_gen.config_model import AppConfig, GeneratorSpec, LocalHeaders
 from purego_gen.config_normalize import build_generator_spec
 from purego_gen.config_schema import AppConfigInput
 from purego_gen.generator_config import GeneratorConfig, build_generator_config
 from purego_gen.json_load import load_json_model, read_json_text
+
+if TYPE_CHECKING:
+    from purego_gen.config_schema import GeneratorInput
+
+
+class _HasGeneratorInput(Protocol):
+    """Protocol for config payloads that include one generator block."""
+
+    generator: GeneratorInput
+
+
+def load_generator_config_input[ModelT: BaseModel](
+    path: Path,
+    *,
+    model_type: type[ModelT],
+) -> tuple[Path, ModelT, GeneratorSpec]:
+    """Load one config model and normalize its generator block.
+
+    Returns:
+        Resolved config path, parsed top-level model, and normalized generator spec.
+    """
+    resolved_path = path.expanduser().resolve()
+    parsed = load_json_model(
+        resolved_path,
+        model_type=model_type,
+        context=f"config `{resolved_path}`",
+    )
+    generator_input = cast("_HasGeneratorInput", parsed).generator
+    generator = build_generator_spec(
+        generator_input,
+        base_dir=resolved_path.parent,
+        config_path=resolved_path,
+    )
+    return resolved_path, parsed, generator
 
 
 def load_app_config(path: Path) -> AppConfig:
@@ -22,20 +58,13 @@ def load_app_config(path: Path) -> AppConfig:
     Returns:
         Parsed generator config.
     """
-    resolved_path = path.expanduser().resolve()
-    parsed = load_json_model(
-        resolved_path,
+    resolved_path, _, generator = load_generator_config_input(
+        path,
         model_type=AppConfigInput,
-        context=f"config `{resolved_path}`",
     )
-    base_dir = resolved_path.parent
     return AppConfig(
         config_path=resolved_path,
-        generator=build_generator_spec(
-            parsed.generator,
-            base_dir=base_dir,
-            config_path=resolved_path,
-        ),
+        generator=generator,
     )
 
 
@@ -121,5 +150,6 @@ def dump_signature_payload(path: Path) -> dict[str, object]:
 __all__ = [
     "dump_signature_payload",
     "load_app_config",
+    "load_generator_config_input",
     "resolve_generator_config",
 ]

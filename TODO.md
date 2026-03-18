@@ -25,7 +25,7 @@ Completed work is intentionally omitted.
 - [ ] Emit a clearer supported/skipped declaration inventory so users can quickly see what still requires handwritten code after generation.
 - [ ] Explore an optional helper-layer generation mode that builds small ergonomic wrappers on top of the low-level purego bindings without baking target-library-specific policy into the core generator.
 - [ ] Revisit config schema/model/normalize/load boundaries so config additions stop requiring repeated cross-file edits.
-- [ ] Revisit whether `target_profile` and normal config loading should share type-mapping and validation helpers.
+- [ ] Continue simplifying config-loading boundaries after the shared type-mapping and validation helper extraction.
 
 ## Open Decisions
 
