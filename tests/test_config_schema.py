@@ -197,6 +197,49 @@ def test_build_generator_spec_accepts_callback_input_helpers(tmp_path: Path) -> 
     assert helper.parameters == ("callback", "destroy")
 
 
+def test_build_generator_spec_accepts_header_overlays(tmp_path: Path) -> None:
+    """Overlay config should normalize into execution-ready overlay models."""
+    payload = _config_payload(func_filter="^add$")
+    generator = payload["generator"]
+    assert isinstance(generator, dict)
+    generator["overlays"] = [
+        {
+            "path": "virtual.h",
+            "content": "int add(int a, int b);\n",
+        }
+    ]
+
+    parsed = AppConfigInput.model_validate_json(json.dumps(payload))
+    spec = build_generator_spec(
+        parsed.generator,
+        base_dir=tmp_path,
+        config_path=tmp_path / "config.json",
+    )
+
+    assert len(spec.overlays) == 1
+    assert spec.overlays[0].path == "virtual.h"
+    assert spec.overlays[0].content == "int add(int a, int b);\n"
+
+
+def test_build_generator_spec_rejects_duplicate_overlay_paths(tmp_path: Path) -> None:
+    """Overlay paths must remain unique within one config."""
+    payload = _config_payload(func_filter="^add$")
+    generator = payload["generator"]
+    assert isinstance(generator, dict)
+    generator["overlays"] = [
+        {"path": "virtual.h", "content": "int add(int a, int b);\n"},
+        {"path": "virtual.h", "content": "int reset(void);\n"},
+    ]
+    parsed = AppConfigInput.model_validate_json(json.dumps(payload))
+
+    with pytest.raises(RuntimeError, match=r"duplicate overlay path: virtual\.h"):
+        build_generator_spec(
+            parsed.generator,
+            base_dir=tmp_path,
+            config_path=tmp_path / "config.json",
+        )
+
+
 def test_config_schema_rejects_empty_callback_input_helper_array() -> None:
     """Callback helper arrays must contain at least one item when present."""
     payload = _config_payload(func_filter="^add$")
@@ -338,6 +381,40 @@ def test_resolve_generator_config_preserves_shared_fields_for_local_headers(
     assert resolved.clang_args == ("-DTESTING=1",)
 
 
+def test_resolve_generator_config_resolves_local_overlay_paths_from_config_dir(
+    tmp_path: Path,
+) -> None:
+    """Local overlay paths should resolve relative to the config base dir."""
+    payload = {
+        "schema_version": 1,
+        "generator": {
+            "lib_id": "fixture_lib",
+            "package": "fixture",
+            "emit": "func",
+            "headers": {"kind": "local", "headers": ["virtual.h"]},
+            "overlays": [
+                {
+                    "path": "virtual.h",
+                    "content": "int add(int a, int b);\n",
+                }
+            ],
+            "filters": {"func": ["add"]},
+        },
+    }
+    parsed = AppConfigInput.model_validate_json(json.dumps(payload))
+    spec = build_generator_spec(
+        parsed.generator,
+        base_dir=tmp_path,
+        config_path=tmp_path / "config.json",
+    )
+
+    resolved = resolve_generator_config(spec)
+
+    expected_path = str((tmp_path / "virtual.h").resolve())
+    assert resolved.headers == (expected_path,)
+    assert resolved.overlays[0].path == expected_path
+
+
 def test_resolve_generator_config_preserves_shared_fields_for_env_include_headers(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
@@ -377,3 +454,45 @@ def test_resolve_generator_config_preserves_shared_fields_for_env_include_header
     assert resolved.const_filter == regex_filter("^VALUE_")
     assert resolved.type_mapping.typed_sentinel_constants is True
     assert resolved.clang_args == ("-I", str(include_dir.resolve()), "-DUSE_ENV=1")
+
+
+def test_resolve_generator_config_resolves_env_include_overlay_paths_from_include_dir(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Env-include overlay paths should resolve relative to the include dir."""
+    include_dir = tmp_path / "include"
+    include_dir.mkdir()
+    monkeypatch.setenv("PUREGO_GEN_INCLUDE_DIR", str(include_dir))
+    payload = {
+        "schema_version": 1,
+        "generator": {
+            "lib_id": "fixture_lib",
+            "package": "fixture",
+            "emit": "func",
+            "headers": {
+                "kind": "env_include",
+                "include_dir_env": "PUREGO_GEN_INCLUDE_DIR",
+                "headers": ["virtual.h"],
+            },
+            "overlays": [
+                {
+                    "path": "virtual.h",
+                    "content": "int add(int a, int b);\n",
+                }
+            ],
+            "filters": {"func": ["add"]},
+        },
+    }
+    parsed = AppConfigInput.model_validate_json(json.dumps(payload))
+    spec = build_generator_spec(
+        parsed.generator,
+        base_dir=tmp_path,
+        config_path=tmp_path / "config.json",
+    )
+
+    resolved = resolve_generator_config(spec)
+
+    expected_path = str((include_dir / "virtual.h").resolve())
+    assert resolved.headers == (expected_path,)
+    assert resolved.overlays[0].path == expected_path

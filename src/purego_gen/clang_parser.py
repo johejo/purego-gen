@@ -13,7 +13,12 @@ from purego_gen.clang_runtime import (
     configure_libclang,
     load_cindex,
 )
-from purego_gen.clang_types import CollectedDeclarations, ParseContext, SeenDeclarations
+from purego_gen.clang_types import (
+    CollectedDeclarations,
+    ParseContext,
+    SeenDeclarations,
+    UnsavedFile,
+)
 from purego_gen.model import ParsedDeclarations, TypeMappingOptions
 
 
@@ -21,6 +26,7 @@ def parse_declarations(
     headers: tuple[str, ...],
     clang_args: tuple[str, ...],
     *,
+    unsaved_files: tuple[UnsavedFile, ...] = (),
     type_mapping: TypeMappingOptions | None = None,
 ) -> ParsedDeclarations:
     """Parse declaration categories from headers via libclang.
@@ -49,6 +55,7 @@ def parse_declarations(
         clang_args=clang_args,
         macro_cursor_predicates=build_macro_cursor_predicates(cindex),
         type_mapping=resolved_type_mapping,
+        unsaved_files=unsaved_files,
     )
 
     all_declarations = CollectedDeclarations(
@@ -66,9 +73,10 @@ def parse_declarations(
         runtime_var_names=set(),
     )
 
+    unsaved_paths = {path for path, _ in unsaved_files}
     for header in headers:
         header_path = Path(header).resolve()
-        if not header_path.exists():
+        if not header_path.exists() and str(header_path) not in unsaved_paths:
             message = f"header not found: {header_path}"
             raise ClangParserError(message)
 

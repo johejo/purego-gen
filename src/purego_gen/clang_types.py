@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     )
 
 
+type UnsavedFile = tuple[str, str]
+
+
 @dataclass(slots=True)
 class SeenDeclarations:
     """Deduplication keys for extracted declarations."""
@@ -220,6 +223,7 @@ class _IndexLike(Protocol):
         path: str,
         args: list[str],
         options: int,
+        unsaved_files: list[UnsavedFile] | None = None,
     ) -> TranslationUnitLike: ...
 
 
@@ -264,3 +268,4 @@ class ParseContext:
     clang_args: tuple[str, ...]
     macro_cursor_predicates: MacroCursorPredicates
     type_mapping: TypeMappingOptions
+    unsaved_files: tuple[UnsavedFile, ...] = ()

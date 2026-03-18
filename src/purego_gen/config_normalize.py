@@ -22,7 +22,7 @@ from purego_gen.config_schema import (
 )
 from purego_gen.declaration_filters import FilterSpec, exact_names_filter, regex_filter
 from purego_gen.emit_kinds import parse_emit_kinds
-from purego_gen.helper_config import normalize_generator_helpers
+from purego_gen.helper_config import normalize_generator_helpers, normalize_header_overlays
 from purego_gen.identifier_utils import is_go_identifier, normalize_lib_id
 from purego_gen.model import TypeMappingOptions
 
@@ -170,9 +170,11 @@ def build_generator_spec(
 
     return GeneratorSpec(
         lib_id=normalized_lib_id,
+        config_base_dir=base_dir,
         package=package_name,
         emit_kinds=emit_kinds,
         headers=_normalize_headers(generator, base_dir=base_dir),
+        overlays=normalize_header_overlays(generator.overlays),
         filters=normalize_filters(generator.filters),
         exclude_filters=normalize_filters(generator.exclude),
         helpers=helpers,

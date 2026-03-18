@@ -44,6 +44,13 @@ class HelpersInput(StrictModel):
     )
 
 
+class HeaderOverlayInput(StrictModel):
+    """One in-memory header overlay presented as a virtual file."""
+
+    path: NonEmptyStr
+    content: NonEmptyStr
+
+
 class FiltersInput(StrictModel):
     """Optional declaration filters."""
 
@@ -80,6 +87,7 @@ class GeneratorInput(StrictModel):
     package: NonEmptyStr
     emit: NonEmptyStr
     headers: HeaderInput
+    overlays: Annotated[tuple[HeaderOverlayInput, ...], Len(min_length=1)] | None = None
     filters: FiltersInput = Field(default_factory=FiltersInput)
     exclude: FiltersInput = Field(default_factory=FiltersInput)
     helpers: HelpersInput = Field(default_factory=HelpersInput)
@@ -101,6 +109,7 @@ __all__ = [
     "FiltersInput",
     "GeneratorInput",
     "HeaderInput",
+    "HeaderOverlayInput",
     "HelpersInput",
     "LocalHeadersInput",
     "NonEmptyStr",

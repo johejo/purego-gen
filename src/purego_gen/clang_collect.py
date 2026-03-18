@@ -108,6 +108,7 @@ def _parse_translation_unit(
         return parse_context.index.parse(
             path=str(header_path),
             args=list(parse_context.clang_args),
+            unsaved_files=list(parse_context.unsaved_files) or None,
             options=parse_options,
         )
     except cindex.TranslationUnitLoadError as error:

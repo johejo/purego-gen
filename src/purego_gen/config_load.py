@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, Protocol, cast
 
 from pydantic import BaseModel
 
-from purego_gen.config_model import AppConfig, GeneratorSpec, LocalHeaders
-from purego_gen.config_normalize import build_generator_spec
+from purego_gen.config_model import AppConfig, GeneratorSpec, HeaderOverlay, LocalHeaders
+from purego_gen.config_normalize import build_generator_spec, resolve_config_path
 from purego_gen.config_schema import AppConfigInput
 from purego_gen.generator_config import GeneratorConfig, build_generator_config
 from purego_gen.json_load import load_json_model, read_json_text
@@ -77,15 +77,28 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
     Raises:
         RuntimeError: Header resolution or environment lookup fails.
     """
+
+    def _resolve_overlay_paths(*, base_dir: Path) -> tuple[HeaderOverlay, ...]:
+        return tuple(
+            HeaderOverlay(
+                path=str(resolve_config_path(base_dir, overlay.path)),
+                content=overlay.content,
+            )
+            for overlay in generator.overlays
+        )
+
     if isinstance(generator.headers, LocalHeaders):
         local_header_paths = generator.headers.headers
+        resolved_overlays = _resolve_overlay_paths(base_dir=generator.config_base_dir)
+        overlay_paths = {overlay.path for overlay in resolved_overlays}
         for header_path in local_header_paths:
-            if not header_path.is_file():
+            if not header_path.is_file() and str(header_path) not in overlay_paths:
                 message = f"header not found: {header_path}"
                 raise RuntimeError(message)
         return build_generator_config(
             generator,
             headers=tuple(str(path) for path in local_header_paths),
+            overlays=resolved_overlays,
         )
 
     env_headers = generator.headers
@@ -105,9 +118,11 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
         raise RuntimeError(message)
 
     resolved_header_paths: list[str] = []
+    resolved_overlays = _resolve_overlay_paths(base_dir=include_dir)
+    overlay_paths = {overlay.path for overlay in resolved_overlays}
     for header_name in env_headers.headers:
         header_path = (include_dir / header_name).resolve()
-        if not header_path.is_file():
+        if not header_path.is_file() and str(header_path) not in overlay_paths:
             message = (
                 f"header not found from env include directory "
                 f"{env_headers.include_dir_env}: {header_path}"
@@ -119,6 +134,7 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
         generator,
         headers=tuple(resolved_header_paths),
         clang_args=("-I", str(include_dir), *generator.clang_args),
+        overlays=resolved_overlays,
     )
 
 

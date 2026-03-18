@@ -26,6 +26,7 @@ class _IndexInstance:
         path: str,
         args: list[str],
         options: int,
+        unsaved_files: list[tuple[str, str]] | None = None,
     ) -> object: ...
 
 class Index:

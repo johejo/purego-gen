@@ -408,6 +408,74 @@ def test_env_include_headers_work_from_config(
     assert _REGISTER_FUNCTIONS_SYMBOL in result.stdout
 
 
+def test_local_overlays_support_virtual_entry_headers(tmp_path: Path) -> None:
+    """Local header config should accept overlay-only virtual entry headers."""
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": ["virtual.h"]},
+                    "emit": "func",
+                    "filters": {"func": ["add"]},
+                    "overlays": [
+                        {
+                            "path": "virtual.h",
+                            "content": "int add(int a, int b);\n",
+                        }
+                    ],
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "purego_func_add" in result.stdout
+
+
+def test_env_include_overlays_can_shadow_included_headers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Overlay files should replace broken env-include headers during parsing."""
+    include_dir = tmp_path / "include"
+    include_dir.mkdir(parents=True, exist_ok=True)
+    (include_dir / "main.h").write_text(
+        '#include "shadow.h"\nint add(int a, int b);\n',
+        encoding="utf-8",
+    )
+    (include_dir / "shadow.h").write_text("this is not valid c\n", encoding="utf-8")
+    monkeypatch.setenv("PUREGO_GEN_TEST_INCLUDE_DIR", str(include_dir))
+
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {
+                        "kind": "env_include",
+                        "include_dir_env": "PUREGO_GEN_TEST_INCLUDE_DIR",
+                        "headers": ["main.h"],
+                    },
+                    "emit": "func",
+                    "filters": {"func": ["add"]},
+                    "overlays": [
+                        {
+                            "path": "shadow.h",
+                            "content": "typedef int shadow_int_t;\n",
+                        }
+                    ],
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "purego_func_add" in result.stdout
+
+
 def test_emits_buffer_input_helper_from_config(tmp_path: Path) -> None:
     """Config helpers should generate `[]byte` wrapper functions."""
     header_path = _FIXTURES_DIR / "buffer_input_helper.h"

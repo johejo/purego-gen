@@ -11,6 +11,7 @@ from purego_gen.config_model import (
     BufferInputPair,
     CallbackInputHelper,
     GeneratorHelpers,
+    HeaderOverlay,
 )
 
 if TYPE_CHECKING:
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
         BufferInputHelperInput,
         BufferInputPairInput,
         CallbackInputHelperInput,
+        HeaderOverlayInput,
         HelpersInput,
     )
 
@@ -64,3 +66,28 @@ def _normalize_buffer_input_helper(helper: BufferInputHelperInput) -> BufferInpu
 
 def _normalize_callback_input_helper(helper: CallbackInputHelperInput) -> CallbackInputHelper:
     return CallbackInputHelper(function=helper.function, parameters=helper.parameters)
+
+
+def normalize_header_overlays(
+    raw_items: tuple[HeaderOverlayInput, ...] | None,
+) -> tuple[HeaderOverlay, ...]:
+    """Normalize optional in-memory header overlays.
+
+    Returns:
+        Normalized overlays ready for generator resolution.
+
+    Raises:
+        RuntimeError: Overlay paths are duplicated.
+    """
+    overlays = _normalize_optional_items(raw_items, _normalize_header_overlay)
+    seen_paths: set[str] = set()
+    for overlay in overlays:
+        if overlay.path in seen_paths:
+            message = f"duplicate overlay path: {overlay.path}"
+            raise RuntimeError(message)
+        seen_paths.add(overlay.path)
+    return overlays
+
+
+def _normalize_header_overlay(overlay: HeaderOverlayInput) -> HeaderOverlay:
+    return HeaderOverlay(path=overlay.path, content=overlay.content)

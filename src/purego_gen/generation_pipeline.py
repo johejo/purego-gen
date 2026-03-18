@@ -104,6 +104,7 @@ def parse_and_filter(config: GeneratorConfig) -> tuple[ParsedDeclarations, Parse
     declarations = parse_declarations(
         config.headers,
         config.clang_args,
+        unsaved_files=tuple((overlay.path, overlay.content) for overlay in config.overlays),
         type_mapping=config.type_mapping,
     )
     return declarations, apply_cli_filters(config, declarations)

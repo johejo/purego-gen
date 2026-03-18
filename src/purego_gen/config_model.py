@@ -24,6 +24,14 @@ class GeneratorFilters:
 
 
 @dataclass(frozen=True, slots=True)
+class HeaderOverlay:
+    """One in-memory header overlay provided to libclang."""
+
+    path: str
+    content: str
+
+
+@dataclass(frozen=True, slots=True)
 class BufferInputPair:
     """One pointer/length parameter pair rewritten by a generated helper."""
 
@@ -78,9 +86,11 @@ class GeneratorSpec:
     """Resolved generator configuration prior to env-backed header expansion."""
 
     lib_id: str
+    config_base_dir: PathType
     package: str
     emit_kinds: tuple[str, ...]
     headers: HeaderConfig
+    overlays: tuple[HeaderOverlay, ...]
     filters: GeneratorFilters
     exclude_filters: GeneratorFilters
     helpers: GeneratorHelpers
@@ -106,5 +116,6 @@ __all__ = [
     "GeneratorHelpers",
     "GeneratorSpec",
     "HeaderConfig",
+    "HeaderOverlay",
     "LocalHeaders",
 ]

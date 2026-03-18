@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from purego_gen.config_model import GeneratorHelpers
+from purego_gen.config_model import GeneratorHelpers, HeaderOverlay
 from purego_gen.model import TypeMappingOptions
 
 if TYPE_CHECKING:
@@ -32,6 +32,7 @@ class GeneratorConfig:
     const_exclude_filter: FilterSpec | None = None
     var_exclude_filter: FilterSpec | None = None
     clang_args: tuple[str, ...] = ()
+    overlays: tuple[HeaderOverlay, ...] = ()
     helpers: GeneratorHelpers = field(default_factory=GeneratorHelpers)
     type_mapping: TypeMappingOptions = field(default_factory=TypeMappingOptions)
 
@@ -41,6 +42,7 @@ def build_generator_config(
     *,
     headers: tuple[str, ...],
     clang_args: tuple[str, ...] | None = None,
+    overlays: tuple[HeaderOverlay, ...] | None = None,
 ) -> GeneratorConfig:
     """Build execution-ready config once header resolution is complete.
 
@@ -48,6 +50,7 @@ def build_generator_config(
         Normalized generator config with resolved headers and clang args.
     """
     resolved_clang_args = generator.clang_args if clang_args is None else clang_args
+    resolved_overlays = generator.overlays if overlays is None else overlays
     return GeneratorConfig(
         lib_id=generator.lib_id,
         headers=headers,
@@ -62,6 +65,7 @@ def build_generator_config(
         const_exclude_filter=generator.exclude_filters.const,
         var_exclude_filter=generator.exclude_filters.var,
         clang_args=resolved_clang_args,
+        overlays=resolved_overlays,
         helpers=generator.helpers,
         type_mapping=generator.type_mapping,
     )
