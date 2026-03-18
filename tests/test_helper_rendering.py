@@ -11,6 +11,8 @@ from purego_gen.config_model import (
     BufferInputPair,
     CallbackInputHelper,
     GeneratorHelpers,
+    GeneratorNaming,
+    GeneratorRenderSpec,
 )
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
@@ -20,7 +22,7 @@ from purego_gen.model import (
     TypedefDecl,
     TypeMappingOptions,
 )
-from purego_gen.renderer import RendererError, RenderOptions, render_go_source
+from purego_gen.renderer import RendererError, render_go_source
 
 _FIXTURE_PACKAGE = "fixture"
 _FIXTURE_LIB_ID = "fixture_lib"
@@ -47,7 +49,7 @@ def test_render_go_source_emits_buffer_input_helper_functions() -> None:
             constants=(),
             runtime_vars=(),
         ),
-        options=RenderOptions(
+        render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
                 buffer_inputs=(
                     BufferInputHelper(
@@ -97,7 +99,7 @@ def test_render_go_source_emits_helpers_with_custom_identifier_prefix() -> None:
             constants=(),
             runtime_vars=(),
         ),
-        options=RenderOptions(
+        render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
                 buffer_inputs=(
                     BufferInputHelper(
@@ -107,7 +109,7 @@ def test_render_go_source_emits_helpers_with_custom_identifier_prefix() -> None:
                 )
             ),
             type_mapping=TypeMappingOptions(),
-            identifier_prefix="purego_gen_",
+            naming=GeneratorNaming(identifier_prefix="purego_gen_"),
         ),
     )
 
@@ -142,7 +144,7 @@ def test_render_go_source_accepts_generated_names_for_unnamed_buffer_parameters(
             constants=(),
             runtime_vars=(),
         ),
-        options=RenderOptions(
+        render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
                 buffer_inputs=(
                     BufferInputHelper(
@@ -183,7 +185,7 @@ def test_render_go_source_rejects_missing_buffer_helper_function() -> None:
                 constants=(),
                 runtime_vars=(),
             ),
-            options=RenderOptions(
+            render=GeneratorRenderSpec(
                 helpers=GeneratorHelpers(
                     buffer_inputs=(
                         BufferInputHelper(
@@ -222,7 +224,7 @@ def test_render_go_source_rejects_non_void_pointer_buffer_helper() -> None:
                 constants=(),
                 runtime_vars=(),
             ),
-            options=RenderOptions(
+            render=GeneratorRenderSpec(
                 helpers=GeneratorHelpers(
                     buffer_inputs=(
                         BufferInputHelper(
@@ -274,7 +276,7 @@ def test_render_go_source_emits_callback_input_helper_functions() -> None:
                 ),
             ),
         ),
-        options=RenderOptions(
+        render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
                 callback_inputs=(
                     CallbackInputHelper(
@@ -378,7 +380,7 @@ def test_render_go_source_emits_callback_input_helper_for_opaque_and_pointer_arg
                 ),
             ),
         ),
-        options=RenderOptions(
+        render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
                 callback_inputs=(
                     CallbackInputHelper(
@@ -411,7 +413,7 @@ def test_render_go_source_rejects_missing_callback_helper_function() -> None:
                 constants=(),
                 runtime_vars=(),
             ),
-            options=RenderOptions(
+            render=GeneratorRenderSpec(
                 helpers=GeneratorHelpers(
                     callback_inputs=(
                         CallbackInputHelper(
@@ -453,7 +455,7 @@ def test_render_go_source_rejects_non_callback_callback_helper_parameter() -> No
                 constants=(),
                 runtime_vars=(),
             ),
-            options=RenderOptions(
+            render=GeneratorRenderSpec(
                 helpers=GeneratorHelpers(
                     callback_inputs=(
                         CallbackInputHelper(
@@ -492,7 +494,7 @@ def test_render_go_source_rejects_missing_callback_helper_parameter() -> None:
                 constants=(),
                 runtime_vars=(),
             ),
-            options=RenderOptions(
+            render=GeneratorRenderSpec(
                 helpers=GeneratorHelpers(
                     callback_inputs=(
                         CallbackInputHelper(

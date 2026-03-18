@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, TypedDict
@@ -26,12 +25,12 @@ from purego_gen.c_type_utils import (
     normalize_c_type_for_lookup,
     normalize_function_pointer_c_type_for_lookup,
 )
-from purego_gen.config_model import GeneratorHelpers
+from purego_gen.config_model import GeneratorNaming, GeneratorRenderSpec
 from purego_gen.emit_kinds import validate_emit_kinds
 from purego_gen.helper_rendering import (
-    FunctionHelperContext,
     FunctionParameterContext,
     FunctionSignatureTypeAliases,
+    HelperLocalContext,
     HelperRenderingError,
     HelperTypeResolver,
     build_function_helpers,
@@ -39,25 +38,24 @@ from purego_gen.helper_rendering import (
     build_typedef_c_type_by_lookup,
 )
 from purego_gen.identifier_utils import build_unique_identifiers
-from purego_gen.model import TypeMappingOptions
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from purego_gen.model import ParsedDeclarations
+    from purego_gen.model import ParsedDeclarations, TypeMappingOptions
 
 _MAIN_TEMPLATE_NAME: Final[str] = "go_file.go.j2"
 _MAX_INT64: Final[int] = (1 << 63) - 1
 _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "package",
-    "lib_id",
-    "identifier_prefix",
     "emit_kinds",
     "type_aliases",
     "constants",
     "functions",
     "helpers",
     "runtime_vars",
+    "register_functions_name",
+    "load_runtime_vars_name",
 })
 
 
@@ -66,21 +64,21 @@ class RendererError(RuntimeError):
 
 
 class _TypeAliasContext(TypedDict):
-    identifier: str
+    name: str
     go_type: str
     is_strict: bool
     comment_lines: tuple[str, ...]
 
 
 class _ConstantContext(TypedDict):
-    identifier: str
+    name: str
     expression: str
     const_type: str | None
     comment_lines: tuple[str, ...]
 
 
 class _FunctionContext(TypedDict):
-    identifier: str
+    name: str
     symbol: str
     parameters: tuple[FunctionParameterContext, ...]
     result_type: str | None
@@ -88,30 +86,33 @@ class _FunctionContext(TypedDict):
 
 
 class _RuntimeVarContext(TypedDict):
-    identifier: str
+    name: str
     symbol: str
     comment_lines: tuple[str, ...]
 
 
+class _HelperContext(TypedDict):
+    name: str
+    target_name: str
+    parameters: tuple[FunctionParameterContext, ...]
+    result_type: str | None
+    result_suffix: str
+    locals: tuple[HelperLocalContext, ...]
+    slice_parameters: tuple[str, ...]
+    callback_parameters: tuple[str, ...]
+    call_arguments: tuple[str, ...]
+
+
 class _TemplateContext(TypedDict):
     package: str
-    lib_id: str
-    identifier_prefix: str
     emit_kinds: tuple[str, ...]
     type_aliases: tuple[_TypeAliasContext, ...]
     constants: tuple[_ConstantContext, ...]
     functions: tuple[_FunctionContext, ...]
-    helpers: tuple[FunctionHelperContext, ...]
+    helpers: tuple[_HelperContext, ...]
     runtime_vars: tuple[_RuntimeVarContext, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class RenderOptions:
-    """Renderer options that affect emitted helper and type-mapping behavior."""
-
-    helpers: GeneratorHelpers
-    type_mapping: TypeMappingOptions
-    identifier_prefix: str = "purego_"
+    register_functions_name: str
+    load_runtime_vars_name: str
 
 
 def _resolve_template_dir() -> Path:
@@ -170,7 +171,7 @@ def _build_record_alias_type_by_typedef_name(
     declarations: ParsedDeclarations,
     type_identifiers: tuple[str, ...],
     emitted_record_typedef_names: set[str],
-    identifier_prefix: str,
+    naming: GeneratorNaming,
 ) -> dict[str, str]:
     """Build emitted record typedef alias lookup used by function signatures.
 
@@ -187,7 +188,7 @@ def _build_record_alias_type_by_typedef_name(
         identifier = type_identifier_by_name.get(typedef_name)
         if identifier is None:
             continue
-        alias_name = f"{identifier_prefix}type_{identifier}"
+        alias_name = naming.type_name(identifier)
         record_alias_type_by_typedef_name[typedef_name] = alias_name
         typedef = typedef_by_name.get(typedef_name)
         if typedef is None:
@@ -261,7 +262,7 @@ def _build_enum_alias_type_by_typedef_name(
     declarations: ParsedDeclarations,
     type_identifiers: tuple[str, ...],
     emitted_strict_enum_typedef_names: set[str],
-    identifier_prefix: str,
+    naming: GeneratorNaming,
 ) -> dict[str, str]:
     """Build emitted strict-enum typedef alias lookup for function signatures.
 
@@ -278,7 +279,7 @@ def _build_enum_alias_type_by_typedef_name(
         identifier = type_identifier_by_name.get(typedef_name)
         if identifier is None:
             continue
-        alias_name = f"{identifier_prefix}type_{identifier}"
+        alias_name = naming.type_name(identifier)
         enum_alias_type_by_typedef_name[typedef_name] = alias_name
         enum_alias_type_by_typedef_name[f"enum {typedef_name}"] = alias_name
         typedef = typedef_by_name.get(typedef_name)
@@ -308,7 +309,7 @@ def _build_typedef_alias_type_by_lookup(
     declarations: ParsedDeclarations,
     type_identifiers: tuple[str, ...],
     emit_kinds: tuple[str, ...],
-    identifier_prefix: str,
+    naming: GeneratorNaming,
 ) -> dict[str, str]:
     """Build emitted typedef alias lookup keyed by typedef name and C spelling.
 
@@ -321,7 +322,7 @@ def _build_typedef_alias_type_by_lookup(
 
     alias_type_by_lookup: dict[str, str] = {}
     for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True):
-        alias_name = f"{identifier_prefix}type_{identifier}"
+        alias_name = naming.type_name(identifier)
         alias_type_by_lookup[typedef.name] = alias_name
         alias_type_by_lookup[normalize_c_type_for_lookup(typedef.c_type)] = alias_name
     return alias_type_by_lookup
@@ -332,7 +333,7 @@ def _build_function_pointer_alias_type_by_lookup(
     declarations: ParsedDeclarations,
     type_identifiers: tuple[str, ...],
     emit_kinds: tuple[str, ...],
-    identifier_prefix: str,
+    naming: GeneratorNaming,
 ) -> dict[str, str]:
     """Build emitted function-pointer typedef alias lookup.
 
@@ -346,7 +347,7 @@ def _build_function_pointer_alias_type_by_lookup(
     for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True):
         if typedef.go_type != "uintptr" or not is_function_pointer_c_type(typedef.c_type):
             continue
-        alias_name = f"{identifier_prefix}type_{identifier}"
+        alias_name = naming.type_name(identifier)
         alias_type_by_lookup[typedef.name] = alias_name
         alias_type_by_lookup[normalize_function_pointer_c_type_for_lookup(typedef.c_type)] = (
             alias_name
@@ -496,7 +497,7 @@ def _build_function_signature_type_aliases(
     declarations: ParsedDeclarations,
     type_identifiers: tuple[str, ...],
     type_mapping: TypeMappingOptions,
-    identifier_prefix: str,
+    naming: GeneratorNaming,
 ) -> FunctionSignatureTypeAliases:
     """Build render-time alias lookups used to rewrite function signatures.
 
@@ -520,7 +521,7 @@ def _build_function_signature_type_aliases(
         declarations=declarations,
         type_identifiers=type_identifiers,
         emitted_record_typedef_names=emitted_record_typedef_names,
-        identifier_prefix=identifier_prefix,
+        naming=naming,
     )
     return {
         "record": record_alias_type_by_typedef_name,
@@ -532,13 +533,13 @@ def _build_function_signature_type_aliases(
             declarations=declarations,
             type_identifiers=type_identifiers,
             emitted_strict_enum_typedef_names=emitted_strict_enum_typedef_names,
-            identifier_prefix=identifier_prefix,
+            naming=naming,
         ),
         "function_pointer": _build_function_pointer_alias_type_by_lookup(
             declarations=declarations,
             type_identifiers=type_identifiers,
             emit_kinds=emit_kinds,
-            identifier_prefix=identifier_prefix,
+            naming=naming,
         ),
     }
 
@@ -549,7 +550,7 @@ def _build_typedef_render_helpers(
     declarations: ParsedDeclarations,
     type_identifiers: tuple[str, ...],
     type_mapping: TypeMappingOptions,
-    identifier_prefix: str,
+    naming: GeneratorNaming,
 ) -> tuple[
     FunctionSignatureTypeAliases,
     dict[str, str],
@@ -582,13 +583,13 @@ def _build_typedef_render_helpers(
             declarations=declarations,
             type_identifiers=type_identifiers,
             type_mapping=type_mapping,
-            identifier_prefix=identifier_prefix,
+            naming=naming,
         ),
         _build_typedef_alias_type_by_lookup(
             declarations=declarations,
             type_identifiers=type_identifiers,
             emit_kinds=emit_kinds,
-            identifier_prefix=identifier_prefix,
+            naming=naming,
         ),
         _build_typedef_go_type_by_lookup(declarations),
         emitted_opaque_struct_typedef_names,
@@ -602,7 +603,7 @@ def _build_context(
     lib_id: str,
     emit_kinds: tuple[str, ...],
     declarations: ParsedDeclarations,
-    options: RenderOptions,
+    render: GeneratorRenderSpec,
 ) -> _TemplateContext:
     """Build render context for the main Go output template.
 
@@ -629,8 +630,8 @@ def _build_context(
         emit_kinds=emit_kinds,
         declarations=declarations,
         type_identifiers=type_identifiers,
-        type_mapping=options.type_mapping,
-        identifier_prefix=options.identifier_prefix,
+        type_mapping=render.type_mapping,
+        naming=render.naming,
     )
     function_identifier_by_name = {
         function.name: identifier
@@ -645,7 +646,7 @@ def _build_context(
         helper_contexts = build_function_helpers(
             function_identifier_by_name=function_identifier_by_name,
             declarations=declarations,
-            helpers=options.helpers,
+            helpers=render.helpers,
             type_resolver=type_resolver,
         )
     except HelperRenderingError as error:
@@ -653,12 +654,10 @@ def _build_context(
 
     return {
         "package": package,
-        "lib_id": lib_id,
-        "identifier_prefix": options.identifier_prefix,
         "emit_kinds": emit_kinds,
         "type_aliases": tuple(
             {
-                "identifier": identifier,
+                "name": render.naming.type_name(identifier),
                 "go_type": typedef.go_type,
                 "is_strict": (
                     typedef.name in emitted_opaque_struct_typedef_names
@@ -670,14 +669,14 @@ def _build_context(
         ),
         "constants": tuple(
             {
-                "identifier": identifier,
+                "name": render.naming.const_name(identifier),
                 "expression": _resolve_constant_expression(
                     constant_expression=constant.go_expression,
                     value=constant.value,
                     const_type=_resolve_typed_constant_type(
                         constant_c_type=constant.c_type,
                         value=constant.value,
-                        type_mapping=options.type_mapping,
+                        type_mapping=render.type_mapping,
                         typedef_alias_type_by_lookup=typedef_alias_type_by_lookup,
                         typedef_go_type_by_lookup=typedef_go_type_by_lookup,
                     ),
@@ -685,7 +684,7 @@ def _build_context(
                 "const_type": _resolve_typed_constant_type(
                     constant_c_type=constant.c_type,
                     value=constant.value,
-                    type_mapping=options.type_mapping,
+                    type_mapping=render.type_mapping,
                     typedef_alias_type_by_lookup=typedef_alias_type_by_lookup,
                     typedef_go_type_by_lookup=typedef_go_type_by_lookup,
                 ),
@@ -697,7 +696,7 @@ def _build_context(
         ),
         "functions": tuple(
             {
-                "identifier": identifier,
+                "name": render.naming.func_name(identifier),
                 "symbol": function.name,
                 "parameters": build_function_parameters_context(
                     parameter_names=function.parameter_names,
@@ -717,10 +716,23 @@ def _build_context(
                 declarations.functions, function_identifiers, strict=True
             )
         ),
-        "helpers": helper_contexts,
+        "helpers": tuple(
+            {
+                "name": render.naming.func_name(helper["identifier"]),
+                "target_name": render.naming.func_name(helper["target_identifier"]),
+                "parameters": helper["parameters"],
+                "result_type": helper["result_type"],
+                "result_suffix": helper["result_suffix"],
+                "locals": helper["locals"],
+                "slice_parameters": helper["slice_parameters"],
+                "callback_parameters": helper["callback_parameters"],
+                "call_arguments": helper["call_arguments"],
+            }
+            for helper in helper_contexts
+        ),
         "runtime_vars": tuple(
             {
-                "identifier": identifier,
+                "name": render.naming.runtime_var_name(identifier),
                 "symbol": runtime_var.name,
                 "comment_lines": _normalize_comment_lines(runtime_var.comment),
             }
@@ -728,6 +740,8 @@ def _build_context(
                 declarations.runtime_vars, runtime_var_identifiers, strict=True
             )
         ),
+        "register_functions_name": render.naming.register_functions_name(lib_id),
+        "load_runtime_vars_name": render.naming.load_runtime_vars_name(lib_id),
     }
 
 
@@ -774,7 +788,7 @@ def render_go_source(
     lib_id: str,
     emit_kinds: tuple[str, ...],
     declarations: ParsedDeclarations,
-    options: RenderOptions | None = None,
+    render: GeneratorRenderSpec | None = None,
 ) -> str:
     """Render generated Go source for one CLI invocation.
 
@@ -786,11 +800,6 @@ def render_go_source(
         lib_id=lib_id,
         emit_kinds=emit_kinds,
         declarations=declarations,
-        options=options
-        if options is not None
-        else RenderOptions(
-            helpers=GeneratorHelpers(),
-            type_mapping=TypeMappingOptions(),
-        ),
+        render=render if render is not None else GeneratorRenderSpec(),
     )
     return render_template(_MAIN_TEMPLATE_NAME, context)

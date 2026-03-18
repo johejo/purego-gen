@@ -30,9 +30,9 @@ type (
             {% endfor %}
         {% endif %}
         {% if type_alias.is_strict %}
-    {{ identifier_prefix }}type_{{ type_alias.identifier }} {{ type_alias.go_type }}
+    {{ type_alias.name }} {{ type_alias.go_type }}
         {% else %}
-    {{ identifier_prefix }}type_{{ type_alias.identifier }} = {{ type_alias.go_type }}
+    {{ type_alias.name }} = {{ type_alias.go_type }}
         {% endif %}
     {% endfor %}
 )
@@ -46,9 +46,9 @@ const (
             {% endfor %}
         {% endif %}
         {% if constant.const_type is not none %}
-    {{ identifier_prefix }}const_{{ constant.identifier }} {{ constant.const_type }} = {{ constant.expression }}
+    {{ constant.name }} {{ constant.const_type }} = {{ constant.expression }}
         {% else %}
-    {{ identifier_prefix }}const_{{ constant.identifier }} = {{ constant.expression }}
+    {{ constant.name }} = {{ constant.expression }}
         {% endif %}
     {% endfor %}
 )
@@ -63,13 +63,13 @@ var (
         {% endif %}
         {% if function.parameters %}
             {% if function.result_type is not none %}
-    {{ identifier_prefix }}func_{{ function.identifier }} func(
+    {{ function.name }} func(
                 {% for parameter in function.parameters %}
         {{ parameter.name }} {{ parameter.type }},
                 {% endfor %}
     ) {{ function.result_type }}
             {% else %}
-    {{ identifier_prefix }}func_{{ function.identifier }} func(
+    {{ function.name }} func(
                 {% for parameter in function.parameters %}
         {{ parameter.name }} {{ parameter.type }},
                 {% endfor %}
@@ -77,9 +77,9 @@ var (
             {% endif %}
         {% else %}
             {% if function.result_type is not none %}
-    {{ identifier_prefix }}func_{{ function.identifier }} func() {{ function.result_type }}
+    {{ function.name }} func() {{ function.result_type }}
             {% else %}
-    {{ identifier_prefix }}func_{{ function.identifier }} func()
+    {{ function.name }} func()
             {% endif %}
         {% endif %}
     {% endfor %}
@@ -88,13 +88,13 @@ var (
     {% if helpers %}
         {% for helper in helpers %}
             {% if helper.parameters %}
-func {{ identifier_prefix }}func_{{ helper.identifier }}(
+func {{ helper.name }}(
                 {% for parameter in helper.parameters %}
     {{ parameter.name }} {{ parameter.type }},
                 {% endfor -%}
 ){{ helper.result_suffix }} {
             {% else %}
-func {{ identifier_prefix }}func_{{ helper.identifier }}(){{ helper.result_suffix }} {
+func {{ helper.name }}(){{ helper.result_suffix }} {
             {% endif %}
             {% for local in helper.locals %}
     {{ local.name }} := {{ local.value }}
@@ -110,25 +110,25 @@ func {{ identifier_prefix }}func_{{ helper.identifier }}(){{ helper.result_suffi
     }
             {% endfor %}
             {% if helper.result_type is not none %}
-    return {{ identifier_prefix }}func_{{ helper.target_identifier }}(
+    return {{ helper.target_name }}(
             {% else %}
-    {{ identifier_prefix }}func_{{ helper.target_identifier }}(
+    {{ helper.target_name }}(
             {% endif %}
             {% for argument in helper.call_arguments %}
         {{ argument }},
             {% endfor %}
     )
-}
+        }
         {% endfor %}
     {% endif %}
 
-func {{ identifier_prefix }}{{ lib_id }}_register_functions(handle uintptr) error {
+func {{ register_functions_name }}(handle uintptr) error {
     {% for function in functions %}
-    {{ identifier_prefix }}func_{{ function.identifier }}_symbol, err := purego.Dlsym(handle, "{{ function.symbol }}")
+    {{ function.name }}_symbol, err := purego.Dlsym(handle, "{{ function.symbol }}")
     if err != nil {
         return fmt.Errorf("purego-gen: failed to resolve function symbol {{ function.symbol }}: %w", err)
     }
-    purego.RegisterFunc(&{{ identifier_prefix }}func_{{ function.identifier }}, {{ identifier_prefix }}func_{{ function.identifier }}_symbol)
+    purego.RegisterFunc(&{{ function.name }}, {{ function.name }}_symbol)
     {% endfor %}
     return nil
 }
@@ -141,20 +141,20 @@ var (
     // {{ comment_line }}
             {% endfor %}
         {% endif %}
-    {{ identifier_prefix }}var_{{ runtime_var.identifier }} uintptr
+    {{ runtime_var.name }} uintptr
     {% endfor %}
 )
 
-func {{ identifier_prefix }}{{ lib_id }}_load_runtime_vars(handle uintptr) error {
+func {{ load_runtime_vars_name }}(handle uintptr) error {
     {% for runtime_var in runtime_vars %}
-    {{ identifier_prefix }}var_{{ runtime_var.identifier }}_symbol, err := purego.Dlsym(handle, "{{ runtime_var.symbol }}")
+    {{ runtime_var.name }}_symbol, err := purego.Dlsym(handle, "{{ runtime_var.symbol }}")
     if err != nil {
         return fmt.Errorf(
             "purego-gen: failed to resolve runtime var symbol {{ runtime_var.symbol }}: %w",
             err,
         )
     }
-    {{ identifier_prefix }}var_{{ runtime_var.identifier }} = {{ identifier_prefix }}var_{{ runtime_var.identifier }}_symbol
+    {{ runtime_var.name }} = {{ runtime_var.name }}_symbol
     {% endfor %}
     return nil
 }

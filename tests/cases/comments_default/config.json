@@ -4,11 +4,13 @@
     "lib_id": "fixture_lib",
     "package": "fixture",
     "emit": "func,type,const,var",
-    "headers": {
-      "kind": "local",
-      "headers": [
-        "comments.h"
-      ]
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "comments.h"
+        ]
+      }
     }
   }
 }

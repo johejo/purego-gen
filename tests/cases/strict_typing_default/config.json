@@ -4,11 +4,13 @@
     "lib_id": "fixture_lib",
     "package": "fixture",
     "emit": "func,type,const",
-    "headers": {
-      "kind": "local",
-      "headers": [
-        "strict_typing_demo.h"
-      ]
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "strict_typing_demo.h"
+        ]
+      }
     }
   }
 }

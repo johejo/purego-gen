@@ -4,11 +4,13 @@
     "lib_id": "fixture_lib",
     "package": "fixture",
     "emit": "type,const",
-    "headers": {
-      "kind": "local",
-      "headers": [
-        "abi_types.h"
-      ]
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "abi_types.h"
+        ]
+      }
     }
   }
 }

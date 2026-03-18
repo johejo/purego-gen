@@ -4,11 +4,13 @@
     "lib_id": "fixture_lib",
     "package": "fixture",
     "emit": "func",
-    "headers": {
-      "kind": "local",
-      "headers": [
-        "parameter_names.h"
-      ]
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "parameter_names.h"
+        ]
+      }
     }
   }
 }

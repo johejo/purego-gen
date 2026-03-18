@@ -2,7 +2,7 @@
 
 """Resolved shared config models for generator execution."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from purego_gen.declaration_filters import FilterSpec
@@ -64,6 +64,61 @@ class GeneratorHelpers:
 
 
 @dataclass(frozen=True, slots=True)
+class GeneratorNaming:
+    """Generated Go identifier naming policy."""
+
+    identifier_prefix: str = "purego_"
+
+    def type_name(self, identifier: str) -> str:
+        """Build one generated typedef alias name.
+
+        Returns:
+            Generated typedef alias identifier.
+        """
+        return f"{self.identifier_prefix}type_{identifier}"
+
+    def const_name(self, identifier: str) -> str:
+        """Build one generated constant name.
+
+        Returns:
+            Generated constant identifier.
+        """
+        return f"{self.identifier_prefix}const_{identifier}"
+
+    def func_name(self, identifier: str) -> str:
+        """Build one generated function variable or helper name.
+
+        Returns:
+            Generated function-related identifier.
+        """
+        return f"{self.identifier_prefix}func_{identifier}"
+
+    def runtime_var_name(self, identifier: str) -> str:
+        """Build one generated runtime variable name.
+
+        Returns:
+            Generated runtime-variable identifier.
+        """
+        return f"{self.identifier_prefix}var_{identifier}"
+
+    def register_functions_name(self, lib_id: str) -> str:
+        """Build the generated function-registration helper name.
+
+        Returns:
+            Generated register-functions helper identifier.
+        """
+        return f"{self.identifier_prefix}{lib_id}_register_functions"
+
+    def load_runtime_vars_name(self, lib_id: str) -> str:
+        """Build the generated runtime-variable loader helper name.
+
+        Returns:
+            Generated runtime-variable loader helper identifier.
+        """
+        return f"{self.identifier_prefix}{lib_id}_load_runtime_vars"
+
+
+@dataclass(frozen=True, slots=True)
 class LocalHeaders:
     """Header source definition for local file paths."""
 
@@ -82,21 +137,35 @@ HeaderConfig = LocalHeaders | EnvIncludeHeaders
 
 
 @dataclass(frozen=True, slots=True)
-class GeneratorSpec:
-    """Resolved generator configuration prior to env-backed header expansion."""
+class GeneratorParseSpec:
+    """Generator parse-time configuration prior to header resolution."""
 
-    lib_id: str
-    identifier_prefix: str
-    config_base_dir: PathType
-    package: str
-    emit_kinds: tuple[str, ...]
     headers: HeaderConfig
     overlays: tuple[HeaderOverlay, ...]
     filters: GeneratorFilters
     exclude_filters: GeneratorFilters
-    helpers: GeneratorHelpers
-    type_mapping: TypeMappingOptionsType
     clang_args: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratorRenderSpec:
+    """Generator render-time configuration."""
+
+    naming: GeneratorNaming = field(default_factory=GeneratorNaming)
+    helpers: GeneratorHelpers = field(default_factory=GeneratorHelpers)
+    type_mapping: TypeMappingOptionsType = field(default_factory=TypeMappingOptions)
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratorSpec:
+    """Resolved generator configuration prior to env-backed header expansion."""
+
+    lib_id: str
+    config_base_dir: PathType
+    package: str
+    emit_kinds: tuple[str, ...]
+    parse: GeneratorParseSpec
+    render: GeneratorRenderSpec
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +184,9 @@ __all__ = [
     "EnvIncludeHeaders",
     "GeneratorFilters",
     "GeneratorHelpers",
+    "GeneratorNaming",
+    "GeneratorParseSpec",
+    "GeneratorRenderSpec",
     "GeneratorSpec",
     "HeaderConfig",
     "HeaderOverlay",

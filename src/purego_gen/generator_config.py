@@ -7,8 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from purego_gen.config_model import GeneratorHelpers, HeaderOverlay
-from purego_gen.model import TypeMappingOptions
+from purego_gen.config_model import GeneratorFilters, GeneratorRenderSpec, HeaderOverlay
 
 if TYPE_CHECKING:
     from purego_gen.config_model import GeneratorSpec
@@ -16,26 +15,65 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
+class ResolvedGeneratorParseConfig:
+    """Execution-ready parse configuration with resolved headers."""
+
+    headers: tuple[str, ...]
+    clang_args: tuple[str, ...] = ()
+    overlays: tuple[HeaderOverlay, ...] = ()
+    filters: GeneratorFilters = field(default_factory=GeneratorFilters)
+    exclude_filters: GeneratorFilters = field(default_factory=GeneratorFilters)
+
+    @property
+    def func_filter(self) -> FilterSpec | None:
+        """Return the resolved function include filter."""
+        return self.filters.func
+
+    @property
+    def type_filter(self) -> FilterSpec | None:
+        """Return the resolved typedef include filter."""
+        return self.filters.type_
+
+    @property
+    def const_filter(self) -> FilterSpec | None:
+        """Return the resolved constant include filter."""
+        return self.filters.const
+
+    @property
+    def var_filter(self) -> FilterSpec | None:
+        """Return the resolved runtime-variable include filter."""
+        return self.filters.var
+
+    @property
+    def func_exclude_filter(self) -> FilterSpec | None:
+        """Return the resolved function exclude filter."""
+        return self.exclude_filters.func
+
+    @property
+    def type_exclude_filter(self) -> FilterSpec | None:
+        """Return the resolved typedef exclude filter."""
+        return self.exclude_filters.type_
+
+    @property
+    def const_exclude_filter(self) -> FilterSpec | None:
+        """Return the resolved constant exclude filter."""
+        return self.exclude_filters.const
+
+    @property
+    def var_exclude_filter(self) -> FilterSpec | None:
+        """Return the resolved runtime-variable exclude filter."""
+        return self.exclude_filters.var
+
+
+@dataclass(frozen=True, slots=True)
 class GeneratorConfig:
     """One normalized purego-gen execution configuration."""
 
     lib_id: str
-    identifier_prefix: str
-    headers: tuple[str, ...]
     package: str
     emit_kinds: tuple[str, ...]
-    func_filter: FilterSpec | None = None
-    type_filter: FilterSpec | None = None
-    const_filter: FilterSpec | None = None
-    var_filter: FilterSpec | None = None
-    func_exclude_filter: FilterSpec | None = None
-    type_exclude_filter: FilterSpec | None = None
-    const_exclude_filter: FilterSpec | None = None
-    var_exclude_filter: FilterSpec | None = None
-    clang_args: tuple[str, ...] = ()
-    overlays: tuple[HeaderOverlay, ...] = ()
-    helpers: GeneratorHelpers = field(default_factory=GeneratorHelpers)
-    type_mapping: TypeMappingOptions = field(default_factory=TypeMappingOptions)
+    parse: ResolvedGeneratorParseConfig
+    render: GeneratorRenderSpec = field(default_factory=GeneratorRenderSpec)
 
 
 def build_generator_config(
@@ -50,27 +88,21 @@ def build_generator_config(
     Returns:
         Normalized generator config with resolved headers and clang args.
     """
-    resolved_clang_args = generator.clang_args if clang_args is None else clang_args
-    resolved_overlays = generator.overlays if overlays is None else overlays
+    resolved_clang_args = generator.parse.clang_args if clang_args is None else clang_args
+    resolved_overlays = generator.parse.overlays if overlays is None else overlays
     return GeneratorConfig(
         lib_id=generator.lib_id,
-        identifier_prefix=generator.identifier_prefix,
-        headers=headers,
         package=generator.package,
         emit_kinds=generator.emit_kinds,
-        func_filter=generator.filters.func,
-        type_filter=generator.filters.type_,
-        const_filter=generator.filters.const,
-        var_filter=generator.filters.var,
-        func_exclude_filter=generator.exclude_filters.func,
-        type_exclude_filter=generator.exclude_filters.type_,
-        const_exclude_filter=generator.exclude_filters.const,
-        var_exclude_filter=generator.exclude_filters.var,
-        clang_args=resolved_clang_args,
-        overlays=resolved_overlays,
-        helpers=generator.helpers,
-        type_mapping=generator.type_mapping,
+        parse=ResolvedGeneratorParseConfig(
+            headers=headers,
+            clang_args=resolved_clang_args,
+            overlays=resolved_overlays,
+            filters=generator.parse.filters,
+            exclude_filters=generator.parse.exclude_filters,
+        ),
+        render=generator.render,
     )
 
 
-__all__ = ["GeneratorConfig", "build_generator_config"]
+__all__ = ["GeneratorConfig", "ResolvedGeneratorParseConfig", "build_generator_config"]

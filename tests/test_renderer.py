@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from purego_gen.config_model import GeneratorHelpers
+from purego_gen.config_model import GeneratorHelpers, GeneratorNaming, GeneratorRenderSpec
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
     ConstantDecl,
@@ -18,7 +18,7 @@ from purego_gen.model import (
     TypedefDecl,
     TypeMappingOptions,
 )
-from purego_gen.renderer import RendererError, RenderOptions, render_go_source, render_template
+from purego_gen.renderer import RendererError, render_go_source, render_template
 
 _FIXTURE_PACKAGE = "fixture"
 _FIXTURE_LIB_ID = "fixture_lib"
@@ -40,14 +40,14 @@ def test_render_template_fails_on_missing_nested_key() -> None:
             "go_file.go.j2",
             {
                 "package": _FIXTURE_PACKAGE,
-                "lib_id": _FIXTURE_LIB_ID,
-                "identifier_prefix": "purego_",
                 "emit_kinds": ("func",),
                 "type_aliases": (),
                 "constants": (),
                 "functions": ({"name": "add"},),
                 "helpers": (),
                 "runtime_vars": (),
+                "register_functions_name": "purego_fixture_lib_register_functions",
+                "load_runtime_vars_name": "purego_fixture_lib_load_runtime_vars",
             },
         )
 
@@ -112,10 +112,10 @@ def test_render_go_source_uses_custom_identifier_prefix_everywhere() -> None:
             constants=(ConstantDecl(name="FIXTURE_STATUS_OK", value=0),),
             runtime_vars=(RuntimeVarDecl(name="fixture_counter", c_type="int"),),
         ),
-        options=RenderOptions(
+        render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(),
             type_mapping=TypeMappingOptions(),
-            identifier_prefix="purego_gen_",
+            naming=GeneratorNaming(identifier_prefix="purego_gen_"),
         ),
     )
 
@@ -342,7 +342,7 @@ def test_render_go_source_types_casted_sentinel_constants_with_typedef_alias() -
             ),
             runtime_vars=(),
         ),
-        options=RenderOptions(
+        render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(),
             type_mapping=TypeMappingOptions(typed_sentinel_constants=True),
         ),

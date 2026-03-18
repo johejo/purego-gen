@@ -80,20 +80,38 @@ class EnvIncludeHeadersInput(StrictModel):
 HeaderInput = Annotated[LocalHeadersInput | EnvIncludeHeadersInput, Field(discriminator="kind")]
 
 
-class GeneratorInput(StrictModel):
-    """Generator configuration loaded from JSON."""
+class ParseInput(StrictModel):
+    """Generator parse-time configuration loaded from JSON."""
 
-    lib_id: NonEmptyStr
-    identifier_prefix: NonEmptyStr = "purego_"
-    package: NonEmptyStr
-    emit: NonEmptyStr
     headers: HeaderInput
     overlays: Annotated[tuple[HeaderOverlayInput, ...], Len(min_length=1)] | None = None
     filters: FiltersInput = Field(default_factory=FiltersInput)
     exclude: FiltersInput = Field(default_factory=FiltersInput)
+    clang_args: tuple[NonEmptyStr, ...] = ()
+
+
+class NamingInput(StrictModel):
+    """Generated Go identifier naming configuration."""
+
+    identifier_prefix: NonEmptyStr = "purego_"
+
+
+class RenderInput(StrictModel):
+    """Generator render-time configuration loaded from JSON."""
+
+    naming: NamingInput = Field(default_factory=NamingInput)
     helpers: HelpersInput = Field(default_factory=HelpersInput)
     type_mapping: TypeMappingInput = Field(default_factory=TypeMappingInput)
-    clang_args: tuple[NonEmptyStr, ...] = ()
+
+
+class GeneratorInput(StrictModel):
+    """Generator configuration loaded from JSON."""
+
+    lib_id: NonEmptyStr
+    package: NonEmptyStr
+    emit: NonEmptyStr
+    parse: ParseInput
+    render: RenderInput = Field(default_factory=RenderInput)
 
 
 class AppConfigInput(StrictModel):
@@ -113,7 +131,10 @@ __all__ = [
     "HeaderOverlayInput",
     "HelpersInput",
     "LocalHeadersInput",
+    "NamingInput",
     "NonEmptyStr",
     "NonEmptyStrTuple",
+    "ParseInput",
+    "RenderInput",
     "TypeMappingInput",
 ]

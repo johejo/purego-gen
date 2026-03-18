@@ -4,11 +4,13 @@
     "lib_id": "fixture_lib",
     "package": "fixture",
     "emit": "func,var",
-    "headers": {
-      "kind": "local",
-      "headers": [
-        "conditional.h"
-      ]
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "conditional.h"
+        ]
+      }
     }
   }
 }

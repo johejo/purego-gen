@@ -4,15 +4,19 @@
     "lib_id": "fixture_lib",
     "package": "fixture",
     "emit": "func,type,const",
-    "headers": {
-      "kind": "local",
-      "headers": [
-        "strict_typing_demo.h"
-      ]
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "strict_typing_demo.h"
+        ]
+      }
     },
-    "type_mapping": {
-      "strict_enum_typedefs": true,
-      "typed_sentinel_constants": true
+    "render": {
+      "type_mapping": {
+        "strict_enum_typedefs": true,
+        "typed_sentinel_constants": true
+      }
     }
   }
 }

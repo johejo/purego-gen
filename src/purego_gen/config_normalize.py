@@ -10,6 +10,9 @@ from typing import TYPE_CHECKING
 from purego_gen.config_model import (
     EnvIncludeHeaders,
     GeneratorFilters,
+    GeneratorNaming,
+    GeneratorParseSpec,
+    GeneratorRenderSpec,
     GeneratorSpec,
     HeaderConfig,
     LocalHeaders,
@@ -117,14 +120,15 @@ def normalize_filters(filters: FiltersInput) -> GeneratorFilters:
 
 
 def _normalize_headers(generator: GeneratorInput, *, base_dir: Path) -> HeaderConfig:
-    if isinstance(generator.headers, LocalHeadersInput):
+    if isinstance(generator.parse.headers, LocalHeadersInput):
         return LocalHeaders(
             headers=tuple(
-                resolve_config_path(base_dir, raw_path) for raw_path in generator.headers.headers
+                resolve_config_path(base_dir, raw_path)
+                for raw_path in generator.parse.headers.headers
             )
         )
 
-    header_input = generator.headers
+    header_input = generator.parse.headers
     return EnvIncludeHeaders(
         include_dir_env=header_input.include_dir_env,
         headers=header_input.headers,
@@ -152,9 +156,11 @@ def build_generator_spec(
         raise RuntimeError(message) from error
 
     try:
-        identifier_prefix = normalize_identifier_prefix(generator.identifier_prefix)
+        identifier_prefix = normalize_identifier_prefix(generator.render.naming.identifier_prefix)
     except ValueError as error:
-        message = f"config `{config_path}` generator.identifier_prefix is invalid: {error}"
+        message = (
+            f"config `{config_path}` generator.render.naming.identifier_prefix is invalid: {error}"
+        )
         raise RuntimeError(message) from error
 
     try:
@@ -169,28 +175,32 @@ def build_generator_spec(
         message = f"config `{config_path}` generator.emit is invalid: {error}"
         raise RuntimeError(message) from error
 
-    helpers = normalize_generator_helpers(generator.helpers)
+    helpers = normalize_generator_helpers(generator.render.helpers)
     if (helpers.buffer_inputs or helpers.callback_inputs) and "func" not in emit_kinds:
         message = (
-            f"config `{config_path}` generator.helpers.buffer_inputs or "
-            "generator.helpers.callback_inputs requires "
+            f"config `{config_path}` generator.render.helpers.buffer_inputs or "
+            "generator.render.helpers.callback_inputs requires "
             "`func` in generator.emit."
         )
         raise RuntimeError(message)
 
     return GeneratorSpec(
         lib_id=normalized_lib_id,
-        identifier_prefix=identifier_prefix,
         config_base_dir=base_dir,
         package=package_name,
         emit_kinds=emit_kinds,
-        headers=_normalize_headers(generator, base_dir=base_dir),
-        overlays=normalize_header_overlays(generator.overlays),
-        filters=normalize_filters(generator.filters),
-        exclude_filters=normalize_filters(generator.exclude),
-        helpers=helpers,
-        type_mapping=normalize_type_mapping(generator.type_mapping),
-        clang_args=tuple(generator.clang_args),
+        parse=GeneratorParseSpec(
+            headers=_normalize_headers(generator, base_dir=base_dir),
+            overlays=normalize_header_overlays(generator.parse.overlays),
+            filters=normalize_filters(generator.parse.filters),
+            exclude_filters=normalize_filters(generator.parse.exclude),
+            clang_args=tuple(generator.parse.clang_args),
+        ),
+        render=GeneratorRenderSpec(
+            naming=GeneratorNaming(identifier_prefix=identifier_prefix),
+            helpers=helpers,
+            type_mapping=normalize_type_mapping(generator.render.type_mapping),
+        ),
     )
 
 

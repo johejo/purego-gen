@@ -4,11 +4,13 @@
     "lib_id": "fixture_lib",
     "package": "fixture",
     "emit": "const",
-    "headers": {
-      "kind": "local",
-      "headers": [
-        "macro_constants.h"
-      ]
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "macro_constants.h"
+        ]
+      }
     }
   }
 }

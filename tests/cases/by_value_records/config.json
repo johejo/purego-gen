@@ -4,11 +4,13 @@
     "lib_id": "fixture_lib",
     "package": "fixture",
     "emit": "func,type",
-    "headers": {
-      "kind": "local",
-      "headers": [
-        "by_value_records.h"
-      ]
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "by_value_records.h"
+        ]
+      }
     }
   }
 }

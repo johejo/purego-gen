@@ -4,14 +4,16 @@
     "lib_id": "fixture_lib",
     "package": "fixture",
     "emit": "func,type",
-    "headers": {
-      "kind": "local",
-      "headers": [
-        "basic.h"
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "basic.h"
+        ]
+      },
+      "clang_args": [
+        "-I./include"
       ]
-    },
-    "clang_args": [
-      "-I./include"
-    ]
+    }
   }
 }

@@ -4,14 +4,18 @@
     "lib_id": "fixture_lib",
     "package": "fixture",
     "emit": "func",
-    "headers": {
-      "kind": "local",
-      "headers": [
-        "smoke_string_runtime.h"
-      ]
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "smoke_string_runtime.h"
+        ]
+      }
     },
-    "type_mapping": {
-      "const_char_as_string": true
+    "render": {
+      "type_mapping": {
+        "const_char_as_string": true
+      }
     }
   },
   "golden": {

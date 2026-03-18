@@ -60,13 +60,31 @@ def _write_config(
         "lib_id": _FIXTURE_LIB_ID,
         "package": _FIXTURE_PACKAGE,
         "emit": "func",
-        "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
-        "filters": {},
-        "exclude": {},
-        "type_mapping": {},
-        "clang_args": [],
+        "parse": {
+            "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
+            "filters": {},
+            "exclude": {},
+            "clang_args": [],
+        },
+        "render": {"type_mapping": {}},
     }
-    generator.update(generator_overrides)
+    parse_overrides = {"headers", "overlays", "filters", "exclude", "clang_args"}
+    render_overrides = {"helpers", "type_mapping"}
+    for key, value in generator_overrides.items():
+        if key in parse_overrides:
+            parse = cast("JsonObject", generator["parse"])
+            parse[key] = value
+            continue
+        if key in render_overrides:
+            render = cast("JsonObject", generator["render"])
+            render[key] = value
+            continue
+        if key == "identifier_prefix":
+            render = cast("JsonObject", generator["render"])
+            naming = cast("JsonObject", render.setdefault("naming", {}))
+            naming["identifier_prefix"] = value
+            continue
+        generator[key] = value
     config_path.write_text(
         dumps(
             {

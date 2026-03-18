@@ -4,154 +4,184 @@
     "lib_id": "sqlite3",
     "package": "fixture",
     "emit": "func,type,const",
-    "headers": {
-      "kind": "env_include",
-      "include_dir_env": "PUREGO_GEN_TEST_LIBSQLITE3_INCLUDE_DIR",
-      "headers": [
-        "sqlite3.h"
-      ]
+    "parse": {
+      "headers": {
+        "kind": "env_include",
+        "include_dir_env": "PUREGO_GEN_TEST_LIBSQLITE3_INCLUDE_DIR",
+        "headers": [
+          "sqlite3.h"
+        ]
+      },
+      "filters": {
+        "func": [
+          "sqlite3_libversion",
+          "sqlite3_open",
+          "sqlite3_open_v2",
+          "sqlite3_close",
+          "sqlite3_close_v2",
+          "sqlite3_errmsg",
+          "sqlite3_extended_errcode",
+          "sqlite3_busy_timeout",
+          "sqlite3_prepare_v2",
+          "sqlite3_reset",
+          "sqlite3_clear_bindings",
+          "sqlite3_step",
+          "sqlite3_column_count",
+          "sqlite3_column_type",
+          "sqlite3_column_bytes",
+          "sqlite3_column_int",
+          "sqlite3_column_int64",
+          "sqlite3_column_double",
+          "sqlite3_column_blob",
+          "sqlite3_column_text",
+          "sqlite3_bind_null",
+          "sqlite3_bind_blob",
+          "sqlite3_bind_double",
+          "sqlite3_bind_int64",
+          "sqlite3_bind_text",
+          "sqlite3_exec",
+          "sqlite3_changes64",
+          "sqlite3_last_insert_rowid",
+          "sqlite3_create_function",
+          "sqlite3_create_function16",
+          "sqlite3_create_function_v2",
+          "sqlite3_create_collation",
+          "sqlite3_create_collation16",
+          "sqlite3_create_collation_v2",
+          "sqlite3_trace_v2",
+          "sqlite3_commit_hook",
+          "sqlite3_rollback_hook",
+          "sqlite3_update_hook",
+          "sqlite3_progress_handler",
+          "sqlite3_value_text",
+          "sqlite3_value_int",
+          "sqlite3_result_text",
+          "sqlite3_result_int",
+          "sqlite3_user_data",
+          "sqlite3_finalize"
+        ],
+        "type": [
+          "sqlite3",
+          "sqlite3_stmt",
+          "sqlite3_callback",
+          "sqlite3_context",
+          "sqlite3_value",
+          "sqlite3_int64",
+          "sqlite3_destructor_type"
+        ],
+        "const": [
+          "SQLITE_OK",
+          "SQLITE_ERROR",
+          "SQLITE_ROW",
+          "SQLITE_DONE",
+          "SQLITE_INTEGER",
+          "SQLITE_FLOAT",
+          "SQLITE_TEXT",
+          "SQLITE_BLOB",
+          "SQLITE_NULL",
+          "SQLITE_UTF8",
+          "SQLITE_UTF16",
+          "SQLITE_INSERT",
+          "SQLITE_OPEN_READONLY",
+          "SQLITE_OPEN_READWRITE",
+          "SQLITE_OPEN_CREATE",
+          "SQLITE_OPEN_URI",
+          "SQLITE_OPEN_MEMORY",
+          "SQLITE_OPEN_NOMUTEX",
+          "SQLITE_OPEN_FULLMUTEX",
+          "SQLITE_TRACE_STMT",
+          "SQLITE_TRACE_ROW",
+          "SQLITE_STATIC",
+          "SQLITE_TRANSIENT"
+        ]
+      }
     },
-    "filters": {
-      "func": [
-        "sqlite3_libversion",
-        "sqlite3_open",
-        "sqlite3_open_v2",
-        "sqlite3_close",
-        "sqlite3_close_v2",
-        "sqlite3_errmsg",
-        "sqlite3_extended_errcode",
-        "sqlite3_busy_timeout",
-        "sqlite3_prepare_v2",
-        "sqlite3_reset",
-        "sqlite3_clear_bindings",
-        "sqlite3_step",
-        "sqlite3_column_count",
-        "sqlite3_column_type",
-        "sqlite3_column_bytes",
-        "sqlite3_column_int",
-        "sqlite3_column_int64",
-        "sqlite3_column_double",
-        "sqlite3_column_blob",
-        "sqlite3_column_text",
-        "sqlite3_bind_null",
-        "sqlite3_bind_blob",
-        "sqlite3_bind_double",
-        "sqlite3_bind_int64",
-        "sqlite3_bind_text",
-        "sqlite3_exec",
-        "sqlite3_changes64",
-        "sqlite3_last_insert_rowid",
-        "sqlite3_create_function",
-        "sqlite3_create_function16",
-        "sqlite3_create_function_v2",
-        "sqlite3_create_collation",
-        "sqlite3_create_collation16",
-        "sqlite3_create_collation_v2",
-        "sqlite3_trace_v2",
-        "sqlite3_commit_hook",
-        "sqlite3_rollback_hook",
-        "sqlite3_update_hook",
-        "sqlite3_progress_handler",
-        "sqlite3_value_text",
-        "sqlite3_value_int",
-        "sqlite3_result_text",
-        "sqlite3_result_int",
-        "sqlite3_user_data",
-        "sqlite3_finalize"
-      ],
-      "type": [
-        "sqlite3",
-        "sqlite3_stmt",
-        "sqlite3_callback",
-        "sqlite3_context",
-        "sqlite3_value",
-        "sqlite3_int64",
-        "sqlite3_destructor_type"
-      ],
-      "const": [
-        "SQLITE_OK",
-        "SQLITE_ERROR",
-        "SQLITE_ROW",
-        "SQLITE_DONE",
-        "SQLITE_INTEGER",
-        "SQLITE_FLOAT",
-        "SQLITE_TEXT",
-        "SQLITE_BLOB",
-        "SQLITE_NULL",
-        "SQLITE_UTF8",
-        "SQLITE_UTF16",
-        "SQLITE_INSERT",
-        "SQLITE_OPEN_READONLY",
-        "SQLITE_OPEN_READWRITE",
-        "SQLITE_OPEN_CREATE",
-        "SQLITE_OPEN_URI",
-        "SQLITE_OPEN_MEMORY",
-        "SQLITE_OPEN_NOMUTEX",
-        "SQLITE_OPEN_FULLMUTEX",
-        "SQLITE_TRACE_STMT",
-        "SQLITE_TRACE_ROW",
-        "SQLITE_STATIC",
-        "SQLITE_TRANSIENT"
-      ]
-    },
-    "helpers": {
-      "buffer_inputs": [
-        {
-          "function": "sqlite3_bind_blob",
-          "pairs": [
-            {
-              "pointer": "arg3",
-              "length": "n"
-            }
-          ]
-        }
-      ],
-      "callback_inputs": [
-        {
-          "function": "sqlite3_exec",
-          "parameters": ["callback"]
-        },
-        {
-          "function": "sqlite3_create_function",
-          "parameters": ["xFunc", "xStep", "xFinal"]
-        },
-        {
-          "function": "sqlite3_create_function_v2",
-          "parameters": ["xFunc", "xStep", "xFinal", "xDestroy"]
-        },
-        {
-          "function": "sqlite3_create_collation",
-          "parameters": ["xCompare"]
-        },
-        {
-          "function": "sqlite3_create_collation_v2",
-          "parameters": ["xCompare", "xDestroy"]
-        },
-        {
-          "function": "sqlite3_commit_hook",
-          "parameters": ["arg2"]
-        },
-        {
-          "function": "sqlite3_rollback_hook",
-          "parameters": ["arg2"]
-        },
-        {
-          "function": "sqlite3_update_hook",
-          "parameters": ["arg2"]
-        },
-        {
-          "function": "sqlite3_progress_handler",
-          "parameters": ["arg3"]
-        },
-        {
-          "function": "sqlite3_trace_v2",
-          "parameters": ["xCallback"]
-        }
-      ]
-    },
-    "type_mapping": {
-      "const_char_as_string": true,
-      "typed_sentinel_constants": true
+    "render": {
+      "helpers": {
+        "buffer_inputs": [
+          {
+            "function": "sqlite3_bind_blob",
+            "pairs": [
+              {
+                "pointer": "arg3",
+                "length": "n"
+              }
+            ]
+          }
+        ],
+        "callback_inputs": [
+          {
+            "function": "sqlite3_exec",
+            "parameters": [
+              "callback"
+            ]
+          },
+          {
+            "function": "sqlite3_create_function",
+            "parameters": [
+              "xFunc",
+              "xStep",
+              "xFinal"
+            ]
+          },
+          {
+            "function": "sqlite3_create_function_v2",
+            "parameters": [
+              "xFunc",
+              "xStep",
+              "xFinal",
+              "xDestroy"
+            ]
+          },
+          {
+            "function": "sqlite3_create_collation",
+            "parameters": [
+              "xCompare"
+            ]
+          },
+          {
+            "function": "sqlite3_create_collation_v2",
+            "parameters": [
+              "xCompare",
+              "xDestroy"
+            ]
+          },
+          {
+            "function": "sqlite3_commit_hook",
+            "parameters": [
+              "arg2"
+            ]
+          },
+          {
+            "function": "sqlite3_rollback_hook",
+            "parameters": [
+              "arg2"
+            ]
+          },
+          {
+            "function": "sqlite3_update_hook",
+            "parameters": [
+              "arg2"
+            ]
+          },
+          {
+            "function": "sqlite3_progress_handler",
+            "parameters": [
+              "arg3"
+            ]
+          },
+          {
+            "function": "sqlite3_trace_v2",
+            "parameters": [
+              "xCallback"
+            ]
+          }
+        ]
+      },
+      "type_mapping": {
+        "const_char_as_string": true,
+        "typed_sentinel_constants": true
+      }
     }
   },
   "golden": {

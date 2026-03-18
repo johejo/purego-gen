@@ -14,8 +14,8 @@ nix run github:johejo/purego-gen -- --config /path/to/config.json --out /path/to
 
 Config filters can now work in two directions:
 
-- `generator.filters`: include only matching declarations
-- `generator.exclude`: start broad and drop matching declarations afterward
+- `generator.parse.filters`: include only matching declarations
+- `generator.parse.exclude`: start broad and drop matching declarations afterward
 
 Example:
 
@@ -24,23 +24,29 @@ Example:
   "schema_version": 1,
   "generator": {
     "lib_id": "example",
-    "identifier_prefix": "purego_",
     "package": "example",
     "emit": "func,const",
-    "headers": {
-      "kind": "local",
-      "headers": ["example.h"]
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": ["example.h"]
+      },
+      "filters": {},
+      "exclude": {
+        "func": "^internal_",
+        "const": ["EXAMPLE_INTERNAL_SENTINEL"]
+      }
     },
-    "filters": {},
-    "exclude": {
-      "func": "^internal_",
-      "const": ["EXAMPLE_INTERNAL_SENTINEL"]
+    "render": {
+      "naming": {
+        "identifier_prefix": "purego_"
+      }
     }
   }
 }
 ```
 
-`generator.identifier_prefix` controls the leading generated Go identifier prefix and defaults to `purego_`.
+`generator.render.naming.identifier_prefix` controls the leading generated Go identifier prefix and defaults to `purego_`.
 
 ## License
 

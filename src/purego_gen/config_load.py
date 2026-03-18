@@ -84,11 +84,11 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
                 path=str(resolve_config_path(base_dir, overlay.path)),
                 content=overlay.content,
             )
-            for overlay in generator.overlays
+            for overlay in generator.parse.overlays
         )
 
-    if isinstance(generator.headers, LocalHeaders):
-        local_header_paths = generator.headers.headers
+    if isinstance(generator.parse.headers, LocalHeaders):
+        local_header_paths = generator.parse.headers.headers
         resolved_overlays = _resolve_overlay_paths(base_dir=generator.config_base_dir)
         overlay_paths = {overlay.path for overlay in resolved_overlays}
         for header_path in local_header_paths:
@@ -101,7 +101,7 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
             overlays=resolved_overlays,
         )
 
-    env_headers = generator.headers
+    env_headers = generator.parse.headers
     include_dir_value = os.environ.get(env_headers.include_dir_env, "").strip()
     if not include_dir_value:
         message = (
@@ -133,7 +133,7 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
     return build_generator_config(
         generator,
         headers=tuple(resolved_header_paths),
-        clang_args=("-I", str(include_dir), *generator.clang_args),
+        clang_args=("-I", str(include_dir), *generator.parse.clang_args),
         overlays=resolved_overlays,
     )
 

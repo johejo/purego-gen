@@ -4,136 +4,140 @@
     "lib_id": "zstd",
     "package": "fixture",
     "emit": "func,type,const",
-    "headers": {
-      "kind": "env_include",
-      "include_dir_env": "PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR",
-      "headers": [
-        "zstd.h",
-        "zstd_errors.h"
-      ]
+    "parse": {
+      "headers": {
+        "kind": "env_include",
+        "include_dir_env": "PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR",
+        "headers": [
+          "zstd.h",
+          "zstd_errors.h"
+        ]
+      },
+      "filters": {
+        "func": [
+          "ZSTD_versionNumber",
+          "ZSTD_minCLevel",
+          "ZSTD_maxCLevel",
+          "ZSTD_compress",
+          "ZSTD_decompress",
+          "ZSTD_compress_usingDict",
+          "ZSTD_decompress_usingDict",
+          "ZSTD_compressBound",
+          "ZSTD_findFrameCompressedSize",
+          "ZSTD_isError",
+          "ZSTD_getErrorCode",
+          "ZSTD_getErrorName",
+          "ZSTD_getFrameContentSize",
+          "ZSTD_createCCtx",
+          "ZSTD_freeCCtx",
+          "ZSTD_compressCCtx",
+          "ZSTD_createDCtx",
+          "ZSTD_freeDCtx",
+          "ZSTD_decompressDCtx"
+        ],
+        "type": [
+          "ZSTD_CCtx",
+          "ZSTD_DCtx",
+          "ZSTD_CDict",
+          "ZSTD_DDict",
+          "ZSTD_ErrorCode"
+        ],
+        "const": [
+          "ZSTD_CONTENTSIZE_UNKNOWN",
+          "ZSTD_CONTENTSIZE_ERROR"
+        ]
+      }
     },
-    "filters": {
-      "func": [
-        "ZSTD_versionNumber",
-        "ZSTD_minCLevel",
-        "ZSTD_maxCLevel",
-        "ZSTD_compress",
-        "ZSTD_decompress",
-        "ZSTD_compress_usingDict",
-        "ZSTD_decompress_usingDict",
-        "ZSTD_compressBound",
-        "ZSTD_findFrameCompressedSize",
-        "ZSTD_isError",
-        "ZSTD_getErrorCode",
-        "ZSTD_getErrorName",
-        "ZSTD_getFrameContentSize",
-        "ZSTD_createCCtx",
-        "ZSTD_freeCCtx",
-        "ZSTD_compressCCtx",
-        "ZSTD_createDCtx",
-        "ZSTD_freeDCtx",
-        "ZSTD_decompressDCtx"
-      ],
-      "type": [
-        "ZSTD_CCtx",
-        "ZSTD_DCtx",
-        "ZSTD_CDict",
-        "ZSTD_DDict",
-        "ZSTD_ErrorCode"
-      ],
-      "const": [
-        "ZSTD_CONTENTSIZE_UNKNOWN",
-        "ZSTD_CONTENTSIZE_ERROR"
-      ]
-    },
-    "helpers": {
-      "buffer_inputs": [
-        {
-          "function": "ZSTD_compress",
-          "pairs": [
-            {
-              "pointer": "src",
-              "length": "srcSize"
-            }
-          ]
-        },
-        {
-          "function": "ZSTD_decompress",
-          "pairs": [
-            {
-              "pointer": "src",
-              "length": "compressedSize"
-            }
-          ]
-        },
-        {
-          "function": "ZSTD_compress_usingDict",
-          "pairs": [
-            {
-              "pointer": "src",
-              "length": "srcSize"
-            },
-            {
-              "pointer": "dict",
-              "length": "dictSize"
-            }
-          ]
-        },
-        {
-          "function": "ZSTD_decompress_usingDict",
-          "pairs": [
-            {
-              "pointer": "src",
-              "length": "srcSize"
-            },
-            {
-              "pointer": "dict",
-              "length": "dictSize"
-            }
-          ]
-        },
-        {
-          "function": "ZSTD_findFrameCompressedSize",
-          "pairs": [
-            {
-              "pointer": "src",
-              "length": "srcSize"
-            }
-          ]
-        },
-        {
-          "function": "ZSTD_getFrameContentSize",
-          "pairs": [
-            {
-              "pointer": "src",
-              "length": "srcSize"
-            }
-          ]
-        },
-        {
-          "function": "ZSTD_compressCCtx",
-          "pairs": [
-            {
-              "pointer": "src",
-              "length": "srcSize"
-            }
-          ]
-        },
-        {
-          "function": "ZSTD_decompressDCtx",
-          "pairs": [
-            {
-              "pointer": "src",
-              "length": "srcSize"
-            }
-          ]
-        }
-      ]
-    },
-    "type_mapping": {
-      "const_char_as_string": true,
-      "strict_enum_typedefs": true,
-      "typed_sentinel_constants": true
+    "render": {
+      "helpers": {
+        "buffer_inputs": [
+          {
+            "function": "ZSTD_compress",
+            "pairs": [
+              {
+                "pointer": "src",
+                "length": "srcSize"
+              }
+            ]
+          },
+          {
+            "function": "ZSTD_decompress",
+            "pairs": [
+              {
+                "pointer": "src",
+                "length": "compressedSize"
+              }
+            ]
+          },
+          {
+            "function": "ZSTD_compress_usingDict",
+            "pairs": [
+              {
+                "pointer": "src",
+                "length": "srcSize"
+              },
+              {
+                "pointer": "dict",
+                "length": "dictSize"
+              }
+            ]
+          },
+          {
+            "function": "ZSTD_decompress_usingDict",
+            "pairs": [
+              {
+                "pointer": "src",
+                "length": "srcSize"
+              },
+              {
+                "pointer": "dict",
+                "length": "dictSize"
+              }
+            ]
+          },
+          {
+            "function": "ZSTD_findFrameCompressedSize",
+            "pairs": [
+              {
+                "pointer": "src",
+                "length": "srcSize"
+              }
+            ]
+          },
+          {
+            "function": "ZSTD_getFrameContentSize",
+            "pairs": [
+              {
+                "pointer": "src",
+                "length": "srcSize"
+              }
+            ]
+          },
+          {
+            "function": "ZSTD_compressCCtx",
+            "pairs": [
+              {
+                "pointer": "src",
+                "length": "srcSize"
+              }
+            ]
+          },
+          {
+            "function": "ZSTD_decompressDCtx",
+            "pairs": [
+              {
+                "pointer": "src",
+                "length": "srcSize"
+              }
+            ]
+          }
+        ]
+      },
+      "type_mapping": {
+        "const_char_as_string": true,
+        "strict_enum_typedefs": true,
+        "typed_sentinel_constants": true
+      }
     }
   },
   "golden": {

@@ -30,15 +30,24 @@ def _normalize_value(value: JsonValue) -> JsonValue:
 
 def _build_profile_signature(profile: JsonObject) -> str:
     generator = cast("JsonObject", profile.get("generator", {}))
+    parse = cast("JsonObject", generator.get("parse", {}))
+    render = cast("JsonObject", generator.get("render", {}))
     signature_payload: JsonObject = {
         "schema_version": profile.get("schema_version"),
         "generator": {
             "lib_id": generator.get("lib_id"),
             "emit": generator.get("emit"),
-            "headers": generator.get("headers"),
-            "filters": generator.get("filters"),
-            "type_mapping": generator.get("type_mapping"),
-            "clang_args": generator.get("clang_args"),
+            "parse": {
+                "headers": parse.get("headers"),
+                "filters": parse.get("filters"),
+                "exclude": parse.get("exclude"),
+                "clang_args": parse.get("clang_args"),
+            },
+            "render": {
+                "naming": render.get("naming"),
+                "helpers": render.get("helpers"),
+                "type_mapping": render.get("type_mapping"),
+            },
         },
     }
     normalized_payload = _normalize_value(signature_payload)

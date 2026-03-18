@@ -71,9 +71,11 @@ def test_discover_cases_loads_local_profile(tmp_path: Path) -> None:
                 "lib_id": "fixture_lib",
                 "package": "fixture",
                 "emit": "func",
-                "headers": {
-                    "kind": "local",
-                    "headers": ["headers/basic.h"],
+                "parse": {
+                    "headers": {
+                        "kind": "local",
+                        "headers": ["headers/basic.h"],
+                    }
                 },
             },
         },
@@ -86,8 +88,10 @@ def test_discover_cases_loads_local_profile(tmp_path: Path) -> None:
     assert len(cases) == 1
     case = cases[0]
     assert case.case_id == "one"
-    assert isinstance(case.config.generator.headers, LocalHeaders)
-    assert case.config.generator.headers.headers == ((case_dir / "headers" / "basic.h").resolve(),)
+    assert isinstance(case.config.generator.parse.headers, LocalHeaders)
+    assert case.config.generator.parse.headers.headers == (
+        (case_dir / "headers" / "basic.h").resolve(),
+    )
     assert case.config.golden is None
 
 
@@ -106,10 +110,12 @@ def test_discover_cases_loads_env_include_profile(
                 "lib_id": "fixture_lib",
                 "package": "fixture",
                 "emit": "func",
-                "headers": {
-                    "kind": "env_include",
-                    "include_dir_env": "PUREGO_GEN_TEST_INCLUDE_DIR",
-                    "headers": ["env_basic.h"],
+                "parse": {
+                    "headers": {
+                        "kind": "env_include",
+                        "include_dir_env": "PUREGO_GEN_TEST_INCLUDE_DIR",
+                        "headers": ["env_basic.h"],
+                    }
                 },
             },
         },
@@ -123,9 +129,9 @@ def test_discover_cases_loads_env_include_profile(
 
     assert len(cases) == 1
     case = cases[0]
-    assert isinstance(case.config.generator.headers, EnvIncludeHeaders)
-    assert case.config.generator.headers.include_dir_env == "PUREGO_GEN_TEST_INCLUDE_DIR"
-    assert case.config.generator.headers.headers == ("env_basic.h",)
+    assert isinstance(case.config.generator.parse.headers, EnvIncludeHeaders)
+    assert case.config.generator.parse.headers.include_dir_env == "PUREGO_GEN_TEST_INCLUDE_DIR"
+    assert case.config.generator.parse.headers.headers == ("env_basic.h",)
 
 
 def test_discover_cases_defaults_runtime_to_compile_c(tmp_path: Path) -> None:
@@ -140,9 +146,11 @@ def test_discover_cases_defaults_runtime_to_compile_c(tmp_path: Path) -> None:
                 "lib_id": "fixture_lib",
                 "package": "fixture",
                 "emit": "func",
-                "headers": {
-                    "kind": "local",
-                    "headers": ["headers/smoke.h"],
+                "parse": {
+                    "headers": {
+                        "kind": "local",
+                        "headers": ["headers/smoke.h"],
+                    }
                 },
             },
         },
@@ -192,9 +200,11 @@ def test_load_case_config_formats_validation_errors_with_config_context(tmp_path
                 "lib_id": "fixture_lib",
                 "package": "fixture",
                 "emit": "func",
-                "headers": {
-                    "kind": "local",
-                    "headers": ["headers/basic.h"],
+                "parse": {
+                    "headers": {
+                        "kind": "local",
+                        "headers": ["headers/basic.h"],
+                    }
                 },
                 "unknown": True,
             },
@@ -222,9 +232,11 @@ def test_load_case_config_resolves_config_path(
                 "lib_id": "fixture_lib",
                 "package": "fixture",
                 "emit": "func",
-                "headers": {
-                    "kind": "local",
-                    "headers": ["headers/basic.h"],
+                "parse": {
+                    "headers": {
+                        "kind": "local",
+                        "headers": ["headers/basic.h"],
+                    }
                 },
             },
         },
