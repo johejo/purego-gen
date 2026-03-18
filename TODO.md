@@ -24,6 +24,7 @@ Completed work is intentionally omitted.
 - [ ] Strengthen type classification and conversion heuristics for helper generation so callback/buffer/string-like patterns can be recognized from typedef-heavy signatures before any partial auto-generation mode.
 - [ ] Emit a clearer supported/skipped declaration inventory so users can quickly see what still requires handwritten code after generation.
 - [ ] Explore an optional helper-layer generation mode that builds small ergonomic wrappers on top of the low-level purego bindings without baking target-library-specific policy into the core generator.
+- [ ] Add an opt-in downstream package scaffold mode that can emit a private raw package config plus symbol-loader/bootstrap glue so practical driver/wrapper packages need less handwritten setup around generated bindings.
 - [ ] Revisit config schema/model/normalize/load boundaries so config additions stop requiring repeated cross-file edits.
 - [ ] Continue simplifying config-loading boundaries after the shared type-mapping and validation helper extraction.
 

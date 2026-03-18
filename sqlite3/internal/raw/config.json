@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "generator": {
+    "lib_id": "sqlite3",
+    "package": "raw",
+    "emit": "func,type,const",
+    "headers": {
+      "kind": "env_include",
+      "include_dir_env": "PUREGO_GEN_TEST_LIBSQLITE3_INCLUDE_DIR",
+      "headers": [
+        "sqlite3.h"
+      ]
+    },
+    "filters": {
+      "func": [
+        "sqlite3_open_v2",
+        "sqlite3_close_v2",
+        "sqlite3_errmsg",
+        "sqlite3_extended_errcode",
+        "sqlite3_busy_timeout",
+        "sqlite3_prepare_v2",
+        "sqlite3_finalize",
+        "sqlite3_reset",
+        "sqlite3_clear_bindings",
+        "sqlite3_step",
+        "sqlite3_interrupt",
+        "sqlite3_bind_parameter_count",
+        "sqlite3_bind_parameter_index",
+        "sqlite3_bind_parameter_name",
+        "sqlite3_bind_null",
+        "sqlite3_bind_blob",
+        "sqlite3_bind_double",
+        "sqlite3_bind_int64",
+        "sqlite3_bind_text",
+        "sqlite3_column_count",
+        "sqlite3_column_type",
+        "sqlite3_column_bytes",
+        "sqlite3_column_int64",
+        "sqlite3_column_double",
+        "sqlite3_column_blob",
+        "sqlite3_column_text",
+        "sqlite3_column_name",
+        "sqlite3_column_decltype",
+        "sqlite3_changes64",
+        "sqlite3_last_insert_rowid",
+        "sqlite3_create_function_v2",
+        "sqlite3_create_collation_v2",
+        "sqlite3_user_data",
+        "sqlite3_value_type",
+        "sqlite3_value_int64",
+        "sqlite3_value_double",
+        "sqlite3_value_text",
+        "sqlite3_value_blob",
+        "sqlite3_value_bytes",
+        "sqlite3_result_null",
+        "sqlite3_result_blob",
+        "sqlite3_result_double",
+        "sqlite3_result_int64",
+        "sqlite3_result_text",
+        "sqlite3_result_error"
+      ],
+      "type": [
+        "sqlite3",
+        "sqlite3_stmt",
+        "sqlite3_context",
+        "sqlite3_value",
+        "sqlite3_int64",
+        "sqlite3_destructor_type"
+      ],
+      "const": [
+        "SQLITE_OK",
+        "SQLITE_ERROR",
+        "SQLITE_INTERNAL",
+        "SQLITE_PERM",
+        "SQLITE_ABORT",
+        "SQLITE_BUSY",
+        "SQLITE_LOCKED",
+        "SQLITE_NOMEM",
+        "SQLITE_READONLY",
+        "SQLITE_INTERRUPT",
+        "SQLITE_IOERR",
+        "SQLITE_CORRUPT",
+        "SQLITE_NOTFOUND",
+        "SQLITE_FULL",
+        "SQLITE_CANTOPEN",
+        "SQLITE_PROTOCOL",
+        "SQLITE_EMPTY",
+        "SQLITE_SCHEMA",
+        "SQLITE_TOOBIG",
+        "SQLITE_CONSTRAINT",
+        "SQLITE_MISMATCH",
+        "SQLITE_MISUSE",
+        "SQLITE_NOLFS",
+        "SQLITE_AUTH",
+        "SQLITE_FORMAT",
+        "SQLITE_RANGE",
+        "SQLITE_NOTADB",
+        "SQLITE_NOTICE",
+        "SQLITE_WARNING",
+        "SQLITE_ROW",
+        "SQLITE_DONE",
+        "SQLITE_INTEGER",
+        "SQLITE_FLOAT",
+        "SQLITE_TEXT",
+        "SQLITE_BLOB",
+        "SQLITE_NULL",
+        "SQLITE_UTF8",
+        "SQLITE_DETERMINISTIC",
+        "SQLITE_OPEN_READONLY",
+        "SQLITE_OPEN_READWRITE",
+        "SQLITE_OPEN_CREATE",
+        "SQLITE_OPEN_URI",
+        "SQLITE_OPEN_MEMORY",
+        "SQLITE_OPEN_NOMUTEX",
+        "SQLITE_OPEN_FULLMUTEX",
+        "SQLITE_STATIC",
+        "SQLITE_TRANSIENT"
+      ]
+    },
+    "helpers": {
+      "buffer_inputs": [
+        {
+          "function": "sqlite3_bind_blob",
+          "pairs": [
+            {
+              "pointer": "arg3",
+              "length": "n"
+            }
+          ]
+        },
+        {
+          "function": "sqlite3_result_blob",
+          "pairs": [
+            {
+              "pointer": "arg2",
+              "length": "arg3"
+            }
+          ]
+        }
+      ],
+      "callback_inputs": [
+        {
+          "function": "sqlite3_create_function_v2",
+          "parameters": [
+            "xFunc",
+            "xDestroy"
+          ]
+        },
+        {
+          "function": "sqlite3_create_collation_v2",
+          "parameters": [
+            "xCompare",
+            "xDestroy"
+          ]
+        }
+      ]
+    },
+    "type_mapping": {
+      "const_char_as_string": true,
+      "typed_sentinel_constants": true
+    }
+  }
+}
