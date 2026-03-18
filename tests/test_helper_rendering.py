@@ -76,6 +76,45 @@ def test_render_go_source_emits_buffer_input_helper_functions() -> None:
     )
 
 
+def test_render_go_source_emits_helpers_with_custom_identifier_prefix() -> None:
+    """Helper wrappers should follow the configured identifier prefix."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_consume_bytes",
+                    result_c_type="int",
+                    parameter_c_types=("const void *", "size_t"),
+                    parameter_names=("data", "data_len"),
+                    go_result_type="int32",
+                    go_parameter_types=("uintptr", "uint64"),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+        options=RenderOptions(
+            helpers=GeneratorHelpers(
+                buffer_inputs=(
+                    BufferInputHelper(
+                        function="fixture_consume_bytes",
+                        pairs=(BufferInputPair(pointer="data", length="data_len"),),
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+            identifier_prefix="purego_gen_",
+        ),
+    )
+
+    assert "func purego_gen_func_fixture_consume_bytes_bytes(" in source
+    assert "return purego_gen_func_fixture_consume_bytes(" in source
+
+
 def test_render_go_source_accepts_generated_names_for_unnamed_buffer_parameters() -> None:
     """Buffer-input helpers should target unnamed parameters via generated arg names."""
     source = render_go_source(

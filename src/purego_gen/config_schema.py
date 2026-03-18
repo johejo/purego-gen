@@ -84,6 +84,7 @@ class GeneratorInput(StrictModel):
     """Generator configuration loaded from JSON."""
 
     lib_id: NonEmptyStr
+    identifier_prefix: NonEmptyStr = "purego_"
     package: NonEmptyStr
     emit: NonEmptyStr
     headers: HeaderInput

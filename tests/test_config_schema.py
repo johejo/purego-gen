@@ -58,6 +58,67 @@ def test_build_generator_spec_accepts_regex_string_filter(tmp_path: Path) -> Non
     assert spec.filters.func == regex_filter("^add$")
 
 
+def test_build_generator_spec_defaults_identifier_prefix(tmp_path: Path) -> None:
+    """Generator spec should default the identifier prefix for compatibility."""
+    parsed = AppConfigInput.model_validate_json(json.dumps(_config_payload(func_filter="^add$")))
+
+    spec = build_generator_spec(
+        parsed.generator,
+        base_dir=tmp_path,
+        config_path=tmp_path / "config.json",
+    )
+
+    assert spec.identifier_prefix == "purego_"
+
+
+def test_build_generator_spec_accepts_custom_identifier_prefix(tmp_path: Path) -> None:
+    """Generator spec should preserve valid custom identifier prefixes."""
+    payload = _config_payload(func_filter="^add$")
+    generator = payload["generator"]
+    assert isinstance(generator, dict)
+    generator["identifier_prefix"] = "purego_gen_"
+    parsed = AppConfigInput.model_validate_json(json.dumps(payload))
+
+    spec = build_generator_spec(
+        parsed.generator,
+        base_dir=tmp_path,
+        config_path=tmp_path / "config.json",
+    )
+
+    assert spec.identifier_prefix == "purego_gen_"
+
+
+def test_config_schema_rejects_empty_identifier_prefix() -> None:
+    """Identifier prefixes must not be empty."""
+    payload = _config_payload(func_filter="^add$")
+    generator = payload["generator"]
+    assert isinstance(generator, dict)
+    generator["identifier_prefix"] = ""
+
+    with pytest.raises(ValidationError):
+        AppConfigInput.model_validate_json(json.dumps(payload))
+
+
+@pytest.mark.parametrize("identifier_prefix", ["purego", "purego-gen_", "1purego_"])
+def test_build_generator_spec_rejects_invalid_identifier_prefix(
+    tmp_path: Path,
+    identifier_prefix: str,
+) -> None:
+    """Generator spec should reject invalid generated identifier prefixes."""
+    payload = _config_payload(func_filter="^add$")
+    generator = payload["generator"]
+    assert isinstance(generator, dict)
+    generator["identifier_prefix"] = identifier_prefix
+    parsed = AppConfigInput.model_validate_json(json.dumps(payload))
+
+    with pytest.raises(RuntimeError, match=r"generator\.identifier_prefix is invalid"):
+        build_generator_spec(
+            parsed.generator,
+            base_dir=tmp_path,
+            config_path=tmp_path / "config.json",
+        )
+
+
 def test_build_generator_spec_accepts_exact_name_array_filter(tmp_path: Path) -> None:
     """Array filters should normalize to exact-name filter specs."""
     parsed = AppConfigInput.model_validate_json(
@@ -377,8 +438,36 @@ def test_resolve_generator_config_preserves_shared_fields_for_local_headers(
     assert resolved.func_filter == exact_names_filter(("add",))
     assert resolved.type_exclude_filter == regex_filter("^internal_")
     assert resolved.helpers.callback_inputs[0].parameters == ("callback",)
+    assert resolved.identifier_prefix == "purego_"
     assert resolved.type_mapping.strict_enum_typedefs is True
     assert resolved.clang_args == ("-DTESTING=1",)
+
+
+def test_resolve_generator_config_preserves_custom_identifier_prefix(tmp_path: Path) -> None:
+    """Resolved execution config should carry a custom identifier prefix."""
+    header_path = tmp_path / "basic.h"
+    header_path.write_text("int add(int a, int b);\n", encoding="utf-8")
+    payload = {
+        "schema_version": 1,
+        "generator": {
+            "lib_id": "fixture_lib",
+            "identifier_prefix": "purego_gen_",
+            "package": "fixture",
+            "emit": "func",
+            "headers": {"kind": "local", "headers": ["basic.h"]},
+            "filters": {"func": ["add"]},
+        },
+    }
+    parsed = AppConfigInput.model_validate_json(json.dumps(payload))
+    spec = build_generator_spec(
+        parsed.generator,
+        base_dir=tmp_path,
+        config_path=tmp_path / "config.json",
+    )
+
+    resolved = resolve_generator_config(spec)
+
+    assert resolved.identifier_prefix == "purego_gen_"
 
 
 def test_resolve_generator_config_resolves_local_overlay_paths_from_config_dir(

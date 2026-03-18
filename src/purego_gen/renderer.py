@@ -51,6 +51,7 @@ _MAX_INT64: Final[int] = (1 << 63) - 1
 _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "package",
     "lib_id",
+    "identifier_prefix",
     "emit_kinds",
     "type_aliases",
     "constants",
@@ -95,6 +96,7 @@ class _RuntimeVarContext(TypedDict):
 class _TemplateContext(TypedDict):
     package: str
     lib_id: str
+    identifier_prefix: str
     emit_kinds: tuple[str, ...]
     type_aliases: tuple[_TypeAliasContext, ...]
     constants: tuple[_ConstantContext, ...]
@@ -109,6 +111,7 @@ class RenderOptions:
 
     helpers: GeneratorHelpers
     type_mapping: TypeMappingOptions
+    identifier_prefix: str = "purego_"
 
 
 def _resolve_template_dir() -> Path:
@@ -167,6 +170,7 @@ def _build_record_alias_type_by_typedef_name(
     declarations: ParsedDeclarations,
     type_identifiers: tuple[str, ...],
     emitted_record_typedef_names: set[str],
+    identifier_prefix: str,
 ) -> dict[str, str]:
     """Build emitted record typedef alias lookup used by function signatures.
 
@@ -183,7 +187,7 @@ def _build_record_alias_type_by_typedef_name(
         identifier = type_identifier_by_name.get(typedef_name)
         if identifier is None:
             continue
-        alias_name = f"purego_type_{identifier}"
+        alias_name = f"{identifier_prefix}type_{identifier}"
         record_alias_type_by_typedef_name[typedef_name] = alias_name
         typedef = typedef_by_name.get(typedef_name)
         if typedef is None:
@@ -257,6 +261,7 @@ def _build_enum_alias_type_by_typedef_name(
     declarations: ParsedDeclarations,
     type_identifiers: tuple[str, ...],
     emitted_strict_enum_typedef_names: set[str],
+    identifier_prefix: str,
 ) -> dict[str, str]:
     """Build emitted strict-enum typedef alias lookup for function signatures.
 
@@ -273,7 +278,7 @@ def _build_enum_alias_type_by_typedef_name(
         identifier = type_identifier_by_name.get(typedef_name)
         if identifier is None:
             continue
-        alias_name = f"purego_type_{identifier}"
+        alias_name = f"{identifier_prefix}type_{identifier}"
         enum_alias_type_by_typedef_name[typedef_name] = alias_name
         enum_alias_type_by_typedef_name[f"enum {typedef_name}"] = alias_name
         typedef = typedef_by_name.get(typedef_name)
@@ -303,6 +308,7 @@ def _build_typedef_alias_type_by_lookup(
     declarations: ParsedDeclarations,
     type_identifiers: tuple[str, ...],
     emit_kinds: tuple[str, ...],
+    identifier_prefix: str,
 ) -> dict[str, str]:
     """Build emitted typedef alias lookup keyed by typedef name and C spelling.
 
@@ -315,7 +321,7 @@ def _build_typedef_alias_type_by_lookup(
 
     alias_type_by_lookup: dict[str, str] = {}
     for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True):
-        alias_name = f"purego_type_{identifier}"
+        alias_name = f"{identifier_prefix}type_{identifier}"
         alias_type_by_lookup[typedef.name] = alias_name
         alias_type_by_lookup[normalize_c_type_for_lookup(typedef.c_type)] = alias_name
     return alias_type_by_lookup
@@ -326,6 +332,7 @@ def _build_function_pointer_alias_type_by_lookup(
     declarations: ParsedDeclarations,
     type_identifiers: tuple[str, ...],
     emit_kinds: tuple[str, ...],
+    identifier_prefix: str,
 ) -> dict[str, str]:
     """Build emitted function-pointer typedef alias lookup.
 
@@ -339,7 +346,7 @@ def _build_function_pointer_alias_type_by_lookup(
     for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True):
         if typedef.go_type != "uintptr" or not is_function_pointer_c_type(typedef.c_type):
             continue
-        alias_name = f"purego_type_{identifier}"
+        alias_name = f"{identifier_prefix}type_{identifier}"
         alias_type_by_lookup[typedef.name] = alias_name
         alias_type_by_lookup[normalize_function_pointer_c_type_for_lookup(typedef.c_type)] = (
             alias_name
@@ -489,6 +496,7 @@ def _build_function_signature_type_aliases(
     declarations: ParsedDeclarations,
     type_identifiers: tuple[str, ...],
     type_mapping: TypeMappingOptions,
+    identifier_prefix: str,
 ) -> FunctionSignatureTypeAliases:
     """Build render-time alias lookups used to rewrite function signatures.
 
@@ -512,6 +520,7 @@ def _build_function_signature_type_aliases(
         declarations=declarations,
         type_identifiers=type_identifiers,
         emitted_record_typedef_names=emitted_record_typedef_names,
+        identifier_prefix=identifier_prefix,
     )
     return {
         "record": record_alias_type_by_typedef_name,
@@ -523,11 +532,13 @@ def _build_function_signature_type_aliases(
             declarations=declarations,
             type_identifiers=type_identifiers,
             emitted_strict_enum_typedef_names=emitted_strict_enum_typedef_names,
+            identifier_prefix=identifier_prefix,
         ),
         "function_pointer": _build_function_pointer_alias_type_by_lookup(
             declarations=declarations,
             type_identifiers=type_identifiers,
             emit_kinds=emit_kinds,
+            identifier_prefix=identifier_prefix,
         ),
     }
 
@@ -538,6 +549,7 @@ def _build_typedef_render_helpers(
     declarations: ParsedDeclarations,
     type_identifiers: tuple[str, ...],
     type_mapping: TypeMappingOptions,
+    identifier_prefix: str,
 ) -> tuple[
     FunctionSignatureTypeAliases,
     dict[str, str],
@@ -570,11 +582,13 @@ def _build_typedef_render_helpers(
             declarations=declarations,
             type_identifiers=type_identifiers,
             type_mapping=type_mapping,
+            identifier_prefix=identifier_prefix,
         ),
         _build_typedef_alias_type_by_lookup(
             declarations=declarations,
             type_identifiers=type_identifiers,
             emit_kinds=emit_kinds,
+            identifier_prefix=identifier_prefix,
         ),
         _build_typedef_go_type_by_lookup(declarations),
         emitted_opaque_struct_typedef_names,
@@ -616,6 +630,7 @@ def _build_context(
         declarations=declarations,
         type_identifiers=type_identifiers,
         type_mapping=options.type_mapping,
+        identifier_prefix=options.identifier_prefix,
     )
     function_identifier_by_name = {
         function.name: identifier
@@ -639,6 +654,7 @@ def _build_context(
     return {
         "package": package,
         "lib_id": lib_id,
+        "identifier_prefix": options.identifier_prefix,
         "emit_kinds": emit_kinds,
         "type_aliases": tuple(
             {

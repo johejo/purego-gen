@@ -123,6 +123,7 @@ def render_formatted_go_source(config: GeneratorConfig, declarations: ParsedDecl
         declarations=declarations,
         options=RenderOptions(
             helpers=config.helpers,
+            identifier_prefix=config.identifier_prefix,
             type_mapping=config.type_mapping,
         ),
     )

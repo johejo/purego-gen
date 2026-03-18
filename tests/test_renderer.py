@@ -14,6 +14,7 @@ from purego_gen.model import (
     ParsedDeclarations,
     RecordFieldDecl,
     RecordTypedefDecl,
+    RuntimeVarDecl,
     TypedefDecl,
     TypeMappingOptions,
 )
@@ -40,6 +41,7 @@ def test_render_template_fails_on_missing_nested_key() -> None:
             {
                 "package": _FIXTURE_PACKAGE,
                 "lib_id": _FIXTURE_LIB_ID,
+                "identifier_prefix": "purego_",
                 "emit_kinds": ("func",),
                 "type_aliases": (),
                 "constants": (),
@@ -87,6 +89,42 @@ def test_render_go_source_adds_suffix_for_category_local_collisions() -> None:
     assert "purego_func_dup_name_2 func()" in source
     assert "purego_const_FOO_BAR = 1" in source
     assert "purego_const_FOO_BAR_2 = 2" in source
+
+
+def test_render_go_source_uses_custom_identifier_prefix_everywhere() -> None:
+    """Custom identifier prefixes should apply across all generated identifiers."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func", "type", "const", "var"),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="add",
+                    result_c_type="int",
+                    parameter_c_types=("int", "int"),
+                    parameter_names=("lhs", "rhs"),
+                    go_result_type="int32",
+                    go_parameter_types=("int32", "int32"),
+                ),
+            ),
+            typedefs=(TypedefDecl(name="fixture_mode_t", c_type="int", go_type="int32"),),
+            constants=(ConstantDecl(name="FIXTURE_STATUS_OK", value=0),),
+            runtime_vars=(RuntimeVarDecl(name="fixture_counter", c_type="int"),),
+        ),
+        options=RenderOptions(
+            helpers=GeneratorHelpers(),
+            type_mapping=TypeMappingOptions(),
+            identifier_prefix="purego_gen_",
+        ),
+    )
+
+    assert "purego_gen_type_fixture_mode_t = int32" in source
+    assert "purego_gen_const_FIXTURE_STATUS_OK = 0" in source
+    assert "purego_gen_func_add func(" in source
+    assert "purego_gen_var_fixture_counter uintptr" in source
+    assert "func purego_gen_fixture_lib_register_functions(handle uintptr) error {" in source
+    assert "func purego_gen_fixture_lib_load_runtime_vars(handle uintptr) error {" in source
 
 
 def test_render_go_source_falls_back_to_uintptr_without_type_emit() -> None:

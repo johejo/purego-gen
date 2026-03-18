@@ -23,7 +23,11 @@ from purego_gen.config_schema import (
 from purego_gen.declaration_filters import FilterSpec, exact_names_filter, regex_filter
 from purego_gen.emit_kinds import parse_emit_kinds
 from purego_gen.helper_config import normalize_generator_helpers, normalize_header_overlays
-from purego_gen.identifier_utils import is_go_identifier, normalize_lib_id
+from purego_gen.identifier_utils import (
+    is_go_identifier,
+    normalize_identifier_prefix,
+    normalize_lib_id,
+)
 from purego_gen.model import TypeMappingOptions
 
 if TYPE_CHECKING:
@@ -148,6 +152,12 @@ def build_generator_spec(
         raise RuntimeError(message) from error
 
     try:
+        identifier_prefix = normalize_identifier_prefix(generator.identifier_prefix)
+    except ValueError as error:
+        message = f"config `{config_path}` generator.identifier_prefix is invalid: {error}"
+        raise RuntimeError(message) from error
+
+    try:
         package_name = _validate_package_name(generator.package)
     except ValueError as error:
         message = f"config `{config_path}` generator.package is invalid: {error}"
@@ -170,6 +180,7 @@ def build_generator_spec(
 
     return GeneratorSpec(
         lib_id=normalized_lib_id,
+        identifier_prefix=identifier_prefix,
         config_base_dir=base_dir,
         package=package_name,
         emit_kinds=emit_kinds,

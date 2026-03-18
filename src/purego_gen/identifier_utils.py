@@ -46,6 +46,15 @@ def is_go_identifier(value: str) -> bool:
     return GO_IDENTIFIER_PATTERN.fullmatch(value) is not None
 
 
+def is_go_identifier_prefix(value: str) -> bool:
+    """Check whether a value is a valid generated identifier prefix.
+
+    Returns:
+        `True` when `value` is a valid Go identifier ending with `_`.
+    """
+    return value.endswith("_") and is_go_identifier(value[:-1])
+
+
 def sanitize_identifier(
     raw: str,
     *,
@@ -150,3 +159,20 @@ def normalize_lib_id(value: str) -> str:
     if normalized[0].isdigit():
         normalized = f"lib_{normalized}"
     return normalized
+
+
+def normalize_identifier_prefix(value: str) -> str:
+    """Validate and normalize the generated identifier prefix.
+
+    Returns:
+        Validated identifier prefix.
+
+    Raises:
+        ValueError: Input is not a valid Go identifier prefix ending with `_`.
+    """
+    if not is_go_identifier_prefix(value):
+        message = (
+            "identifier_prefix must match ^[A-Za-z_][A-Za-z0-9_]*_$ and end with an underscore."
+        )
+        raise ValueError(message)
+    return value

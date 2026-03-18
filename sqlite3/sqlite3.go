@@ -1133,7 +1133,7 @@ func (c *SQLiteConn) invokeScalar(ctx raw.Context, argc int32, values uintptr) {
 		return
 	}
 
-	sqliteValues := unsafe.Slice((*raw.Value)(unsafe.Pointer(values)), int(argc))
+	sqliteValues := unsafe.Slice((*raw.Value)(unsafe.Add(unsafe.Pointer(nil), values)), int(argc))
 	callArgs := make([]reflect.Value, len(sqliteValues))
 	for index := range sqliteValues {
 		decoded, err := function.args[index](sqliteValues[index])
@@ -1273,7 +1273,7 @@ func rawBytes(ptr uintptr, length int32) []byte {
 	if ptr == 0 || length <= 0 {
 		return nil
 	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(ptr)), int(length))
+	return unsafe.Slice((*byte)(unsafe.Add(unsafe.Pointer(nil), ptr)), int(length))
 }
 
 func normalizeDeclType(value string) string {

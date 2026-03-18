@@ -86,6 +86,7 @@ class GeneratorSpec:
     """Resolved generator configuration prior to env-backed header expansion."""
 
     lib_id: str
+    identifier_prefix: str
     config_base_dir: PathType
     package: str
     emit_kinds: tuple[str, ...]

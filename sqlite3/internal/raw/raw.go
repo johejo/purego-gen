@@ -300,7 +300,7 @@ func copyBytes(ptr uintptr, length int32) []byte {
 	if ptr == 0 || length <= 0 {
 		return nil
 	}
-	src := unsafe.Slice((*byte)(unsafe.Pointer(ptr)), int(length))
+	src := unsafe.Slice((*byte)(unsafe.Add(unsafe.Pointer(nil), ptr)), int(length))
 	dst := make([]byte, len(src))
 	copy(dst, src)
 	return dst

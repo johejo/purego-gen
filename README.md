@@ -24,6 +24,7 @@ Example:
   "schema_version": 1,
   "generator": {
     "lib_id": "example",
+    "identifier_prefix": "purego_",
     "package": "example",
     "emit": "func,const",
     "headers": {
@@ -38,6 +39,8 @@ Example:
   }
 }
 ```
+
+`generator.identifier_prefix` controls the leading generated Go identifier prefix and defaults to `purego_`.
 
 ## License
 

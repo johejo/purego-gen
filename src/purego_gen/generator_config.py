@@ -20,6 +20,7 @@ class GeneratorConfig:
     """One normalized purego-gen execution configuration."""
 
     lib_id: str
+    identifier_prefix: str
     headers: tuple[str, ...]
     package: str
     emit_kinds: tuple[str, ...]
@@ -53,6 +54,7 @@ def build_generator_config(
     resolved_overlays = generator.overlays if overlays is None else overlays
     return GeneratorConfig(
         lib_id=generator.lib_id,
+        identifier_prefix=generator.identifier_prefix,
         headers=headers,
         package=generator.package,
         emit_kinds=generator.emit_kinds,

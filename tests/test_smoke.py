@@ -507,6 +507,28 @@ def test_emits_buffer_input_helper_from_config(tmp_path: Path) -> None:
     assert "data []byte" in result.stdout
 
 
+def test_emits_custom_identifier_prefix_from_config(tmp_path: Path) -> None:
+    """Config should override the leading generated identifier prefix."""
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "identifier_prefix": "purego_gen_",
+                    "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
+                    "emit": "func",
+                    "filters": {"func": ["add"]},
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "purego_gen_func_add" in result.stdout
+    assert "func purego_gen_fixture_lib_register_functions(handle uintptr) error {" in result.stdout
+
+
 def test_fails_when_buffer_input_helper_targets_missing_function(tmp_path: Path) -> None:
     """Helper config should fail fast when the target function is absent."""
     result = _run_cli(
