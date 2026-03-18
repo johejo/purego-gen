@@ -21,58 +21,6 @@ type (
 	DestructorType = purego_type_sqlite3_destructor_type
 )
 
-const (
-	SQLITE_OK            = purego_const_SQLITE_OK
-	SQLITE_ERROR         = purego_const_SQLITE_ERROR
-	SQLITE_INTERNAL      = purego_const_SQLITE_INTERNAL
-	SQLITE_PERM          = purego_const_SQLITE_PERM
-	SQLITE_ABORT         = purego_const_SQLITE_ABORT
-	SQLITE_BUSY          = purego_const_SQLITE_BUSY
-	SQLITE_LOCKED        = purego_const_SQLITE_LOCKED
-	SQLITE_NOMEM         = purego_const_SQLITE_NOMEM
-	SQLITE_READONLY      = purego_const_SQLITE_READONLY
-	SQLITE_INTERRUPT     = purego_const_SQLITE_INTERRUPT
-	SQLITE_IOERR         = purego_const_SQLITE_IOERR
-	SQLITE_CORRUPT       = purego_const_SQLITE_CORRUPT
-	SQLITE_NOTFOUND      = purego_const_SQLITE_NOTFOUND
-	SQLITE_FULL          = purego_const_SQLITE_FULL
-	SQLITE_CANTOPEN      = purego_const_SQLITE_CANTOPEN
-	SQLITE_PROTOCOL      = purego_const_SQLITE_PROTOCOL
-	SQLITE_EMPTY         = purego_const_SQLITE_EMPTY
-	SQLITE_SCHEMA        = purego_const_SQLITE_SCHEMA
-	SQLITE_TOOBIG        = purego_const_SQLITE_TOOBIG
-	SQLITE_CONSTRAINT    = purego_const_SQLITE_CONSTRAINT
-	SQLITE_MISMATCH      = purego_const_SQLITE_MISMATCH
-	SQLITE_MISUSE        = purego_const_SQLITE_MISUSE
-	SQLITE_NOLFS         = purego_const_SQLITE_NOLFS
-	SQLITE_AUTH          = purego_const_SQLITE_AUTH
-	SQLITE_FORMAT        = purego_const_SQLITE_FORMAT
-	SQLITE_RANGE         = purego_const_SQLITE_RANGE
-	SQLITE_NOTADB        = purego_const_SQLITE_NOTADB
-	SQLITE_NOTICE        = purego_const_SQLITE_NOTICE
-	SQLITE_WARNING       = purego_const_SQLITE_WARNING
-	SQLITE_ROW           = purego_const_SQLITE_ROW
-	SQLITE_DONE          = purego_const_SQLITE_DONE
-	SQLITE_INTEGER       = purego_const_SQLITE_INTEGER
-	SQLITE_FLOAT         = purego_const_SQLITE_FLOAT
-	SQLITE_TEXT          = purego_const_SQLITE_TEXT
-	SQLITE_BLOB          = purego_const_SQLITE_BLOB
-	SQLITE_NULL          = purego_const_SQLITE_NULL
-	SQLITE_UTF8          = purego_const_SQLITE_UTF8
-	SQLITE_DETERMINISTIC = purego_const_SQLITE_DETERMINISTIC
-
-	SQLITE_OPEN_READONLY  = purego_const_SQLITE_OPEN_READONLY
-	SQLITE_OPEN_READWRITE = purego_const_SQLITE_OPEN_READWRITE
-	SQLITE_OPEN_CREATE    = purego_const_SQLITE_OPEN_CREATE
-	SQLITE_OPEN_URI       = purego_const_SQLITE_OPEN_URI
-	SQLITE_OPEN_MEMORY    = purego_const_SQLITE_OPEN_MEMORY
-	SQLITE_OPEN_NOMUTEX   = purego_const_SQLITE_OPEN_NOMUTEX
-	SQLITE_OPEN_FULLMUTEX = purego_const_SQLITE_OPEN_FULLMUTEX
-
-	SQLITE_STATIC    = purego_const_SQLITE_STATIC
-	SQLITE_TRANSIENT = purego_const_SQLITE_TRANSIENT
-)
-
 var (
 	loadOnce sync.Once
 	loadErr  error

@@ -115,7 +115,12 @@ def test_render_go_source_uses_custom_identifier_prefix_everywhere() -> None:
         render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(),
             type_mapping=TypeMappingOptions(),
-            naming=GeneratorNaming(identifier_prefix="purego_gen_"),
+            naming=GeneratorNaming(
+                type_prefix="purego_gen_",
+                const_prefix="purego_gen_",
+                func_prefix="purego_gen_",
+                var_prefix="purego_gen_",
+            ),
         ),
     )
 
@@ -125,6 +130,32 @@ def test_render_go_source_uses_custom_identifier_prefix_everywhere() -> None:
     assert "purego_gen_var_fixture_counter uintptr" in source
     assert "func purego_gen_fixture_lib_register_functions(handle uintptr) error {" in source
     assert "func purego_gen_fixture_lib_load_runtime_vars(handle uintptr) error {" in source
+
+
+def test_render_go_source_allows_unprefixed_constants() -> None:
+    """Constant names should be able to omit the generated namespace prefix."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("const",),
+        declarations=ParsedDeclarations(
+            functions=(),
+            typedefs=(),
+            constants=(
+                ConstantDecl(name="SQLITE_OK", value=0),
+                ConstantDecl(name="SQLITE_BUSY", value=5),
+            ),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(),
+            type_mapping=TypeMappingOptions(),
+            naming=GeneratorNaming(const_prefix=""),
+        ),
+    )
+
+    assert "SQLITE_OK = 0" in source
+    assert "SQLITE_BUSY = 5" in source
 
 
 def test_render_go_source_falls_back_to_uintptr_without_type_emit() -> None:

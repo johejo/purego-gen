@@ -79,7 +79,7 @@ def test_build_generator_spec_accepts_regex_string_filter(tmp_path: Path) -> Non
 
 
 def test_build_generator_spec_defaults_identifier_prefix(tmp_path: Path) -> None:
-    """Generator spec should default the identifier prefix for compatibility."""
+    """Generator spec should default all naming prefixes for compatibility."""
     parsed = AppConfigInput.model_validate_json(json.dumps(_config_payload(func_filter="^add$")))
 
     spec = build_generator_spec(
@@ -88,7 +88,10 @@ def test_build_generator_spec_defaults_identifier_prefix(tmp_path: Path) -> None
         config_path=tmp_path / "config.json",
     )
 
-    assert spec.render.naming.identifier_prefix == "purego_"
+    assert spec.render.naming.type_prefix == "purego_"
+    assert spec.render.naming.const_prefix == "purego_"
+    assert spec.render.naming.func_prefix == "purego_"
+    assert spec.render.naming.var_prefix == "purego_"
 
 
 def test_build_generator_spec_accepts_custom_identifier_prefix(tmp_path: Path) -> None:
@@ -96,7 +99,10 @@ def test_build_generator_spec_accepts_custom_identifier_prefix(tmp_path: Path) -
     payload = _config_payload(func_filter="^add$")
     generator = _payload_generator(payload)
     render = _generator_render(generator)
-    render["naming"] = {"identifier_prefix": "purego_gen_"}
+    render["naming"] = {
+        "identifier_prefix": "purego_gen_",
+        "const_prefix": "",
+    }
     parsed = AppConfigInput.model_validate_json(json.dumps(payload))
 
     spec = build_generator_spec(
@@ -105,11 +111,14 @@ def test_build_generator_spec_accepts_custom_identifier_prefix(tmp_path: Path) -
         config_path=tmp_path / "config.json",
     )
 
-    assert spec.render.naming.identifier_prefix == "purego_gen_"
+    assert spec.render.naming.type_prefix == "purego_gen_"
+    assert not spec.render.naming.const_prefix
+    assert spec.render.naming.func_prefix == "purego_gen_"
+    assert spec.render.naming.var_prefix == "purego_gen_"
 
 
 def test_config_schema_rejects_empty_identifier_prefix() -> None:
-    """Identifier prefixes must not be empty."""
+    """Common fallback prefixes must not be empty."""
     payload = _config_payload(func_filter="^add$")
     generator = _payload_generator(payload)
     render = _generator_render(generator)
@@ -119,21 +128,48 @@ def test_config_schema_rejects_empty_identifier_prefix() -> None:
         AppConfigInput.model_validate_json(json.dumps(payload))
 
 
-@pytest.mark.parametrize("identifier_prefix", ["purego", "purego-gen_", "1purego_"])
+def test_config_schema_accepts_empty_const_prefix() -> None:
+    """Constant prefixes should allow an empty string."""
+    payload = _config_payload(func_filter="^add$")
+    generator = _payload_generator(payload)
+    render = _generator_render(generator)
+    render["naming"] = {"const_prefix": ""}
+
+    AppConfigInput.model_validate_json(json.dumps(payload))
+
+
+@pytest.mark.parametrize(
+    ("field_name", "prefix_value"),
+    [
+        ("type_prefix", "purego"),
+        ("type_prefix", "purego-gen_"),
+        ("type_prefix", "1purego_"),
+        ("func_prefix", "purego"),
+        ("func_prefix", "purego-gen_"),
+        ("func_prefix", "1purego_"),
+        ("var_prefix", "purego"),
+        ("var_prefix", "purego-gen_"),
+        ("var_prefix", "1purego_"),
+        ("const_prefix", "purego"),
+        ("const_prefix", "purego-gen_"),
+        ("const_prefix", "1purego_"),
+    ],
+)
 def test_build_generator_spec_rejects_invalid_identifier_prefix(
     tmp_path: Path,
-    identifier_prefix: str,
+    field_name: str,
+    prefix_value: str,
 ) -> None:
     """Generator spec should reject invalid generated identifier prefixes."""
     payload = _config_payload(func_filter="^add$")
     generator = _payload_generator(payload)
     render = _generator_render(generator)
-    render["naming"] = {"identifier_prefix": identifier_prefix}
+    render["naming"] = {field_name: prefix_value}
     parsed = AppConfigInput.model_validate_json(json.dumps(payload))
 
     with pytest.raises(
         RuntimeError,
-        match=r"generator\.render\.naming\.identifier_prefix is invalid",
+        match=rf"generator\.render\.naming\.{field_name} is invalid",
     ):
         build_generator_spec(
             parsed.generator,
@@ -468,13 +504,16 @@ def test_resolve_generator_config_preserves_shared_fields_for_local_headers(
     assert resolved.parse.func_filter == exact_names_filter(("add",))
     assert resolved.parse.type_exclude_filter == regex_filter("^internal_")
     assert resolved.render.helpers.callback_inputs[0].parameters == ("callback",)
-    assert resolved.render.naming.identifier_prefix == "purego_"
+    assert resolved.render.naming.type_prefix == "purego_"
+    assert resolved.render.naming.const_prefix == "purego_"
+    assert resolved.render.naming.func_prefix == "purego_"
+    assert resolved.render.naming.var_prefix == "purego_"
     assert resolved.render.type_mapping.strict_enum_typedefs is True
     assert resolved.parse.clang_args == ("-DTESTING=1",)
 
 
 def test_resolve_generator_config_preserves_custom_identifier_prefix(tmp_path: Path) -> None:
-    """Resolved execution config should carry a custom identifier prefix."""
+    """Resolved execution config should carry custom naming prefixes."""
     header_path = tmp_path / "basic.h"
     header_path.write_text("int add(int a, int b);\n", encoding="utf-8")
     payload = {
@@ -487,7 +526,15 @@ def test_resolve_generator_config_preserves_custom_identifier_prefix(tmp_path: P
                 "headers": {"kind": "local", "headers": ["basic.h"]},
                 "filters": {"func": ["add"]},
             },
-            "render": {"naming": {"identifier_prefix": "purego_gen_"}},
+            "render": {
+                "naming": {
+                    "identifier_prefix": "purego_gen_",
+                    "type_prefix": "type_gen_",
+                    "const_prefix": "",
+                    "func_prefix": "func_gen_",
+                    "var_prefix": "var_gen_",
+                }
+            },
         },
     }
     parsed = AppConfigInput.model_validate_json(json.dumps(payload))
@@ -499,7 +546,10 @@ def test_resolve_generator_config_preserves_custom_identifier_prefix(tmp_path: P
 
     resolved = resolve_generator_config(spec)
 
-    assert resolved.render.naming.identifier_prefix == "purego_gen_"
+    assert resolved.render.naming.type_prefix == "type_gen_"
+    assert not resolved.render.naming.const_prefix
+    assert resolved.render.naming.func_prefix == "func_gen_"
+    assert resolved.render.naming.var_prefix == "var_gen_"
 
 
 def test_resolve_generator_config_resolves_local_overlay_paths_from_config_dir(

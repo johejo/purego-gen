@@ -94,6 +94,10 @@ class NamingInput(StrictModel):
     """Generated Go identifier naming configuration."""
 
     identifier_prefix: NonEmptyStr = "purego_"
+    type_prefix: NonEmptyStr | None = None
+    const_prefix: str | None = None
+    func_prefix: NonEmptyStr | None = None
+    var_prefix: NonEmptyStr | None = None
 
 
 class RenderInput(StrictModel):

@@ -67,7 +67,10 @@ class GeneratorHelpers:
 class GeneratorNaming:
     """Generated Go identifier naming policy."""
 
-    identifier_prefix: str = "purego_"
+    type_prefix: str = "purego_"
+    const_prefix: str = "purego_"
+    func_prefix: str = "purego_"
+    var_prefix: str = "purego_"
 
     def type_name(self, identifier: str) -> str:
         """Build one generated typedef alias name.
@@ -75,7 +78,7 @@ class GeneratorNaming:
         Returns:
             Generated typedef alias identifier.
         """
-        return f"{self.identifier_prefix}type_{identifier}"
+        return f"{self.type_prefix}type_{identifier}"
 
     def const_name(self, identifier: str) -> str:
         """Build one generated constant name.
@@ -83,7 +86,7 @@ class GeneratorNaming:
         Returns:
             Generated constant identifier.
         """
-        return f"{self.identifier_prefix}const_{identifier}"
+        return f"{self.const_prefix}const_{identifier}" if self.const_prefix else identifier
 
     def func_name(self, identifier: str) -> str:
         """Build one generated function variable or helper name.
@@ -91,7 +94,7 @@ class GeneratorNaming:
         Returns:
             Generated function-related identifier.
         """
-        return f"{self.identifier_prefix}func_{identifier}"
+        return f"{self.func_prefix}func_{identifier}"
 
     def runtime_var_name(self, identifier: str) -> str:
         """Build one generated runtime variable name.
@@ -99,7 +102,7 @@ class GeneratorNaming:
         Returns:
             Generated runtime-variable identifier.
         """
-        return f"{self.identifier_prefix}var_{identifier}"
+        return f"{self.var_prefix}var_{identifier}"
 
     def register_functions_name(self, lib_id: str) -> str:
         """Build the generated function-registration helper name.
@@ -107,7 +110,7 @@ class GeneratorNaming:
         Returns:
             Generated register-functions helper identifier.
         """
-        return f"{self.identifier_prefix}{lib_id}_register_functions"
+        return f"{self.func_prefix}{lib_id}_register_functions"
 
     def load_runtime_vars_name(self, lib_id: str) -> str:
         """Build the generated runtime-variable loader helper name.
@@ -115,7 +118,7 @@ class GeneratorNaming:
         Returns:
             Generated runtime-variable loader helper identifier.
         """
-        return f"{self.identifier_prefix}{lib_id}_load_runtime_vars"
+        return f"{self.func_prefix}{lib_id}_load_runtime_vars"
 
 
 @dataclass(frozen=True, slots=True)

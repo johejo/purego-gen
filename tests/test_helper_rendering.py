@@ -109,7 +109,12 @@ def test_render_go_source_emits_helpers_with_custom_identifier_prefix() -> None:
                 )
             ),
             type_mapping=TypeMappingOptions(),
-            naming=GeneratorNaming(identifier_prefix="purego_gen_"),
+            naming=GeneratorNaming(
+                type_prefix="purego_gen_",
+                const_prefix="purego_gen_",
+                func_prefix="purego_gen_",
+                var_prefix="purego_gen_",
+            ),
         ),
     )
 

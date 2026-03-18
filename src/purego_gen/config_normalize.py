@@ -155,12 +155,41 @@ def build_generator_spec(
         message = f"config `{config_path}` generator.lib_id is invalid: {error}"
         raise RuntimeError(message) from error
 
+    naming_input = generator.render.naming
+
     try:
-        identifier_prefix = normalize_identifier_prefix(generator.render.naming.identifier_prefix)
-    except ValueError as error:
-        message = (
-            f"config `{config_path}` generator.render.naming.identifier_prefix is invalid: {error}"
+        type_prefix = normalize_identifier_prefix(
+            naming_input.type_prefix or naming_input.identifier_prefix
         )
+    except ValueError as error:
+        message = f"config `{config_path}` generator.render.naming.type_prefix is invalid: {error}"
+        raise RuntimeError(message) from error
+
+    try:
+        const_prefix = normalize_identifier_prefix(
+            naming_input.const_prefix
+            if naming_input.const_prefix is not None
+            else naming_input.identifier_prefix,
+            allow_empty=True,
+        )
+    except ValueError as error:
+        message = f"config `{config_path}` generator.render.naming.const_prefix is invalid: {error}"
+        raise RuntimeError(message) from error
+
+    try:
+        func_prefix = normalize_identifier_prefix(
+            naming_input.func_prefix or naming_input.identifier_prefix
+        )
+    except ValueError as error:
+        message = f"config `{config_path}` generator.render.naming.func_prefix is invalid: {error}"
+        raise RuntimeError(message) from error
+
+    try:
+        var_prefix = normalize_identifier_prefix(
+            naming_input.var_prefix or naming_input.identifier_prefix
+        )
+    except ValueError as error:
+        message = f"config `{config_path}` generator.render.naming.var_prefix is invalid: {error}"
         raise RuntimeError(message) from error
 
     try:
@@ -197,7 +226,12 @@ def build_generator_spec(
             clang_args=tuple(generator.parse.clang_args),
         ),
         render=GeneratorRenderSpec(
-            naming=GeneratorNaming(identifier_prefix=identifier_prefix),
+            naming=GeneratorNaming(
+                type_prefix=type_prefix,
+                const_prefix=const_prefix,
+                func_prefix=func_prefix,
+                var_prefix=var_prefix,
+            ),
             helpers=helpers,
             type_mapping=normalize_type_mapping(generator.render.type_mapping),
         ),

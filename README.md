@@ -39,14 +39,17 @@ Example:
     },
     "render": {
       "naming": {
-        "identifier_prefix": "purego_"
+        "identifier_prefix": "purego_",
+        "const_prefix": ""
       }
     }
   }
 }
 ```
 
-`generator.render.naming.identifier_prefix` controls the leading generated Go identifier prefix and defaults to `purego_`.
+`generator.render.naming.identifier_prefix` is the fallback prefix. Individual
+`type_prefix`, `const_prefix`, `func_prefix`, and `var_prefix` fields override
+it per generated category.
 
 ## License
 

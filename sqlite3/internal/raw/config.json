@@ -117,47 +117,52 @@
         "SQLITE_TRANSIENT"
       ]
     },
-    "helpers": {
-      "buffer_inputs": [
-        {
-          "function": "sqlite3_bind_blob",
-          "pairs": [
-            {
-              "pointer": "arg3",
-              "length": "n"
-            }
-          ]
-        },
-        {
-          "function": "sqlite3_result_blob",
-          "pairs": [
-            {
-              "pointer": "arg2",
-              "length": "arg3"
-            }
-          ]
-        }
-      ],
-      "callback_inputs": [
-        {
-          "function": "sqlite3_create_function_v2",
-          "parameters": [
-            "xFunc",
-            "xDestroy"
-          ]
-        },
-        {
-          "function": "sqlite3_create_collation_v2",
-          "parameters": [
-            "xCompare",
-            "xDestroy"
-          ]
-        }
-      ]
-    },
-    "type_mapping": {
-      "const_char_as_string": true,
-      "typed_sentinel_constants": true
+    "render": {
+      "naming": {
+        "const_prefix": ""
+      },
+      "helpers": {
+        "buffer_inputs": [
+          {
+            "function": "sqlite3_bind_blob",
+            "pairs": [
+              {
+                "pointer": "arg3",
+                "length": "n"
+              }
+            ]
+          },
+          {
+            "function": "sqlite3_result_blob",
+            "pairs": [
+              {
+                "pointer": "arg2",
+                "length": "arg3"
+              }
+            ]
+          }
+        ],
+        "callback_inputs": [
+          {
+            "function": "sqlite3_create_function_v2",
+            "parameters": [
+              "xFunc",
+              "xDestroy"
+            ]
+          },
+          {
+            "function": "sqlite3_create_collation_v2",
+            "parameters": [
+              "xCompare",
+              "xDestroy"
+            ]
+          }
+        ]
+      },
+      "type_mapping": {
+        "const_char_as_string": true,
+        "typed_sentinel_constants": true
+      }
     }
   }
 }

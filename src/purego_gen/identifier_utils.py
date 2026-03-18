@@ -161,7 +161,7 @@ def normalize_lib_id(value: str) -> str:
     return normalized
 
 
-def normalize_identifier_prefix(value: str) -> str:
+def normalize_identifier_prefix(value: str, *, allow_empty: bool = False) -> str:
     """Validate and normalize the generated identifier prefix.
 
     Returns:
@@ -170,6 +170,8 @@ def normalize_identifier_prefix(value: str) -> str:
     Raises:
         ValueError: Input is not a valid Go identifier prefix ending with `_`.
     """
+    if allow_empty and not value:
+        return value
     if not is_go_identifier_prefix(value):
         message = (
             "identifier_prefix must match ^[A-Za-z_][A-Za-z0-9_]*_$ and end with an underscore."

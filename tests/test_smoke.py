@@ -79,10 +79,10 @@ def _write_config(
             render = cast("JsonObject", generator["render"])
             render[key] = value
             continue
-        if key == "identifier_prefix":
+        if key in {"identifier_prefix", "type_prefix", "const_prefix", "func_prefix", "var_prefix"}:
             render = cast("JsonObject", generator["render"])
             naming = cast("JsonObject", render.setdefault("naming", {}))
-            naming["identifier_prefix"] = value
+            naming[key] = value
             continue
         generator[key] = value
     config_path.write_text(
@@ -534,6 +534,7 @@ def test_emits_custom_identifier_prefix_from_config(tmp_path: Path) -> None:
                 tmp_path,
                 generator_overrides=_json_object({
                     "identifier_prefix": "purego_gen_",
+                    "func_prefix": "purego_gen_",
                     "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
                     "emit": "func",
                     "filters": {"func": ["add"]},
@@ -545,6 +546,28 @@ def test_emits_custom_identifier_prefix_from_config(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert "purego_gen_func_add" in result.stdout
     assert "func purego_gen_fixture_lib_register_functions(handle uintptr) error {" in result.stdout
+
+
+def test_emits_unprefixed_constants_from_config(tmp_path: Path) -> None:
+    """Config should be able to omit the generated constant prefix."""
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_CATEGORY_HEADER)]},
+                    "emit": "const",
+                    "filters": {"const": ["FIXTURE_STATUS_OK", "FIXTURE_STATUS_NG"]},
+                    "const_prefix": "",
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "FIXTURE_STATUS_OK = 0" in result.stdout
+    assert "FIXTURE_STATUS_NG = 2" in result.stdout
 
 
 def test_fails_when_buffer_input_helper_targets_missing_function(tmp_path: Path) -> None:
