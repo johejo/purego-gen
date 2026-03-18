@@ -15,6 +15,14 @@ Completed work is intentionally omitted.
 
 - [ ] Add support for in-memory overlays via `CXUnsavedFile` so parsing can work without relying on on-disk headers.
 
+## UX Improvements
+
+- [ ] Add a broad declaration-collection mode so users can start from "generate everything supported" and then narrow with excludes instead of large allowlists.
+- [ ] Add opt-in mapping policies for common C API patterns such as nullable `const char *`, blob-like `const void *`, and similar pointer/value conventions that currently force handwritten call-site boilerplate.
+- [ ] Improve generic callback/destructor ergonomics so common function-pointer registration patterns require less handwritten marshalling around generated bindings.
+- [ ] Emit a clearer supported/skipped declaration inventory so users can quickly see what still requires handwritten code after generation.
+- [ ] Explore an optional helper-layer generation mode that builds small ergonomic wrappers on top of the low-level purego bindings without baking target-library-specific policy into the core generator.
+
 ## Open Decisions
 
 - [ ] Decide macro evaluation boundary beyond enum-like constants.
