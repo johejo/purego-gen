@@ -1,6 +1,5 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
-agent_nix_prefix := "nix develop .#coding-agent -c"
 python_src_prefix := "scripts/uv-run-python-src.sh"
 go_cache_env := "XDG_CACHE_HOME=$PWD/.cache GOMODCACHE=$PWD/.cache/gomod GOCACHE=$PWD/.cache/go-build STATICCHECK_CACHE=$PWD/.cache/staticcheck"
 
@@ -80,17 +79,3 @@ check: nix-flake-check lint typecheck golden-check test go-vet go-staticcheck go
 ci: nix-flake-check tool-version-check lint typecheck golden-check golden-check-nix test go-vet go-staticcheck go-test
 
 ci-strict: nix-flake-check tool-version-check lint typecheck golden-check-ci golden-check-ci-nix test go-vet go-staticcheck go-test
-
-# Codex sandbox helper tasks
-
-agent-check:
-  mkdir -p .cache/nix .cache/gomod .cache/go-build .cache/ccache
-  {{agent_nix_prefix}} just check
-
-agent-ci:
-  mkdir -p .cache/nix .cache/gomod .cache/go-build .cache/ccache
-  {{agent_nix_prefix}} just ci
-
-agent-ci-strict:
-  mkdir -p .cache/nix .cache/gomod .cache/go-build .cache/ccache
-  {{agent_nix_prefix}} just ci-strict
