@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import TYPE_CHECKING, Final, TextIO
 
 from purego_gen.c_type_utils import extract_pointer_typedef_name
@@ -23,6 +24,87 @@ OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT: Final[str] = build_diagnostic_code(
     "UINTPTR",
     "COUNT",
 )
+INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT: Final[str] = build_diagnostic_code(
+    "INVENTORY",
+    "FUNCTION",
+    "EMITTED",
+    "COUNT",
+)
+INVENTORY_DIAGNOSTIC_CODE_EMITTED_TYPEDEF_COUNT: Final[str] = build_diagnostic_code(
+    "INVENTORY",
+    "TYPEDEF",
+    "EMITTED",
+    "COUNT",
+)
+INVENTORY_DIAGNOSTIC_CODE_EMITTED_CONSTANT_COUNT: Final[str] = build_diagnostic_code(
+    "INVENTORY",
+    "CONSTANT",
+    "EMITTED",
+    "COUNT",
+)
+INVENTORY_DIAGNOSTIC_CODE_EMITTED_RUNTIME_VAR_COUNT: Final[str] = build_diagnostic_code(
+    "INVENTORY",
+    "RUNTIME",
+    "VAR",
+    "EMITTED",
+    "COUNT",
+)
+TYPE_DIAGNOSTIC_CODE_SKIPPED_COUNT: Final[str] = build_diagnostic_code(
+    "TYPE",
+    "SKIPPED",
+    "COUNT",
+)
+_EMITTED_INVENTORY_COUNTS: Final[tuple[tuple[str, str, str], ...]] = (
+    ("func", "functions", INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT),
+    ("type", "typedefs", INVENTORY_DIAGNOSTIC_CODE_EMITTED_TYPEDEF_COUNT),
+    ("const", "constants", INVENTORY_DIAGNOSTIC_CODE_EMITTED_CONSTANT_COUNT),
+    ("var", "runtime vars", INVENTORY_DIAGNOSTIC_CODE_EMITTED_RUNTIME_VAR_COUNT),
+)
+
+
+def _count_diagnostic_code(reason_code: str) -> str:
+    """Build one stable count diagnostic code from a base reason code.
+
+    Returns:
+        Stable count diagnostic code derived from the input reason code.
+    """
+    return f"{reason_code}_COUNT"
+
+
+def build_generation_inventory_lines(
+    *,
+    all_declarations: ParsedDeclarations,
+    filtered_declarations: ParsedDeclarations,
+    emit_kinds: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Build stable inventory summary lines for generation diagnostics.
+
+    Returns:
+        Summary diagnostic lines in stable emission order.
+    """
+    emitted_counts = {
+        "func": len(filtered_declarations.functions),
+        "type": len(filtered_declarations.typedefs),
+        "const": len(filtered_declarations.constants),
+        "var": len(filtered_declarations.runtime_vars),
+    }
+    lines = [
+        f"purego-gen: emitted {label} [{diagnostic_code}]: {emitted_counts[emit_kind]}\n"
+        for emit_kind, label, diagnostic_code in _EMITTED_INVENTORY_COUNTS
+        if emit_kind in emit_kinds
+    ]
+    lines.append(
+        "purego-gen: skipped typedefs "
+        f"[{TYPE_DIAGNOSTIC_CODE_SKIPPED_COUNT}]: {len(all_declarations.skipped_typedefs)}\n"
+    )
+    skipped_reason_counts = Counter(
+        skipped_typedef.reason_code for skipped_typedef in all_declarations.skipped_typedefs
+    )
+    lines.extend(
+        f"purego-gen: skipped typedefs [{_count_diagnostic_code(reason_code)}]: {count}\n"
+        for reason_code, count in sorted(skipped_reason_counts.items())
+    )
+    return tuple(lines)
 
 
 def count_opaque_diagnostics(
@@ -73,6 +155,13 @@ def emit_generation_diagnostics(
     emit_kinds: tuple[str, ...],
 ) -> None:
     """Emit stable skipped/opaque diagnostics to stderr."""
+    stream.writelines(
+        build_generation_inventory_lines(
+            all_declarations=all_declarations,
+            filtered_declarations=filtered_declarations,
+            emit_kinds=emit_kinds,
+        )
+    )
     stream.writelines(
         (
             "purego-gen: skipped typedef "

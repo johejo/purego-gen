@@ -13,8 +13,12 @@ from typing import cast
 import pytest
 
 from purego_gen.diagnostics import (
+    INVENTORY_DIAGNOSTIC_CODE_EMITTED_CONSTANT_COUNT,
+    INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT,
+    INVENTORY_DIAGNOSTIC_CODE_EMITTED_TYPEDEF_COUNT,
     OPAQUE_DIAGNOSTIC_CODE_EMITTED_COUNT,
     OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT,
+    TYPE_DIAGNOSTIC_CODE_SKIPPED_COUNT,
 )
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
@@ -101,6 +105,28 @@ def test_help() -> None:
     assert "usage: purego-gen" in result.stdout
 
 
+def test_reports_inventory_summary_for_enabled_emit_categories(tmp_path: Path) -> None:
+    """CLI should emit inventory counts only for enabled declaration categories."""
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
+                    "emit": "func",
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 0
+    assert f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT}]: 2" in result.stderr
+    assert INVENTORY_DIAGNOSTIC_CODE_EMITTED_TYPEDEF_COUNT not in result.stderr
+    assert INVENTORY_DIAGNOSTIC_CODE_EMITTED_CONSTANT_COUNT not in result.stderr
+    assert f"[{TYPE_DIAGNOSTIC_CODE_SKIPPED_COUNT}]: 0" in result.stderr
+
+
 def test_reports_skipped_typedef_diagnostics_for_unsupported_record_fields(tmp_path: Path) -> None:
     """CLI should report skipped typedef diagnostics for unsupported record patterns."""
     result = _run_cli(
@@ -117,6 +143,12 @@ def test_reports_skipped_typedef_diagnostics_for_unsupported_record_fields(tmp_p
     )
 
     assert result.returncode == 0
+    assert f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_TYPEDEF_COUNT}]: 10" in result.stderr
+    assert f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_CONSTANT_COUNT}]: 2" in result.stderr
+    assert f"[{TYPE_DIAGNOSTIC_CODE_SKIPPED_COUNT}]: 3" in result.stderr
+    assert f"[{TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF}_COUNT]: 1" in result.stderr
+    assert f"[{TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD}_COUNT]: 1" in result.stderr
+    assert f"[{TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS}_COUNT]: 1" in result.stderr
     assert "skipped typedef fixture_union_t" in result.stderr
     assert f"[{TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF}]" in result.stderr
     assert "skipped typedef fixture_with_bitfield_t" in result.stderr
