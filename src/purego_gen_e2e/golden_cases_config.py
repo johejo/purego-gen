@@ -6,13 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 
-from purego_gen.config_load import read_config_text
 from purego_gen.config_model import GeneratorSpec
 from purego_gen.config_normalize import build_generator_spec, resolve_config_path
 from purego_gen.config_schema import GeneratorInput, NonEmptyStr, NonEmptyStrTuple
-from purego_gen.validation_error_format import format_validation_error
+from purego_gen.json_load import load_json_model
 
 PathType = Path
 GeneratorSpecType = GeneratorSpec
@@ -130,18 +129,13 @@ def load_case_config(path: Path) -> AppConfig:
 
     Returns:
         Parsed golden-case config.
-
-    Raises:
-        RuntimeError: File reading or schema validation fails.
     """
     resolved_path = path.expanduser().resolve()
-    raw_text = read_config_text(resolved_path)
-    try:
-        parsed = AppConfigInput.model_validate_json(raw_text)
-    except ValidationError as error:
-        message = format_validation_error(error, context=f"config `{resolved_path}`")
-        raise RuntimeError(message) from error
-
+    parsed = load_json_model(
+        resolved_path,
+        model_type=AppConfigInput,
+        context=f"config `{resolved_path}`",
+    )
     base_dir = resolved_path.parent
     return AppConfig(
         config_path=resolved_path,

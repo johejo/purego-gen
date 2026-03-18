@@ -7,20 +7,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
-from pydantic import ValidationError
-
+from purego_gen.config_normalize import build_type_mapping_options
 from purego_gen.declaration_filters import build_exact_symbol_regex
-from purego_gen.model import TypeMappingOptions
+from purego_gen.json_load import load_json_model
 from purego_gen.target_profile_schema import (
     CatalogInput,
     ComponentInput,
     ProfileInput,
     TypeMappingInput,
 )
-from purego_gen.validation_error_format import format_validation_error
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from purego_gen.model import TypeMappingOptions
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,25 +64,13 @@ def _load_catalog(path: Path) -> CatalogInput:
 
     Returns:
         Parsed catalog input model.
-
-    Raises:
-        RuntimeError: Catalog file is missing, unreadable, or schema validation fails.
     """
-    if not path.is_file():
-        message = f"target profile catalog not found: {path}"
-        raise RuntimeError(message)
-
-    try:
-        raw_text = path.read_text(encoding="utf-8")
-    except OSError as error:
-        message = f"failed to read target profile catalog `{path}`: {error}"
-        raise RuntimeError(message) from error
-
-    try:
-        return CatalogInput.model_validate_json(raw_text)
-    except ValidationError as error:
-        message = format_validation_error(error, context=f"target profile catalog `{path}`")
-        raise RuntimeError(message) from error
+    return load_json_model(
+        path,
+        model_type=CatalogInput,
+        context=f"target profile catalog `{path.expanduser().resolve()}`",
+        missing_label="target profile catalog",
+    )
 
 
 def _merge_component(
@@ -179,16 +167,10 @@ def _build_type_mapping(
     profile_id: str,
     resolved_type_mapping: dict[str, bool],
 ) -> TypeMappingOptions:
-    if "const_char_as_string" not in resolved_type_mapping:
-        message = (
-            f"catalog `{path}` profile `{profile_id}` must resolve "
-            "`type_mapping.const_char_as_string`."
-        )
-        raise RuntimeError(message)
-    return TypeMappingOptions(
-        const_char_as_string=resolved_type_mapping["const_char_as_string"],
-        strict_enum_typedefs=resolved_type_mapping.get("strict_enum_typedefs", False),
-        typed_sentinel_constants=resolved_type_mapping.get("typed_sentinel_constants", False),
+    return build_type_mapping_options(
+        raw_values=resolved_type_mapping,
+        require_const_char_as_string=True,
+        context=f"catalog `{path}` profile `{profile_id}`",
     )
 
 

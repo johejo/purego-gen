@@ -8,6 +8,9 @@ import json
 import sys
 from typing import TYPE_CHECKING
 
+import pytest
+
+from purego_gen_e2e.golden_cases_config import load_case_config
 from purego_gen_e2e.golden_cases_lib import (
     CompileCRuntime,
     EnvIncludeHeaders,
@@ -177,3 +180,30 @@ def test_resolve_env_libdir_runtime_library_accepts_exact_name(
     resolved = resolve_env_libdir_runtime_library(runtime)
 
     assert resolved == expected_library.resolve()
+
+
+def test_load_case_config_formats_validation_errors_with_config_context(tmp_path: Path) -> None:
+    """Golden-case config loader should reuse shared validation formatting."""
+    config_path = tmp_path / "config.json"
+    _write_json(
+        config_path,
+        {
+            "schema_version": 1,
+            "generator": {
+                "lib_id": "fixture_lib",
+                "package": "fixture",
+                "emit": "func",
+                "headers": {
+                    "kind": "local",
+                    "headers": ["headers/basic.h"],
+                },
+                "unknown": True,
+            },
+        },
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"(?s)config `.*config\.json`.*generator\.unknown.*extra_forbidden",
+    ):
+        load_case_config(config_path)

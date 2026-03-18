@@ -11,6 +11,7 @@ from purego_gen.config_model import GeneratorHelpers
 from purego_gen.model import TypeMappingOptions
 
 if TYPE_CHECKING:
+    from purego_gen.config_model import GeneratorSpec
     from purego_gen.declaration_filters import FilterSpec
 
 
@@ -35,4 +36,35 @@ class GeneratorConfig:
     type_mapping: TypeMappingOptions = field(default_factory=TypeMappingOptions)
 
 
-__all__ = ["GeneratorConfig"]
+def build_generator_config(
+    generator: GeneratorSpec,
+    *,
+    headers: tuple[str, ...],
+    clang_args: tuple[str, ...] | None = None,
+) -> GeneratorConfig:
+    """Build execution-ready config once header resolution is complete.
+
+    Returns:
+        Normalized generator config with resolved headers and clang args.
+    """
+    resolved_clang_args = generator.clang_args if clang_args is None else clang_args
+    return GeneratorConfig(
+        lib_id=generator.lib_id,
+        headers=headers,
+        package=generator.package,
+        emit_kinds=generator.emit_kinds,
+        func_filter=generator.filters.func,
+        type_filter=generator.filters.type_,
+        const_filter=generator.filters.const,
+        var_filter=generator.filters.var,
+        func_exclude_filter=generator.exclude_filters.func,
+        type_exclude_filter=generator.exclude_filters.type_,
+        const_exclude_filter=generator.exclude_filters.const,
+        var_exclude_filter=generator.exclude_filters.var,
+        clang_args=resolved_clang_args,
+        helpers=generator.helpers,
+        type_mapping=generator.type_mapping,
+    )
+
+
+__all__ = ["GeneratorConfig", "build_generator_config"]

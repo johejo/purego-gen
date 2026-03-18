@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic import ValidationError
 
-from purego_gen.config_load import resolve_generator_config
-from purego_gen.config_normalize import build_generator_spec
+from purego_gen.config_load import load_app_config, resolve_generator_config
+from purego_gen.config_normalize import build_generator_spec, build_type_mapping_options
 from purego_gen.config_schema import AppConfigInput
 from purego_gen.declaration_filters import exact_names_filter, regex_filter
 
@@ -236,6 +236,42 @@ def test_build_generator_spec_rejects_helpers_without_func_emit(tmp_path: Path) 
             base_dir=tmp_path,
             config_path=tmp_path / "config.json",
         )
+
+
+def test_build_type_mapping_options_defaults_unset_values() -> None:
+    """Shared type-mapping helper should default missing flags to false."""
+    options = build_type_mapping_options(raw_values={"strict_enum_typedefs": True})
+
+    assert options.const_char_as_string is False
+    assert options.strict_enum_typedefs is True
+    assert options.typed_sentinel_constants is False
+
+
+def test_load_app_config_formats_validation_errors_with_config_context(tmp_path: Path) -> None:
+    """Config loader should reuse shared validation formatting."""
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps({
+            "schema_version": 1,
+            "generator": {
+                "lib_id": "fixture_lib",
+                "package": "fixture",
+                "emit": "func",
+                "headers": {
+                    "kind": "local",
+                    "headers": ["basic.h"],
+                },
+                "unknown": True,
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"(?s)config `.*config\.json`.*generator\.unknown.*extra_forbidden",
+    ):
+        load_app_config(config_path)
 
 
 def test_resolve_generator_config_preserves_shared_fields_for_local_headers(

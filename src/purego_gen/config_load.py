@@ -9,32 +9,11 @@ import os
 from pathlib import Path
 from typing import cast
 
-from pydantic import ValidationError
-
 from purego_gen.config_model import AppConfig, GeneratorSpec, LocalHeaders
 from purego_gen.config_normalize import build_generator_spec
 from purego_gen.config_schema import AppConfigInput
-from purego_gen.generator_config import GeneratorConfig
-from purego_gen.validation_error_format import format_validation_error
-
-
-def read_config_text(path: Path) -> str:
-    """Read one config file as UTF-8 text.
-
-    Returns:
-        File contents.
-
-    Raises:
-        RuntimeError: The file is missing or unreadable.
-    """
-    if not path.is_file():
-        message = f"config not found: {path}"
-        raise RuntimeError(message)
-    try:
-        return path.read_text(encoding="utf-8")
-    except OSError as error:
-        message = f"failed to read config JSON at {path}: {error}"
-        raise RuntimeError(message) from error
+from purego_gen.generator_config import GeneratorConfig, build_generator_config
+from purego_gen.json_load import load_json_model, read_json_text
 
 
 def load_app_config(path: Path) -> AppConfig:
@@ -42,18 +21,13 @@ def load_app_config(path: Path) -> AppConfig:
 
     Returns:
         Parsed generator config.
-
-    Raises:
-        RuntimeError: File reading or schema validation fails.
     """
     resolved_path = path.expanduser().resolve()
-    raw_text = read_config_text(resolved_path)
-    try:
-        parsed = AppConfigInput.model_validate_json(raw_text)
-    except ValidationError as error:
-        message = format_validation_error(error, context=f"config `{resolved_path}`")
-        raise RuntimeError(message) from error
-
+    parsed = load_json_model(
+        resolved_path,
+        model_type=AppConfigInput,
+        context=f"config `{resolved_path}`",
+    )
     base_dir = resolved_path.parent
     return AppConfig(
         config_path=resolved_path,
@@ -80,7 +54,7 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
             if not header_path.is_file():
                 message = f"header not found: {header_path}"
                 raise RuntimeError(message)
-        return _build_generator_config(
+        return build_generator_config(
             generator,
             headers=tuple(str(path) for path in local_header_paths),
         )
@@ -112,41 +86,10 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
             raise RuntimeError(message)
         resolved_header_paths.append(str(header_path))
 
-    return _build_generator_config(
+    return build_generator_config(
         generator,
         headers=tuple(resolved_header_paths),
         clang_args=("-I", str(include_dir), *generator.clang_args),
-    )
-
-
-def _build_generator_config(
-    generator: GeneratorSpec,
-    *,
-    headers: tuple[str, ...],
-    clang_args: tuple[str, ...] | None = None,
-) -> GeneratorConfig:
-    """Build execution-ready config once header resolution is complete.
-
-    Returns:
-        Normalized generator config with resolved headers and clang args.
-    """
-    resolved_clang_args = generator.clang_args if clang_args is None else clang_args
-    return GeneratorConfig(
-        lib_id=generator.lib_id,
-        headers=headers,
-        package=generator.package,
-        emit_kinds=generator.emit_kinds,
-        func_filter=generator.filters.func,
-        type_filter=generator.filters.type_,
-        const_filter=generator.filters.const,
-        var_filter=generator.filters.var,
-        func_exclude_filter=generator.exclude_filters.func,
-        type_exclude_filter=generator.exclude_filters.type_,
-        const_exclude_filter=generator.exclude_filters.const,
-        var_exclude_filter=generator.exclude_filters.var,
-        clang_args=resolved_clang_args,
-        helpers=generator.helpers,
-        type_mapping=generator.type_mapping,
     )
 
 
@@ -160,7 +103,7 @@ def dump_signature_payload(path: Path) -> dict[str, object]:
         RuntimeError: The file cannot be read or parsed as JSON.
         TypeError: The decoded JSON payload is not an object.
     """
-    raw_text = read_config_text(path.expanduser().resolve())
+    raw_text = read_json_text(path.expanduser().resolve())
     try:
         raw_value = cast("object", json.loads(raw_text))
     except json.JSONDecodeError as error:
@@ -178,6 +121,5 @@ def dump_signature_payload(path: Path) -> dict[str, object]:
 __all__ = [
     "dump_signature_payload",
     "load_app_config",
-    "read_config_text",
     "resolve_generator_config",
 ]

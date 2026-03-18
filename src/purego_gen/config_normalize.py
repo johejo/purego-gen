@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from purego_gen.config_model import (
     EnvIncludeHeaders,
@@ -24,6 +25,15 @@ from purego_gen.emit_kinds import parse_emit_kinds
 from purego_gen.helper_config import normalize_generator_helpers
 from purego_gen.identifier_utils import is_go_identifier, normalize_lib_id
 from purego_gen.model import TypeMappingOptions
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+_TYPE_MAPPING_DEFAULTS: dict[str, bool] = {
+    "const_char_as_string": False,
+    "strict_enum_typedefs": False,
+    "typed_sentinel_constants": False,
+}
 
 
 def resolve_config_path(base_dir: Path, raw_path: str) -> Path:
@@ -50,11 +60,33 @@ def normalize_type_mapping(type_mapping: TypeMappingInput | None) -> TypeMapping
         Type-mapping options with unset fields defaulted.
     """
     if type_mapping is None:
-        return TypeMappingOptions()
+        return build_type_mapping_options(raw_values={})
+    return build_type_mapping_options(raw_values=type_mapping.model_dump(exclude_none=True))
+
+
+def build_type_mapping_options(
+    *,
+    raw_values: Mapping[str, bool],
+    require_const_char_as_string: bool = False,
+    context: str | None = None,
+) -> TypeMappingOptions:
+    """Build type-mapping options from optional boolean overrides.
+
+    Returns:
+        Type-mapping options with missing flags defaulted to `False`.
+
+    Raises:
+        RuntimeError: `const_char_as_string` is required but unresolved.
+    """
+    if require_const_char_as_string and "const_char_as_string" not in raw_values:
+        location = "" if context is None else f"{context} "
+        message = f"{location}must resolve `type_mapping.const_char_as_string`."
+        raise RuntimeError(message)
+    resolved_values = {**_TYPE_MAPPING_DEFAULTS, **raw_values}
     return TypeMappingOptions(
-        const_char_as_string=bool(type_mapping.const_char_as_string),
-        strict_enum_typedefs=bool(type_mapping.strict_enum_typedefs),
-        typed_sentinel_constants=bool(type_mapping.typed_sentinel_constants),
+        const_char_as_string=resolved_values["const_char_as_string"],
+        strict_enum_typedefs=resolved_values["strict_enum_typedefs"],
+        typed_sentinel_constants=resolved_values["typed_sentinel_constants"],
     )
 
 
@@ -151,6 +183,7 @@ def build_generator_spec(
 
 __all__ = [
     "build_generator_spec",
+    "build_type_mapping_options",
     "normalize_filters",
     "normalize_type_mapping",
     "resolve_config_path",

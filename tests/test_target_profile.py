@@ -232,3 +232,32 @@ def test_load_target_profile_catalog_rejects_non_bool_type_mapping_value(tmp_pat
         match=r"presets\.base\.type_mapping\.const_char_as_string.*bool_type",
     ):
         load_target_profile_catalog(catalog_path, "v1")
+
+
+def test_load_target_profile_catalog_defaults_unset_type_mapping_flags(tmp_path: Path) -> None:
+    """Shared type-mapping normalization should preserve explicit and defaulted flags."""
+    catalog_path = tmp_path / "profiles.json"
+    _write_json(
+        catalog_path,
+        {
+            "schema_version": 1,
+            "presets": {
+                "base": {
+                    "header_names": ["zstd.h"],
+                    "emit_kinds": "func,type",
+                    "required_functions": ["Fn"],
+                    "required_types": ["Ty"],
+                    "type_mapping": {
+                        "const_char_as_string": True,
+                    },
+                }
+            },
+            "profiles": {"v1": {"compose": ["base"]}},
+        },
+    )
+
+    profile = load_target_profile_catalog(catalog_path, "v1")
+
+    assert profile.type_mapping.const_char_as_string is True
+    assert profile.type_mapping.strict_enum_typedefs is False
+    assert profile.type_mapping.typed_sentinel_constants is False
