@@ -319,13 +319,6 @@ func sqliteUTF16BytesString(ptr uintptr, length int32) string {
 	return string(utf16.Decode(unsafe.Slice((*uint16)(pointerData), int(length)/2)))
 }
 
-func sqliteBlobPointer(blob []byte) uintptr {
-	if len(blob) == 0 {
-		return 0
-	}
-	return uintptr(unsafe.Pointer(&blob[0]))
-}
-
 func sqliteValueArray(values uintptr, count int32) []purego_type_sqlite3_value {
 	if values == 0 || count <= 0 {
 		return nil
@@ -525,11 +518,10 @@ func TestGeneratedBindingsDriverValueBindingsWithLibsqlite3(t *testing.T) {
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if bindResult := purego_func_sqlite3_bind_blob(
+	if bindResult := purego_func_sqlite3_bind_blob_bytes(
 		statement.handle,
 		3,
-		sqliteBlobPointer(blobValue),
-		int32(len(blobValue)),
+		blobValue,
 		purego_const_SQLITE_TRANSIENT,
 	); bindResult != purego_const_SQLITE_OK {
 		t.Fatalf(
@@ -539,7 +531,6 @@ func TestGeneratedBindingsDriverValueBindingsWithLibsqlite3(t *testing.T) {
 			sqliteErrmsg(connection.db),
 		)
 	}
-	runtime.KeepAlive(blobValue)
 	if bindResult := purego_func_sqlite3_bind_null(statement.handle, 4); bindResult != purego_const_SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_bind_null() = %d, want %d, errmsg=%q",

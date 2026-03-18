@@ -94,6 +94,19 @@
         "SQLITE_TRANSIENT"
       ]
     },
+    "helpers": {
+      "buffer_inputs": [
+        {
+          "function": "sqlite3_bind_blob",
+          "pairs": [
+            {
+              "pointer": "arg3",
+              "length": "n"
+            }
+          ]
+        }
+      ]
+    },
     "type_mapping": {
       "const_char_as_string": true,
       "typed_sentinel_constants": true

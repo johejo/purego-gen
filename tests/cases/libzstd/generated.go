@@ -4,12 +4,14 @@ package fixture
 
 import (
 	"fmt"
+	"unsafe"
 
 	"github.com/ebitengine/purego"
 )
 
 var (
 	_ = fmt.Errorf
+	_ = unsafe.Pointer(nil)
 )
 
 type (
@@ -169,6 +171,165 @@ var (
 		dictSize uint64,
 	) uint64
 )
+
+func purego_func_ZSTD_compress_bytes(
+	dst uintptr,
+	dstCapacity uint64,
+	src []byte,
+	compressionLevel int32,
+) uint64 {
+	src_ptr := uintptr(0)
+	src_len := src
+	if len(src_len) > 0 {
+		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
+	}
+	return purego_func_ZSTD_compress(
+		dst,
+		dstCapacity,
+		src_ptr,
+		uint64(len(src_len)),
+		compressionLevel,
+	)
+}
+func purego_func_ZSTD_decompress_bytes(
+	dst uintptr,
+	dstCapacity uint64,
+	src []byte,
+) uint64 {
+	src_ptr := uintptr(0)
+	src_len := src
+	if len(src_len) > 0 {
+		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
+	}
+	return purego_func_ZSTD_decompress(
+		dst,
+		dstCapacity,
+		src_ptr,
+		uint64(len(src_len)),
+	)
+}
+func purego_func_ZSTD_compress_usingDict_bytes(
+	ctx purego_type_ZSTD_CCtx,
+	dst uintptr,
+	dstCapacity uint64,
+	src []byte,
+	dict []byte,
+	compressionLevel int32,
+) uint64 {
+	src_ptr := uintptr(0)
+	src_len := src
+	dict_ptr := uintptr(0)
+	dict_len := dict
+	if len(src_len) > 0 {
+		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
+	}
+	if len(dict_len) > 0 {
+		dict_ptr = uintptr(unsafe.Pointer(&dict_len[0]))
+	}
+	return purego_func_ZSTD_compress_usingDict(
+		ctx,
+		dst,
+		dstCapacity,
+		src_ptr,
+		uint64(len(src_len)),
+		dict_ptr,
+		uint64(len(dict_len)),
+		compressionLevel,
+	)
+}
+func purego_func_ZSTD_decompress_usingDict_bytes(
+	dctx purego_type_ZSTD_DCtx,
+	dst uintptr,
+	dstCapacity uint64,
+	src []byte,
+	dict []byte,
+) uint64 {
+	src_ptr := uintptr(0)
+	src_len := src
+	dict_ptr := uintptr(0)
+	dict_len := dict
+	if len(src_len) > 0 {
+		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
+	}
+	if len(dict_len) > 0 {
+		dict_ptr = uintptr(unsafe.Pointer(&dict_len[0]))
+	}
+	return purego_func_ZSTD_decompress_usingDict(
+		dctx,
+		dst,
+		dstCapacity,
+		src_ptr,
+		uint64(len(src_len)),
+		dict_ptr,
+		uint64(len(dict_len)),
+	)
+}
+func purego_func_ZSTD_findFrameCompressedSize_bytes(
+	src []byte,
+) uint64 {
+	src_ptr := uintptr(0)
+	src_len := src
+	if len(src_len) > 0 {
+		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
+	}
+	return purego_func_ZSTD_findFrameCompressedSize(
+		src_ptr,
+		uint64(len(src_len)),
+	)
+}
+func purego_func_ZSTD_getFrameContentSize_bytes(
+	src []byte,
+) uint64 {
+	src_ptr := uintptr(0)
+	src_len := src
+	if len(src_len) > 0 {
+		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
+	}
+	return purego_func_ZSTD_getFrameContentSize(
+		src_ptr,
+		uint64(len(src_len)),
+	)
+}
+func purego_func_ZSTD_compressCCtx_bytes(
+	cctx purego_type_ZSTD_CCtx,
+	dst uintptr,
+	dstCapacity uint64,
+	src []byte,
+	compressionLevel int32,
+) uint64 {
+	src_ptr := uintptr(0)
+	src_len := src
+	if len(src_len) > 0 {
+		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
+	}
+	return purego_func_ZSTD_compressCCtx(
+		cctx,
+		dst,
+		dstCapacity,
+		src_ptr,
+		uint64(len(src_len)),
+		compressionLevel,
+	)
+}
+func purego_func_ZSTD_decompressDCtx_bytes(
+	dctx purego_type_ZSTD_DCtx,
+	dst uintptr,
+	dstCapacity uint64,
+	src []byte,
+) uint64 {
+	src_ptr := uintptr(0)
+	src_len := src
+	if len(src_len) > 0 {
+		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
+	}
+	return purego_func_ZSTD_decompressDCtx(
+		dctx,
+		dst,
+		dstCapacity,
+		src_ptr,
+		uint64(len(src_len)),
+	)
+}
 
 func purego_zstd_register_functions(handle uintptr) error {
 	purego_func_ZSTD_versionNumber_symbol, err := purego.Dlsym(handle, "ZSTD_versionNumber")

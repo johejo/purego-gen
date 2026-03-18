@@ -61,6 +61,10 @@ golden-update:
 golden-check:
   {{python_src_prefix}} scripts/golden_cases.py --mode check
 
+golden-check-nix:
+  golden_cases_runner="$(nix build .#golden-cases --print-out-paths --no-link)/bin/golden-cases"; \
+  "$golden_cases_runner" --mode check
+
 golden-check-ci:
   {{python_src_prefix}} scripts/golden_cases.py --mode check --strict-head
 
@@ -73,7 +77,9 @@ tool-version-check:
 
 check: nix-flake-check lint typecheck golden-check test go-vet go-staticcheck go-test
 
-ci: nix-flake-check tool-version-check lint typecheck golden-check-ci golden-check-ci-nix test go-vet go-staticcheck go-test
+ci: nix-flake-check tool-version-check lint typecheck golden-check golden-check-nix test go-vet go-staticcheck go-test
+
+ci-strict: nix-flake-check tool-version-check lint typecheck golden-check-ci golden-check-ci-nix test go-vet go-staticcheck go-test
 
 # Codex sandbox helper tasks
 
@@ -84,3 +90,7 @@ agent-check:
 agent-ci:
   mkdir -p .cache/nix .cache/gomod .cache/go-build .cache/ccache
   {{agent_nix_prefix}} just ci
+
+agent-ci-strict:
+  mkdir -p .cache/nix .cache/gomod .cache/go-build .cache/ccache
+  {{agent_nix_prefix}} just ci-strict

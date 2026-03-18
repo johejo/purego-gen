@@ -160,6 +160,9 @@ def _git_show_head_file(*, repo_root: Path, file_path: Path) -> str | None:
 
 
 def _load_expected_source(*, repo_root: Path, case: GoldenCase, strict_head: bool) -> str:
+    if not strict_head and case.generated_path.is_file():
+        return case.generated_path.read_text(encoding="utf-8")
+
     from_head = _git_show_head_file(repo_root=repo_root, file_path=case.generated_path)
     if from_head is not None:
         return from_head

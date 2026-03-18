@@ -607,7 +607,7 @@ def _resolve_function_parameters(
     )
     return tuple(
         _ResolvedFunctionParameter(
-            raw_name=raw_name,
+            raw_name=raw_name or context["name"],
             name=context["name"],
             type=context["type"],
             go_type=go_type,

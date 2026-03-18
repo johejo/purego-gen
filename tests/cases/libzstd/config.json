@@ -46,6 +46,90 @@
         "ZSTD_CONTENTSIZE_ERROR"
       ]
     },
+    "helpers": {
+      "buffer_inputs": [
+        {
+          "function": "ZSTD_compress",
+          "pairs": [
+            {
+              "pointer": "src",
+              "length": "srcSize"
+            }
+          ]
+        },
+        {
+          "function": "ZSTD_decompress",
+          "pairs": [
+            {
+              "pointer": "src",
+              "length": "compressedSize"
+            }
+          ]
+        },
+        {
+          "function": "ZSTD_compress_usingDict",
+          "pairs": [
+            {
+              "pointer": "src",
+              "length": "srcSize"
+            },
+            {
+              "pointer": "dict",
+              "length": "dictSize"
+            }
+          ]
+        },
+        {
+          "function": "ZSTD_decompress_usingDict",
+          "pairs": [
+            {
+              "pointer": "src",
+              "length": "srcSize"
+            },
+            {
+              "pointer": "dict",
+              "length": "dictSize"
+            }
+          ]
+        },
+        {
+          "function": "ZSTD_findFrameCompressedSize",
+          "pairs": [
+            {
+              "pointer": "src",
+              "length": "srcSize"
+            }
+          ]
+        },
+        {
+          "function": "ZSTD_getFrameContentSize",
+          "pairs": [
+            {
+              "pointer": "src",
+              "length": "srcSize"
+            }
+          ]
+        },
+        {
+          "function": "ZSTD_compressCCtx",
+          "pairs": [
+            {
+              "pointer": "src",
+              "length": "srcSize"
+            }
+          ]
+        },
+        {
+          "function": "ZSTD_decompressDCtx",
+          "pairs": [
+            {
+              "pointer": "src",
+              "length": "srcSize"
+            }
+          ]
+        }
+      ]
+    },
     "type_mapping": {
       "const_char_as_string": true,
       "strict_enum_typedefs": true,

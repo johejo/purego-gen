@@ -364,6 +364,58 @@ def test_render_go_source_emits_buffer_input_helper_functions() -> None:
     )
 
 
+def test_render_go_source_accepts_generated_names_for_unnamed_buffer_parameters() -> None:
+    """Buffer-input helpers should target unnamed parameters via generated arg names."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_bind_blob",
+                    result_c_type="int",
+                    parameter_c_types=(
+                        "stmt_t",
+                        "int",
+                        "const void *",
+                        "size_t",
+                        "void (*)(void *)",
+                    ),
+                    parameter_names=("", "", "", "n", ""),
+                    go_result_type="int32",
+                    go_parameter_types=("uintptr", "int32", "uintptr", "uint64", "uintptr"),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+        options=RenderOptions(
+            helpers=GeneratorHelpers(
+                buffer_inputs=(
+                    BufferInputHelper(
+                        function="fixture_bind_blob",
+                        pairs=(BufferInputPair(pointer="arg3", length="n"),),
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    normalized_source = " ".join(source.split())
+    assert "func purego_func_fixture_bind_blob_bytes(" in source
+    assert (
+        "func purego_func_fixture_bind_blob_bytes("
+        " arg1 uintptr, arg2 int32, arg3 []byte, arg5 uintptr, ) int32 {" in normalized_source
+    )
+    assert (
+        "return purego_func_fixture_bind_blob( arg1, arg2, arg3_ptr, uint64(len(arg3_len)), arg5, )"
+        in normalized_source
+    )
+
+
 def test_render_go_source_rejects_missing_buffer_helper_function() -> None:
     """Buffer-input helpers should fail when the target function is missing."""
     with pytest.raises(

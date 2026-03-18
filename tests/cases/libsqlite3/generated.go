@@ -4,12 +4,14 @@ package fixture
 
 import (
 	"fmt"
+	"unsafe"
 
 	"github.com/ebitengine/purego"
 )
 
 var (
 	_ = fmt.Errorf
+	_ = unsafe.Pointer(nil)
 )
 
 type (
@@ -267,6 +269,26 @@ var (
 		arg3 uintptr,
 	) uintptr
 )
+
+func purego_func_sqlite3_bind_blob_bytes(
+	arg1 purego_type_sqlite3_stmt,
+	arg2 int32,
+	arg3 []byte,
+	arg5 purego_type_sqlite3_destructor_type,
+) int32 {
+	arg3_ptr := uintptr(0)
+	arg3_len := arg3
+	if len(arg3_len) > 0 {
+		arg3_ptr = uintptr(unsafe.Pointer(&arg3_len[0]))
+	}
+	return purego_func_sqlite3_bind_blob(
+		arg1,
+		arg2,
+		arg3_ptr,
+		int32(len(arg3_len)),
+		arg5,
+	)
+}
 
 func purego_sqlite3_register_functions(handle uintptr) error {
 	purego_func_sqlite3_libversion_symbol, err := purego.Dlsym(handle, "sqlite3_libversion")
