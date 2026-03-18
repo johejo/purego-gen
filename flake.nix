@@ -223,7 +223,7 @@
                 "
                 for var_name in $guarded_env_vars; do
                   if printenv "$var_name" >/dev/null 2>&1; then
-                    echo "purego-gen: coding-agent requires $var_name to be unset before nix develop; external override is not allowed." >&2
+                    echo "purego-gen: coding-agent automatically sets $var_name to shell; you don't have to set/unset them." >&2
                     exit 1
                   fi
                 done
