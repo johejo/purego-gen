@@ -7,9 +7,12 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from purego_gen.model import ParsedDeclarations
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 FILTER_KIND_REGEX: Final[str] = "regex"
 FILTER_KIND_EXACT_NAMES: Final[str] = "exact_names"
@@ -66,6 +69,10 @@ class CompiledDeclarationFilters:
     type_: re.Pattern[str] | None
     const: re.Pattern[str] | None
     var: re.Pattern[str] | None
+    func_exclude: re.Pattern[str] | None = None
+    type_exclude: re.Pattern[str] | None = None
+    const_exclude: re.Pattern[str] | None = None
+    var_exclude: re.Pattern[str] | None = None
 
 
 def build_exact_symbol_regex(symbols: tuple[str, ...]) -> str:
@@ -129,6 +136,34 @@ def compile_filter_spec(
     return compile_filter(spec.regex_pattern, option_name=option_name)
 
 
+def _apply_one_filter_pair[DeclarationT](
+    declarations: tuple[DeclarationT, ...],
+    *,
+    include_filter: re.Pattern[str] | None,
+    exclude_filter: re.Pattern[str] | None,
+    name_getter: Callable[[DeclarationT], str],
+) -> tuple[DeclarationT, ...]:
+    """Apply one include/exclude filter pair while preserving input order.
+
+    Returns:
+        Filtered declarations after include/exclude matching.
+    """
+    filtered = declarations
+    if include_filter is not None:
+        filtered = tuple(
+            declaration
+            for declaration in filtered
+            if include_filter.search(name_getter(declaration))
+        )
+    if exclude_filter is not None:
+        filtered = tuple(
+            declaration
+            for declaration in filtered
+            if not exclude_filter.search(name_getter(declaration))
+        )
+    return filtered
+
+
 def apply_declaration_filters(
     declarations: ParsedDeclarations,
     *,
@@ -139,31 +174,36 @@ def apply_declaration_filters(
     Returns:
         Filtered declaration payload.
     """
-    functions = declarations.functions
-    if filters.func is not None:
-        functions = tuple(function for function in functions if filters.func.search(function.name))
-
-    typedefs = declarations.typedefs
-    if filters.type_ is not None:
-        typedefs = tuple(typedef for typedef in typedefs if filters.type_.search(typedef.name))
-
-    record_typedefs = declarations.record_typedefs
-    if filters.type_ is not None:
-        record_typedefs = tuple(
-            record_typedef
-            for record_typedef in record_typedefs
-            if filters.type_.search(record_typedef.name)
-        )
-
-    constants = declarations.constants
-    if filters.const is not None:
-        constants = tuple(constant for constant in constants if filters.const.search(constant.name))
-
-    runtime_vars = declarations.runtime_vars
-    if filters.var is not None:
-        runtime_vars = tuple(
-            runtime_var for runtime_var in runtime_vars if filters.var.search(runtime_var.name)
-        )
+    functions = _apply_one_filter_pair(
+        declarations.functions,
+        include_filter=filters.func,
+        exclude_filter=filters.func_exclude,
+        name_getter=lambda declaration: declaration.name,
+    )
+    typedefs = _apply_one_filter_pair(
+        declarations.typedefs,
+        include_filter=filters.type_,
+        exclude_filter=filters.type_exclude,
+        name_getter=lambda declaration: declaration.name,
+    )
+    record_typedefs = _apply_one_filter_pair(
+        declarations.record_typedefs,
+        include_filter=filters.type_,
+        exclude_filter=filters.type_exclude,
+        name_getter=lambda declaration: declaration.name,
+    )
+    constants = _apply_one_filter_pair(
+        declarations.constants,
+        include_filter=filters.const,
+        exclude_filter=filters.const_exclude,
+        name_getter=lambda declaration: declaration.name,
+    )
+    runtime_vars = _apply_one_filter_pair(
+        declarations.runtime_vars,
+        include_filter=filters.var,
+        exclude_filter=filters.var_exclude,
+        name_getter=lambda declaration: declaration.name,
+    )
 
     return ParsedDeclarations(
         functions=functions,

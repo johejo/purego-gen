@@ -50,6 +50,7 @@ class GeneratorSpec:
     emit_kinds: tuple[str, ...]
     headers: HeaderConfig
     filters: GeneratorFilters
+    exclude_filters: GeneratorFilters
     type_mapping: TypeMappingOptionsType
     clang_args: tuple[str, ...]
 

@@ -89,6 +89,10 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
             type_filter=generator.filters.type_,
             const_filter=generator.filters.const,
             var_filter=generator.filters.var,
+            func_exclude_filter=generator.exclude_filters.func,
+            type_exclude_filter=generator.exclude_filters.type_,
+            const_exclude_filter=generator.exclude_filters.const,
+            var_exclude_filter=generator.exclude_filters.var,
             clang_args=generator.clang_args,
             type_mapping=generator.type_mapping,
         )
@@ -129,6 +133,10 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
         type_filter=generator.filters.type_,
         const_filter=generator.filters.const,
         var_filter=generator.filters.var,
+        func_exclude_filter=generator.exclude_filters.func,
+        type_exclude_filter=generator.exclude_filters.type_,
+        const_exclude_filter=generator.exclude_filters.const,
+        var_exclude_filter=generator.exclude_filters.var,
         clang_args=("-I", str(include_dir), *generator.clang_args),
         type_mapping=generator.type_mapping,
     )

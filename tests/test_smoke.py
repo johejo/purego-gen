@@ -62,6 +62,7 @@ def _write_config(
         "emit": "func",
         "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
         "filters": {},
+        "exclude": {},
         "type_mapping": {},
         "clang_args": [],
     }
@@ -279,6 +280,97 @@ def test_does_not_fail_when_filter_targets_non_emitted_category(tmp_path: Path) 
             )
         ),
     )
+    assert result.returncode == 0
+    assert _REGISTER_FUNCTIONS_SYMBOL in result.stdout
+
+
+def test_exclude_filter_supports_broad_collection(tmp_path: Path) -> None:
+    """Exclude filters should allow broad collection without an include allowlist."""
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
+                    "emit": "func",
+                    "exclude": {"func": "^reset$"},
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "purego_func_add" in result.stdout
+    assert "purego_func_reset" not in result.stdout
+    assert f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT}]: 1" in result.stderr
+    assert f"[{INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_FUNCTION_COUNT}]: 1" in result.stderr
+    assert "purego-gen: excluded function reset" in result.stderr
+
+
+def test_include_and_exclude_filters_compose_as_difference(tmp_path: Path) -> None:
+    """Exclude filters should apply after include filters."""
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
+                    "emit": "func",
+                    "filters": {"func": ["add", "reset"]},
+                    "exclude": {"func": ["reset"]},
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "purego_func_add" in result.stdout
+    assert "purego_func_reset" not in result.stdout
+    assert f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT}]: 1" in result.stderr
+    assert f"[{INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_FUNCTION_COUNT}]: 1" in result.stderr
+    assert "purego-gen: excluded function reset" in result.stderr
+
+
+def test_exclude_filter_no_match_does_not_fail(tmp_path: Path) -> None:
+    """Exclude filters should not fail when they match no declarations."""
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
+                    "emit": "func",
+                    "exclude": {"func": "^does_not_exist$"},
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "purego_func_add" in result.stdout
+    assert "purego_func_reset" in result.stdout
+    assert f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT}]: 2" in result.stderr
+    assert f"[{INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_FUNCTION_COUNT}]: 0" in result.stderr
+
+
+def test_exclude_filter_non_emitted_category_does_not_fail(tmp_path: Path) -> None:
+    """Exclude filters outside `emit` should not trigger failures."""
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_CATEGORY_HEADER)]},
+                    "exclude": {"const": "^FIXTURE_"},
+                }),
+            )
+        ),
+    )
+
     assert result.returncode == 0
     assert _REGISTER_FUNCTIONS_SYMBOL in result.stdout
 

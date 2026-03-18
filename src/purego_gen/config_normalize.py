@@ -109,6 +109,12 @@ def build_generator_spec(
             const=_normalize_filter(generator.filters.const),
             var=_normalize_filter(generator.filters.var),
         ),
+        exclude_filters=GeneratorFilters(
+            func=_normalize_filter(generator.exclude.func),
+            type_=_normalize_filter(generator.exclude.type_),
+            const=_normalize_filter(generator.exclude.const),
+            var=_normalize_filter(generator.exclude.var),
+        ),
         type_mapping=_normalize_type_mapping(generator.type_mapping),
         clang_args=tuple(generator.clang_args),
     )

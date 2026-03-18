@@ -25,6 +25,10 @@ class GeneratorConfig:
     type_filter: FilterSpec | None = None
     const_filter: FilterSpec | None = None
     var_filter: FilterSpec | None = None
+    func_exclude_filter: FilterSpec | None = None
+    type_exclude_filter: FilterSpec | None = None
+    const_exclude_filter: FilterSpec | None = None
+    var_exclude_filter: FilterSpec | None = None
     clang_args: tuple[str, ...] = ()
     type_mapping: TypeMappingOptions = field(default_factory=TypeMappingOptions)
 

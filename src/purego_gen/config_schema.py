@@ -63,6 +63,7 @@ class GeneratorInput(_StrictModel):
     emit: NonEmptyStr
     headers: HeaderInput
     filters: FiltersInput = Field(default_factory=FiltersInput)
+    exclude: FiltersInput = Field(default_factory=FiltersInput)
     type_mapping: TypeMappingInput = Field(default_factory=TypeMappingInput)
     clang_args: tuple[NonEmptyStr, ...] = ()
 

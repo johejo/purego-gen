@@ -35,6 +35,22 @@ def _compile_filters(config: GeneratorConfig) -> CompiledDeclarationFilters:
         type_=compile_filter_spec(config.type_filter, option_name="--type-filter"),
         const=compile_filter_spec(config.const_filter, option_name="--const-filter"),
         var=compile_filter_spec(config.var_filter, option_name="--var-filter"),
+        func_exclude=compile_filter_spec(
+            config.func_exclude_filter,
+            option_name="--func-exclude-filter",
+        ),
+        type_exclude=compile_filter_spec(
+            config.type_exclude_filter,
+            option_name="--type-exclude-filter",
+        ),
+        const_exclude=compile_filter_spec(
+            config.const_exclude_filter,
+            option_name="--const-exclude-filter",
+        ),
+        var_exclude=compile_filter_spec(
+            config.var_exclude_filter,
+            option_name="--var-exclude-filter",
+        ),
     )
 
 
