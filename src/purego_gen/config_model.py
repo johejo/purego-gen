@@ -24,6 +24,29 @@ class GeneratorFilters:
 
 
 @dataclass(frozen=True, slots=True)
+class BufferInputPair:
+    """One pointer/length parameter pair rewritten by a generated helper."""
+
+    pointer: str
+    length: str
+
+
+@dataclass(frozen=True, slots=True)
+class BufferInputHelper:
+    """One function-specific helper definition for `[]byte` inputs."""
+
+    function: str
+    pairs: tuple[BufferInputPair, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratorHelpers:
+    """Optional helper-generation configuration."""
+
+    buffer_inputs: tuple[BufferInputHelper, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class LocalHeaders:
     """Header source definition for local file paths."""
 
@@ -51,6 +74,7 @@ class GeneratorSpec:
     headers: HeaderConfig
     filters: GeneratorFilters
     exclude_filters: GeneratorFilters
+    helpers: GeneratorHelpers
     type_mapping: TypeMappingOptionsType
     clang_args: tuple[str, ...]
 
@@ -65,8 +89,11 @@ class AppConfig:
 
 __all__ = [
     "AppConfig",
+    "BufferInputHelper",
+    "BufferInputPair",
     "EnvIncludeHeaders",
     "GeneratorFilters",
+    "GeneratorHelpers",
     "GeneratorSpec",
     "HeaderConfig",
     "LocalHeaders",

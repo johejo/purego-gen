@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from purego_gen.config_model import GeneratorHelpers
 from purego_gen.model import TypeMappingOptions
 
 if TYPE_CHECKING:
@@ -30,6 +31,7 @@ class GeneratorConfig:
     const_exclude_filter: FilterSpec | None = None
     var_exclude_filter: FilterSpec | None = None
     clang_args: tuple[str, ...] = ()
+    helpers: GeneratorHelpers = field(default_factory=GeneratorHelpers)
     type_mapping: TypeMappingOptions = field(default_factory=TypeMappingOptions)
 
 

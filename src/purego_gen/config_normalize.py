@@ -7,13 +7,21 @@ from __future__ import annotations
 from pathlib import Path
 
 from purego_gen.config_model import (
+    BufferInputHelper,
+    BufferInputPair,
     EnvIncludeHeaders,
     GeneratorFilters,
+    GeneratorHelpers,
     GeneratorSpec,
     HeaderConfig,
     LocalHeaders,
 )
-from purego_gen.config_schema import GeneratorInput, LocalHeadersInput, TypeMappingInput
+from purego_gen.config_schema import (
+    GeneratorInput,
+    HelpersInput,
+    LocalHeadersInput,
+    TypeMappingInput,
+)
 from purego_gen.declaration_filters import FilterSpec, exact_names_filter, regex_filter
 from purego_gen.emit_kinds import parse_emit_kinds
 from purego_gen.identifier_utils import is_go_identifier, normalize_lib_id
@@ -51,6 +59,23 @@ def _normalize_filter(filter_value: str | tuple[str, ...] | None) -> FilterSpec 
     if isinstance(filter_value, str):
         return regex_filter(filter_value)
     return exact_names_filter(filter_value)
+
+
+def _normalize_helpers(helpers: HelpersInput) -> GeneratorHelpers:
+    return GeneratorHelpers(
+        buffer_inputs=()
+        if helpers.buffer_inputs is None
+        else tuple(
+            BufferInputHelper(
+                function=helper.function,
+                pairs=tuple(
+                    BufferInputPair(pointer=pair.pointer, length=pair.length)
+                    for pair in helper.pairs
+                ),
+            )
+            for helper in helpers.buffer_inputs
+        )
+    )
 
 
 def build_generator_spec(
@@ -98,6 +123,14 @@ def build_generator_spec(
         message = f"config `{config_path}` generator.emit is invalid: {error}"
         raise RuntimeError(message) from error
 
+    helpers = _normalize_helpers(generator.helpers)
+    if helpers.buffer_inputs and "func" not in emit_kinds:
+        message = (
+            f"config `{config_path}` generator.helpers.buffer_inputs requires "
+            "`func` in generator.emit."
+        )
+        raise RuntimeError(message)
+
     return GeneratorSpec(
         lib_id=normalized_lib_id,
         package=package_name,
@@ -115,6 +148,7 @@ def build_generator_spec(
             const=_normalize_filter(generator.exclude.const),
             var=_normalize_filter(generator.exclude.var),
         ),
+        helpers=helpers,
         type_mapping=_normalize_type_mapping(generator.type_mapping),
         clang_args=tuple(generator.clang_args),
     )

@@ -5,12 +5,18 @@ package {{ package }}
 {% if "func" in emit_kinds or "var" in emit_kinds %}
 import (
     "fmt"
+    {% if helpers %}
+    "unsafe"
+    {% endif %}
 
     "github.com/ebitengine/purego"
 )
 
 var (
     _ = fmt.Errorf
+    {% if helpers %}
+    _ = unsafe.Pointer(nil)
+    {% endif %}
 )
 
 {% endif %}
@@ -77,6 +83,38 @@ var (
         {% endif %}
     {% endfor %}
 )
+
+    {% if helpers %}
+        {% for helper in helpers %}
+            {% if helper.parameters %}
+func purego_func_{{ helper.identifier }}(
+                {% for parameter in helper.parameters %}
+    {{ parameter.name }} {{ parameter.type }},
+                {% endfor -%}
+){{ helper.result_suffix }} {
+            {% else %}
+func purego_func_{{ helper.identifier }}(){{ helper.result_suffix }} {
+            {% endif %}
+            {% for local in helper.locals %}
+    {{ local.name }} := {{ local.value }}
+            {% endfor %}
+            {% for parameter_name in helper.slice_parameters %}
+    if len({{ parameter_name }}_len) > 0 {
+        {{ parameter_name }}_ptr = uintptr(unsafe.Pointer(&{{ parameter_name }}_len[0]))
+    }
+            {% endfor %}
+            {% if helper.result_type is not none %}
+    return purego_func_{{ helper.target_identifier }}(
+            {% else %}
+    purego_func_{{ helper.target_identifier }}(
+            {% endif %}
+            {% for argument in helper.call_arguments %}
+        {{ argument }},
+            {% endfor %}
+    )
+}
+        {% endfor %}
+    {% endif %}
 
 func purego_{{ lib_id }}_register_functions(handle uintptr) error {
     {% for function in functions %}

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import re
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, TypedDict
@@ -26,6 +27,7 @@ from purego_gen.c_type_utils import (
     normalize_c_type_for_lookup,
     normalize_function_pointer_c_type_for_lookup,
 )
+from purego_gen.config_model import GeneratorHelpers
 from purego_gen.emit_kinds import validate_emit_kinds
 from purego_gen.identifier_utils import (
     GO_KEYWORDS,
@@ -38,7 +40,7 @@ from purego_gen.model import TypeMappingOptions
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from purego_gen.model import ParsedDeclarations
+    from purego_gen.model import FunctionDecl, ParsedDeclarations
 
 _MAIN_TEMPLATE_NAME: Final[str] = "go_file.go.j2"
 _MAX_INT64: Final[int] = (1 << 63) - 1
@@ -49,7 +51,16 @@ _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "type_aliases",
     "constants",
     "functions",
+    "helpers",
     "runtime_vars",
+})
+_BUFFER_HELPER_POINTER_C_TYPE: Final[str] = "void *"
+_BUFFER_HELPER_LENGTH_GO_TYPES: Final[frozenset[str]] = frozenset({
+    "int32",
+    "uint32",
+    "int64",
+    "uint64",
+    "uintptr",
 })
 
 
@@ -84,6 +95,22 @@ class _FunctionContext(TypedDict):
     comment_lines: tuple[str, ...]
 
 
+class _HelperLocalContext(TypedDict):
+    name: str
+    value: str
+
+
+class _FunctionHelperContext(TypedDict):
+    identifier: str
+    target_identifier: str
+    parameters: tuple[_FunctionParameterContext, ...]
+    result_type: str | None
+    result_suffix: str
+    locals: tuple[_HelperLocalContext, ...]
+    slice_parameters: tuple[str, ...]
+    call_arguments: tuple[str, ...]
+
+
 class _RuntimeVarContext(TypedDict):
     identifier: str
     symbol: str
@@ -97,6 +124,7 @@ class _TemplateContext(TypedDict):
     type_aliases: tuple[_TypeAliasContext, ...]
     constants: tuple[_ConstantContext, ...]
     functions: tuple[_FunctionContext, ...]
+    helpers: tuple[_FunctionHelperContext, ...]
     runtime_vars: tuple[_RuntimeVarContext, ...]
 
 
@@ -105,6 +133,23 @@ class _FunctionSignatureTypeAliases(TypedDict):
     opaque: Mapping[str, str]
     enum: Mapping[str, str]
     function_pointer: Mapping[str, str]
+
+
+@dataclass(frozen=True, slots=True)
+class _ResolvedFunctionParameter:
+    raw_name: str
+    name: str
+    type: str
+    go_type: str
+    c_type: str
+
+
+@dataclass(frozen=True, slots=True)
+class RenderOptions:
+    """Renderer options that affect emitted helper and type-mapping behavior."""
+
+    helpers: GeneratorHelpers
+    type_mapping: TypeMappingOptions
 
 
 def _resolve_template_dir() -> Path:
@@ -542,42 +587,296 @@ def _build_function_parameters_context(
     return tuple(parameters)
 
 
-def _build_context(
+def _resolve_function_parameters(
     *,
-    package: str,
-    lib_id: str,
-    emit_kinds: tuple[str, ...],
-    declarations: ParsedDeclarations,
-    type_mapping: TypeMappingOptions,
-) -> _TemplateContext:
-    """Build render context for the main Go output template.
+    parameter_names: tuple[str, ...],
+    go_parameter_types: tuple[str, ...],
+    parameter_c_types: tuple[str, ...],
+    type_aliases: _FunctionSignatureTypeAliases,
+) -> tuple[_ResolvedFunctionParameter, ...]:
+    """Resolve function parameters into sanitized names and rendered types.
 
     Returns:
-        Context dictionary passed to Jinja2 template rendering.
+        Resolved parameters with both raw metadata and rendered signature types.
+    """
+    parameters = _build_function_parameters_context(
+        parameter_names=parameter_names,
+        go_parameter_types=go_parameter_types,
+        parameter_c_types=parameter_c_types,
+        type_aliases=type_aliases,
+    )
+    return tuple(
+        _ResolvedFunctionParameter(
+            raw_name=raw_name,
+            name=context["name"],
+            type=context["type"],
+            go_type=go_type,
+            c_type=c_type,
+        )
+        for raw_name, go_type, c_type, context in zip(
+            parameter_names,
+            go_parameter_types,
+            parameter_c_types,
+            parameters,
+            strict=True,
+        )
+    )
+
+
+def _is_buffer_helper_pointer_type(c_type: str) -> bool:
+    """Check whether one parameter type is a supported `const void*` input.
+
+    Returns:
+        `True` when the parameter should be eligible for `[]byte` helper wrapping.
+    """
+    return normalize_c_type_for_lookup(c_type) == _BUFFER_HELPER_POINTER_C_TYPE
+
+
+def _get_required_parameter(
+    *,
+    helper_name: str,
+    parameter_role: str,
+    parameter_name: str,
+    parameter_by_raw_name: Mapping[str, _ResolvedFunctionParameter],
+) -> _ResolvedFunctionParameter:
+    """Fetch one helper-targeted parameter or raise a stable renderer error.
+
+    Returns:
+        Matching resolved function parameter.
 
     Raises:
-        RendererError: Emit kinds are invalid for renderer context building.
+        RendererError: The named parameter does not exist on the function.
     """
-    try:
-        validate_emit_kinds(emit_kinds, context="renderer")
-    except ValueError as error:
-        raise RendererError(str(error)) from error
-    type_identifiers = build_unique_identifiers(
-        tuple(typedef.name for typedef in declarations.typedefs),
-        fallback_prefix="type",
+    parameter = parameter_by_raw_name.get(parameter_name)
+    if parameter is not None:
+        return parameter
+    message = f"buffer helper {helper_name} {parameter_role} parameter not found: {parameter_name}"
+    raise RendererError(message)
+
+
+def _validate_buffer_helper_pair(
+    *,
+    helper_name: str,
+    pair_names: tuple[str, str],
+    pointer_parameter: _ResolvedFunctionParameter,
+    length_parameter: _ResolvedFunctionParameter,
+    seen_targeted_pointers: set[str],
+) -> None:
+    """Validate one configured pointer/length pair for buffer helper generation.
+
+    Raises:
+        RendererError: The configured pair is invalid for helper generation.
+    """
+    pointer_name, length_name = pair_names
+    if pointer_parameter.raw_name in seen_targeted_pointers:
+        message = (
+            f"buffer helper {helper_name} pointer parameter configured more than once: "
+            f"{pointer_name}"
+        )
+        raise RendererError(message)
+    seen_targeted_pointers.add(pointer_parameter.raw_name)
+    if not _is_buffer_helper_pointer_type(pointer_parameter.c_type):
+        message = (
+            f"buffer helper {helper_name} parameter {pointer_name} "
+            f"must be `const void *`, got `{pointer_parameter.c_type}`"
+        )
+        raise RendererError(message)
+    if pointer_parameter.go_type != "uintptr":
+        message = (
+            f"buffer helper {helper_name} parameter {pointer_name} "
+            f"must map to uintptr, got `{pointer_parameter.go_type}`"
+        )
+        raise RendererError(message)
+    if length_parameter.go_type not in _BUFFER_HELPER_LENGTH_GO_TYPES:
+        message = (
+            f"buffer helper {helper_name} parameter {length_name} "
+            f"has unsupported length type `{length_parameter.go_type}`"
+        )
+        raise RendererError(message)
+
+
+def _validate_buffer_helper_pairs(
+    *,
+    helper_name: str,
+    pairs: tuple[tuple[str, str], ...],
+    parameter_by_raw_name: Mapping[str, _ResolvedFunctionParameter],
+) -> None:
+    """Validate all configured pointer/length pairs for one helper."""
+    seen_targeted_pointers: set[str] = set()
+    for pointer_name, length_name in pairs:
+        pointer_parameter = _get_required_parameter(
+            helper_name=helper_name,
+            parameter_role="pointer",
+            parameter_name=pointer_name,
+            parameter_by_raw_name=parameter_by_raw_name,
+        )
+        length_parameter = _get_required_parameter(
+            helper_name=helper_name,
+            parameter_role="length",
+            parameter_name=length_name,
+            parameter_by_raw_name=parameter_by_raw_name,
+        )
+        _validate_buffer_helper_pair(
+            helper_name=helper_name,
+            pair_names=(pointer_name, length_name),
+            pointer_parameter=pointer_parameter,
+            length_parameter=length_parameter,
+            seen_targeted_pointers=seen_targeted_pointers,
+        )
+
+
+def _build_buffer_helper_call_context(
+    *,
+    resolved_parameters: tuple[_ResolvedFunctionParameter, ...],
+    pair_by_pointer: Mapping[str, tuple[str, str]],
+    pointer_by_length: Mapping[str, str],
+    parameter_by_raw_name: Mapping[str, _ResolvedFunctionParameter],
+) -> tuple[
+    tuple[_FunctionParameterContext, ...],
+    tuple[_HelperLocalContext, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+]:
+    """Build rendered parameter/call context for one helper wrapper.
+
+    Returns:
+        Wrapper parameters, local variable declarations, slice parameter names,
+        and low-level call arguments.
+    """
+    wrapper_parameters: list[_FunctionParameterContext] = []
+    locals_context: list[_HelperLocalContext] = []
+    slice_parameter_names: list[str] = []
+    call_arguments: list[str] = []
+
+    for parameter in resolved_parameters:
+        pair = pair_by_pointer.get(parameter.raw_name)
+        if pair is not None:
+            wrapper_parameters.append({"name": parameter.name, "type": "[]byte"})
+            locals_context.extend((
+                {"name": f"{parameter.name}_ptr", "value": "uintptr(0)"},
+                {"name": f"{parameter.name}_len", "value": parameter.name},
+            ))
+            slice_parameter_names.append(parameter.name)
+            call_arguments.append(f"{parameter.name}_ptr")
+            continue
+
+        pointer_name = pointer_by_length.get(parameter.raw_name)
+        if pointer_name is not None:
+            pointer_parameter = parameter_by_raw_name[pointer_name]
+            call_arguments.append(f"{parameter.type}(len({pointer_parameter.name}_len))")
+            continue
+
+        wrapper_parameters.append({"name": parameter.name, "type": parameter.type})
+        call_arguments.append(parameter.name)
+
+    return (
+        tuple(wrapper_parameters),
+        tuple(locals_context),
+        tuple(slice_parameter_names),
+        tuple(call_arguments),
     )
-    constant_identifiers = build_unique_identifiers(
-        tuple(constant.name for constant in declarations.constants),
-        fallback_prefix="const",
+
+
+def _build_function_helper_context(
+    *,
+    function_identifier: str,
+    function: FunctionDecl,
+    pointer_length_pairs: tuple[tuple[str, str], ...],
+    type_aliases: _FunctionSignatureTypeAliases,
+) -> _FunctionHelperContext:
+    """Build one rendered helper context for a low-level function.
+
+    Returns:
+        Rendered helper context for the template.
+    """
+    resolved_parameters = _resolve_function_parameters(
+        parameter_names=function.parameter_names,
+        go_parameter_types=function.go_parameter_types,
+        parameter_c_types=function.parameter_c_types,
+        type_aliases=type_aliases,
     )
-    function_identifiers = build_unique_identifiers(
-        tuple(function.name for function in declarations.functions),
-        fallback_prefix="func",
+    parameter_by_raw_name = {parameter.raw_name: parameter for parameter in resolved_parameters}
+    _validate_buffer_helper_pairs(
+        helper_name=function.name,
+        pairs=pointer_length_pairs,
+        parameter_by_raw_name=parameter_by_raw_name,
     )
-    runtime_var_identifiers = build_unique_identifiers(
-        tuple(runtime_var.name for runtime_var in declarations.runtime_vars),
-        fallback_prefix="var",
+    pair_by_pointer = {
+        pointer_name: (pointer_name, length_name)
+        for pointer_name, length_name in pointer_length_pairs
+    }
+    pointer_by_length = {
+        length_name: pointer_name for pointer_name, length_name in pointer_length_pairs
+    }
+    wrapper_parameters, locals_context, slice_parameter_names, call_arguments = (
+        _build_buffer_helper_call_context(
+            resolved_parameters=resolved_parameters,
+            pair_by_pointer=pair_by_pointer,
+            pointer_by_length=pointer_by_length,
+            parameter_by_raw_name=parameter_by_raw_name,
+        )
     )
+    result_type = (
+        _resolve_function_signature_type(
+            go_type=function.go_result_type,
+            c_type=function.result_c_type,
+            type_aliases=type_aliases,
+        )
+        if function.go_result_type is not None
+        else None
+    )
+    return {
+        "identifier": f"{function_identifier}_bytes",
+        "target_identifier": function_identifier,
+        "parameters": wrapper_parameters,
+        "result_type": result_type,
+        "result_suffix": "" if result_type is None else f" {result_type}",
+        "locals": locals_context,
+        "slice_parameters": slice_parameter_names,
+        "call_arguments": call_arguments,
+    }
+
+
+def _build_render_identifiers(
+    declarations: ParsedDeclarations,
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """Build deterministic identifiers for each rendered declaration category.
+
+    Returns:
+        Type, constant, function, and runtime-var identifier tuples.
+    """
+    return (
+        build_unique_identifiers(
+            tuple(typedef.name for typedef in declarations.typedefs),
+            fallback_prefix="type",
+        ),
+        build_unique_identifiers(
+            tuple(constant.name for constant in declarations.constants),
+            fallback_prefix="const",
+        ),
+        build_unique_identifiers(
+            tuple(function.name for function in declarations.functions),
+            fallback_prefix="func",
+        ),
+        build_unique_identifiers(
+            tuple(runtime_var.name for runtime_var in declarations.runtime_vars),
+            fallback_prefix="var",
+        ),
+    )
+
+
+def _build_function_signature_type_aliases(
+    *,
+    emit_kinds: tuple[str, ...],
+    declarations: ParsedDeclarations,
+    type_identifiers: tuple[str, ...],
+    type_mapping: TypeMappingOptions,
+) -> _FunctionSignatureTypeAliases:
+    """Build render-time alias lookups used to rewrite function signatures.
+
+    Returns:
+        Alias lookup tables for record, opaque, enum, and function-pointer slots.
+    """
     emitted_record_typedef_names = _build_emitted_record_typedef_names(
         emit_kinds=emit_kinds,
         declarations=declarations,
@@ -596,32 +895,156 @@ def _build_context(
         type_identifiers=type_identifiers,
         emitted_record_typedef_names=emitted_record_typedef_names,
     )
-    opaque_alias_type_by_typedef_name = _build_opaque_alias_type_by_typedef_name(
-        emitted_opaque_struct_typedef_names=emitted_opaque_struct_typedef_names,
-        record_alias_type_by_typedef_name=record_alias_type_by_typedef_name,
-    )
-    enum_alias_type_by_typedef_name = _build_enum_alias_type_by_typedef_name(
-        declarations=declarations,
-        type_identifiers=type_identifiers,
-        emitted_strict_enum_typedef_names=emitted_strict_enum_typedef_names,
-    )
-    typedef_alias_type_by_lookup = _build_typedef_alias_type_by_lookup(
-        declarations=declarations,
-        type_identifiers=type_identifiers,
-        emit_kinds=emit_kinds,
-    )
-    function_pointer_alias_type_by_lookup = _build_function_pointer_alias_type_by_lookup(
-        declarations=declarations,
-        type_identifiers=type_identifiers,
-        emit_kinds=emit_kinds,
-    )
-    typedef_go_type_by_lookup = _build_typedef_go_type_by_lookup(declarations)
-    function_signature_type_aliases: _FunctionSignatureTypeAliases = {
+    return {
         "record": record_alias_type_by_typedef_name,
-        "opaque": opaque_alias_type_by_typedef_name,
-        "enum": enum_alias_type_by_typedef_name,
-        "function_pointer": function_pointer_alias_type_by_lookup,
+        "opaque": _build_opaque_alias_type_by_typedef_name(
+            emitted_opaque_struct_typedef_names=emitted_opaque_struct_typedef_names,
+            record_alias_type_by_typedef_name=record_alias_type_by_typedef_name,
+        ),
+        "enum": _build_enum_alias_type_by_typedef_name(
+            declarations=declarations,
+            type_identifiers=type_identifiers,
+            emitted_strict_enum_typedef_names=emitted_strict_enum_typedef_names,
+        ),
+        "function_pointer": _build_function_pointer_alias_type_by_lookup(
+            declarations=declarations,
+            type_identifiers=type_identifiers,
+            emit_kinds=emit_kinds,
+        ),
     }
+
+
+def _build_typedef_render_helpers(
+    *,
+    emit_kinds: tuple[str, ...],
+    declarations: ParsedDeclarations,
+    type_identifiers: tuple[str, ...],
+    type_mapping: TypeMappingOptions,
+) -> tuple[
+    _FunctionSignatureTypeAliases,
+    dict[str, str],
+    dict[str, str],
+    set[str],
+    set[str],
+]:
+    """Build typedef-related lookups and emitted-name sets used during rendering.
+
+    Returns:
+        Function-signature alias lookups, typedef alias lookup, typedef Go-type
+        lookup, opaque typedef names, and strict enum typedef names.
+    """
+    emitted_record_typedef_names = _build_emitted_record_typedef_names(
+        emit_kinds=emit_kinds,
+        declarations=declarations,
+    )
+    emitted_opaque_struct_typedef_names = _build_emitted_opaque_struct_typedef_names(
+        declarations=declarations,
+        emitted_record_typedef_names=emitted_record_typedef_names,
+    )
+    emitted_strict_enum_typedef_names = _build_emitted_strict_enum_typedef_names(
+        emit_kinds=emit_kinds,
+        declarations=declarations,
+        type_mapping=type_mapping,
+    )
+    return (
+        _build_function_signature_type_aliases(
+            emit_kinds=emit_kinds,
+            declarations=declarations,
+            type_identifiers=type_identifiers,
+            type_mapping=type_mapping,
+        ),
+        _build_typedef_alias_type_by_lookup(
+            declarations=declarations,
+            type_identifiers=type_identifiers,
+            emit_kinds=emit_kinds,
+        ),
+        _build_typedef_go_type_by_lookup(declarations),
+        emitted_opaque_struct_typedef_names,
+        emitted_strict_enum_typedef_names,
+    )
+
+
+def _build_function_helpers(
+    *,
+    function_identifier_by_name: Mapping[str, str],
+    declarations: ParsedDeclarations,
+    helpers: GeneratorHelpers,
+    type_aliases: _FunctionSignatureTypeAliases,
+) -> tuple[_FunctionHelperContext, ...]:
+    """Build rendered helper contexts after validating configured helper specs.
+
+    Returns:
+        Helper contexts consumed by the main Go template.
+
+    Raises:
+        RendererError: A helper target or parameter mapping is invalid.
+    """
+    if not helpers.buffer_inputs:
+        return ()
+
+    functions_by_name = {function.name: function for function in declarations.functions}
+    helper_contexts: list[_FunctionHelperContext] = []
+    for helper in helpers.buffer_inputs:
+        function = functions_by_name.get(helper.function)
+        if function is None:
+            message = f"buffer helper target function not found: {helper.function}"
+            raise RendererError(message)
+        helper_contexts.append(
+            _build_function_helper_context(
+                function_identifier=function_identifier_by_name[function.name],
+                function=function,
+                pointer_length_pairs=tuple((pair.pointer, pair.length) for pair in helper.pairs),
+                type_aliases=type_aliases,
+            )
+        )
+    return tuple(helper_contexts)
+
+
+def _build_context(
+    *,
+    package: str,
+    lib_id: str,
+    emit_kinds: tuple[str, ...],
+    declarations: ParsedDeclarations,
+    options: RenderOptions,
+) -> _TemplateContext:
+    """Build render context for the main Go output template.
+
+    Returns:
+        Context dictionary passed to Jinja2 template rendering.
+
+    Raises:
+        RendererError: Emit kinds are invalid for renderer context building.
+    """
+    try:
+        validate_emit_kinds(emit_kinds, context="renderer")
+    except ValueError as error:
+        raise RendererError(str(error)) from error
+    type_identifiers, constant_identifiers, function_identifiers, runtime_var_identifiers = (
+        _build_render_identifiers(declarations)
+    )
+    (
+        function_signature_type_aliases,
+        typedef_alias_type_by_lookup,
+        typedef_go_type_by_lookup,
+        emitted_opaque_struct_typedef_names,
+        emitted_strict_enum_typedef_names,
+    ) = _build_typedef_render_helpers(
+        emit_kinds=emit_kinds,
+        declarations=declarations,
+        type_identifiers=type_identifiers,
+        type_mapping=options.type_mapping,
+    )
+    function_identifier_by_name = {
+        function.name: identifier
+        for function, identifier in zip(declarations.functions, function_identifiers, strict=True)
+    }
+    helper_contexts = _build_function_helpers(
+        function_identifier_by_name=function_identifier_by_name,
+        declarations=declarations,
+        helpers=options.helpers,
+        type_aliases=function_signature_type_aliases,
+    )
 
     return {
         "package": package,
@@ -648,7 +1071,7 @@ def _build_context(
                     const_type=_resolve_typed_constant_type(
                         constant_c_type=constant.c_type,
                         value=constant.value,
-                        type_mapping=type_mapping,
+                        type_mapping=options.type_mapping,
                         typedef_alias_type_by_lookup=typedef_alias_type_by_lookup,
                         typedef_go_type_by_lookup=typedef_go_type_by_lookup,
                     ),
@@ -656,7 +1079,7 @@ def _build_context(
                 "const_type": _resolve_typed_constant_type(
                     constant_c_type=constant.c_type,
                     value=constant.value,
-                    type_mapping=type_mapping,
+                    type_mapping=options.type_mapping,
                     typedef_alias_type_by_lookup=typedef_alias_type_by_lookup,
                     typedef_go_type_by_lookup=typedef_go_type_by_lookup,
                 ),
@@ -689,6 +1112,7 @@ def _build_context(
                 declarations.functions, function_identifiers, strict=True
             )
         ),
+        "helpers": helper_contexts,
         "runtime_vars": tuple(
             {
                 "identifier": identifier,
@@ -745,7 +1169,7 @@ def render_go_source(
     lib_id: str,
     emit_kinds: tuple[str, ...],
     declarations: ParsedDeclarations,
-    type_mapping: TypeMappingOptions | None = None,
+    options: RenderOptions | None = None,
 ) -> str:
     """Render generated Go source for one CLI invocation.
 
@@ -757,6 +1181,11 @@ def render_go_source(
         lib_id=lib_id,
         emit_kinds=emit_kinds,
         declarations=declarations,
-        type_mapping=type_mapping if type_mapping is not None else TypeMappingOptions(),
+        options=options
+        if options is not None
+        else RenderOptions(
+            helpers=GeneratorHelpers(),
+            type_mapping=TypeMappingOptions(),
+        ),
     )
     return render_template(_MAIN_TEMPLATE_NAME, context)

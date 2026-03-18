@@ -406,3 +406,61 @@ def test_env_include_headers_work_from_config(
 
     assert result.returncode == 0
     assert _REGISTER_FUNCTIONS_SYMBOL in result.stdout
+
+
+def test_emits_buffer_input_helper_from_config(tmp_path: Path) -> None:
+    """Config helpers should generate `[]byte` wrapper functions."""
+    header_path = _FIXTURES_DIR / "buffer_input_helper.h"
+
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(header_path)]},
+                    "emit": "func",
+                    "filters": {"func": ["fixture_consume_bytes"]},
+                    "helpers": {
+                        "buffer_inputs": [
+                            {
+                                "function": "fixture_consume_bytes",
+                                "pairs": [{"pointer": "data", "length": "data_len"}],
+                            }
+                        ]
+                    },
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "func purego_func_fixture_consume_bytes_bytes(" in result.stdout
+    assert "data []byte" in result.stdout
+
+
+def test_fails_when_buffer_input_helper_targets_missing_function(tmp_path: Path) -> None:
+    """Helper config should fail fast when the target function is absent."""
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
+                    "emit": "func",
+                    "helpers": {
+                        "buffer_inputs": [
+                            {
+                                "function": "fixture_consume_bytes",
+                                "pairs": [{"pointer": "data", "length": "data_len"}],
+                            }
+                        ]
+                    },
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 1
+    assert "buffer helper target function not found: fixture_consume_bytes" in result.stderr

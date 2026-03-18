@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": "func",
+    "headers": {
+      "kind": "local",
+      "headers": [
+        "buffer_input_helper.h"
+      ]
+    },
+    "filters": {
+      "func": [
+        "fixture_sum_bytes"
+      ]
+    },
+    "helpers": {
+      "buffer_inputs": [
+        {
+          "function": "fixture_sum_bytes",
+          "pairs": [
+            {
+              "pointer": "data",
+              "length": "data_len"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "golden": {
+    "runtime": {
+      "kind": "compile_c",
+      "sources": [
+        "runtime/runtime.c"
+      ],
+      "cflags": [
+        "-I."
+      ]
+    }
+  }
+}

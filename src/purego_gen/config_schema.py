@@ -26,6 +26,26 @@ class TypeMappingInput(_StrictModel):
     typed_sentinel_constants: StrictBool | None = None
 
 
+class BufferInputPairInput(_StrictModel):
+    """One pointer/length parameter pair rewritten by a generated helper."""
+
+    pointer: NonEmptyStr
+    length: NonEmptyStr
+
+
+class BufferInputHelperInput(_StrictModel):
+    """One function-specific helper definition for `[]byte` inputs."""
+
+    function: NonEmptyStr
+    pairs: Annotated[tuple[BufferInputPairInput, ...], Len(min_length=1)]
+
+
+class HelpersInput(_StrictModel):
+    """Optional helper-generation configuration."""
+
+    buffer_inputs: Annotated[tuple[BufferInputHelperInput, ...], Len(min_length=1)] | None = None
+
+
 class FiltersInput(_StrictModel):
     """Optional declaration filters."""
 
@@ -64,6 +84,7 @@ class GeneratorInput(_StrictModel):
     headers: HeaderInput
     filters: FiltersInput = Field(default_factory=FiltersInput)
     exclude: FiltersInput = Field(default_factory=FiltersInput)
+    helpers: HelpersInput = Field(default_factory=HelpersInput)
     type_mapping: TypeMappingInput = Field(default_factory=TypeMappingInput)
     clang_args: tuple[NonEmptyStr, ...] = ()
 
@@ -82,6 +103,7 @@ __all__ = [
     "FiltersInput",
     "GeneratorInput",
     "HeaderInput",
+    "HelpersInput",
     "LocalHeadersInput",
     "NonEmptyStr",
     "NonEmptyStrTuple",

@@ -17,7 +17,7 @@ from purego_gen.declaration_filters import (
     validate_filter_match,
 )
 from purego_gen.process_exec import run_command
-from purego_gen.renderer import RendererError, render_go_source
+from purego_gen.renderer import RendererError, RenderOptions, render_go_source
 
 if TYPE_CHECKING:
     from purego_gen.generator_config import GeneratorConfig
@@ -120,7 +120,10 @@ def render_formatted_go_source(config: GeneratorConfig, declarations: ParsedDecl
         lib_id=config.lib_id,
         emit_kinds=config.emit_kinds,
         declarations=declarations,
-        type_mapping=config.type_mapping,
+        options=RenderOptions(
+            helpers=config.helpers,
+            type_mapping=config.type_mapping,
+        ),
     )
     return format_go_source(rendered)
 

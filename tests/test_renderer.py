@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import pytest
 
+from purego_gen.config_model import BufferInputHelper, BufferInputPair, GeneratorHelpers
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
     ConstantDecl,
@@ -16,7 +17,7 @@ from purego_gen.model import (
     TypedefDecl,
     TypeMappingOptions,
 )
-from purego_gen.renderer import RendererError, render_go_source, render_template
+from purego_gen.renderer import RendererError, RenderOptions, render_go_source, render_template
 
 _FIXTURE_PACKAGE = "fixture"
 _FIXTURE_LIB_ID = "fixture_lib"
@@ -43,6 +44,7 @@ def test_render_template_fails_on_missing_nested_key() -> None:
                 "type_aliases": (),
                 "constants": (),
                 "functions": ({"name": "add"},),
+                "helpers": (),
                 "runtime_vars": (),
             },
         )
@@ -301,8 +303,130 @@ def test_render_go_source_types_casted_sentinel_constants_with_typedef_alias() -
             ),
             runtime_vars=(),
         ),
-        type_mapping=TypeMappingOptions(typed_sentinel_constants=True),
+        options=RenderOptions(
+            helpers=GeneratorHelpers(),
+            type_mapping=TypeMappingOptions(typed_sentinel_constants=True),
+        ),
     )
 
     assert "purego_const_FIXTURE_STATIC purego_type_fixture_destructor_t = 0" in source
     assert "purego_const_FIXTURE_TRANSIENT purego_type_fixture_destructor_t = ^uintptr(0)" in source
+
+
+def test_render_go_source_emits_buffer_input_helper_functions() -> None:
+    """Configured buffer-input helpers should generate `[]byte` wrappers."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_consume_bytes",
+                    result_c_type="int",
+                    parameter_c_types=("const void *", "size_t", "uint32_t"),
+                    parameter_names=("data", "data_len", "flags"),
+                    go_result_type="int32",
+                    go_parameter_types=("uintptr", "uint64", "uint32"),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+        options=RenderOptions(
+            helpers=GeneratorHelpers(
+                buffer_inputs=(
+                    BufferInputHelper(
+                        function="fixture_consume_bytes",
+                        pairs=(BufferInputPair(pointer="data", length="data_len"),),
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    normalized_source = " ".join(source.split())
+    assert '"unsafe"' in source
+    assert "func purego_func_fixture_consume_bytes_bytes(" in source
+    assert (
+        "func purego_func_fixture_consume_bytes_bytes( data []byte, flags uint32, ) int32 {"
+        in normalized_source
+    )
+    assert "data_ptr := uintptr(0)" in source
+    assert "if len(data_len) > 0 {" in source
+    assert "data_ptr = uintptr(unsafe.Pointer(&data_len[0]))" in source
+    assert (
+        "return purego_func_fixture_consume_bytes( data_ptr, uint64(len(data_len)), flags, )"
+        in normalized_source
+    )
+
+
+def test_render_go_source_rejects_missing_buffer_helper_function() -> None:
+    """Buffer-input helpers should fail when the target function is missing."""
+    with pytest.raises(
+        RendererError,
+        match=r"buffer helper target function not found: fixture_consume_bytes",
+    ):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=ParsedDeclarations(
+                functions=(),
+                typedefs=(),
+                constants=(),
+                runtime_vars=(),
+            ),
+            options=RenderOptions(
+                helpers=GeneratorHelpers(
+                    buffer_inputs=(
+                        BufferInputHelper(
+                            function="fixture_consume_bytes",
+                            pairs=(BufferInputPair(pointer="data", length="data_len"),),
+                        ),
+                    )
+                ),
+                type_mapping=TypeMappingOptions(),
+            ),
+        )
+
+
+def test_render_go_source_rejects_non_void_pointer_buffer_helper() -> None:
+    """Buffer-input helpers should reject pointer parameters outside `const void *`."""
+    with pytest.raises(
+        RendererError,
+        match=r"parameter data must be `const void \*`, got `const char \*`",
+    ):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=ParsedDeclarations(
+                functions=(
+                    FunctionDecl(
+                        name="fixture_consume_bytes",
+                        result_c_type="int",
+                        parameter_c_types=("const char *", "size_t"),
+                        parameter_names=("data", "data_len"),
+                        go_result_type="int32",
+                        go_parameter_types=("string", "uint64"),
+                    ),
+                ),
+                typedefs=(),
+                constants=(),
+                runtime_vars=(),
+            ),
+            options=RenderOptions(
+                helpers=GeneratorHelpers(
+                    buffer_inputs=(
+                        BufferInputHelper(
+                            function="fixture_consume_bytes",
+                            pairs=(BufferInputPair(pointer="data", length="data_len"),),
+                        ),
+                    )
+                ),
+                type_mapping=TypeMappingOptions(),
+            ),
+        )
