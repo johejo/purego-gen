@@ -7,7 +7,10 @@ from __future__ import annotations
 from purego_gen.diagnostics import (
     INVENTORY_DIAGNOSTIC_CODE_EMITTED_CONSTANT_COUNT,
     INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT,
+    INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_CONSTANT_COUNT,
+    INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_FUNCTION_COUNT,
     TYPE_DIAGNOSTIC_CODE_SKIPPED_COUNT,
+    build_excluded_declaration_names,
     build_generation_inventory_lines,
 )
 from purego_gen.model import (
@@ -69,9 +72,71 @@ def test_build_generation_inventory_lines_groups_skipped_typedefs_by_reason() ->
     )
 
     assert lines == (
-        f"purego-gen: emitted functions [{INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT}]: 1\n",
-        f"purego-gen: emitted constants [{INVENTORY_DIAGNOSTIC_CODE_EMITTED_CONSTANT_COUNT}]: 1\n",
+        (
+            "purego-gen: emitted functions "
+            f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT}]: 1\n"
+        ),
+        (
+            "purego-gen: excluded functions "
+            f"[{INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_FUNCTION_COUNT}]: 0\n"
+        ),
+        (
+            "purego-gen: emitted constants "
+            f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_CONSTANT_COUNT}]: 1\n"
+        ),
+        (
+            "purego-gen: excluded constants "
+            f"[{INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_CONSTANT_COUNT}]: 0\n"
+        ),
         f"purego-gen: skipped typedefs [{TYPE_DIAGNOSTIC_CODE_SKIPPED_COUNT}]: 3\n",
         "purego-gen: skipped typedefs [PUREGO_GEN_TYPE_UNSUPPORTED_BITFIELD_COUNT]: 1\n",
         "purego-gen: skipped typedefs [PUREGO_GEN_TYPE_UNSUPPORTED_UNION_TYPEDEF_COUNT]: 2\n",
     )
+
+
+def test_build_excluded_declaration_names_preserves_original_parse_order() -> None:
+    """Excluded declarations should preserve original parse order per category."""
+    all_declarations = ParsedDeclarations(
+        functions=(
+            FunctionDecl(
+                name="add",
+                result_c_type="int",
+                parameter_c_types=("int", "int"),
+                parameter_names=("lhs", "rhs"),
+                go_result_type="int32",
+                go_parameter_types=("int32", "int32"),
+            ),
+            FunctionDecl(
+                name="reset",
+                result_c_type="void",
+                parameter_c_types=(),
+                parameter_names=(),
+                go_result_type=None,
+                go_parameter_types=(),
+            ),
+        ),
+        typedefs=(),
+        constants=(
+            ConstantDecl(name="FIXTURE_STATUS_OK", value=0),
+            ConstantDecl(name="FIXTURE_STATUS_ERR", value=1),
+        ),
+        runtime_vars=(),
+    )
+    filtered_declarations = ParsedDeclarations(
+        functions=(all_declarations.functions[0],),
+        typedefs=(),
+        constants=(all_declarations.constants[1],),
+        runtime_vars=(),
+    )
+
+    excluded_names = build_excluded_declaration_names(
+        all_declarations=all_declarations,
+        filtered_declarations=filtered_declarations,
+    )
+
+    assert excluded_names == {
+        "func": ("reset",),
+        "type": (),
+        "const": ("FIXTURE_STATUS_OK",),
+        "var": (),
+    }

@@ -16,6 +16,10 @@ from purego_gen.diagnostics import (
     INVENTORY_DIAGNOSTIC_CODE_EMITTED_CONSTANT_COUNT,
     INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT,
     INVENTORY_DIAGNOSTIC_CODE_EMITTED_TYPEDEF_COUNT,
+    INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_CONSTANT_COUNT,
+    INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_FUNCTION_COUNT,
+    INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_RUNTIME_VAR_COUNT,
+    INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_TYPEDEF_COUNT,
     OPAQUE_DIAGNOSTIC_CODE_EMITTED_COUNT,
     OPAQUE_DIAGNOSTIC_CODE_FALLBACK_COUNT,
     TYPE_DIAGNOSTIC_CODE_SKIPPED_COUNT,
@@ -122,8 +126,12 @@ def test_reports_inventory_summary_for_enabled_emit_categories(tmp_path: Path) -
 
     assert result.returncode == 0
     assert f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT}]: 2" in result.stderr
+    assert f"[{INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_FUNCTION_COUNT}]: 0" in result.stderr
     assert INVENTORY_DIAGNOSTIC_CODE_EMITTED_TYPEDEF_COUNT not in result.stderr
+    assert INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_TYPEDEF_COUNT not in result.stderr
     assert INVENTORY_DIAGNOSTIC_CODE_EMITTED_CONSTANT_COUNT not in result.stderr
+    assert INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_CONSTANT_COUNT not in result.stderr
+    assert INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_RUNTIME_VAR_COUNT not in result.stderr
     assert f"[{TYPE_DIAGNOSTIC_CODE_SKIPPED_COUNT}]: 0" in result.stderr
 
 
@@ -233,6 +241,8 @@ def test_accepts_exact_name_array_filters_in_config(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert "purego_func_add" in result.stdout
     assert "purego_func_reset" not in result.stdout
+    assert f"[{INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_FUNCTION_COUNT}]: 1" in result.stderr
+    assert "purego-gen: excluded function reset" in result.stderr
 
 
 def test_exact_name_array_filter_no_match_reports_original_value(tmp_path: Path) -> None:
