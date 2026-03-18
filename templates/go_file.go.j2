@@ -2,10 +2,11 @@
 
 package {{ package }}
 
+{% set unsafe_helpers = helpers | selectattr("slice_parameters") | list %}
 {% if "func" in emit_kinds or "var" in emit_kinds %}
 import (
     "fmt"
-    {% if helpers %}
+    {% if unsafe_helpers %}
     "unsafe"
     {% endif %}
 
@@ -14,7 +15,7 @@ import (
 
 var (
     _ = fmt.Errorf
-    {% if helpers %}
+    {% if unsafe_helpers %}
     _ = unsafe.Pointer(nil)
     {% endif %}
 )

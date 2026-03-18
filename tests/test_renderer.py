@@ -234,6 +234,7 @@ def test_render_go_source_keeps_primitive_function_signature_types() -> None:
     normalized_source = " ".join(source.split())
     assert "purego_type_fixture_mode_t = int32" in source
     assert "purego_func_current_mode func() int32" in normalized_source
+    assert '"unsafe"' not in source
 
 
 def test_render_go_source_reuses_function_pointer_typedef_aliases() -> None:
