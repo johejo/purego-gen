@@ -80,22 +80,9 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
             if not header_path.is_file():
                 message = f"header not found: {header_path}"
                 raise RuntimeError(message)
-        return GeneratorConfig(
-            lib_id=generator.lib_id,
+        return _build_generator_config(
+            generator,
             headers=tuple(str(path) for path in local_header_paths),
-            package=generator.package,
-            emit_kinds=generator.emit_kinds,
-            func_filter=generator.filters.func,
-            type_filter=generator.filters.type_,
-            const_filter=generator.filters.const,
-            var_filter=generator.filters.var,
-            func_exclude_filter=generator.exclude_filters.func,
-            type_exclude_filter=generator.exclude_filters.type_,
-            const_exclude_filter=generator.exclude_filters.const,
-            var_exclude_filter=generator.exclude_filters.var,
-            clang_args=generator.clang_args,
-            helpers=generator.helpers,
-            type_mapping=generator.type_mapping,
         )
 
     env_headers = generator.headers
@@ -125,9 +112,28 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
             raise RuntimeError(message)
         resolved_header_paths.append(str(header_path))
 
+    return _build_generator_config(
+        generator,
+        headers=tuple(resolved_header_paths),
+        clang_args=("-I", str(include_dir), *generator.clang_args),
+    )
+
+
+def _build_generator_config(
+    generator: GeneratorSpec,
+    *,
+    headers: tuple[str, ...],
+    clang_args: tuple[str, ...] | None = None,
+) -> GeneratorConfig:
+    """Build execution-ready config once header resolution is complete.
+
+    Returns:
+        Normalized generator config with resolved headers and clang args.
+    """
+    resolved_clang_args = generator.clang_args if clang_args is None else clang_args
     return GeneratorConfig(
         lib_id=generator.lib_id,
-        headers=tuple(resolved_header_paths),
+        headers=headers,
         package=generator.package,
         emit_kinds=generator.emit_kinds,
         func_filter=generator.filters.func,
@@ -138,7 +144,7 @@ def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
         type_exclude_filter=generator.exclude_filters.type_,
         const_exclude_filter=generator.exclude_filters.const,
         var_exclude_filter=generator.exclude_filters.var,
-        clang_args=("-I", str(include_dir), *generator.clang_args),
+        clang_args=resolved_clang_args,
         helpers=generator.helpers,
         type_mapping=generator.type_mapping,
     )

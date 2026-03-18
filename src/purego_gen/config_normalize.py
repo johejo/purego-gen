@@ -14,6 +14,7 @@ from purego_gen.config_model import (
     LocalHeaders,
 )
 from purego_gen.config_schema import (
+    FiltersInput,
     GeneratorInput,
     LocalHeadersInput,
     TypeMappingInput,
@@ -42,7 +43,14 @@ def _validate_package_name(value: str) -> str:
     return value
 
 
-def _normalize_type_mapping(type_mapping: TypeMappingInput) -> TypeMappingOptions:
+def normalize_type_mapping(type_mapping: TypeMappingInput | None) -> TypeMappingOptions:
+    """Normalize optional type-mapping input into execution-ready options.
+
+    Returns:
+        Type-mapping options with unset fields defaulted.
+    """
+    if type_mapping is None:
+        return TypeMappingOptions()
     return TypeMappingOptions(
         const_char_as_string=bool(type_mapping.const_char_as_string),
         strict_enum_typedefs=bool(type_mapping.strict_enum_typedefs),
@@ -56,6 +64,35 @@ def _normalize_filter(filter_value: str | tuple[str, ...] | None) -> FilterSpec 
     if isinstance(filter_value, str):
         return regex_filter(filter_value)
     return exact_names_filter(filter_value)
+
+
+def normalize_filters(filters: FiltersInput) -> GeneratorFilters:
+    """Normalize one filter block into compiled filter specs.
+
+    Returns:
+        Per-category filter configuration ready for generator resolution.
+    """
+    return GeneratorFilters(
+        func=_normalize_filter(filters.func),
+        type_=_normalize_filter(filters.type_),
+        const=_normalize_filter(filters.const),
+        var=_normalize_filter(filters.var),
+    )
+
+
+def _normalize_headers(generator: GeneratorInput, *, base_dir: Path) -> HeaderConfig:
+    if isinstance(generator.headers, LocalHeadersInput):
+        return LocalHeaders(
+            headers=tuple(
+                resolve_config_path(base_dir, raw_path) for raw_path in generator.headers.headers
+            )
+        )
+
+    header_input = generator.headers
+    return EnvIncludeHeaders(
+        include_dir_env=header_input.include_dir_env,
+        headers=header_input.headers,
+    )
 
 
 def build_generator_spec(
@@ -72,19 +109,6 @@ def build_generator_spec(
     Raises:
         RuntimeError: The config contains invalid generator values.
     """
-    if isinstance(generator.headers, LocalHeadersInput):
-        headers: HeaderConfig = LocalHeaders(
-            headers=tuple(
-                resolve_config_path(base_dir, raw_path) for raw_path in generator.headers.headers
-            )
-        )
-    else:
-        header_input = generator.headers
-        headers = EnvIncludeHeaders(
-            include_dir_env=header_input.include_dir_env,
-            headers=header_input.headers,
-        )
-
     try:
         normalized_lib_id = normalize_lib_id(generator.lib_id)
     except ValueError as error:
@@ -116,26 +140,18 @@ def build_generator_spec(
         lib_id=normalized_lib_id,
         package=package_name,
         emit_kinds=emit_kinds,
-        headers=headers,
-        filters=GeneratorFilters(
-            func=_normalize_filter(generator.filters.func),
-            type_=_normalize_filter(generator.filters.type_),
-            const=_normalize_filter(generator.filters.const),
-            var=_normalize_filter(generator.filters.var),
-        ),
-        exclude_filters=GeneratorFilters(
-            func=_normalize_filter(generator.exclude.func),
-            type_=_normalize_filter(generator.exclude.type_),
-            const=_normalize_filter(generator.exclude.const),
-            var=_normalize_filter(generator.exclude.var),
-        ),
+        headers=_normalize_headers(generator, base_dir=base_dir),
+        filters=normalize_filters(generator.filters),
+        exclude_filters=normalize_filters(generator.exclude),
         helpers=helpers,
-        type_mapping=_normalize_type_mapping(generator.type_mapping),
+        type_mapping=normalize_type_mapping(generator.type_mapping),
         clang_args=tuple(generator.clang_args),
     )
 
 
 __all__ = [
     "build_generator_spec",
+    "normalize_filters",
+    "normalize_type_mapping",
     "resolve_config_path",
 ]

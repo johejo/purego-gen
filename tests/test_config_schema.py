@@ -10,12 +10,15 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic import ValidationError
 
+from purego_gen.config_load import resolve_generator_config
 from purego_gen.config_normalize import build_generator_spec
 from purego_gen.config_schema import AppConfigInput
 from purego_gen.declaration_filters import exact_names_filter, regex_filter
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from _pytest.monkeypatch import MonkeyPatch
 
 
 def _config_payload(*, func_filter: object) -> dict[str, object]:
@@ -233,3 +236,85 @@ def test_build_generator_spec_rejects_helpers_without_func_emit(tmp_path: Path) 
             base_dir=tmp_path,
             config_path=tmp_path / "config.json",
         )
+
+
+def test_resolve_generator_config_preserves_shared_fields_for_local_headers(
+    tmp_path: Path,
+) -> None:
+    """Local header resolution should preserve normalized shared generator fields."""
+    header_path = tmp_path / "basic.h"
+    header_path.write_text("int add(int a, int b);\n", encoding="utf-8")
+    payload = {
+        "schema_version": 1,
+        "generator": {
+            "lib_id": "fixture_lib",
+            "package": "fixture",
+            "emit": "func,type",
+            "headers": {"kind": "local", "headers": ["basic.h"]},
+            "filters": {"func": ["add"]},
+            "exclude": {"type": "^internal_"},
+            "helpers": {
+                "callback_inputs": [
+                    {"function": "fixture_register_hook", "parameters": ["callback"]}
+                ]
+            },
+            "type_mapping": {"strict_enum_typedefs": True},
+            "clang_args": ["-DTESTING=1"],
+        },
+    }
+    parsed = AppConfigInput.model_validate_json(json.dumps(payload))
+    spec = build_generator_spec(
+        parsed.generator,
+        base_dir=tmp_path,
+        config_path=tmp_path / "config.json",
+    )
+
+    resolved = resolve_generator_config(spec)
+
+    assert resolved.headers == (str(header_path.resolve()),)
+    assert resolved.func_filter == exact_names_filter(("add",))
+    assert resolved.type_exclude_filter == regex_filter("^internal_")
+    assert resolved.helpers.callback_inputs[0].parameters == ("callback",)
+    assert resolved.type_mapping.strict_enum_typedefs is True
+    assert resolved.clang_args == ("-DTESTING=1",)
+
+
+def test_resolve_generator_config_preserves_shared_fields_for_env_include_headers(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Env-include resolution should share the same config assembly path."""
+    include_dir = tmp_path / "include"
+    include_dir.mkdir()
+    header_path = include_dir / "env_basic.h"
+    header_path.write_text("int add(int a, int b);\n", encoding="utf-8")
+    monkeypatch.setenv("PUREGO_GEN_INCLUDE_DIR", str(include_dir))
+    payload = {
+        "schema_version": 1,
+        "generator": {
+            "lib_id": "fixture_lib",
+            "package": "fixture",
+            "emit": "func,const",
+            "headers": {
+                "kind": "env_include",
+                "include_dir_env": "PUREGO_GEN_INCLUDE_DIR",
+                "headers": ["env_basic.h"],
+            },
+            "filters": {"const": "^VALUE_"},
+            "type_mapping": {"typed_sentinel_constants": True},
+            "clang_args": ["-DUSE_ENV=1"],
+        },
+    }
+    parsed = AppConfigInput.model_validate_json(json.dumps(payload))
+    spec = build_generator_spec(
+        parsed.generator,
+        base_dir=tmp_path,
+        config_path=tmp_path / "config.json",
+    )
+
+    resolved = resolve_generator_config(spec)
+
+    assert resolved.headers == (str(header_path.resolve()),)
+    assert resolved.const_filter == regex_filter("^VALUE_")
+    assert resolved.type_mapping.typed_sentinel_constants is True
+    assert resolved.clang_args == ("-I", str(include_dir.resolve()), "-DUSE_ENV=1")
