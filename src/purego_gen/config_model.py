@@ -40,10 +40,19 @@ class BufferInputHelper:
 
 
 @dataclass(frozen=True, slots=True)
+class CallbackInputHelper:
+    """One function-specific helper definition for callback parameters."""
+
+    function: str
+    parameters: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class GeneratorHelpers:
     """Optional helper-generation configuration."""
 
     buffer_inputs: tuple[BufferInputHelper, ...] = ()
+    callback_inputs: tuple[CallbackInputHelper, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +100,7 @@ __all__ = [
     "AppConfig",
     "BufferInputHelper",
     "BufferInputPair",
+    "CallbackInputHelper",
     "EnvIncludeHeaders",
     "GeneratorFilters",
     "GeneratorHelpers",

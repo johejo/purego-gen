@@ -104,6 +104,11 @@ func purego_func_{{ helper.identifier }}(){{ helper.result_suffix }} {
         {{ parameter_name }}_ptr = uintptr(unsafe.Pointer(&{{ parameter_name }}_len[0]))
     }
             {% endfor %}
+            {% for parameter_name in helper.callback_parameters %}
+    if {{ parameter_name }} != nil {
+        {{ parameter_name }}_callback = purego.NewCallback({{ parameter_name }})
+    }
+            {% endfor %}
             {% if helper.result_type is not none %}
     return purego_func_{{ helper.target_identifier }}(
             {% else %}

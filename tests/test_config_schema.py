@@ -167,17 +167,55 @@ def test_config_schema_rejects_empty_buffer_input_helper_array() -> None:
         AppConfigInput.model_validate_json(json.dumps(payload))
 
 
+def test_build_generator_spec_accepts_callback_input_helpers(tmp_path: Path) -> None:
+    """Callback helper config should normalize into helper models."""
+    payload = _config_payload(func_filter="^add$")
+    generator = payload["generator"]
+    assert isinstance(generator, dict)
+    generator["helpers"] = {
+        "callback_inputs": [
+            {
+                "function": "fixture_register_hook",
+                "parameters": ["callback", "destroy"],
+            }
+        ]
+    }
+
+    parsed = AppConfigInput.model_validate_json(json.dumps(payload))
+    spec = build_generator_spec(
+        parsed.generator,
+        base_dir=tmp_path,
+        config_path=tmp_path / "config.json",
+    )
+
+    assert len(spec.helpers.callback_inputs) == 1
+    helper = spec.helpers.callback_inputs[0]
+    assert helper.function == "fixture_register_hook"
+    assert helper.parameters == ("callback", "destroy")
+
+
+def test_config_schema_rejects_empty_callback_input_helper_array() -> None:
+    """Callback helper arrays must contain at least one item when present."""
+    payload = _config_payload(func_filter="^add$")
+    generator = payload["generator"]
+    assert isinstance(generator, dict)
+    generator["helpers"] = {"callback_inputs": []}
+
+    with pytest.raises(ValidationError):
+        AppConfigInput.model_validate_json(json.dumps(payload))
+
+
 def test_build_generator_spec_rejects_helpers_without_func_emit(tmp_path: Path) -> None:
-    """Buffer-input helpers require function emission."""
+    """Generated helpers require function emission."""
     payload = _config_payload(func_filter="^add$")
     generator = payload["generator"]
     assert isinstance(generator, dict)
     generator["emit"] = "const"
     generator["helpers"] = {
-        "buffer_inputs": [
+        "callback_inputs": [
             {
-                "function": "fixture_consume_bytes",
-                "pairs": [{"pointer": "data", "length": "data_len"}],
+                "function": "fixture_register_hook",
+                "parameters": ["callback"],
             }
         ]
     }
@@ -185,7 +223,10 @@ def test_build_generator_spec_rejects_helpers_without_func_emit(tmp_path: Path) 
 
     with pytest.raises(
         RuntimeError,
-        match=r"generator\.helpers\.buffer_inputs requires `func` in generator\.emit",
+        match=(
+            r"generator\.helpers\.buffer_inputs or generator\.helpers\.callback_inputs "
+            r"requires `func` in generator\.emit"
+        ),
     ):
         build_generator_spec(
             parsed.generator,

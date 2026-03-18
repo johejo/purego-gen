@@ -9,6 +9,7 @@ from pathlib import Path
 from purego_gen.config_model import (
     BufferInputHelper,
     BufferInputPair,
+    CallbackInputHelper,
     EnvIncludeHeaders,
     GeneratorFilters,
     GeneratorHelpers,
@@ -74,7 +75,16 @@ def _normalize_helpers(helpers: HelpersInput) -> GeneratorHelpers:
                 ),
             )
             for helper in helpers.buffer_inputs
-        )
+        ),
+        callback_inputs=()
+        if helpers.callback_inputs is None
+        else tuple(
+            CallbackInputHelper(
+                function=helper.function,
+                parameters=helper.parameters,
+            )
+            for helper in helpers.callback_inputs
+        ),
     )
 
 
@@ -124,9 +134,10 @@ def build_generator_spec(
         raise RuntimeError(message) from error
 
     helpers = _normalize_helpers(generator.helpers)
-    if helpers.buffer_inputs and "func" not in emit_kinds:
+    if (helpers.buffer_inputs or helpers.callback_inputs) and "func" not in emit_kinds:
         message = (
-            f"config `{config_path}` generator.helpers.buffer_inputs requires "
+            f"config `{config_path}` generator.helpers.buffer_inputs or "
+            "generator.helpers.callback_inputs requires "
             "`func` in generator.emit."
         )
         raise RuntimeError(message)

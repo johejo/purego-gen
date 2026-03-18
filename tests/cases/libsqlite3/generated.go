@@ -289,6 +289,220 @@ func purego_func_sqlite3_bind_blob_bytes(
 		arg5,
 	)
 }
+func purego_func_sqlite3_exec_callbacks(
+	arg1 purego_type_sqlite3,
+	sql string,
+	callback func(uintptr, int32, uintptr, uintptr) int32,
+	arg4 uintptr,
+	errmsg uintptr,
+) int32 {
+	callback_callback := uintptr(0)
+	if callback != nil {
+		callback_callback = purego.NewCallback(callback)
+	}
+	return purego_func_sqlite3_exec(
+		arg1,
+		sql,
+		callback_callback,
+		arg4,
+		errmsg,
+	)
+}
+func purego_func_sqlite3_create_function_callbacks(
+	db purego_type_sqlite3,
+	zFunctionName string,
+	nArg int32,
+	eTextRep int32,
+	pApp uintptr,
+	xFunc func(purego_type_sqlite3_context, int32, uintptr),
+	xStep func(purego_type_sqlite3_context, int32, uintptr),
+	xFinal func(purego_type_sqlite3_context),
+) int32 {
+	xFunc_callback := uintptr(0)
+	xStep_callback := uintptr(0)
+	xFinal_callback := uintptr(0)
+	if xFunc != nil {
+		xFunc_callback = purego.NewCallback(xFunc)
+	}
+	if xStep != nil {
+		xStep_callback = purego.NewCallback(xStep)
+	}
+	if xFinal != nil {
+		xFinal_callback = purego.NewCallback(xFinal)
+	}
+	return purego_func_sqlite3_create_function(
+		db,
+		zFunctionName,
+		nArg,
+		eTextRep,
+		pApp,
+		xFunc_callback,
+		xStep_callback,
+		xFinal_callback,
+	)
+}
+func purego_func_sqlite3_create_function_v2_callbacks(
+	db purego_type_sqlite3,
+	zFunctionName string,
+	nArg int32,
+	eTextRep int32,
+	pApp uintptr,
+	xFunc func(purego_type_sqlite3_context, int32, uintptr),
+	xStep func(purego_type_sqlite3_context, int32, uintptr),
+	xFinal func(purego_type_sqlite3_context),
+	xDestroy func(uintptr),
+) int32 {
+	xFunc_callback := uintptr(0)
+	xStep_callback := uintptr(0)
+	xFinal_callback := uintptr(0)
+	xDestroy_callback := uintptr(0)
+	if xFunc != nil {
+		xFunc_callback = purego.NewCallback(xFunc)
+	}
+	if xStep != nil {
+		xStep_callback = purego.NewCallback(xStep)
+	}
+	if xFinal != nil {
+		xFinal_callback = purego.NewCallback(xFinal)
+	}
+	if xDestroy != nil {
+		xDestroy_callback = purego.NewCallback(xDestroy)
+	}
+	return purego_func_sqlite3_create_function_v2(
+		db,
+		zFunctionName,
+		nArg,
+		eTextRep,
+		pApp,
+		xFunc_callback,
+		xStep_callback,
+		xFinal_callback,
+		xDestroy_callback,
+	)
+}
+func purego_func_sqlite3_create_collation_callbacks(
+	arg1 purego_type_sqlite3,
+	zName string,
+	eTextRep int32,
+	pArg uintptr,
+	xCompare func(uintptr, int32, uintptr, int32, uintptr) int32,
+) int32 {
+	xCompare_callback := uintptr(0)
+	if xCompare != nil {
+		xCompare_callback = purego.NewCallback(xCompare)
+	}
+	return purego_func_sqlite3_create_collation(
+		arg1,
+		zName,
+		eTextRep,
+		pArg,
+		xCompare_callback,
+	)
+}
+func purego_func_sqlite3_create_collation_v2_callbacks(
+	arg1 purego_type_sqlite3,
+	zName string,
+	eTextRep int32,
+	pArg uintptr,
+	xCompare func(uintptr, int32, uintptr, int32, uintptr) int32,
+	xDestroy func(uintptr),
+) int32 {
+	xCompare_callback := uintptr(0)
+	xDestroy_callback := uintptr(0)
+	if xCompare != nil {
+		xCompare_callback = purego.NewCallback(xCompare)
+	}
+	if xDestroy != nil {
+		xDestroy_callback = purego.NewCallback(xDestroy)
+	}
+	return purego_func_sqlite3_create_collation_v2(
+		arg1,
+		zName,
+		eTextRep,
+		pArg,
+		xCompare_callback,
+		xDestroy_callback,
+	)
+}
+func purego_func_sqlite3_commit_hook_callbacks(
+	arg1 purego_type_sqlite3,
+	arg2 func(uintptr) int32,
+	arg3 uintptr,
+) uintptr {
+	arg2_callback := uintptr(0)
+	if arg2 != nil {
+		arg2_callback = purego.NewCallback(arg2)
+	}
+	return purego_func_sqlite3_commit_hook(
+		arg1,
+		arg2_callback,
+		arg3,
+	)
+}
+func purego_func_sqlite3_rollback_hook_callbacks(
+	arg1 purego_type_sqlite3,
+	arg2 func(uintptr),
+	arg3 uintptr,
+) uintptr {
+	arg2_callback := uintptr(0)
+	if arg2 != nil {
+		arg2_callback = purego.NewCallback(arg2)
+	}
+	return purego_func_sqlite3_rollback_hook(
+		arg1,
+		arg2_callback,
+		arg3,
+	)
+}
+func purego_func_sqlite3_update_hook_callbacks(
+	arg1 purego_type_sqlite3,
+	arg2 func(uintptr, int32, uintptr, uintptr, int64),
+	arg3 uintptr,
+) uintptr {
+	arg2_callback := uintptr(0)
+	if arg2 != nil {
+		arg2_callback = purego.NewCallback(arg2)
+	}
+	return purego_func_sqlite3_update_hook(
+		arg1,
+		arg2_callback,
+		arg3,
+	)
+}
+func purego_func_sqlite3_progress_handler_callbacks(
+	arg1 purego_type_sqlite3,
+	arg2 int32,
+	arg3 func(uintptr) int32,
+	arg4 uintptr,
+) {
+	arg3_callback := uintptr(0)
+	if arg3 != nil {
+		arg3_callback = purego.NewCallback(arg3)
+	}
+	purego_func_sqlite3_progress_handler(
+		arg1,
+		arg2,
+		arg3_callback,
+		arg4,
+	)
+}
+func purego_func_sqlite3_trace_v2_callbacks(
+	arg1 purego_type_sqlite3,
+	uMask uint32,
+	xCallback func(uint32, uintptr, uintptr, uintptr) int32,
+	pCtx uintptr,
+) int32 {
+	xCallback_callback := uintptr(0)
+	if xCallback != nil {
+		xCallback_callback = purego.NewCallback(xCallback)
+	}
+	return purego_func_sqlite3_trace_v2(
+		arg1,
+		uMask,
+		xCallback_callback,
+		pCtx,
+	)
+}
 
 func purego_sqlite3_register_functions(handle uintptr) error {
 	purego_func_sqlite3_libversion_symbol, err := purego.Dlsym(handle, "sqlite3_libversion")

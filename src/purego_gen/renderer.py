@@ -26,6 +26,7 @@ from purego_gen.c_type_utils import (
     is_function_pointer_c_type,
     normalize_c_type_for_lookup,
     normalize_function_pointer_c_type_for_lookup,
+    parse_function_pointer_c_type,
 )
 from purego_gen.config_model import GeneratorHelpers
 from purego_gen.emit_kinds import validate_emit_kinds
@@ -62,6 +63,24 @@ _BUFFER_HELPER_LENGTH_GO_TYPES: Final[frozenset[str]] = frozenset({
     "uint64",
     "uintptr",
 })
+_CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE: Final[dict[str, str | None]] = {
+    "void": None,
+    "bool": "bool",
+    "_Bool": "bool",
+    "char": "int8",
+    "signed char": "int8",
+    "unsigned char": "uint8",
+    "short": "int16",
+    "unsigned short": "uint16",
+    "int": "int32",
+    "unsigned int": "uint32",
+    "long": "int64",
+    "unsigned long": "uint64",
+    "long long": "int64",
+    "unsigned long long": "uint64",
+    "float": "float32",
+    "double": "float64",
+}
 
 
 class RendererError(RuntimeError):
@@ -108,6 +127,7 @@ class _FunctionHelperContext(TypedDict):
     result_suffix: str
     locals: tuple[_HelperLocalContext, ...]
     slice_parameters: tuple[str, ...]
+    callback_parameters: tuple[str, ...]
     call_arguments: tuple[str, ...]
 
 
@@ -150,6 +170,25 @@ class RenderOptions:
 
     helpers: GeneratorHelpers
     type_mapping: TypeMappingOptions
+
+
+@dataclass(frozen=True, slots=True)
+class _CallbackTypeContext:
+    """Shared lookup context for callback helper signature resolution."""
+
+    type_aliases: _FunctionSignatureTypeAliases
+    typedef_go_type_by_lookup: Mapping[str, str]
+    typedef_c_type_by_lookup: Mapping[str, str]
+
+
+@dataclass(frozen=True, slots=True)
+class _HelperBuildContext:
+    """Shared helper build context for renderer helper generation."""
+
+    function_identifier_by_name: Mapping[str, str]
+    declarations: ParsedDeclarations
+    helpers: GeneratorHelpers
+    callback_type_context: _CallbackTypeContext
 
 
 def _resolve_template_dir() -> Path:
@@ -403,6 +442,22 @@ def _build_typedef_go_type_by_lookup(
     return go_type_by_lookup
 
 
+def _build_typedef_c_type_by_lookup(
+    declarations: ParsedDeclarations,
+) -> dict[str, str]:
+    """Build typedef C-type lookup keyed by typedef name and normalized spelling.
+
+    Returns:
+        Mapping from typedef spellings and normalized keys to underlying C types.
+    """
+    c_type_by_lookup: dict[str, str] = {}
+    for typedef in declarations.typedefs:
+        c_type_by_lookup[typedef.name] = typedef.c_type
+        c_type_by_lookup[normalize_c_type_for_lookup(typedef.name)] = typedef.c_type
+        c_type_by_lookup[normalize_c_type_for_lookup(typedef.c_type)] = typedef.c_type
+    return c_type_by_lookup
+
+
 def _resolve_function_signature_type(
     *,
     go_type: str,
@@ -623,6 +678,97 @@ def _resolve_function_parameters(
     )
 
 
+def _resolve_callback_go_type(
+    *,
+    c_type: str,
+    callback_type_context: _CallbackTypeContext,
+) -> str | None:
+    """Resolve one callback parameter or result C type to a Go type.
+
+    Returns:
+        Go type used in callback helper signatures, or `None` for `void`.
+    """
+    parsed_function_pointer = parse_function_pointer_c_type(c_type)
+    if parsed_function_pointer is not None:
+        return "uintptr"
+
+    normalized_c_type = normalize_c_type_for_lookup(c_type)
+    underlying_typedef_c_type = callback_type_context.typedef_c_type_by_lookup.get(
+        normalized_c_type
+    )
+    if underlying_typedef_c_type is not None:
+        parsed_underlying_callback = parse_function_pointer_c_type(underlying_typedef_c_type)
+        if parsed_underlying_callback is not None:
+            return "uintptr"
+    primitive_type = _CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE.get(normalized_c_type)
+    if primitive_type is not None or normalized_c_type in _CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE:
+        return primitive_type
+    typedef_go_type = callback_type_context.typedef_go_type_by_lookup.get(c_type)
+    if typedef_go_type is None:
+        typedef_go_type = callback_type_context.typedef_go_type_by_lookup.get(normalized_c_type)
+    if typedef_go_type is not None:
+        return typedef_go_type
+
+    typedef_name = extract_pointer_typedef_name(c_type)
+    if typedef_name is not None:
+        opaque_alias = callback_type_context.type_aliases["opaque"].get(typedef_name)
+        return opaque_alias or "uintptr"
+
+    return _resolve_function_signature_type(
+        go_type="uintptr",
+        c_type=c_type,
+        type_aliases=callback_type_context.type_aliases,
+    )
+
+
+def _build_callback_function_type(
+    *,
+    c_type: str,
+    callback_type_context: _CallbackTypeContext,
+) -> str:
+    """Build one Go `func` type from a callback C type spelling.
+
+    Returns:
+        Rendered Go function type string for the callback parameter.
+
+    Raises:
+        RendererError: The callback signature contains unsupported parameter types.
+    """
+    parsed = parse_function_pointer_c_type(c_type)
+    if parsed is None:
+        underlying_typedef_c_type = callback_type_context.typedef_c_type_by_lookup.get(
+            normalize_c_type_for_lookup(c_type)
+        )
+        if underlying_typedef_c_type is not None:
+            parsed = parse_function_pointer_c_type(underlying_typedef_c_type)
+    if parsed is None:
+        message = f"callback helper parameter must be a function pointer, got `{c_type}`"
+        raise RendererError(message)
+    result_c_type, _, parameter_c_types = parsed
+    parameter_types: list[str] = []
+    for parameter_c_type in parameter_c_types:
+        parameter_go_type = _resolve_callback_go_type(
+            c_type=parameter_c_type,
+            callback_type_context=callback_type_context,
+        )
+        if parameter_go_type is None:
+            message = (
+                "callback helper parameter has unsupported callback parameter type "
+                f"`{parameter_c_type}`"
+            )
+            raise RendererError(message)
+        parameter_types.append(parameter_go_type)
+
+    result_go_type = _resolve_callback_go_type(
+        c_type=result_c_type,
+        callback_type_context=callback_type_context,
+    )
+    parameter_list = ", ".join(parameter_types)
+    if result_go_type is None:
+        return f"func({parameter_list})"
+    return f"func({parameter_list}) {result_go_type}"
+
+
 def _is_buffer_helper_pointer_type(c_type: str) -> bool:
     """Check whether one parameter type is a supported `const void*` input.
 
@@ -833,7 +979,139 @@ def _build_function_helper_context(
         "result_suffix": "" if result_type is None else f" {result_type}",
         "locals": locals_context,
         "slice_parameters": slice_parameter_names,
+        "callback_parameters": (),
         "call_arguments": call_arguments,
+    }
+
+
+def _get_required_callback_parameter(
+    *,
+    helper_name: str,
+    parameter_name: str,
+    parameter_by_raw_name: Mapping[str, _ResolvedFunctionParameter],
+) -> _ResolvedFunctionParameter:
+    """Fetch one callback helper target parameter or raise a stable error.
+
+    Returns:
+        Matching resolved function parameter.
+
+    Raises:
+        RendererError: The named parameter does not exist on the function.
+    """
+    parameter = parameter_by_raw_name.get(parameter_name)
+    if parameter is not None:
+        return parameter
+    message = f"callback helper {helper_name} parameter not found: {parameter_name}"
+    raise RendererError(message)
+
+
+def _validate_callback_helper_parameters(
+    *,
+    helper_name: str,
+    parameter_names: tuple[str, ...],
+    parameter_by_raw_name: Mapping[str, _ResolvedFunctionParameter],
+    typedef_c_type_by_lookup: Mapping[str, str],
+) -> None:
+    """Validate callback helper target parameters for one helper.
+
+    Raises:
+        RendererError: A targeted parameter is missing, duplicated, or not a callback.
+    """
+    seen_parameters: set[str] = set()
+    for parameter_name in parameter_names:
+        parameter = _get_required_callback_parameter(
+            helper_name=helper_name,
+            parameter_name=parameter_name,
+            parameter_by_raw_name=parameter_by_raw_name,
+        )
+        if parameter.raw_name in seen_parameters:
+            message = (
+                f"callback helper {helper_name} parameter configured more than once: "
+                f"{parameter_name}"
+            )
+            raise RendererError(message)
+        seen_parameters.add(parameter.raw_name)
+        parameter_callback_c_type = parameter.c_type
+        if not is_function_pointer_c_type(parameter_callback_c_type):
+            parameter_callback_c_type = typedef_c_type_by_lookup.get(
+                normalize_c_type_for_lookup(parameter.c_type),
+                parameter.c_type,
+            )
+        if not is_function_pointer_c_type(parameter_callback_c_type):
+            message = (
+                f"callback helper {helper_name} parameter {parameter_name} "
+                f"must be a function pointer, got `{parameter.c_type}`"
+            )
+            raise RendererError(message)
+
+
+def _build_callback_helper_context(
+    *,
+    function_identifier: str,
+    function: FunctionDecl,
+    callback_parameters: tuple[str, ...],
+    callback_type_context: _CallbackTypeContext,
+) -> _FunctionHelperContext:
+    """Build one rendered helper context for callback-handle conversion.
+
+    Returns:
+        Rendered helper context for the template.
+    """
+    resolved_parameters = _resolve_function_parameters(
+        parameter_names=function.parameter_names,
+        go_parameter_types=function.go_parameter_types,
+        parameter_c_types=function.parameter_c_types,
+        type_aliases=callback_type_context.type_aliases,
+    )
+    parameter_by_raw_name = {parameter.raw_name: parameter for parameter in resolved_parameters}
+    _validate_callback_helper_parameters(
+        helper_name=function.name,
+        parameter_names=callback_parameters,
+        parameter_by_raw_name=parameter_by_raw_name,
+        typedef_c_type_by_lookup=callback_type_context.typedef_c_type_by_lookup,
+    )
+    targeted_callbacks = set(callback_parameters)
+
+    wrapper_parameters: list[_FunctionParameterContext] = []
+    locals_context: list[_HelperLocalContext] = []
+    call_arguments: list[str] = []
+    for parameter in resolved_parameters:
+        if parameter.raw_name not in targeted_callbacks:
+            wrapper_parameters.append({"name": parameter.name, "type": parameter.type})
+            call_arguments.append(parameter.name)
+            continue
+        wrapper_parameters.append({
+            "name": parameter.name,
+            "type": _build_callback_function_type(
+                c_type=parameter.c_type,
+                callback_type_context=callback_type_context,
+            ),
+        })
+        locals_context.append({
+            "name": f"{parameter.name}_callback",
+            "value": "uintptr(0)",
+        })
+        call_arguments.append(f"{parameter.name}_callback")
+
+    result_type = (
+        _resolve_function_signature_type(
+            go_type=function.go_result_type,
+            c_type=function.result_c_type,
+            type_aliases=callback_type_context.type_aliases,
+        )
+        if function.go_result_type is not None
+        else None
+    )
+    return {
+        "identifier": f"{function_identifier}_callbacks",
+        "target_identifier": function_identifier,
+        "parameters": tuple(wrapper_parameters),
+        "result_type": result_type,
+        "result_suffix": "" if result_type is None else f" {result_type}",
+        "locals": tuple(locals_context),
+        "slice_parameters": (),
+        "callback_parameters": callback_parameters,
+        "call_arguments": tuple(call_arguments),
     }
 
 
@@ -966,10 +1244,7 @@ def _build_typedef_render_helpers(
 
 def _build_function_helpers(
     *,
-    function_identifier_by_name: Mapping[str, str],
-    declarations: ParsedDeclarations,
-    helpers: GeneratorHelpers,
-    type_aliases: _FunctionSignatureTypeAliases,
+    helper_build_context: _HelperBuildContext,
 ) -> tuple[_FunctionHelperContext, ...]:
     """Build rendered helper contexts after validating configured helper specs.
 
@@ -979,10 +1254,13 @@ def _build_function_helpers(
     Raises:
         RendererError: A helper target or parameter mapping is invalid.
     """
-    if not helpers.buffer_inputs:
+    helpers = helper_build_context.helpers
+    if not helpers.buffer_inputs and not helpers.callback_inputs:
         return ()
 
-    functions_by_name = {function.name: function for function in declarations.functions}
+    functions_by_name = {
+        function.name: function for function in helper_build_context.declarations.functions
+    }
     helper_contexts: list[_FunctionHelperContext] = []
     for helper in helpers.buffer_inputs:
         function = functions_by_name.get(helper.function)
@@ -991,10 +1269,23 @@ def _build_function_helpers(
             raise RendererError(message)
         helper_contexts.append(
             _build_function_helper_context(
-                function_identifier=function_identifier_by_name[function.name],
+                function_identifier=helper_build_context.function_identifier_by_name[function.name],
                 function=function,
                 pointer_length_pairs=tuple((pair.pointer, pair.length) for pair in helper.pairs),
-                type_aliases=type_aliases,
+                type_aliases=helper_build_context.callback_type_context.type_aliases,
+            )
+        )
+    for helper in helpers.callback_inputs:
+        function = functions_by_name.get(helper.function)
+        if function is None:
+            message = f"callback helper target function not found: {helper.function}"
+            raise RendererError(message)
+        helper_contexts.append(
+            _build_callback_helper_context(
+                function_identifier=helper_build_context.function_identifier_by_name[function.name],
+                function=function,
+                callback_parameters=helper.parameters,
+                callback_type_context=helper_build_context.callback_type_context,
             )
         )
     return tuple(helper_contexts)
@@ -1040,10 +1331,16 @@ def _build_context(
         for function, identifier in zip(declarations.functions, function_identifiers, strict=True)
     }
     helper_contexts = _build_function_helpers(
-        function_identifier_by_name=function_identifier_by_name,
-        declarations=declarations,
-        helpers=options.helpers,
-        type_aliases=function_signature_type_aliases,
+        helper_build_context=_HelperBuildContext(
+            function_identifier_by_name=function_identifier_by_name,
+            declarations=declarations,
+            helpers=options.helpers,
+            callback_type_context=_CallbackTypeContext(
+                type_aliases=function_signature_type_aliases,
+                typedef_go_type_by_lookup=typedef_go_type_by_lookup,
+                typedef_c_type_by_lookup=_build_typedef_c_type_by_lookup(declarations),
+            ),
+        ),
     )
 
     return {

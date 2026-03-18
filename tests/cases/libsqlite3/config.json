@@ -105,6 +105,48 @@
             }
           ]
         }
+      ],
+      "callback_inputs": [
+        {
+          "function": "sqlite3_exec",
+          "parameters": ["callback"]
+        },
+        {
+          "function": "sqlite3_create_function",
+          "parameters": ["xFunc", "xStep", "xFinal"]
+        },
+        {
+          "function": "sqlite3_create_function_v2",
+          "parameters": ["xFunc", "xStep", "xFinal", "xDestroy"]
+        },
+        {
+          "function": "sqlite3_create_collation",
+          "parameters": ["xCompare"]
+        },
+        {
+          "function": "sqlite3_create_collation_v2",
+          "parameters": ["xCompare", "xDestroy"]
+        },
+        {
+          "function": "sqlite3_commit_hook",
+          "parameters": ["arg2"]
+        },
+        {
+          "function": "sqlite3_rollback_hook",
+          "parameters": ["arg2"]
+        },
+        {
+          "function": "sqlite3_update_hook",
+          "parameters": ["arg2"]
+        },
+        {
+          "function": "sqlite3_progress_handler",
+          "parameters": ["arg3"]
+        },
+        {
+          "function": "sqlite3_trace_v2",
+          "parameters": ["xCallback"]
+        }
       ]
     },
     "type_mapping": {

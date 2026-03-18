@@ -40,10 +40,20 @@ class BufferInputHelperInput(_StrictModel):
     pairs: Annotated[tuple[BufferInputPairInput, ...], Len(min_length=1)]
 
 
+class CallbackInputHelperInput(_StrictModel):
+    """One function-specific helper definition for callback parameters."""
+
+    function: NonEmptyStr
+    parameters: Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
+
+
 class HelpersInput(_StrictModel):
     """Optional helper-generation configuration."""
 
     buffer_inputs: Annotated[tuple[BufferInputHelperInput, ...], Len(min_length=1)] | None = None
+    callback_inputs: Annotated[tuple[CallbackInputHelperInput, ...], Len(min_length=1)] | None = (
+        None
+    )
 
 
 class FiltersInput(_StrictModel):
