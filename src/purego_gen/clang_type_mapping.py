@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Final
 
 from purego_gen.clang_types import (
@@ -44,6 +45,15 @@ _TYPE_KIND_TO_GO_TYPE: Final[dict[str, str]] = {
     "DOUBLE": "float64",
     "ENUM": "int32",
 }
+_SIGNED_GO_TYPE_BY_SIZE: Final[dict[int, str]] = {1: "int8", 2: "int16", 4: "int32", 8: "int64"}
+_UNSIGNED_GO_TYPE_BY_SIZE: Final[dict[int, str]] = {
+    1: "uint8",
+    2: "uint16",
+    4: "uint32",
+    8: "uint64",
+}
+_VARIABLE_SIZE_SIGNED_KINDS: Final[frozenset[str]] = frozenset({"LONG", "ENUM"})
+_VARIABLE_SIZE_UNSIGNED_KINDS: Final[frozenset[str]] = frozenset({"ULONG"})
 _FUNCTION_TYPE_KINDS: Final[frozenset[str]] = frozenset({"FUNCTIONPROTO", "FUNCTIONNOPROTO"})
 _STRING_POINTEE_TYPE_KINDS: Final[frozenset[str]] = frozenset({"CHAR_S", "CHAR_U", "UCHAR"})
 _RECORD_TYPE_KIND_NAME: Final[str] = "RECORD"
@@ -71,6 +81,23 @@ def _map_constant_array_type_to_go_name(canonical_type: TypeLike) -> str | None:
     return f"[{array_size}]{element_go_type}"
 
 
+def _map_variable_size_type_to_go_name(kind_name: str, canonical: TypeLike) -> str | None:
+    """Resolve a variable-size integer kind using libclang size metadata.
+
+    Returns:
+        Mapped Go type name when size is available, otherwise `None`.
+    """
+    if kind_name in _VARIABLE_SIZE_SIGNED_KINDS:
+        size = _safe_type_size_bytes(canonical)
+        if size is not None:
+            return _SIGNED_GO_TYPE_BY_SIZE.get(size)
+    elif kind_name in _VARIABLE_SIZE_UNSIGNED_KINDS:
+        size = _safe_type_size_bytes(canonical)
+        if size is not None:
+            return _UNSIGNED_GO_TYPE_BY_SIZE.get(size)
+    return None
+
+
 def map_type_to_go_name(clang_type: TypeLike) -> str | None:
     """Map libclang type into a basic Go type.
 
@@ -79,6 +106,10 @@ def map_type_to_go_name(clang_type: TypeLike) -> str | None:
     """
     canonical = clang_type.get_canonical()
     kind_name = canonical.kind.name
+
+    size_mapped = _map_variable_size_type_to_go_name(kind_name, canonical)
+    if size_mapped is not None:
+        return size_mapped
 
     mapped = _TYPE_KIND_TO_GO_TYPE.get(kind_name)
     if mapped is not None:
@@ -262,6 +293,82 @@ def _extract_record_field_decl(field_cursor: CursorLike, *, index: int) -> Recor
     )
 
 
+def _build_padding_field_line(padding_bytes: int) -> str:
+    """Build a Go struct padding field line.
+
+    Returns:
+        Rendered ``_ [N]byte`` padding field line.
+    """
+    return f"\t_ [{padding_bytes}]byte"
+
+
+@dataclass(slots=True)
+class _StructPaddingTracker:
+    """Tracks byte offsets for explicit struct padding insertion."""
+
+    _current_offset_bytes: int = 0
+    _available: bool = True
+    _field_offset_bytes: int = 0
+
+    def pre_field_gap(self, field_cursor: CursorLike) -> int:
+        """Return padding bytes needed before this field, or 0."""
+        if not self._available:
+            return 0
+        field_offset_bits = _safe_field_offset_bits(field_cursor)
+        if field_offset_bits is None or field_offset_bits % 8 != 0:
+            self._available = False
+            return 0
+        self._field_offset_bytes = field_offset_bits // 8
+        gap = self._field_offset_bytes - self._current_offset_bytes
+        return max(gap, 0)
+
+    def advance(self, field_cursor: CursorLike) -> None:
+        """Advance the offset tracker past a successfully mapped field."""
+        if not self._available:
+            return
+        field_size = _safe_type_size_bytes(field_cursor.type.get_canonical())
+        if field_size is not None:
+            self._current_offset_bytes = self._field_offset_bytes + field_size
+        else:
+            self._available = False
+
+    def tail_gap(self, struct_type: TypeLike) -> int:
+        """Return tail padding bytes needed after the last field, or 0."""
+        if not self._available:
+            return 0
+        struct_size = _safe_type_size_bytes(struct_type)
+        if struct_size is not None and struct_size > self._current_offset_bytes:
+            return struct_size - self._current_offset_bytes
+        return 0
+
+
+def _check_record_declaration_support(
+    declaration: CursorLike,
+) -> UnsupportedTypeDiagnostic | None:
+    """Check whether a record declaration is supported for v1 mapping.
+
+    Returns:
+        Unsupported diagnostic when the declaration cannot be mapped, otherwise `None`.
+    """
+    declaration_kind_name = declaration.kind.name
+    if declaration_kind_name == _UNION_DECL_KIND_NAME:
+        return UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
+            message="union typedefs are not supported in v1",
+        )
+    if declaration_kind_name != _STRUCT_DECL_KIND_NAME:
+        return UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD_KIND,
+            message=f"record kind {declaration_kind_name} is not supported in v1",
+        )
+    if not declaration.is_definition():
+        return UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
+            message="incomplete struct typedef is treated as opaque handle",
+        )
+    return None
+
+
 def map_record_type_to_go_name(clang_type: TypeLike) -> RecordTypeMappingResult:
     """Map a simple C record type to a Go struct type literal.
 
@@ -269,31 +376,22 @@ def map_record_type_to_go_name(clang_type: TypeLike) -> RecordTypeMappingResult:
         Mapping result with Go type text or unsupported diagnostic.
     """
     declaration = clang_type.get_declaration()
-    declaration_kind_name = declaration.kind.name
-    if declaration_kind_name == _UNION_DECL_KIND_NAME:
-        diagnostic = UnsupportedTypeDiagnostic(
-            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
-            message="union typedefs are not supported in v1",
-        )
-        return RecordTypeMappingResult(go_type=None, unsupported_diagnostic=diagnostic)
-    if declaration_kind_name != _STRUCT_DECL_KIND_NAME:
-        diagnostic = UnsupportedTypeDiagnostic(
-            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD_KIND,
-            message=f"record kind {declaration_kind_name} is not supported in v1",
-        )
-        return RecordTypeMappingResult(go_type=None, unsupported_diagnostic=diagnostic)
-    if not declaration.is_definition():
-        diagnostic = UnsupportedTypeDiagnostic(
-            code=TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
-            message="incomplete struct typedef is treated as opaque handle",
-        )
-        return RecordTypeMappingResult(go_type=None, unsupported_diagnostic=diagnostic)
+    unsupported = _check_record_declaration_support(declaration)
+    if unsupported is not None:
+        return RecordTypeMappingResult(go_type=None, unsupported_diagnostic=unsupported)
 
     field_lines: list[str] = []
     seen_field_names: set[str] = set()
+    real_field_count = 0
+    padding = _StructPaddingTracker()
     for index, child in enumerate(declaration.get_children(), start=1):
         if child.kind.name != _FIELD_DECL_KIND_NAME:
             continue
+
+        gap = padding.pre_field_gap(child)
+        if gap > 0:
+            field_lines.append(_build_padding_field_line(gap))
+
         field_line, unsupported_diagnostic = _map_record_field_to_go_line(
             child,
             index=index,
@@ -307,7 +405,14 @@ def map_record_type_to_go_name(clang_type: TypeLike) -> RecordTypeMappingResult:
         if field_line is None:
             continue
         field_lines.append(field_line)
-    if not field_lines:
+        real_field_count += 1
+        padding.advance(child)
+
+    tail = padding.tail_gap(clang_type)
+    if tail > 0:
+        field_lines.append(_build_padding_field_line(tail))
+
+    if real_field_count == 0:
         diagnostic = UnsupportedTypeDiagnostic(
             code=TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
             message="struct has no supported fields in v1",

@@ -57,6 +57,7 @@ def test_parse_type_mapping_edge_cases() -> None:
         "left int32",
         "right int32",
         "mode int32",
+        "_ [4]byte",
         "label uintptr // const char *",
     )
     fixture_array_struct_type = _go_struct("values [4]int32")

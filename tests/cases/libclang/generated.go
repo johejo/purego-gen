@@ -42,6 +42,7 @@ type (
 	// The type of an element in the abstract syntax tree.
 	purego_type_CXType = struct {
 		kind int32
+		_    [4]byte
 		data [2]uintptr
 	}
 	// Describes a kind of token.
@@ -60,6 +61,7 @@ type (
 	purego_type_CXString = struct {
 		data          uintptr // const void *
 		private_flags uint32
+		_             [4]byte
 	}
 	// Identifies a specific source location within a translation
 	// unit.
@@ -69,6 +71,7 @@ type (
 	purego_type_CXSourceLocation = struct {
 		ptr_data [2]uintptr
 		int_data uint32
+		_        [4]byte
 	}
 	// Identifies a half-open character range in the source code.
 	//

@@ -12,12 +12,14 @@ type (
 		left  int32
 		right int32
 		mode  int32
+		_     [4]byte
 		label uintptr // const char *
 	}
 	purego_type_fixture_point_alias_t = struct {
 		left  int32
 		right int32
 		mode  int32
+		_     [4]byte
 		label uintptr // const char *
 	}
 	purego_type_fixture_nested_point_t = struct {
@@ -25,11 +27,13 @@ type (
 			left  int32
 			right int32
 			mode  int32
+			_     [4]byte
 			label uintptr // const char *
 		}
 		inner struct {
 			level int32
 		}
+		_ [4]byte
 	}
 	purego_type_fixture_with_array_t = struct {
 		values [4]int32

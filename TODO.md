@@ -31,5 +31,5 @@ Completed work is intentionally omitted.
 ## Open Decisions
 
 - [ ] Decide macro evaluation boundary beyond enum-like constants.
-- [ ] Decide whether enum mapping should stay on `int32` or use libclang-derived underlying size/signedness for ABI-accurate fixed-width Go types.
+- [x] ~~Decide whether enum mapping should stay on `int32` or use libclang-derived underlying size/signedness for ABI-accurate fixed-width Go types.~~ Resolved: `ENUM`, `LONG`, and `ULONG` now use `get_size()` to derive the correct fixed-width Go type, falling back to the static mapping when size metadata is unavailable.
 - [ ] Re-evaluate Windows support scope after v1 (API and symbol-loading strategy).
