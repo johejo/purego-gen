@@ -14,9 +14,9 @@ var (
 
 type (
 	// Doxygen typedef comment.
-	purego_type_fixture_doc_type_t = int32
+	purego_type_fixture_doc_type_t = int32 // int
 	// Plain typedef comment.
-	purego_type_fixture_plain_type_t = int32
+	purego_type_fixture_plain_type_t = int32 // int
 )
 
 const (

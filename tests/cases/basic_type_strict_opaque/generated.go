@@ -3,7 +3,7 @@
 package fixture
 
 type (
-	purego_type_my_int    = int32
-	purego_type_my_handle = uintptr
-	purego_type_not_basic uintptr
+	purego_type_my_int    = int32   // int
+	purego_type_my_handle = uintptr // void *
+	purego_type_not_basic uintptr   // struct not_basic
 )

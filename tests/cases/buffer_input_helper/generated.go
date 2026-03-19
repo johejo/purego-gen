@@ -16,7 +16,7 @@ var (
 
 var (
 	purego_func_fixture_sum_bytes func(
-		data uintptr,
+		data uintptr, // const void *
 		data_len uint64,
 		salt uint32,
 	) int32

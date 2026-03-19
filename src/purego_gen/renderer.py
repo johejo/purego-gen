@@ -42,7 +42,7 @@ from purego_gen.identifier_utils import build_unique_identifiers
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from purego_gen.model import ParsedDeclarations, TypeMappingOptions
+    from purego_gen.model import FunctionDecl, ParsedDeclarations, TypeMappingOptions
 
 _MAIN_TEMPLATE_NAME: Final[str] = "go_file.go.j2"
 _MAX_INT64: Final[int] = (1 << 63) - 1
@@ -68,6 +68,7 @@ class _TypeAliasContext(TypedDict):
     go_type: str
     is_strict: bool
     comment_lines: tuple[str, ...]
+    c_type_comment: str
 
 
 class _ConstantContext(TypedDict):
@@ -82,6 +83,7 @@ class _FunctionContext(TypedDict):
     symbol: str
     parameters: tuple[FunctionParameterContext, ...]
     result_type: str | None
+    result_c_type_comment: str
     comment_lines: tuple[str, ...]
 
 
@@ -96,6 +98,7 @@ class _HelperContext(TypedDict):
     target_name: str
     parameters: tuple[FunctionParameterContext, ...]
     result_type: str | None
+    result_c_type_comment: str
     result_suffix: str
     locals: tuple[HelperLocalContext, ...]
     slice_parameters: tuple[str, ...]
@@ -597,6 +600,38 @@ def _build_typedef_render_helpers(
     )
 
 
+def _build_function_context(
+    *,
+    function: FunctionDecl,
+    identifier: str,
+    render: GeneratorRenderSpec,
+    type_resolver: HelperTypeResolver,
+) -> _FunctionContext:
+    resolved_result_type = (
+        type_resolver.resolve_parameter_type(
+            go_type=function.go_result_type,
+            c_type=function.result_c_type,
+        )
+        if function.go_result_type is not None
+        else None
+    )
+    return {
+        "name": render.naming.func_name(identifier),
+        "symbol": function.name,
+        "parameters": build_function_parameters_context(
+            parameter_names=function.parameter_names,
+            go_parameter_types=function.go_parameter_types,
+            parameter_c_types=function.parameter_c_types,
+            type_resolver=type_resolver,
+        ),
+        "result_type": resolved_result_type,
+        "result_c_type_comment": (
+            function.result_c_type if resolved_result_type == "uintptr" else ""
+        ),
+        "comment_lines": _normalize_comment_lines(function.comment),
+    }
+
+
 def _build_context(
     *,
     package: str,
@@ -664,6 +699,7 @@ def _build_context(
                     or typedef.name in emitted_strict_enum_typedef_names
                 ),
                 "comment_lines": _normalize_comment_lines(typedef.comment),
+                "c_type_comment": typedef.c_type if "\n" not in typedef.go_type else "",
             }
             for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
         ),
@@ -695,23 +731,12 @@ def _build_context(
             )
         ),
         "functions": tuple(
-            {
-                "name": render.naming.func_name(identifier),
-                "symbol": function.name,
-                "parameters": build_function_parameters_context(
-                    parameter_names=function.parameter_names,
-                    go_parameter_types=function.go_parameter_types,
-                    parameter_c_types=function.parameter_c_types,
-                    type_resolver=type_resolver,
-                ),
-                "result_type": type_resolver.resolve_parameter_type(
-                    go_type=function.go_result_type,
-                    c_type=function.result_c_type,
-                )
-                if function.go_result_type is not None
-                else None,
-                "comment_lines": _normalize_comment_lines(function.comment),
-            }
+            _build_function_context(
+                function=function,
+                identifier=identifier,
+                render=render,
+                type_resolver=type_resolver,
+            )
             for function, identifier in zip(
                 declarations.functions, function_identifiers, strict=True
             )
@@ -722,6 +747,7 @@ def _build_context(
                 "target_name": render.naming.func_name(helper["target_identifier"]),
                 "parameters": helper["parameters"],
                 "result_type": helper["result_type"],
+                "result_c_type_comment": helper["result_c_type_comment"],
                 "result_suffix": helper["result_suffix"],
                 "locals": helper["locals"],
                 "slice_parameters": helper["slice_parameters"],

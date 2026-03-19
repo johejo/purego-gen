@@ -60,6 +60,7 @@ class FunctionParameterContext(TypedDict):
 
     name: str
     type: str
+    c_type_comment: str
 
 
 class HelperLocalContext(TypedDict):
@@ -76,6 +77,7 @@ class FunctionHelperContext(TypedDict):
     target_identifier: str
     parameters: tuple[FunctionParameterContext, ...]
     result_type: str | None
+    result_c_type_comment: str
     result_suffix: str
     locals: tuple[HelperLocalContext, ...]
     slice_parameters: tuple[str, ...]
@@ -254,12 +256,14 @@ def build_function_parameters_context(
     ):
         resolved_name = sanitize_function_parameter_name(parameter_name, index=index)
         resolved_name = allocate_unique_identifier(resolved_name, seen=seen_names)
+        resolved_type = type_resolver.resolve_parameter_type(
+            go_type=go_parameter_type,
+            c_type=parameter_c_type,
+        )
         parameters.append({
             "name": resolved_name,
-            "type": type_resolver.resolve_parameter_type(
-                go_type=go_parameter_type,
-                c_type=parameter_c_type,
-            ),
+            "type": resolved_type,
+            "c_type_comment": parameter_c_type if resolved_type == "uintptr" else "",
         })
     return tuple(parameters)
 
@@ -466,7 +470,11 @@ def _build_buffer_helper_call_context(
     for parameter in resolved_parameters:
         pair = pair_by_pointer.get(parameter.raw_name)
         if pair is not None:
-            wrapper_parameters.append({"name": parameter.name, "type": "[]byte"})
+            wrapper_parameters.append({
+                "name": parameter.name,
+                "type": "[]byte",
+                "c_type_comment": "",
+            })
             locals_context.extend((
                 {"name": f"{parameter.name}_ptr", "value": "uintptr(0)"},
                 {"name": f"{parameter.name}_len", "value": parameter.name},
@@ -481,7 +489,11 @@ def _build_buffer_helper_call_context(
             call_arguments.append(f"{parameter.type}(len({pointer_parameter.name}_len))")
             continue
 
-        wrapper_parameters.append({"name": parameter.name, "type": parameter.type})
+        wrapper_parameters.append({
+            "name": parameter.name,
+            "type": parameter.type,
+            "c_type_comment": "",
+        })
         call_arguments.append(parameter.name)
 
     return (
@@ -534,12 +546,15 @@ def _build_buffer_helper_context(
         if function.go_result_type is not None
         else None
     )
+    result_c_type_comment = function.result_c_type if result_type == "uintptr" else ""
+    result_suffix = "" if result_type is None else f" {result_type}"
     return {
         "identifier": f"{function_identifier}_bytes",
         "target_identifier": function_identifier,
         "parameters": wrapper_parameters,
         "result_type": result_type,
-        "result_suffix": "" if result_type is None else f" {result_type}",
+        "result_c_type_comment": result_c_type_comment,
+        "result_suffix": result_suffix,
         "locals": locals_context,
         "slice_parameters": slice_parameter_names,
         "callback_parameters": (),
@@ -622,12 +637,17 @@ def _build_callback_helper_context(
     call_arguments: list[str] = []
     for parameter in resolved_parameters:
         if parameter.raw_name not in targeted_callbacks:
-            wrapper_parameters.append({"name": parameter.name, "type": parameter.type})
+            wrapper_parameters.append({
+                "name": parameter.name,
+                "type": parameter.type,
+                "c_type_comment": "",
+            })
             call_arguments.append(parameter.name)
             continue
         wrapper_parameters.append({
             "name": parameter.name,
             "type": type_resolver.build_callback_func_type(c_type=parameter.c_type),
+            "c_type_comment": "",
         })
         locals_context.append({
             "name": f"{parameter.name}_callback",
@@ -643,12 +663,15 @@ def _build_callback_helper_context(
         if function.go_result_type is not None
         else None
     )
+    result_c_type_comment = function.result_c_type if result_type == "uintptr" else ""
+    result_suffix = "" if result_type is None else f" {result_type}"
     return {
         "identifier": f"{function_identifier}_callbacks",
         "target_identifier": function_identifier,
         "parameters": tuple(wrapper_parameters),
         "result_type": result_type,
-        "result_suffix": "" if result_type is None else f" {result_type}",
+        "result_c_type_comment": result_c_type_comment,
+        "result_suffix": result_suffix,
         "locals": tuple(locals_context),
         "slice_parameters": (),
         "callback_parameters": callback_parameters,

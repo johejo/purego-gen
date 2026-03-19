@@ -124,7 +124,7 @@ def test_render_go_source_uses_custom_identifier_prefix_everywhere() -> None:
         ),
     )
 
-    assert "purego_gen_type_fixture_mode_t = int32" in source
+    assert "purego_gen_type_fixture_mode_t = int32 // int" in source
     assert "purego_gen_const_FIXTURE_STATUS_OK = 0" in source
     assert "purego_gen_func_add func(" in source
     assert "purego_gen_var_fixture_counter uintptr" in source
@@ -197,7 +197,10 @@ def test_render_go_source_falls_back_to_uintptr_without_type_emit() -> None:
     )
     normalized_source = " ".join(source.split())
     assert "purego_type_foo_t" not in source
-    assert "purego_func_create_ctx func( ctx uintptr, ) uintptr" in normalized_source
+    assert (
+        "purego_func_create_ctx func( ctx uintptr, // const foo_t * ) uintptr // foo_t *"
+        in normalized_source
+    )
 
 
 def test_render_go_source_reuses_record_alias_for_by_value_function_signatures() -> None:
@@ -301,7 +304,7 @@ def test_render_go_source_keeps_primitive_function_signature_types() -> None:
     )
 
     normalized_source = " ".join(source.split())
-    assert "purego_type_fixture_mode_t = int32" in source
+    assert "purego_type_fixture_mode_t = int32 // int" in source
     assert "purego_func_current_mode func() int32" in normalized_source
     assert '"unsafe"' not in source
 
@@ -336,7 +339,7 @@ def test_render_go_source_reuses_function_pointer_typedef_aliases() -> None:
     )
 
     normalized_source = " ".join(source.split())
-    assert "purego_type_fixture_callback_t = uintptr" in source
+    assert "purego_type_fixture_callback_t = uintptr // int (*)(void *, int)" in source
     assert (
         "purego_func_run_callback func( callback purego_type_fixture_callback_t, ) int32"
         in normalized_source

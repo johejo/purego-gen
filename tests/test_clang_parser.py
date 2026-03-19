@@ -57,7 +57,7 @@ def test_parse_type_mapping_edge_cases() -> None:
         "left int32",
         "right int32",
         "mode int32",
-        "label uintptr",
+        "label uintptr // const char *",
     )
     fixture_array_struct_type = _go_struct("values [4]int32")
     assert typedef_map["fixture_point_t"] == fixture_point_struct_type

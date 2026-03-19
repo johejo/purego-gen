@@ -3,29 +3,29 @@
 package fixture
 
 type (
-	purego_type_fixture_mode_t       = int32
-	purego_type_fixture_mode_alias_t = int32
-	purego_type_fixture_callback_t   = uintptr
-	purego_type_fixture_name_t       = uintptr
-	purego_type_fixture_context_t    = uintptr
+	purego_type_fixture_mode_t       = int32   // enum fixture_mode
+	purego_type_fixture_mode_alias_t = int32   // fixture_mode_t
+	purego_type_fixture_callback_t   = uintptr // int (*)(int)
+	purego_type_fixture_name_t       = uintptr // const char *
+	purego_type_fixture_context_t    = uintptr // void *
 	purego_type_fixture_point_t      = struct {
 		left  int32
 		right int32
 		mode  int32
-		label uintptr
+		label uintptr // const char *
 	}
 	purego_type_fixture_point_alias_t = struct {
 		left  int32
 		right int32
 		mode  int32
-		label uintptr
+		label uintptr // const char *
 	}
 	purego_type_fixture_nested_point_t = struct {
 		point struct {
 			left  int32
 			right int32
 			mode  int32
-			label uintptr
+			label uintptr // const char *
 		}
 		inner struct {
 			level int32
@@ -34,7 +34,7 @@ type (
 	purego_type_fixture_with_array_t = struct {
 		values [4]int32
 	}
-	purego_type_fixture_opaque_t uintptr
+	purego_type_fixture_opaque_t uintptr // struct fixture_opaque
 )
 
 const (

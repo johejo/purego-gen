@@ -15,13 +15,13 @@ var (
 )
 
 type (
-	purego_type_sqlite3                 uintptr
-	purego_type_sqlite3_int64           = int64
-	purego_type_sqlite3_callback        = uintptr
-	purego_type_sqlite3_stmt            uintptr
-	purego_type_sqlite3_value           uintptr
-	purego_type_sqlite3_context         uintptr
-	purego_type_sqlite3_destructor_type = uintptr
+	purego_type_sqlite3                 uintptr   // struct sqlite3
+	purego_type_sqlite3_int64           = int64   // sqlite_int64
+	purego_type_sqlite3_callback        = uintptr // int (*)(void *, int, char **, char **)
+	purego_type_sqlite3_stmt            uintptr   // struct sqlite3_stmt
+	purego_type_sqlite3_value           uintptr   // struct sqlite3_value
+	purego_type_sqlite3_context         uintptr   // struct sqlite3_context
+	purego_type_sqlite3_destructor_type = uintptr // void (*)(void *)
 )
 
 const (
@@ -62,8 +62,8 @@ var (
 		arg1 purego_type_sqlite3,
 		sql string,
 		callback purego_type_sqlite3_callback,
-		arg4 uintptr,
-		errmsg uintptr,
+		arg4 uintptr, // void *
+		errmsg uintptr, // char **
 	) int32
 	purego_func_sqlite3_last_insert_rowid func(
 		arg1 purego_type_sqlite3,
@@ -78,22 +78,22 @@ var (
 	purego_func_sqlite3_trace_v2 func(
 		arg1 purego_type_sqlite3,
 		uMask uint32,
-		xCallback uintptr,
-		pCtx uintptr,
+		xCallback uintptr, // int (*)(unsigned int, void *, void *, void *)
+		pCtx uintptr, // void *
 	) int32
 	purego_func_sqlite3_progress_handler func(
 		arg1 purego_type_sqlite3,
 		arg2 int32,
-		arg3 uintptr,
-		arg4 uintptr,
+		arg3 uintptr, // int (*)(void *)
+		arg4 uintptr, // void *
 	)
 	purego_func_sqlite3_open func(
 		filename string,
-		ppDb uintptr,
+		ppDb uintptr, // sqlite3 **
 	) int32
 	purego_func_sqlite3_open_v2 func(
 		filename string,
-		ppDb uintptr,
+		ppDb uintptr, // sqlite3 **
 		flags int32,
 		zVfs string,
 	) int32
@@ -107,13 +107,13 @@ var (
 		db purego_type_sqlite3,
 		zSql string,
 		nByte int32,
-		ppStmt uintptr,
-		pzTail uintptr,
+		ppStmt uintptr, // sqlite3_stmt **
+		pzTail uintptr, // const char **
 	) int32
 	purego_func_sqlite3_bind_blob func(
 		arg1 purego_type_sqlite3_stmt,
 		arg2 int32,
-		arg3 uintptr,
+		arg3 uintptr, // const void *
 		n int32,
 		arg5 purego_type_sqlite3_destructor_type,
 	) int32
@@ -150,7 +150,7 @@ var (
 	purego_func_sqlite3_column_blob func(
 		arg1 purego_type_sqlite3_stmt,
 		iCol int32,
-	) uintptr
+	) uintptr // const void *
 	purego_func_sqlite3_column_double func(
 		arg1 purego_type_sqlite3_stmt,
 		iCol int32,
@@ -186,30 +186,30 @@ var (
 		zFunctionName string,
 		nArg int32,
 		eTextRep int32,
-		pApp uintptr,
-		xFunc uintptr,
-		xStep uintptr,
-		xFinal uintptr,
+		pApp uintptr, // void *
+		xFunc uintptr, // void (*)(sqlite3_context *, int, sqlite3_value **)
+		xStep uintptr, // void (*)(sqlite3_context *, int, sqlite3_value **)
+		xFinal uintptr, // void (*)(sqlite3_context *)
 	) int32
 	purego_func_sqlite3_create_function16 func(
 		db purego_type_sqlite3,
-		zFunctionName uintptr,
+		zFunctionName uintptr, // const void *
 		nArg int32,
 		eTextRep int32,
-		pApp uintptr,
-		xFunc uintptr,
-		xStep uintptr,
-		xFinal uintptr,
+		pApp uintptr, // void *
+		xFunc uintptr, // void (*)(sqlite3_context *, int, sqlite3_value **)
+		xStep uintptr, // void (*)(sqlite3_context *, int, sqlite3_value **)
+		xFinal uintptr, // void (*)(sqlite3_context *)
 	) int32
 	purego_func_sqlite3_create_function_v2 func(
 		db purego_type_sqlite3,
 		zFunctionName string,
 		nArg int32,
 		eTextRep int32,
-		pApp uintptr,
-		xFunc uintptr,
-		xStep uintptr,
-		xFinal uintptr,
+		pApp uintptr, // void *
+		xFunc uintptr, // void (*)(sqlite3_context *, int, sqlite3_value **)
+		xStep uintptr, // void (*)(sqlite3_context *, int, sqlite3_value **)
+		xFinal uintptr, // void (*)(sqlite3_context *)
 		xDestroy purego_type_sqlite3_destructor_type,
 	) int32
 	purego_func_sqlite3_value_int func(
@@ -220,7 +220,7 @@ var (
 	) string
 	purego_func_sqlite3_user_data func(
 		arg1 purego_type_sqlite3_context,
-	) uintptr
+	) uintptr // void *
 	purego_func_sqlite3_result_int func(
 		arg1 purego_type_sqlite3_context,
 		arg2 int32,
@@ -235,39 +235,39 @@ var (
 		arg1 purego_type_sqlite3,
 		zName string,
 		eTextRep int32,
-		pArg uintptr,
-		xCompare uintptr,
+		pArg uintptr, // void *
+		xCompare uintptr, // int (*)(void *, int, const void *, int, const void *)
 	) int32
 	purego_func_sqlite3_create_collation_v2 func(
 		arg1 purego_type_sqlite3,
 		zName string,
 		eTextRep int32,
-		pArg uintptr,
-		xCompare uintptr,
+		pArg uintptr, // void *
+		xCompare uintptr, // int (*)(void *, int, const void *, int, const void *)
 		xDestroy purego_type_sqlite3_destructor_type,
 	) int32
 	purego_func_sqlite3_create_collation16 func(
 		arg1 purego_type_sqlite3,
-		zName uintptr,
+		zName uintptr, // const void *
 		eTextRep int32,
-		pArg uintptr,
-		xCompare uintptr,
+		pArg uintptr, // void *
+		xCompare uintptr, // int (*)(void *, int, const void *, int, const void *)
 	) int32
 	purego_func_sqlite3_commit_hook func(
 		arg1 purego_type_sqlite3,
-		arg2 uintptr,
-		arg3 uintptr,
-	) uintptr
+		arg2 uintptr, // int (*)(void *)
+		arg3 uintptr, // void *
+	) uintptr // void *
 	purego_func_sqlite3_rollback_hook func(
 		arg1 purego_type_sqlite3,
 		arg2 purego_type_sqlite3_destructor_type,
-		arg3 uintptr,
-	) uintptr
+		arg3 uintptr, // void *
+	) uintptr // void *
 	purego_func_sqlite3_update_hook func(
 		arg1 purego_type_sqlite3,
-		arg2 uintptr,
-		arg3 uintptr,
-	) uintptr
+		arg2 uintptr, // void (*)(void *, int, const char *, const char *, sqlite3_int64)
+		arg3 uintptr, // void *
+	) uintptr // void *
 )
 
 func purego_func_sqlite3_bind_blob_bytes(
