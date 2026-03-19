@@ -2,12 +2,11 @@
 set -eu
 
 REPO_ROOT="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
-cd "$REPO_ROOT"
 
 if [ -n "${PYTHONPATH:-}" ]; then
-	export PYTHONPATH="src:$PYTHONPATH"
+	export PYTHONPATH="$REPO_ROOT/src:$PYTHONPATH"
 else
-	export PYTHONPATH="src"
+	export PYTHONPATH="$REPO_ROOT/src"
 fi
 
-exec uv run python "$@"
+exec uv run --project "$REPO_ROOT" python "$@"
