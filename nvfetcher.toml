@@ -1,0 +1,11 @@
+[libduckdb-aarch64-darwin-bin]
+src.github = "duckdb/duckdb"
+fetch.url = "https://install.duckdb.org/$ver/libduckdb-osx-universal.zip"
+
+[libduckdb-x86_64-linux-bin]
+src.github = "duckdb/duckdb"
+fetch.url = "https://install.duckdb.org/$ver/libduckdb-linux-amd64.zip"
+
+[libduckdb-aarch64-linux-bin]
+src.github = "duckdb/duckdb"
+fetch.url = "https://install.duckdb.org/$ver/libduckdb-linux-arm64.zip"

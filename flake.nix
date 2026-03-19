@@ -24,18 +24,11 @@
       ];
       mkTreefmt = pkgs: treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
       forAllSystems =
-        f:
-        nixpkgs.lib.genAttrs systems (
-          system:
-          f {
-            pkgs = import nixpkgs {
-              inherit system;
-            };
-          }
-        );
+        f: nixpkgs.lib.genAttrs systems (system: f { pkgs = import nixpkgs { inherit system; }; });
       perSystem = forAllSystems (
         { pkgs }:
         let
+          system = pkgs.system;
           lib = pkgs.lib;
           pythonPkgs = pkgs.python314Packages;
           treefmt = (mkTreefmt pkgs).config.build.wrapper;
@@ -167,6 +160,7 @@
               }
               // extra
             );
+          sources = pkgs.callPackage ./_sources/generated.nix { };
         in
         {
           formatter = treefmt;
@@ -179,6 +173,9 @@
             purego-gen = puregoGenPackage;
             golden-cases = goldenCasesRunner;
             default = puregoGenPackage;
+            libduckdb-bin = pkgs.callPackage ./libduckdb-bin.nix {
+              source = sources."libduckdb-${system}-bin";
+            };
           };
 
           apps =

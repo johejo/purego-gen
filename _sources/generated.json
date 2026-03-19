@@ -1,0 +1,47 @@
+{
+    "libduckdb-aarch64-darwin-bin": {
+        "cargoLock": null,
+        "date": null,
+        "extract": null,
+        "name": "libduckdb-aarch64-darwin-bin",
+        "passthru": null,
+        "pinned": false,
+        "src": {
+            "name": null,
+            "sha256": "sha256-Bx7y93XFvvgF/LnlhQTMICSu6C5SJ/K2Mi0L3vgyEw4=",
+            "type": "url",
+            "url": "https://install.duckdb.org/v1.5.0/libduckdb-osx-universal.zip"
+        },
+        "version": "v1.5.0"
+    },
+    "libduckdb-aarch64-linux-bin": {
+        "cargoLock": null,
+        "date": null,
+        "extract": null,
+        "name": "libduckdb-aarch64-linux-bin",
+        "passthru": null,
+        "pinned": false,
+        "src": {
+            "name": null,
+            "sha256": "sha256-W3bfsQD/bRnJu+at0pImRxNTyL26Rp67Vi/VLJG7uew=",
+            "type": "url",
+            "url": "https://install.duckdb.org/v1.5.0/libduckdb-linux-arm64.zip"
+        },
+        "version": "v1.5.0"
+    },
+    "libduckdb-x86_64-linux-bin": {
+        "cargoLock": null,
+        "date": null,
+        "extract": null,
+        "name": "libduckdb-x86_64-linux-bin",
+        "passthru": null,
+        "pinned": false,
+        "src": {
+            "name": null,
+            "sha256": "sha256-6bKtudxTSNpX7ulWJ4Lg5/VD50/ybWNLx8IIpbbFmhw=",
+            "type": "url",
+            "url": "https://install.duckdb.org/v1.5.0/libduckdb-linux-amd64.zip"
+        },
+        "version": "v1.5.0"
+    }
+}
