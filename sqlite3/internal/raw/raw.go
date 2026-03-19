@@ -1,3 +1,5 @@
+//go:generate ../../../scripts/uv-run-python-src.sh -m purego_gen --config ./config.json --out ./generated.go
+
 package raw
 
 import (
