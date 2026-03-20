@@ -49,6 +49,9 @@ _MAX_INT64: Final[int] = (1 << 63) - 1
 _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "package",
     "emit_kinds",
+    "has_func_or_var",
+    "has_purego_import",
+    "has_type_block",
     "type_aliases",
     "func_type_aliases",
     "newcallback_helpers",
@@ -123,6 +126,9 @@ class _NewCallbackHelperContext(TypedDict):
 class _TemplateContext(TypedDict):
     package: str
     emit_kinds: tuple[str, ...]
+    has_func_or_var: bool
+    has_purego_import: bool
+    has_type_block: bool
     type_aliases: tuple[_TypeAliasContext, ...]
     func_type_aliases: tuple[_FuncTypeAliasContext, ...]
     newcallback_helpers: tuple[_NewCallbackHelperContext, ...]
@@ -510,59 +516,6 @@ def _build_render_identifiers(
     )
 
 
-def _build_function_signature_type_aliases(
-    *,
-    emit_kinds: tuple[str, ...],
-    declarations: ParsedDeclarations,
-    type_identifiers: tuple[str, ...],
-    type_mapping: TypeMappingOptions,
-    naming: GeneratorNaming,
-) -> FunctionSignatureTypeAliases:
-    """Build render-time alias lookups used to rewrite function signatures.
-
-    Returns:
-        Alias lookup tables for record, opaque, enum, and function-pointer slots.
-    """
-    emitted_record_typedef_names = _build_emitted_record_typedef_names(
-        emit_kinds=emit_kinds,
-        declarations=declarations,
-    )
-    emitted_opaque_struct_typedef_names = _build_emitted_opaque_struct_typedef_names(
-        declarations=declarations,
-        emitted_record_typedef_names=emitted_record_typedef_names,
-    )
-    emitted_strict_enum_typedef_names = _build_emitted_strict_enum_typedef_names(
-        emit_kinds=emit_kinds,
-        declarations=declarations,
-        type_mapping=type_mapping,
-    )
-    record_alias_type_by_typedef_name = _build_record_alias_type_by_typedef_name(
-        declarations=declarations,
-        type_identifiers=type_identifiers,
-        emitted_record_typedef_names=emitted_record_typedef_names,
-        naming=naming,
-    )
-    return {
-        "record": record_alias_type_by_typedef_name,
-        "opaque": _build_opaque_alias_type_by_typedef_name(
-            emitted_opaque_struct_typedef_names=emitted_opaque_struct_typedef_names,
-            record_alias_type_by_typedef_name=record_alias_type_by_typedef_name,
-        ),
-        "enum": _build_enum_alias_type_by_typedef_name(
-            declarations=declarations,
-            type_identifiers=type_identifiers,
-            emitted_strict_enum_typedef_names=emitted_strict_enum_typedef_names,
-            naming=naming,
-        ),
-        "function_pointer": _build_function_pointer_alias_type_by_lookup(
-            declarations=declarations,
-            type_identifiers=type_identifiers,
-            emit_kinds=emit_kinds,
-            naming=naming,
-        ),
-    }
-
-
 def _build_typedef_render_helpers(
     *,
     emit_kinds: tuple[str, ...],
@@ -596,14 +549,33 @@ def _build_typedef_render_helpers(
         declarations=declarations,
         type_mapping=type_mapping,
     )
-    return (
-        _build_function_signature_type_aliases(
-            emit_kinds=emit_kinds,
+    record_alias_type_by_typedef_name = _build_record_alias_type_by_typedef_name(
+        declarations=declarations,
+        type_identifiers=type_identifiers,
+        emitted_record_typedef_names=emitted_record_typedef_names,
+        naming=naming,
+    )
+    func_sig_type_aliases: FunctionSignatureTypeAliases = {
+        "record": record_alias_type_by_typedef_name,
+        "opaque": _build_opaque_alias_type_by_typedef_name(
+            emitted_opaque_struct_typedef_names=emitted_opaque_struct_typedef_names,
+            record_alias_type_by_typedef_name=record_alias_type_by_typedef_name,
+        ),
+        "enum": _build_enum_alias_type_by_typedef_name(
             declarations=declarations,
             type_identifiers=type_identifiers,
-            type_mapping=type_mapping,
+            emitted_strict_enum_typedef_names=emitted_strict_enum_typedef_names,
             naming=naming,
         ),
+        "function_pointer": _build_function_pointer_alias_type_by_lookup(
+            declarations=declarations,
+            type_identifiers=type_identifiers,
+            emit_kinds=emit_kinds,
+            naming=naming,
+        ),
+    }
+    return (
+        func_sig_type_aliases,
         _build_typedef_alias_type_by_lookup(
             declarations=declarations,
             type_identifiers=type_identifiers,
@@ -902,6 +874,12 @@ def _build_context(
     return {
         "package": package,
         "emit_kinds": emit_kinds,
+        "has_func_or_var": "func" in emit_kinds or "var" in emit_kinds,
+        "has_purego_import": "func" in emit_kinds
+        or "var" in emit_kinds
+        or bool(newcallback_helpers),
+        "has_type_block": ("type" in emit_kinds and bool(declarations.typedefs))
+        or bool(func_type_aliases),
         "type_aliases": tuple(
             {
                 "name": render.naming.type_name(identifier),

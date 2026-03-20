@@ -2,31 +2,20 @@
 
 package {{ package }}
 
-{% set unsafe_helpers = helpers | selectattr("slice_parameters") | list %}
-{% set needs_purego_import = "func" in emit_kinds or "var" in emit_kinds or newcallback_helpers %}
-{% if needs_purego_import %}
+{% if has_purego_import %}
 import (
-    {% if "func" in emit_kinds or "var" in emit_kinds %}
     "fmt"
-    {% endif %}
-    {% if unsafe_helpers %}
     "unsafe"
-    {% endif %}
 
     "github.com/ebitengine/purego"
 )
 
-    {% if "func" in emit_kinds or "var" in emit_kinds %}
 var (
     _ = fmt.Errorf
-        {% if unsafe_helpers %}
     _ = unsafe.Pointer(nil)
-        {% endif %}
 )
 
-    {% endif %}
 {% endif %}
-{% set has_type_block = ("type" in emit_kinds and type_aliases) or func_type_aliases %}
 {% if has_type_block %}
 type (
     {% for type_alias in type_aliases %}
@@ -92,29 +81,21 @@ var (
             {% endfor %}
         {% endif %}
         {% if function.parameters %}
-            {% if function.result_type is not none %}
     {{ function.name }} func(
-                {% for parameter in function.parameters %}
-                    {% if parameter.c_type_comment %}
+            {% for parameter in function.parameters %}
+                {% if parameter.c_type_comment %}
         {{ parameter.name }} {{ parameter.type }}, // {{ parameter.c_type_comment }}
-                    {% else %}
+                {% else %}
         {{ parameter.name }} {{ parameter.type }},
-                    {% endif %}
-                {% endfor %}
+                {% endif %}
+            {% endfor %}
+            {% if function.result_type is not none %}
                 {% if function.result_c_type_comment %}
     ) {{ function.result_type }} // {{ function.result_c_type_comment }}
                 {% else %}
     ) {{ function.result_type }}
                 {% endif %}
             {% else %}
-    {{ function.name }} func(
-                {% for parameter in function.parameters %}
-                    {% if parameter.c_type_comment %}
-        {{ parameter.name }} {{ parameter.type }}, // {{ parameter.c_type_comment }}
-                    {% else %}
-        {{ parameter.name }} {{ parameter.type }},
-                    {% endif %}
-                {% endfor %}
     )
             {% endif %}
         {% else %}

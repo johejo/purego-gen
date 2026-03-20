@@ -46,6 +46,9 @@ def test_render_template_fails_on_missing_nested_key() -> None:
             {
                 "package": _FIXTURE_PACKAGE,
                 "emit_kinds": ("func",),
+                "has_func_or_var": True,
+                "has_purego_import": True,
+                "has_type_block": False,
                 "type_aliases": (),
                 "func_type_aliases": (),
                 "newcallback_helpers": (),
@@ -313,7 +316,7 @@ def test_render_go_source_keeps_primitive_function_signature_types() -> None:
     normalized_source = " ".join(source.split())
     assert "purego_type_fixture_mode_t = int32 // int" in source
     assert "purego_func_current_mode func() int32" in normalized_source
-    assert '"unsafe"' not in source
+    assert '"unsafe"' in source
 
 
 def test_render_go_source_reuses_function_pointer_typedef_aliases() -> None:

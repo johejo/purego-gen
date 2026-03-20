@@ -3,7 +3,15 @@
 package fixture
 
 import (
+	"fmt"
+	"unsafe"
+
 	"github.com/ebitengine/purego"
+)
+
+var (
+	_ = fmt.Errorf
+	_ = unsafe.Pointer(nil)
 )
 
 type (
