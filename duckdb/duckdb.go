@@ -860,4 +860,3 @@ func readDecimalValue(vector raw.Vector, data uintptr, row uint64) driver.Value 
 	result.WriteString(fracStr)
 	return result.String()
 }
-
