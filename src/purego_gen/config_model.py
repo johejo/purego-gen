@@ -56,11 +56,20 @@ class CallbackInputHelper:
 
 
 @dataclass(frozen=True, slots=True)
+class OwnedStringReturnHelper:
+    """One function-specific helper definition for owned ``const char *`` returns."""
+
+    function: str
+    free_func: str
+
+
+@dataclass(frozen=True, slots=True)
 class GeneratorHelpers:
     """Optional helper-generation configuration."""
 
     buffer_inputs: tuple[BufferInputHelper, ...] = ()
     callback_inputs: tuple[CallbackInputHelper, ...] = ()
+    owned_string_returns: tuple[OwnedStringReturnHelper, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,6 +177,14 @@ class GeneratorNaming:
         """
         return f"{self.func_prefix}{lib_id}_load_runtime_vars"
 
+    def gostring_func_name(self) -> str:
+        """Build the generated gostring utility function name.
+
+        Returns:
+            Generated gostring helper identifier.
+        """
+        return f"{self.func_prefix}gostring"
+
 
 @dataclass(frozen=True, slots=True)
 class LocalHeaders:
@@ -242,4 +259,5 @@ __all__ = [
     "HeaderConfig",
     "HeaderOverlay",
     "LocalHeaders",
+    "OwnedStringReturnHelper",
 ]

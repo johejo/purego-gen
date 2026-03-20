@@ -13,6 +13,7 @@ from purego_gen.config_model import (
     GeneratorHelpers,
     GeneratorNaming,
     GeneratorRenderSpec,
+    OwnedStringReturnHelper,
 )
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
@@ -467,3 +468,181 @@ def test_render_go_source_rejects_missing_callback_helper_parameter() -> None:
                 type_mapping=TypeMappingOptions(),
             ),
         )
+
+
+def test_render_go_source_rejects_missing_owned_string_return_function() -> None:
+    """Owned-string-return helpers should fail when the target function is missing."""
+    with pytest.raises(
+        RendererError,
+        match=r"owned_string_returns helper target function not found: fixture_get_name",
+    ):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=ParsedDeclarations(
+                functions=(
+                    FunctionDecl(
+                        name="fixture_free",
+                        result_c_type="void",
+                        parameter_c_types=("void *",),
+                        parameter_names=("ptr",),
+                        go_result_type=None,
+                        go_parameter_types=("uintptr",),
+                    ),
+                ),
+                typedefs=(),
+                constants=(),
+                runtime_vars=(),
+            ),
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(
+                    owned_string_returns=(
+                        OwnedStringReturnHelper(
+                            function="fixture_get_name",
+                            free_func="fixture_free",
+                        ),
+                    )
+                ),
+                type_mapping=TypeMappingOptions(),
+            ),
+        )
+
+
+def test_render_go_source_rejects_non_string_owned_string_return() -> None:
+    """Owned-string-return helpers should reject functions that do not return string."""
+    with pytest.raises(
+        RendererError,
+        match=r"must return string, got `int32`",
+    ):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=ParsedDeclarations(
+                functions=(
+                    FunctionDecl(
+                        name="fixture_get_id",
+                        result_c_type="int",
+                        parameter_c_types=(),
+                        parameter_names=(),
+                        go_result_type="int32",
+                        go_parameter_types=(),
+                    ),
+                    FunctionDecl(
+                        name="fixture_free",
+                        result_c_type="void",
+                        parameter_c_types=("void *",),
+                        parameter_names=("ptr",),
+                        go_result_type=None,
+                        go_parameter_types=("uintptr",),
+                    ),
+                ),
+                typedefs=(),
+                constants=(),
+                runtime_vars=(),
+            ),
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(
+                    owned_string_returns=(
+                        OwnedStringReturnHelper(
+                            function="fixture_get_id",
+                            free_func="fixture_free",
+                        ),
+                    )
+                ),
+                type_mapping=TypeMappingOptions(),
+            ),
+        )
+
+
+def test_render_go_source_rejects_missing_owned_string_return_free_func() -> None:
+    """Owned-string-return helpers should fail when the free function is missing."""
+    with pytest.raises(
+        RendererError,
+        match=r"owned_string_returns helper free function not found: fixture_free",
+    ):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=ParsedDeclarations(
+                functions=(
+                    FunctionDecl(
+                        name="fixture_get_name",
+                        result_c_type="const char *",
+                        parameter_c_types=("int",),
+                        parameter_names=("id",),
+                        go_result_type="string",
+                        go_parameter_types=("int32",),
+                    ),
+                ),
+                typedefs=(),
+                constants=(),
+                runtime_vars=(),
+            ),
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(
+                    owned_string_returns=(
+                        OwnedStringReturnHelper(
+                            function="fixture_get_name",
+                            free_func="fixture_free",
+                        ),
+                    )
+                ),
+                type_mapping=TypeMappingOptions(),
+            ),
+        )
+
+
+def test_render_go_source_emits_owned_string_return_with_custom_prefix() -> None:
+    """Owned-string-return helpers should follow the configured identifier prefix."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_get_name",
+                    result_c_type="const char *",
+                    parameter_c_types=("int",),
+                    parameter_names=("id",),
+                    go_result_type="string",
+                    go_parameter_types=("int32",),
+                ),
+                FunctionDecl(
+                    name="fixture_free",
+                    result_c_type="void",
+                    parameter_c_types=("void *",),
+                    parameter_names=("ptr",),
+                    go_result_type=None,
+                    go_parameter_types=("uintptr",),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                owned_string_returns=(
+                    OwnedStringReturnHelper(
+                        function="fixture_get_name",
+                        free_func="fixture_free",
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+            naming=GeneratorNaming(
+                type_prefix="mylib_",
+                const_prefix="mylib_",
+                func_prefix="mylib_",
+                var_prefix="mylib_",
+            ),
+        ),
+    )
+
+    assert "func mylib_func_fixture_get_name_string(" in source
+    assert "func mylib_gostring(ptr uintptr) string {" in source
+    assert "result := mylib_gostring(rawPtr)" in source

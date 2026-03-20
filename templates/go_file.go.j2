@@ -5,6 +5,9 @@ package {{ package }}
 {% if has_purego_import %}
 import (
     "fmt"
+    {% if has_gostring_util %}
+    "strings"
+    {% endif %}
     "unsafe"
 
     "github.com/ebitengine/purego"
@@ -144,6 +147,47 @@ func {{ helper.name }}(){{ helper.result_suffix }} {
     )
         }
         {% endfor %}
+    {% endif %}
+    {% if owned_string_helpers %}
+        {% for helper in owned_string_helpers %}
+            {% if helper.parameters %}
+func {{ helper.name }}(
+                {% for parameter in helper.parameters %}
+                    {% if parameter.c_type_comment %}
+    // C: {{ parameter.c_type_comment }}
+                    {% endif %}
+    {{ parameter.name }} {{ parameter.type }},
+                {% endfor -%}
+) string {
+            {% else %}
+func {{ helper.name }}() string {
+            {% endif %}
+    rawPtr := {{ helper.target_name }}(
+            {% for argument in helper.call_arguments %}
+        {{ argument }},
+            {% endfor %}
+    )
+    result := {{ gostring_func_name }}(rawPtr)
+    if rawPtr != 0 {
+        {{ helper.free_func_name }}(rawPtr)
+    }
+    return result
+}
+        {% endfor %}
+    {% endif %}
+    {% if has_gostring_util %}
+
+func {{ gostring_func_name }}(ptr uintptr) string {
+    if ptr == 0 {
+        return ""
+    }
+    p := *(*unsafe.Pointer)(unsafe.Pointer(&ptr))
+    var n int
+    for *(*byte)(unsafe.Add(p, n)) != 0 {
+        n++
+    }
+    return strings.Clone(unsafe.String((*byte)(p), n))
+}
     {% endif %}
 
 func {{ register_functions_name }}(handle uintptr) error {

@@ -86,6 +86,16 @@ class FunctionHelperContext(TypedDict):
     call_arguments: tuple[str, ...]
 
 
+class OwnedStringReturnHelperContext(TypedDict):
+    """Rendered owned-string-return helper context consumed by templates."""
+
+    identifier: str
+    target_identifier: str
+    free_func_identifier: str
+    parameters: tuple[FunctionParameterContext, ...]
+    call_arguments: tuple[str, ...]
+
+
 class FunctionSignatureTypeAliases(TypedDict):
     """Alias lookups used to rewrite rendered function signatures."""
 
@@ -714,3 +724,76 @@ def _build_callback_helper_context(
         "callback_parameters": callback_parameters,
         "call_arguments": tuple(call_arguments),
     }
+
+
+def build_owned_string_return_helpers(
+    *,
+    function_identifier_by_name: Mapping[str, str],
+    declarations: ParsedDeclarations,
+    helpers: GeneratorHelpers,
+    type_resolver: HelperTypeResolver,
+) -> tuple[tuple[OwnedStringReturnHelperContext, ...], frozenset[str]]:
+    """Build rendered owned-string-return helper contexts.
+
+    Returns:
+        Tuple of (helper contexts, set of function names whose raw return type
+        should be overridden to ``uintptr``).
+
+    Raises:
+        HelperRenderingError: Helper targets or configuration are invalid.
+    """
+    if not helpers.owned_string_returns:
+        return (), frozenset()
+
+    functions_by_name = {function.name: function for function in declarations.functions}
+    helper_contexts: list[OwnedStringReturnHelperContext] = []
+    override_names: set[str] = set()
+
+    for helper in helpers.owned_string_returns:
+        function = functions_by_name.get(helper.function)
+        if function is None:
+            message = f"owned_string_returns helper target function not found: {helper.function}"
+            raise HelperRenderingError(message)
+
+        if function.go_result_type != "string":
+            message = (
+                f"owned_string_returns helper target function {helper.function} "
+                f"must return string, got `{function.go_result_type}`"
+            )
+            raise HelperRenderingError(message)
+
+        free_function = functions_by_name.get(helper.free_func)
+        if free_function is None:
+            message = f"owned_string_returns helper free function not found: {helper.free_func}"
+            raise HelperRenderingError(message)
+
+        function_identifier = function_identifier_by_name[function.name]
+        free_func_identifier = function_identifier_by_name[helper.free_func]
+
+        resolved_parameters = _resolve_function_parameters(
+            parameter_names=function.parameter_names,
+            go_parameter_types=function.go_parameter_types,
+            parameter_c_types=function.parameter_c_types,
+            type_resolver=type_resolver,
+        )
+
+        parameters = tuple(
+            FunctionParameterContext(
+                name=param.name,
+                type=param.type,
+                c_type_comment=param.c_type if param.type == "uintptr" else "",
+            )
+            for param in resolved_parameters
+        )
+        call_arguments = tuple(param.name for param in resolved_parameters)
+
+        helper_contexts.append({
+            "identifier": f"{function_identifier}_string",
+            "target_identifier": function_identifier,
+            "free_func_identifier": free_func_identifier,
+            "parameters": parameters,
+            "call_arguments": call_arguments,
+        })
+        override_names.add(function.name)
+
+    return tuple(helper_contexts), frozenset(override_names)

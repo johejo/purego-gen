@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": "func",
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "owned_string.h"
+        ]
+      },
+      "filters": {
+        "func": [
+          "fixture_get_name",
+          "fixture_free"
+        ]
+      }
+    },
+    "render": {
+      "type_mapping": {
+        "const_char_as_string": true
+      },
+      "helpers": {
+        "owned_string_returns": [
+          {
+            "function": "fixture_get_name",
+            "free_func": "fixture_free"
+          }
+        ]
+      }
+    }
+  }
+}

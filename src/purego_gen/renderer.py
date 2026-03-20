@@ -33,6 +33,7 @@ from purego_gen.helper_rendering import (
     HelperTypeResolver,
     build_function_helpers,
     build_function_parameters_context,
+    build_owned_string_return_helpers,
     build_typedef_c_type_by_lookup,
 )
 from purego_gen.identifier_utils import build_unique_identifiers
@@ -50,15 +51,18 @@ _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "has_func_or_var",
     "has_purego_import",
     "has_type_block",
+    "has_gostring_util",
     "type_aliases",
     "func_type_aliases",
     "newcallback_helpers",
     "constants",
     "functions",
     "helpers",
+    "owned_string_helpers",
     "runtime_vars",
     "register_functions_name",
     "load_runtime_vars_name",
+    "gostring_func_name",
 })
 
 
@@ -121,21 +125,32 @@ class _NewCallbackHelperContext(TypedDict):
     return_type: str
 
 
+class _OwnedStringHelperContext(TypedDict):
+    name: str
+    target_name: str
+    free_func_name: str
+    parameters: tuple[FunctionParameterContext, ...]
+    call_arguments: tuple[str, ...]
+
+
 class _TemplateContext(TypedDict):
     package: str
     emit_kinds: tuple[str, ...]
     has_func_or_var: bool
     has_purego_import: bool
     has_type_block: bool
+    has_gostring_util: bool
     type_aliases: tuple[_TypeAliasContext, ...]
     func_type_aliases: tuple[_FuncTypeAliasContext, ...]
     newcallback_helpers: tuple[_NewCallbackHelperContext, ...]
     constants: tuple[_ConstantContext, ...]
     functions: tuple[_FunctionContext, ...]
     helpers: tuple[_HelperContext, ...]
+    owned_string_helpers: tuple[_OwnedStringHelperContext, ...]
     runtime_vars: tuple[_RuntimeVarContext, ...]
     register_functions_name: str
     load_runtime_vars_name: str
+    gostring_func_name: str
 
 
 def _resolve_template_dir() -> Path:
@@ -406,6 +421,61 @@ def _build_callback_param_func_type_contexts(
     return tuple(func_type_aliases), tuple(newcallback_helpers), overrides
 
 
+def _build_owned_string_contexts(
+    *,
+    function_identifier_by_name: Mapping[str, str],
+    declarations: ParsedDeclarations,
+    render: GeneratorRenderSpec,
+    function_identifiers: tuple[str, ...],
+    type_resolver: HelperTypeResolver,
+) -> tuple[tuple[_FunctionContext, ...], tuple[_OwnedStringHelperContext, ...]]:
+    """Build function contexts with owned-string overrides and helper contexts.
+
+    Returns:
+        Tuple of (function contexts, owned-string helper contexts).
+
+    Raises:
+        RendererError: Helper targets or configuration are invalid.
+    """
+    try:
+        owned_string_helper_contexts, owned_string_override_names = (
+            build_owned_string_return_helpers(
+                function_identifier_by_name=function_identifier_by_name,
+                declarations=declarations,
+                helpers=render.helpers,
+                type_resolver=type_resolver,
+            )
+        )
+    except HelperRenderingError as error:
+        raise RendererError(str(error)) from error
+
+    function_contexts: list[_FunctionContext] = []
+    for function, identifier in zip(declarations.functions, function_identifiers, strict=True):
+        ctx = _build_function_context(
+            function=function,
+            identifier=identifier,
+            render=render,
+            type_resolver=type_resolver,
+        )
+        if function.name in owned_string_override_names:
+            ctx["result_type"] = "uintptr"
+            ctx["result_c_type_comment"] = function.result_c_type
+        function_contexts.append(ctx)
+
+    owned_string_helpers = tuple(
+        _OwnedStringHelperContext(
+            name=render.naming.func_name(helper["identifier"]),
+            target_name=render.naming.func_name(helper["target_identifier"]),
+            free_func_name=render.naming.func_name(helper["free_func_identifier"]),
+            parameters=helper["parameters"],
+            call_arguments=helper["call_arguments"],
+        )
+        for helper in owned_string_helper_contexts
+    )
+
+    return tuple(function_contexts), owned_string_helpers
+
+
 def _build_context(
     *,
     package: str,
@@ -436,7 +506,6 @@ def _build_context(
         type_mapping=render.type_mapping,
         naming=render.naming,
     )
-    function_signature_type_aliases = typedef_render_helpers_result[0]
     typedef_alias_type_by_lookup = typedef_render_helpers_result[1]
     typedef_go_type_by_lookup = typedef_render_helpers_result[2]
     emitted_strict_typedef_names = (
@@ -450,7 +519,7 @@ def _build_context(
         for function, identifier in zip(declarations.functions, function_identifiers, strict=True)
     }
     type_resolver = HelperTypeResolver(
-        type_aliases=function_signature_type_aliases,
+        type_aliases=typedef_render_helpers_result[0],
         typedef_go_type_by_lookup=typedef_go_type_by_lookup,
         typedef_c_type_by_lookup=build_typedef_c_type_by_lookup(declarations),
     )
@@ -481,6 +550,14 @@ def _build_context(
     func_type_aliases += callback_param_contexts[0]
     newcallback_helpers += callback_param_contexts[1]
 
+    owned_string_result = _build_owned_string_contexts(
+        function_identifier_by_name=function_identifier_by_name,
+        declarations=declarations,
+        render=render,
+        function_identifiers=function_identifiers,
+        type_resolver=type_resolver,
+    )
+
     return {
         "package": package,
         "emit_kinds": emit_kinds,
@@ -490,6 +567,7 @@ def _build_context(
         or bool(newcallback_helpers),
         "has_type_block": ("type" in emit_kinds and bool(declarations.typedefs))
         or bool(func_type_aliases),
+        "has_gostring_util": bool(owned_string_result[1]),
         "type_aliases": tuple(
             {
                 "name": render.naming.type_name(identifier),
@@ -529,17 +607,7 @@ def _build_context(
                 declarations.constants, constant_identifiers, strict=True
             )
         ),
-        "functions": tuple(
-            _build_function_context(
-                function=function,
-                identifier=identifier,
-                render=render,
-                type_resolver=type_resolver,
-            )
-            for function, identifier in zip(
-                declarations.functions, function_identifiers, strict=True
-            )
-        ),
+        "functions": owned_string_result[0],
         "helpers": tuple(
             {
                 "name": render.naming.func_name(helper["identifier"]),
@@ -555,6 +623,7 @@ def _build_context(
             }
             for helper in helper_contexts
         ),
+        "owned_string_helpers": owned_string_result[1],
         "runtime_vars": tuple(
             {
                 "name": render.naming.runtime_var_name(identifier),
@@ -567,6 +636,7 @@ def _build_context(
         ),
         "register_functions_name": render.naming.register_functions_name(lib_id),
         "load_runtime_vars_name": render.naming.load_runtime_vars_name(lib_id),
+        "gostring_func_name": render.naming.gostring_func_name(),
     }
 
 

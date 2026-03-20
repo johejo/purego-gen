@@ -12,6 +12,7 @@ from purego_gen.config_model import (
     CallbackInputHelper,
     GeneratorHelpers,
     HeaderOverlay,
+    OwnedStringReturnHelper,
 )
 
 if TYPE_CHECKING:
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
         CallbackInputHelperInput,
         HeaderOverlayInput,
         HelpersInput,
+        OwnedStringReturnHelperInput,
     )
 
 
@@ -40,6 +42,10 @@ def normalize_generator_helpers(helpers: HelpersInput) -> GeneratorHelpers:
         callback_inputs=_normalize_optional_items(
             helpers.callback_inputs,
             _normalize_callback_input_helper,
+        ),
+        owned_string_returns=_normalize_optional_items(
+            helpers.owned_string_returns,
+            _normalize_owned_string_return_helper,
         ),
     )
 
@@ -66,6 +72,12 @@ def _normalize_buffer_input_helper(helper: BufferInputHelperInput) -> BufferInpu
 
 def _normalize_callback_input_helper(helper: CallbackInputHelperInput) -> CallbackInputHelper:
     return CallbackInputHelper(function=helper.function, parameters=helper.parameters)
+
+
+def _normalize_owned_string_return_helper(
+    helper: OwnedStringReturnHelperInput,
+) -> OwnedStringReturnHelper:
+    return OwnedStringReturnHelper(function=helper.function, free_func=helper.free_func)
 
 
 def normalize_header_overlays(

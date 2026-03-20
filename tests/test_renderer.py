@@ -46,15 +46,18 @@ def test_render_template_fails_on_missing_nested_key() -> None:
                 "has_func_or_var": True,
                 "has_purego_import": True,
                 "has_type_block": False,
+                "has_gostring_util": False,
                 "type_aliases": (),
                 "func_type_aliases": (),
                 "newcallback_helpers": (),
                 "constants": (),
                 "functions": ({"name": "add"},),
                 "helpers": (),
+                "owned_string_helpers": (),
                 "runtime_vars": (),
                 "register_functions_name": "purego_fixture_lib_register_functions",
                 "load_runtime_vars_name": "purego_fixture_lib_load_runtime_vars",
+                "gostring_func_name": "purego_gostring",
             },
         )
 

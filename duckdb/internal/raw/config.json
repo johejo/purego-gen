@@ -155,6 +155,14 @@
       "type_mapping": {
         "const_char_as_string": true,
         "typed_sentinel_constants": true
+      },
+      "helpers": {
+        "owned_string_returns": [
+          {
+            "function": "duckdb_parameter_name",
+            "free_func": "duckdb_free"
+          }
+        ]
       }
     }
   }

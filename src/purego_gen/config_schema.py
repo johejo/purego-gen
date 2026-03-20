@@ -35,6 +35,13 @@ class CallbackInputHelperInput(StrictModel):
     parameters: Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
 
 
+class OwnedStringReturnHelperInput(StrictModel):
+    """One function-specific helper definition for owned ``const char *`` returns."""
+
+    function: NonEmptyStr
+    free_func: NonEmptyStr
+
+
 class HelpersInput(StrictModel):
     """Optional helper-generation configuration."""
 
@@ -42,6 +49,9 @@ class HelpersInput(StrictModel):
     callback_inputs: Annotated[tuple[CallbackInputHelperInput, ...], Len(min_length=1)] | None = (
         None
     )
+    owned_string_returns: (
+        Annotated[tuple[OwnedStringReturnHelperInput, ...], Len(min_length=1)] | None
+    ) = None
 
 
 class HeaderOverlayInput(StrictModel):
