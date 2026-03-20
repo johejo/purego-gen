@@ -154,7 +154,9 @@ class HelperTypeResolver:
         """
         double_pointer_name = extract_double_pointer_typedef_name(c_type)
         if double_pointer_name is not None:
-            opaque_alias = self.type_aliases["opaque"].get(double_pointer_name)
+            opaque_alias = self.type_aliases["opaque"].get(
+                double_pointer_name
+            ) or self.type_aliases["opaque_pointer"].get(double_pointer_name)
             if opaque_alias is not None:
                 return f"**{opaque_alias}"
             return fallback
@@ -162,7 +164,9 @@ class HelperTypeResolver:
         typedef_name = extract_pointer_typedef_name(c_type)
         if typedef_name is None:
             return fallback
-        opaque_alias = self.type_aliases["opaque"].get(typedef_name)
+        opaque_alias = self.type_aliases["opaque"].get(typedef_name) or self.type_aliases[
+            "opaque_pointer"
+        ].get(typedef_name)
         if opaque_alias is not None:
             return f"*{opaque_alias}"
         return fallback

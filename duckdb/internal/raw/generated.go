@@ -226,8 +226,7 @@ var (
 	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
 	purego_func_duckdb_open func(
 		path string,
-		// C: duckdb_database *
-		out_database uintptr,
+		out_database *purego_type_duckdb_database,
 	) int32
 	// !
 	// Extended version of duckdb_open. Creates a new database or opens an existing database file stored at the given path.
@@ -241,8 +240,7 @@ var (
 	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
 	purego_func_duckdb_open_ext func(
 		path string,
-		// C: duckdb_database *
-		out_database uintptr,
+		out_database *purego_type_duckdb_database,
 		config purego_type_duckdb_config,
 		// C: char **
 		out_error uintptr,
@@ -255,8 +253,7 @@ var (
 	//
 	// @param database The database object to shut down.
 	purego_func_duckdb_close func(
-		// C: duckdb_database *
-		database uintptr,
+		database *purego_type_duckdb_database,
 	)
 	// !
 	// Opens a connection to a database. Connections are required to query the database, and store transactional state
@@ -268,8 +265,7 @@ var (
 	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
 	purego_func_duckdb_connect func(
 		database purego_type_duckdb_database,
-		// C: duckdb_connection *
-		out_connection uintptr,
+		out_connection *purego_type_duckdb_connection,
 	) int32
 	// !
 	// Interrupt running query
@@ -283,8 +279,7 @@ var (
 	//
 	// @param connection The connection to close.
 	purego_func_duckdb_disconnect func(
-		// C: duckdb_connection *
-		connection uintptr,
+		connection *purego_type_duckdb_connection,
 	)
 	// !
 	// Returns the version of the linked DuckDB, with a version postfix for dev versions
@@ -304,8 +299,7 @@ var (
 	// @param out_config The result configuration object.
 	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
 	purego_func_duckdb_create_config func(
-		// C: duckdb_config *
-		out_config uintptr,
+		out_config *purego_type_duckdb_config,
 	) int32
 	// !
 	// Sets the specified option for the specified configuration. The configuration option is indicated by name.
@@ -329,8 +323,7 @@ var (
 	//
 	// @param config The configuration object to destroy.
 	purego_func_duckdb_destroy_config func(
-		// C: duckdb_config *
-		config uintptr,
+		config *purego_type_duckdb_config,
 	)
 	// !
 	// Executes a SQL query within a connection and stores the full (materialized) result in the out_result pointer.
@@ -502,16 +495,14 @@ var (
 	purego_func_duckdb_prepare func(
 		connection purego_type_duckdb_connection,
 		query string,
-		// C: duckdb_prepared_statement *
-		out_prepared_statement uintptr,
+		out_prepared_statement *purego_type_duckdb_prepared_statement,
 	) int32
 	// !
 	// Closes the prepared statement and de-allocates all memory allocated for the statement.
 	//
 	// @param prepared_statement The prepared statement to destroy.
 	purego_func_duckdb_destroy_prepare func(
-		// C: duckdb_prepared_statement *
-		prepared_statement uintptr,
+		prepared_statement *purego_type_duckdb_prepared_statement,
 	)
 	// !
 	// Returns the error message associated with the given prepared statement.
@@ -686,16 +677,14 @@ var (
 	//
 	// @param type The logical type to destroy.
 	purego_func_duckdb_destroy_logical_type func(
-		// C: duckdb_logical_type *
-		type_ uintptr,
+		type_ *purego_type_duckdb_logical_type,
 	)
 	// !
 	// Destroys the data chunk and de-allocates all memory allocated for that chunk.
 	//
 	// @param chunk The data chunk to destroy.
 	purego_func_duckdb_destroy_data_chunk func(
-		// C: duckdb_data_chunk *
-		chunk uintptr,
+		chunk *purego_type_duckdb_data_chunk,
 	)
 	// !
 	// Retrieves the number of columns in a data chunk.

@@ -128,23 +128,23 @@ func dedupeStrings(values []string) []string {
 // Lifecycle
 
 func Open(path string, db *Database) int32 {
-	return purego_func_duckdb_open(path, uintptr(unsafe.Pointer(db)))
+	return purego_func_duckdb_open(path, db)
 }
 
 func OpenExt(path string, db *Database, config Config, outError *uintptr) int32 {
-	return purego_func_duckdb_open_ext(path, uintptr(unsafe.Pointer(db)), config, uintptr(unsafe.Pointer(outError)))
+	return purego_func_duckdb_open_ext(path, db, config, uintptr(unsafe.Pointer(outError)))
 }
 
 func Close(db *Database) {
-	purego_func_duckdb_close(uintptr(unsafe.Pointer(db)))
+	purego_func_duckdb_close(db)
 }
 
 func Connect(db Database, conn *Connection) int32 {
-	return purego_func_duckdb_connect(db, uintptr(unsafe.Pointer(conn)))
+	return purego_func_duckdb_connect(db, conn)
 }
 
 func Disconnect(conn *Connection) {
-	purego_func_duckdb_disconnect(uintptr(unsafe.Pointer(conn)))
+	purego_func_duckdb_disconnect(conn)
 }
 
 func Interrupt(conn Connection) {
@@ -158,7 +158,7 @@ func LibraryVersion() string {
 // Config
 
 func CreateConfig(config *Config) int32 {
-	return purego_func_duckdb_create_config(uintptr(unsafe.Pointer(config)))
+	return purego_func_duckdb_create_config(config)
 }
 
 func SetConfig(config Config, name string, option string) int32 {
@@ -166,7 +166,7 @@ func SetConfig(config Config, name string, option string) int32 {
 }
 
 func DestroyConfig(config *Config) {
-	purego_func_duckdb_destroy_config(uintptr(unsafe.Pointer(config)))
+	purego_func_duckdb_destroy_config(config)
 }
 
 // Query
@@ -210,11 +210,11 @@ func ColumnLogicalType(result *Result, col uint64) LogicalType {
 // Prepared Statements
 
 func Prepare(conn Connection, query string, stmt *PreparedStatement) int32 {
-	return purego_func_duckdb_prepare(conn, query, uintptr(unsafe.Pointer(stmt)))
+	return purego_func_duckdb_prepare(conn, query, stmt)
 }
 
 func DestroyPrepare(stmt *PreparedStatement) {
-	purego_func_duckdb_destroy_prepare(uintptr(unsafe.Pointer(stmt)))
+	purego_func_duckdb_destroy_prepare(stmt)
 }
 
 func PrepareError(stmt PreparedStatement) string {
@@ -300,7 +300,7 @@ func FetchChunk(result Result) DataChunk {
 }
 
 func DestroyDataChunk(chunk *DataChunk) {
-	purego_func_duckdb_destroy_data_chunk(uintptr(unsafe.Pointer(chunk)))
+	purego_func_duckdb_destroy_data_chunk(chunk)
 }
 
 func DataChunkGetSize(chunk DataChunk) uint64 {
@@ -350,7 +350,7 @@ func DecimalScale(logicalType LogicalType) uint8 {
 }
 
 func DestroyLogicalType(logicalType *LogicalType) {
-	purego_func_duckdb_destroy_logical_type(uintptr(unsafe.Pointer(logicalType)))
+	purego_func_duckdb_destroy_logical_type(logicalType)
 }
 
 // Memory
