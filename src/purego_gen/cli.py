@@ -68,7 +68,9 @@ def _run_gen(options: GenOptions) -> int:
     )
 
     try:
-        formatted = render_formatted_go_source(generator_config, filtered_declarations)
+        formatted = render_formatted_go_source(
+            generator_config, filtered_declarations, skip_gofmt=options.skip_gofmt
+        )
     except (RendererError, RuntimeError) as error:
         return _fail(str(error))
 

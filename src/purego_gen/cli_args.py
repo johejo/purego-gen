@@ -17,6 +17,7 @@ class GenOptions:
 
     config_path: str
     out: str
+    skip_gofmt: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +48,7 @@ class _GenArgs(argparse.Namespace):
 
     config: str
     out: str
+    skip_gofmt: bool
 
 
 class _InspectArgs(argparse.Namespace):
@@ -90,6 +92,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default="-",
         metavar="PATH",
         help="Output file path. Use '-' (or omit) to write to stdout.",
+    )
+    gen_parser.add_argument(
+        "--skip-gofmt",
+        action="store_true",
+        default=False,
+        help="Skip gofmt formatting of the generated output.",
     )
 
     # inspect subcommand
@@ -157,6 +165,7 @@ def parse_options(argv: list[str]) -> GenOptions | InspectOptions:
         return GenOptions(
             config_path=gen_ns.config,
             out=gen_ns.out,
+            skip_gofmt=gen_ns.skip_gofmt,
         )
 
     if namespace.subcommand == "inspect":

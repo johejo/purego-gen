@@ -110,11 +110,16 @@ def parse_and_filter(config: GeneratorConfig) -> tuple[ParsedDeclarations, Parse
     return declarations, apply_cli_filters(config, declarations)
 
 
-def render_formatted_go_source(config: GeneratorConfig, declarations: ParsedDeclarations) -> str:
-    """Render Go source and format via gofmt.
+def render_formatted_go_source(
+    config: GeneratorConfig,
+    declarations: ParsedDeclarations,
+    *,
+    skip_gofmt: bool = False,
+) -> str:
+    """Render Go source and optionally format via gofmt.
 
     Returns:
-        Rendered and gofmt-formatted Go source text.
+        Rendered (and optionally gofmt-formatted) Go source text.
     """
     rendered = render_go_source(
         package=config.package,
@@ -123,6 +128,8 @@ def render_formatted_go_source(config: GeneratorConfig, declarations: ParsedDecl
         declarations=declarations,
         render=config.render,
     )
+    if skip_gofmt:
+        return rendered
     return format_go_source(rendered)
 
 
