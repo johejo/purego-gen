@@ -147,6 +147,7 @@ def _build_opaque_pointer_alias_type_by_typedef_name(
         typedef.name: identifier
         for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
     }
+    typedef_by_name = {typedef.name: typedef for typedef in declarations.typedefs}
     alias_type_by_typedef_name: dict[str, str] = {}
     for typedef_name in emitted_opaque_pointer_typedef_names:
         identifier = type_identifier_by_name.get(typedef_name)
@@ -154,7 +155,6 @@ def _build_opaque_pointer_alias_type_by_typedef_name(
             continue
         alias_name = naming.type_name(identifier)
         alias_type_by_typedef_name[typedef_name] = alias_name
-        typedef_by_name = {typedef.name: typedef for typedef in declarations.typedefs}
         typedef = typedef_by_name.get(typedef_name)
         if typedef is None:
             continue

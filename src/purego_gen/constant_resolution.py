@@ -104,7 +104,6 @@ def normalize_comment_lines(comment: str | None) -> tuple[str, ...]:
         return ()
 
     is_block = normalized.startswith("/*") and normalized.endswith("*/")
-    raw_lines = tuple(normalized.split("\n"))
     processed: list[str] = []
 
     if is_block:
@@ -114,7 +113,7 @@ def normalize_comment_lines(comment: str | None) -> tuple[str, ...]:
             processed.append(stripped_line.strip())
         return trim_comment_blank_edges(tuple(processed))
 
-    for line in raw_lines:
+    for line in normalized.split("\n"):
         stripped_line = re.sub(r"^\s*/// ?", "", line)
         stripped_line = re.sub(r"^\s*// ?", "", stripped_line)
         processed.append(stripped_line.strip())
