@@ -1,8 +1,6 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
 python_src_prefix := "scripts/uv-run-python-src.sh"
-go_cache_env := "XDG_CACHE_HOME=$PWD/.cache GOMODCACHE=$PWD/.cache/gomod GOCACHE=$PWD/.cache/go-build STATICCHECK_CACHE=$PWD/.cache/staticcheck"
-
 default:
   @just --list
 
@@ -40,16 +38,13 @@ test:
   uv run pytest
 
 go-vet:
-  mkdir -p .cache/gomod .cache/go-build .cache/staticcheck
-  env {{go_cache_env}} go vet ./...
+  go vet ./...
 
 go-staticcheck:
-  mkdir -p .cache/gomod .cache/go-build .cache/staticcheck
-  env {{go_cache_env}} staticcheck ./...
+  staticcheck ./...
 
 go-test:
-  mkdir -p .cache/gomod .cache/go-build .cache/staticcheck
-  env {{go_cache_env}} go test ./...
+  go test ./...
 
 inspect-libzstd:
   {{python_src_prefix}} scripts/inspect_target_library.py --header-path "$PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR/zstd.h"

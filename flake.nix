@@ -45,7 +45,7 @@
             libclang
             jinja2
             pydantic
-            pythonPkgs."annotated-types"
+            "annotated-types"
           ];
           mkPythonApplication =
             args:
@@ -80,12 +80,21 @@
               postFixup = ''
                 wrapProgram "$out/bin/${mainProgram}" \
                   --set LIBCLANG_PATH "${pkgs.libclang.lib}/lib" \
-                  --set PUREGO_GEN_TEMPLATE_DIR "$out/share/purego-gen/templates"${extraWrapArgs}
+                  --set PUREGO_GEN_TEMPLATE_DIR "$out/share/purego-gen/templates" \
+                  ${extraWrapArgs}
               '';
               meta = commonPythonAppMeta // {
                 inherit description mainProgram;
               };
             };
+          testLibEnvVars = {
+            PUREGO_GEN_TEST_LIBCLANG_INCLUDE_DIR = "${pkgs.libclang.dev}/include";
+            PUREGO_GEN_TEST_LIBCLANG_LIB_DIR = "${pkgs.libclang.lib}/lib";
+            PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR = "${pkgs.zstd.dev}/include";
+            PUREGO_GEN_TEST_LIBZSTD_LIB_DIR = "${pkgs.zstd.out}/lib";
+            PUREGO_GEN_TEST_LIBSQLITE3_INCLUDE_DIR = "${pkgs.sqlite.dev}/include";
+            PUREGO_GEN_TEST_LIBSQLITE3_LIB_DIR = "${pkgs.sqlite.out}/lib";
+          };
           puregoGenPackage = mkPackagedPuregoGenApplication {
             pname = "purego-gen";
             mainProgram = "purego-gen";
@@ -100,28 +109,23 @@
               "purego_gen"
               "purego_gen_e2e"
             ];
-            extraWrapArgs = ''
-              \
-                  --prefix PATH : "$out/bin:${
-                    lib.makeBinPath [
-                      pkgs.clang
-                      pkgs.git
-                      pkgs.go
-                      pkgs.sqlite
-                    ]
-                  }" \
-                  --set PUREGO_GEN_TEST_LIBCLANG_INCLUDE_DIR "${pkgs.libclang.dev}/include" \
-                  --set PUREGO_GEN_TEST_LIBCLANG_LIB_DIR "${pkgs.libclang.lib}/lib" \
-                  --set PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR "${pkgs.zstd.dev}/include" \
-                  --set PUREGO_GEN_TEST_LIBZSTD_LIB_DIR "${pkgs.zstd.out}/lib" \
-                  --set PUREGO_GEN_TEST_LIBSQLITE3_INCLUDE_DIR "${pkgs.sqlite.dev}/include" \
-                  --set PUREGO_GEN_TEST_LIBSQLITE3_LIB_DIR "${pkgs.sqlite.out}/lib"
-            '';
+            extraWrapArgs =
+              let
+                envSetArgs = lib.concatStringsSep " \\\n                  " (
+                  lib.mapAttrsToList (name: value: ''--set ${name} "${value}"'') testLibEnvVars
+                );
+              in
+              ''
+                --prefix PATH : "$out/bin:${
+                  lib.makeBinPath [
+                    pkgs.clang
+                    pkgs.git
+                    pkgs.go
+                  ]
+                }" \
+                  ${envSetArgs}
+              '';
           };
-          codingAgentEnvGuard = pkgs.writeShellScriptBin "env" ''
-            echo "purego-gen: coding-agent blocks env. In most cases, run commands directly (for example: uv run ...); required cache env vars are already set by shellHook." >&2
-            exit 1
-          '';
           commonPackages = with pkgs; [
             actionlint
             bash
@@ -133,7 +137,6 @@
             gnugrep
             jq
             just
-            libclang
             nixfmt
             pkg-config
             python314
@@ -145,21 +148,6 @@
             zstd
             treefmt
           ];
-          mkDevShell =
-            extra:
-            pkgs.mkShell (
-              {
-                packages = commonPackages;
-                LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-                PUREGO_GEN_TEST_LIBCLANG_INCLUDE_DIR = "${pkgs.libclang.dev}/include";
-                PUREGO_GEN_TEST_LIBCLANG_LIB_DIR = "${pkgs.libclang.lib}/lib";
-                PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR = "${pkgs.zstd.dev}/include";
-                PUREGO_GEN_TEST_LIBZSTD_LIB_DIR = "${pkgs.zstd.out}/lib";
-                PUREGO_GEN_TEST_LIBSQLITE3_INCLUDE_DIR = "${pkgs.sqlite.dev}/include";
-                PUREGO_GEN_TEST_LIBSQLITE3_LIB_DIR = "${pkgs.sqlite.out}/lib";
-              }
-              // extra
-            );
           sources = pkgs.callPackage ./_sources/generated.nix { };
         in
         {
@@ -198,41 +186,27 @@
             };
 
           devShells = {
-            default = mkDevShell {
-              shellHook = ''
-                if [ -n "''${CODEX_SHELL:-}" ] || [ -n "''${CODEX_CI:-}" ]; then
-                  echo "purego-gen: in Codex, use 'nix develop .#coding-agent -c ...' instead of 'nix develop -c ...'." >&2
-                  exit 1
-                fi
-              '';
-            };
-            coding-agent = mkDevShell {
-              packages = [ codingAgentEnvGuard ] ++ commonPackages;
-              shellHook = ''
-                guarded_env_vars="
-                XDG_CACHE_HOME
-                GOMODCACHE
-                GOCACHE
-                CCACHE_DIR
-                CCACHE_BASEDIR
-                CCACHE_NOHASHDIR
-                UV_PROJECT_ENVIRONMENT
-                "
-                for var_name in $guarded_env_vars; do
-                  if printenv "$var_name" >/dev/null 2>&1; then
-                    echo "purego-gen: coding-agent automatically sets $var_name to shell; you don't have to set/unset them." >&2
+            default = pkgs.mkShell (
+              {
+                packages = commonPackages;
+                LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+                shellHook = ''
+                  if [ "''${PUREGO_GEN_DEVSHELL:-}" = "1" ]; then
+                    echo "purego-gen: already inside devshell; do not nest nix develop." >&2
                     exit 1
                   fi
-                done
-                export XDG_CACHE_HOME="$PWD/.cache"
-                export GOMODCACHE="$PWD/.cache/gomod"
-                export GOCACHE="$PWD/.cache/go-build"
-                export CCACHE_DIR="$PWD/.cache/ccache"
-                export CCACHE_BASEDIR="$PWD"
-                export CCACHE_NOHASHDIR=1
-                export UV_PROJECT_ENVIRONMENT=.venv
-              '';
-            };
+                  export PUREGO_GEN_DEVSHELL=1
+                  export XDG_CACHE_HOME="$PWD/.cache"
+                  export GOMODCACHE="$PWD/.cache/gomod"
+                  export GOCACHE="$PWD/.cache/go-build"
+                  export CCACHE_DIR="$PWD/.cache/ccache"
+                  export CCACHE_BASEDIR="$PWD"
+                  export CCACHE_NOHASHDIR=1
+                  export UV_PROJECT_ENVIRONMENT=.venv
+                '';
+              }
+              // testLibEnvVars
+            );
           };
         }
       );
