@@ -26,7 +26,8 @@ var (
 
     {% endif %}
 {% endif %}
-{% if "type" in emit_kinds and type_aliases %}
+{% set has_type_block = ("type" in emit_kinds and type_aliases) or func_type_aliases %}
+{% if has_type_block %}
 type (
     {% for type_alias in type_aliases %}
         {% if type_alias.comment_lines %}

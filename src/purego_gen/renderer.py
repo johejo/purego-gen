@@ -25,7 +25,7 @@ from purego_gen.c_type_utils import (
     normalize_c_type_for_lookup,
     normalize_function_pointer_c_type_for_lookup,
 )
-from purego_gen.config_model import GeneratorNaming, GeneratorRenderSpec
+from purego_gen.config_model import GeneratorHelpers, GeneratorNaming, GeneratorRenderSpec
 from purego_gen.emit_kinds import validate_emit_kinds
 from purego_gen.helper_rendering import (
     FunctionParameterContext,
@@ -688,6 +688,145 @@ def _build_func_type_and_newcallback_contexts(
     return tuple(func_type_aliases), tuple(newcallback_helpers)
 
 
+def _collect_callback_param_entries(
+    *,
+    declarations: ParsedDeclarations,
+    helpers: GeneratorHelpers,
+    type_resolver: HelperTypeResolver,
+) -> dict[str, list[tuple[str, str, str]]]:
+    """Collect non-typedef-backed callback parameters grouped by effective name.
+
+    Returns:
+        Mapping from effective parameter name to list of
+        ``(function_name, go_func_type, c_type)`` tuples.
+    """
+    functions_by_name = {function.name: function for function in declarations.functions}
+    param_entries: dict[str, list[tuple[str, str, str]]] = {}
+
+    for helper in helpers.callback_inputs:
+        function = functions_by_name.get(helper.function)
+        if function is None:
+            continue
+        targeted = set(helper.parameters)
+        # Resolve parameter contexts to obtain effective names via the same
+        # path used by _resolve_function_parameters (raw_name or sanitized).
+        resolved_params = build_function_parameters_context(
+            parameter_names=function.parameter_names,
+            go_parameter_types=function.go_parameter_types,
+            parameter_c_types=function.parameter_c_types,
+            type_resolver=type_resolver,
+        )
+        for raw_name, c_type, context in zip(
+            function.parameter_names,
+            function.parameter_c_types,
+            resolved_params,
+            strict=True,
+        ):
+            effective_name = raw_name or context["name"]
+            if effective_name not in targeted:
+                continue
+            if context["type"] != "uintptr":
+                continue
+            try:
+                go_func_type = type_resolver.build_callback_func_type(c_type=c_type)
+            except HelperRenderingError:
+                continue
+            if effective_name not in param_entries:
+                param_entries[effective_name] = []
+            param_entries[effective_name].append((helper.function, go_func_type, c_type))
+
+    return param_entries
+
+
+def _make_callback_param_type_entry(
+    *,
+    type_name: str,
+    helper_name: str,
+    go_func_type: str,
+    c_type: str,
+) -> tuple[_FuncTypeAliasContext, _NewCallbackHelperContext]:
+    """Build one func-type alias and NewCallback helper entry pair.
+
+    Returns:
+        Tuple of func-type alias context and NewCallback helper context.
+    """
+    return (
+        {"name": type_name, "go_type": go_func_type, "c_type_comment": c_type},
+        {"name": helper_name, "param_type": type_name, "return_type": "uintptr"},
+    )
+
+
+def _build_callback_param_func_type_contexts(
+    *,
+    declarations: ParsedDeclarations,
+    helpers: GeneratorHelpers,
+    type_resolver: HelperTypeResolver,
+    naming: GeneratorNaming,
+) -> tuple[
+    tuple[_FuncTypeAliasContext, ...],
+    tuple[_NewCallbackHelperContext, ...],
+    dict[tuple[str, str], str],
+]:
+    """Build func-type alias and NewCallback helper contexts for callback parameters.
+
+    Returns:
+        Tuple of func-type alias contexts, NewCallback helper contexts,
+        and callback parameter type override mapping.  Override keys are
+        ``(raw_c_function_name, effective_param_name)`` where the effective
+        param name uses the same fallback logic as
+        ``ResolvedFunctionParameter.raw_name`` (sanitized name when the
+        original C name is empty).
+    """
+    if not helpers.callback_inputs:
+        return (), (), {}
+
+    param_entries = _collect_callback_param_entries(
+        declarations=declarations,
+        helpers=helpers,
+        type_resolver=type_resolver,
+    )
+
+    func_type_aliases: list[_FuncTypeAliasContext] = []
+    newcallback_helpers: list[_NewCallbackHelperContext] = []
+    overrides: dict[tuple[str, str], str] = {}
+
+    for param_name, entries in param_entries.items():
+        unique_signatures = {sig for _, sig, _ in entries}
+        if len(unique_signatures) == 1:
+            type_name = naming.callback_func_type_name(param_name)
+            alias, helper = _make_callback_param_type_entry(
+                type_name=type_name,
+                helper_name=naming.callback_newcallback_name(param_name),
+                go_func_type=entries[0][1],
+                c_type=entries[0][2],
+            )
+            func_type_aliases.append(alias)
+            newcallback_helpers.append(helper)
+            for function_name, _, _ in entries:
+                overrides[function_name, param_name] = type_name
+        else:
+            sig_to_type: dict[str, str] = {}
+            for function_name, go_func_type, c_type in entries:
+                if go_func_type in sig_to_type:
+                    overrides[function_name, param_name] = sig_to_type[go_func_type]
+                    continue
+                type_name = naming.callback_func_type_name_qualified(function_name, param_name)
+                alias, helper = _make_callback_param_type_entry(
+                    type_name=type_name,
+                    helper_name=naming.callback_newcallback_name_qualified(
+                        function_name, param_name
+                    ),
+                    go_func_type=go_func_type,
+                    c_type=c_type,
+                )
+                func_type_aliases.append(alias)
+                newcallback_helpers.append(helper)
+                sig_to_type[go_func_type] = type_name
+                overrides[function_name, param_name] = type_name
+
+    return tuple(func_type_aliases), tuple(newcallback_helpers), overrides
+
+
 def _build_context(
     *,
     package: str,
@@ -733,16 +872,23 @@ def _build_context(
         typedef_go_type_by_lookup=typedef_go_type_by_lookup,
         typedef_c_type_by_lookup=build_typedef_c_type_by_lookup(declarations),
     )
+
+    callback_param_contexts = _build_callback_param_func_type_contexts(
+        declarations=declarations,
+        helpers=render.helpers,
+        type_resolver=type_resolver,
+        naming=render.naming,
+    )
     try:
         helper_contexts = build_function_helpers(
             function_identifier_by_name=function_identifier_by_name,
             declarations=declarations,
             helpers=render.helpers,
             type_resolver=type_resolver,
+            callback_param_type_overrides=callback_param_contexts[2],
         )
     except HelperRenderingError as error:
         raise RendererError(str(error)) from error
-
     func_type_aliases, newcallback_helpers = _build_func_type_and_newcallback_contexts(
         declarations=declarations,
         type_identifiers=type_identifiers,
@@ -750,6 +896,8 @@ def _build_context(
         naming=render.naming,
         type_resolver=type_resolver,
     )
+    func_type_aliases += callback_param_contexts[0]
+    newcallback_helpers += callback_param_contexts[1]
 
     return {
         "package": package,

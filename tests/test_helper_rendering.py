@@ -299,10 +299,12 @@ def test_render_go_source_emits_callback_input_helper_functions() -> None:
     expected_signature = (
         "func purego_func_fixture_register_hook_callbacks("
         " ctx *purego_type_fixture_ctx_t,"
-        " callback func(uintptr, int32) int32,"
+        " callback purego_type_callback_func,"
         " user_data uintptr, ) int32 {"
     )
     assert expected_signature in normalized_source
+    assert "purego_type_callback_func = func(uintptr, int32) int32" in source
+    assert "func purego_new_callback(fn purego_type_callback_func) uintptr {" in source
     assert "callback_callback := uintptr(0)" in source
     assert "if callback != nil {" in source
     assert "callback_callback = purego.NewCallback(callback)" in source
@@ -399,9 +401,10 @@ def test_render_go_source_emits_callback_input_helper_for_opaque_and_pointer_arg
     )
 
     normalized_source = " ".join(source.split())
+    assert "callback purego_type_callback_func," in normalized_source
     assert (
-        "callback func(*purego_type_fixture_ctx_t, int32, **purego_type_fixture_value_t)"
-        in normalized_source
+        "purego_type_callback_func = func(*purego_type_fixture_ctx_t, int32, "
+        "**purego_type_fixture_value_t)" in normalized_source
     )
 
 

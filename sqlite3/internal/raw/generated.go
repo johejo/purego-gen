@@ -15,17 +15,27 @@ var (
 )
 
 type (
-	purego_type_sqlite3                      struct{}        // struct sqlite3
-	purego_type_sqlite3_int64                = int64         // sqlite_int64
-	purego_type_sqlite3_stmt                 struct{}        // struct sqlite3_stmt
-	purego_type_sqlite3_value                struct{}        // struct sqlite3_value
-	purego_type_sqlite3_context              struct{}        // struct sqlite3_context
-	purego_type_sqlite3_destructor_type      = uintptr       // void (*)(void *)
-	purego_type_sqlite3_destructor_type_func = func(uintptr) // void (*)(void *)
+	purego_type_sqlite3                      struct{}                                                                 // struct sqlite3
+	purego_type_sqlite3_int64                = int64                                                                  // sqlite_int64
+	purego_type_sqlite3_stmt                 struct{}                                                                 // struct sqlite3_stmt
+	purego_type_sqlite3_value                struct{}                                                                 // struct sqlite3_value
+	purego_type_sqlite3_context              struct{}                                                                 // struct sqlite3_context
+	purego_type_sqlite3_destructor_type      = uintptr                                                                // void (*)(void *)
+	purego_type_sqlite3_destructor_type_func = func(uintptr)                                                          // void (*)(void *)
+	purego_type_xFunc_func                   = func(*purego_type_sqlite3_context, int32, **purego_type_sqlite3_value) // void (*)(sqlite3_context *, int, sqlite3_value **)
+	purego_type_xCompare_func                = func(uintptr, int32, uintptr, int32, uintptr) int32                    // int (*)(void *, int, const void *, int, const void *)
 )
 
 func purego_new_sqlite3_destructor_type(fn purego_type_sqlite3_destructor_type_func) purego_type_sqlite3_destructor_type {
 	return purego_type_sqlite3_destructor_type(purego.NewCallback(fn))
+}
+
+func purego_new_xFunc(fn purego_type_xFunc_func) uintptr {
+	return uintptr(purego.NewCallback(fn))
+}
+
+func purego_new_xCompare(fn purego_type_xCompare_func) uintptr {
+	return uintptr(purego.NewCallback(fn))
 }
 
 const (
@@ -312,7 +322,7 @@ func purego_func_sqlite3_create_function_v2_callbacks(
 	nArg int32,
 	eTextRep int32,
 	pApp uintptr,
-	xFunc func(*purego_type_sqlite3_context, int32, **purego_type_sqlite3_value),
+	xFunc purego_type_xFunc_func,
 	xStep uintptr,
 	xFinal uintptr,
 	xDestroy func(uintptr),
@@ -342,7 +352,7 @@ func purego_func_sqlite3_create_collation_v2_callbacks(
 	zName string,
 	eTextRep int32,
 	pArg uintptr,
-	xCompare func(uintptr, int32, uintptr, int32, uintptr) int32,
+	xCompare purego_type_xCompare_func,
 	xDestroy func(uintptr),
 ) int32 {
 	xCompare_callback := uintptr(0)

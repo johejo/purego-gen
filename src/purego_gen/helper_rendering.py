@@ -304,6 +304,7 @@ def build_function_helpers(
     declarations: ParsedDeclarations,
     helpers: GeneratorHelpers,
     type_resolver: HelperTypeResolver,
+    callback_param_type_overrides: Mapping[tuple[str, str], str] | None = None,
 ) -> tuple[FunctionHelperContext, ...]:
     """Build rendered helper contexts after validating configured helper specs.
 
@@ -333,6 +334,7 @@ def build_function_helpers(
             )
         )
 
+    effective_overrides: Mapping[tuple[str, str], str] = callback_param_type_overrides or {}
     for helper in helpers.callback_inputs:
         function = functions_by_name.get(helper.function)
         if function is None:
@@ -344,6 +346,7 @@ def build_function_helpers(
                 function=function,
                 callback_parameters=helper.parameters,
                 type_resolver=type_resolver,
+                callback_param_type_overrides=effective_overrides,
             )
         )
 
@@ -630,6 +633,7 @@ def _build_callback_helper_context(
     function: FunctionDecl,
     callback_parameters: tuple[str, ...],
     type_resolver: HelperTypeResolver,
+    callback_param_type_overrides: Mapping[tuple[str, str], str],
 ) -> FunctionHelperContext:
     resolved_parameters = _resolve_function_parameters(
         parameter_names=function.parameter_names,
@@ -658,9 +662,15 @@ def _build_callback_helper_context(
             })
             call_arguments.append(parameter.name)
             continue
+        override_type = callback_param_type_overrides.get((function.name, parameter.raw_name))
+        wrapper_type = (
+            override_type
+            if override_type is not None
+            else type_resolver.build_callback_func_type(c_type=parameter.c_type)
+        )
         wrapper_parameters.append({
             "name": parameter.name,
-            "type": type_resolver.build_callback_func_type(c_type=parameter.c_type),
+            "type": wrapper_type,
             "c_type_comment": "",
         })
         locals_context.append({

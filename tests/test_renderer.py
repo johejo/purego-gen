@@ -6,7 +6,12 @@ from __future__ import annotations
 
 import pytest
 
-from purego_gen.config_model import GeneratorHelpers, GeneratorNaming, GeneratorRenderSpec
+from purego_gen.config_model import (
+    CallbackInputHelper,
+    GeneratorHelpers,
+    GeneratorNaming,
+    GeneratorRenderSpec,
+)
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
     ConstantDecl,
@@ -470,3 +475,200 @@ def test_render_go_source_generates_void_callback_func_type() -> None:
         "func purego_new_fixture_destructor_t(fn purego_type_fixture_destructor_t_func) "
         "purego_type_fixture_destructor_t {" in source
     )
+
+
+def test_render_go_source_generates_named_func_type_for_callback_params() -> None:
+    """Non-typedef callback params should generate named func types and NewCallback helpers."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func", "type"),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_register",
+                    result_c_type="int",
+                    parameter_c_types=("void (*)(int)",),
+                    parameter_names=("on_event",),
+                    go_result_type="int32",
+                    go_parameter_types=("uintptr",),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                callback_inputs=(
+                    CallbackInputHelper(
+                        function="fixture_register",
+                        parameters=("on_event",),
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    assert "purego_type_on_event_func = func(int32)" in source
+    assert "func purego_new_on_event(fn purego_type_on_event_func) uintptr {" in source
+    assert "return uintptr(purego.NewCallback(fn))" in source
+    normalized_source = " ".join(source.split())
+    assert "on_event purego_type_on_event_func," in normalized_source
+
+
+def test_render_go_source_skips_named_func_type_for_typedef_backed_callback_params() -> None:
+    """Typedef-backed callback params should not generate additional named types."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func", "type"),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_set_hook",
+                    result_c_type="void",
+                    parameter_c_types=("fixture_callback_t",),
+                    parameter_names=("hook",),
+                    go_result_type=None,
+                    go_parameter_types=("uintptr",),
+                ),
+            ),
+            typedefs=(
+                TypedefDecl(
+                    name="fixture_callback_t",
+                    c_type="int (*)(int)",
+                    go_type="uintptr",
+                ),
+            ),
+            constants=(),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                callback_inputs=(
+                    CallbackInputHelper(
+                        function="fixture_set_hook",
+                        parameters=("hook",),
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    # Typedef-derived types should exist
+    assert "purego_type_fixture_callback_t_func = func(int32) int32" in source
+    # No additional callback-param-derived type for "hook"
+    assert "purego_type_hook_func" not in source
+
+
+def test_render_go_source_qualifies_callback_param_names_on_signature_conflict() -> None:
+    """Same param name with different signatures should get function-qualified names."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_fn_a",
+                    result_c_type="void",
+                    parameter_c_types=("int (*)(void *)",),
+                    parameter_names=("handler",),
+                    go_result_type=None,
+                    go_parameter_types=("uintptr",),
+                ),
+                FunctionDecl(
+                    name="fixture_fn_b",
+                    result_c_type="void",
+                    parameter_c_types=("void (*)(void *, int)",),
+                    parameter_names=("handler",),
+                    go_result_type=None,
+                    go_parameter_types=("uintptr",),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                callback_inputs=(
+                    CallbackInputHelper(
+                        function="fixture_fn_a",
+                        parameters=("handler",),
+                    ),
+                    CallbackInputHelper(
+                        function="fixture_fn_b",
+                        parameters=("handler",),
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    assert "purego_type_fixture_fn_a_handler_func = func(uintptr) int32" in source
+    assert "purego_type_fixture_fn_b_handler_func = func(uintptr, int32)" in source
+    assert "func purego_new_fixture_fn_a_handler(" in source
+    assert "func purego_new_fixture_fn_b_handler(" in source
+    # Simple name should NOT exist
+    assert "purego_type_handler_func" not in source
+
+
+def test_render_go_source_deduplicates_same_signature_callback_params() -> None:
+    """Same param name with same signature across functions should generate one type."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_fn_a",
+                    result_c_type="void",
+                    parameter_c_types=("void (*)(int)",),
+                    parameter_names=("on_done",),
+                    go_result_type=None,
+                    go_parameter_types=("uintptr",),
+                ),
+                FunctionDecl(
+                    name="fixture_fn_b",
+                    result_c_type="void",
+                    parameter_c_types=("void (*)(int)",),
+                    parameter_names=("on_done",),
+                    go_result_type=None,
+                    go_parameter_types=("uintptr",),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                callback_inputs=(
+                    CallbackInputHelper(
+                        function="fixture_fn_a",
+                        parameters=("on_done",),
+                    ),
+                    CallbackInputHelper(
+                        function="fixture_fn_b",
+                        parameters=("on_done",),
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    # Should generate one simple-named type, not qualified
+    assert "purego_type_on_done_func = func(int32)" in source
+    assert "func purego_new_on_done(fn purego_type_on_done_func) uintptr {" in source
+    normalized_source = " ".join(source.split())
+    assert "on_done purego_type_on_done_func," in normalized_source
+    # Should NOT have qualified names
+    assert "purego_type_fixture_fn_a_on_done_func" not in source
+    assert "purego_type_fixture_fn_b_on_done_func" not in source
