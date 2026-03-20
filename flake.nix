@@ -45,7 +45,7 @@
             libclang
             jinja2
             pydantic
-            "annotated-types"
+            annotated-types
           ];
           mkPythonApplication =
             args:
