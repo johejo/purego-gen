@@ -579,13 +579,14 @@ def _build_typedef_render_helpers(
     set[str],
     set[str],
     set[str],
+    set[str],
 ]:
     """Build typedef-related lookups and emitted-name sets used during rendering.
 
     Returns:
         Function-signature alias lookups, typedef alias lookup, typedef Go-type
-        lookup, opaque typedef names, strict enum typedef names, and opaque
-        pointer typedef names.
+        lookup, opaque typedef names, strict enum typedef names, opaque
+        pointer typedef names, and record typedef names.
     """
     emitted_record_typedef_names = _build_emitted_record_typedef_names(
         emit_kinds=emit_kinds,
@@ -647,6 +648,7 @@ def _build_typedef_render_helpers(
         emitted_opaque_struct_typedef_names,
         emitted_strict_enum_typedef_names,
         emitted_opaque_pointer_typedef_names,
+        emitted_record_typedef_names,
     )
 
 
@@ -895,7 +897,10 @@ def _build_context(
     typedef_alias_type_by_lookup = typedef_render_helpers[1]
     typedef_go_type_by_lookup = typedef_render_helpers[2]
     emitted_strict_typedef_names = (
-        typedef_render_helpers[3] | typedef_render_helpers[4] | typedef_render_helpers[5]
+        typedef_render_helpers[3]
+        | typedef_render_helpers[4]
+        | typedef_render_helpers[5]
+        | typedef_render_helpers[6]
     )
     function_identifier_by_name = {
         function.name: identifier

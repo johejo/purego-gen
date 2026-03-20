@@ -32,10 +32,10 @@ type (
 	purego_type_idx_t = uint64
 	// ! DATE is stored as days since 1970-01-01.
 	// ! Use the `duckdb_from_date` and `duckdb_to_date` functions to extract individual information.
-	purego_type_duckdb_date = struct {
+	purego_type_duckdb_date struct {
 		days int32
 	}
-	purego_type_duckdb_date_struct = struct {
+	purego_type_duckdb_date_struct struct {
 		year  int32
 		month int8
 		day   int8
@@ -43,10 +43,10 @@ type (
 	}
 	// ! TIME is stored as microseconds since 00:00:00.
 	// ! Use the `duckdb_from_time` and `duckdb_to_time` functions to extract individual information.
-	purego_type_duckdb_time = struct {
+	purego_type_duckdb_time struct {
 		micros int64
 	}
-	purego_type_duckdb_time_struct = struct {
+	purego_type_duckdb_time_struct struct {
 		hour   int8
 		min    int8
 		sec    int8
@@ -55,10 +55,10 @@ type (
 	}
 	// ! TIMESTAMP is stored as microseconds since 1970-01-01.
 	// ! Use the `duckdb_from_timestamp` and `duckdb_to_timestamp` functions to extract individual information.
-	purego_type_duckdb_timestamp = struct {
+	purego_type_duckdb_timestamp struct {
 		micros int64
 	}
-	purego_type_duckdb_timestamp_struct = struct {
+	purego_type_duckdb_timestamp_struct struct {
 		date struct {
 			year  int32
 			month int8
@@ -74,7 +74,7 @@ type (
 		}
 	}
 	// ! INTERVAL is stored in months, days, and micros.
-	purego_type_duckdb_interval = struct {
+	purego_type_duckdb_interval struct {
 		months int32
 		days   int32
 		micros int64
@@ -82,13 +82,13 @@ type (
 	// ! HUGEINT is composed of a lower and upper component.
 	// ! Its value is upper * 2^64 + lower.
 	// ! For simplified usage, use `duckdb_hugeint_to_double` and `duckdb_double_to_hugeint`.
-	purego_type_duckdb_hugeint = struct {
+	purego_type_duckdb_hugeint struct {
 		lower uint64
 		upper int64
 	}
 	// ! DECIMAL is composed of a width and a scale.
 	// ! Their value is stored in a HUGEINT.
-	purego_type_duckdb_decimal = struct {
+	purego_type_duckdb_decimal struct {
 		width uint8
 		scale uint8
 		_     [6]byte
@@ -100,7 +100,7 @@ type (
 	// ! A column consists of a pointer to its internal data. Don't operate on this type directly.
 	// ! Instead, use functions such as `duckdb_column_data`, `duckdb_nullmask_data`,
 	// ! `duckdb_column_type`, and `duckdb_column_name`.
-	purego_type_duckdb_column = struct {
+	purego_type_duckdb_column struct {
 		// C: void *
 		deprecated_data     uintptr
 		deprecated_nullmask *bool
@@ -117,21 +117,21 @@ type (
 	purego_type_duckdb_vector uintptr
 	// ! Strings are composed of a `char` pointer and a size.
 	// ! You must free `string.data` with `duckdb_free`.
-	purego_type_duckdb_string = struct {
+	purego_type_duckdb_string struct {
 		// C: char *
 		data uintptr
 		size uint64
 	}
 	// ! BLOBs are composed of a byte pointer and a size.
 	// ! You must free `blob.data` with `duckdb_free`.
-	purego_type_duckdb_blob = struct {
+	purego_type_duckdb_blob struct {
 		// C: void *
 		data uintptr
 		size uint64
 	}
 	// ! A query result consists of a pointer to its internal data.
 	// ! Must be freed with 'duckdb_destroy_result'.
-	purego_type_duckdb_result = struct {
+	purego_type_duckdb_result struct {
 		deprecated_column_count uint64
 		deprecated_row_count    uint64
 		deprecated_rows_changed uint64

@@ -38,13 +38,13 @@ type (
 	// translation unit. clang_getCursor() maps from a physical source location
 	// to the entity that resides at that location, allowing one to map from the
 	// source code into the AST.
-	purego_type_CXCursor = struct {
+	purego_type_CXCursor struct {
 		kind  int32
 		xdata int32
 		data  [3]uintptr
 	}
 	// The type of an element in the abstract syntax tree.
-	purego_type_CXType = struct {
+	purego_type_CXType struct {
 		kind int32
 		_    [4]byte
 		data [2]uintptr
@@ -53,7 +53,7 @@ type (
 	// C: enum CXTokenKind
 	purego_type_CXTokenKind = int32
 	// Describes a single preprocessing token.
-	purego_type_CXToken = struct {
+	purego_type_CXToken struct {
 		int_data [4]uint32
 		// C: void *
 		ptr_data uintptr
@@ -64,7 +64,7 @@ type (
 	// the ownership of that string might differ from one call to the next.
 	// Use \c clang_getCString() to retrieve the string data and, once finished
 	// with the string data, call \c clang_disposeString() to free the string.
-	purego_type_CXString = struct {
+	purego_type_CXString struct {
 		// C: const void *
 		data          uintptr
 		private_flags uint32
@@ -75,7 +75,7 @@ type (
 	//
 	// Use clang_getExpansionLocation() or clang_getSpellingLocation()
 	// to map a source location to a particular file, line, and column.
-	purego_type_CXSourceLocation = struct {
+	purego_type_CXSourceLocation struct {
 		ptr_data [2]uintptr
 		int_data uint32
 		_        [4]byte
@@ -84,7 +84,7 @@ type (
 	//
 	// Use clang_getRangeStart() and clang_getRangeEnd() to retrieve the
 	// starting and end locations from a source range, respectively.
-	purego_type_CXSourceRange = struct {
+	purego_type_CXSourceRange struct {
 		ptr_data       [2]uintptr
 		begin_int_data uint32
 		end_int_data   uint32

@@ -25,7 +25,7 @@ type (
 	purego_type_fixture_name_t = uintptr
 	// C: void *
 	purego_type_fixture_context_t = uintptr
-	purego_type_fixture_point_t   = struct {
+	purego_type_fixture_point_t   struct {
 		left  int32
 		right int32
 		mode  int32
@@ -33,7 +33,7 @@ type (
 		// C: const char *
 		label uintptr
 	}
-	purego_type_fixture_point_alias_t = struct {
+	purego_type_fixture_point_alias_t struct {
 		left  int32
 		right int32
 		mode  int32
@@ -41,7 +41,7 @@ type (
 		// C: const char *
 		label uintptr
 	}
-	purego_type_fixture_nested_point_t = struct {
+	purego_type_fixture_nested_point_t struct {
 		point struct {
 			left  int32
 			right int32
@@ -55,7 +55,7 @@ type (
 		}
 		_ [4]byte
 	}
-	purego_type_fixture_with_array_t = struct {
+	purego_type_fixture_with_array_t struct {
 		values [4]int32
 	}
 	// C: struct fixture_opaque

@@ -15,7 +15,7 @@ var (
 )
 
 type (
-	purego_type_fixture_point_t = struct {
+	purego_type_fixture_point_t struct {
 		left  int32
 		right int32
 	}
