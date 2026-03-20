@@ -85,7 +85,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--config",
         required=True,
         metavar="PATH",
-        help="Generator config JSON path.",
+        help="Generator config JSON path. Use '-' to read from stdin.",
     )
     gen_parser.add_argument(
         "--out",

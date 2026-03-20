@@ -33,6 +33,27 @@ def read_json_text(path: Path, *, missing_label: str = "config") -> str:
         raise RuntimeError(message) from error
 
 
+def validate_json_model[ModelT: BaseModel](
+    text: str,
+    *,
+    model_type: type[ModelT],
+    context: str,
+) -> ModelT:
+    """Validate a JSON string into a pydantic model.
+
+    Returns:
+        Parsed and validated pydantic model instance.
+
+    Raises:
+        RuntimeError: Schema validation fails.
+    """
+    try:
+        return model_type.model_validate_json(text)
+    except ValidationError as error:
+        message = format_validation_error(error, context=context)
+        raise RuntimeError(message) from error
+
+
 def load_json_model[ModelT: BaseModel](
     path: Path,
     *,
@@ -44,17 +65,10 @@ def load_json_model[ModelT: BaseModel](
 
     Returns:
         Parsed and validated pydantic model instance.
-
-    Raises:
-        RuntimeError: The file cannot be read or schema validation fails.
     """
     resolved_path = path.expanduser().resolve()
     raw_text = read_json_text(resolved_path, missing_label=missing_label)
-    try:
-        return model_type.model_validate_json(raw_text)
-    except ValidationError as error:
-        message = format_validation_error(error, context=context)
-        raise RuntimeError(message) from error
+    return validate_json_model(raw_text, model_type=model_type, context=context)
 
 
-__all__ = ["load_json_model", "read_json_text"]
+__all__ = ["load_json_model", "read_json_text", "validate_json_model"]

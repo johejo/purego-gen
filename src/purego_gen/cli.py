@@ -8,7 +8,11 @@ import sys
 from pathlib import Path
 
 from purego_gen.cli_args import GenOptions, InspectOptions, parse_options
-from purego_gen.config_load import load_app_config, resolve_generator_config
+from purego_gen.config_load import (
+    load_app_config,
+    load_app_config_from_text,
+    resolve_generator_config,
+)
 from purego_gen.diagnostics import emit_generation_diagnostics
 from purego_gen.generation_pipeline import (
     ClangParserError,
@@ -50,7 +54,11 @@ def _run_gen(options: GenOptions) -> int:
         Process-style exit code.
     """
     try:
-        app_config = load_app_config(Path(options.config_path))
+        if options.config_path == "-":
+            config_text = sys.stdin.read()
+            app_config = load_app_config_from_text(config_text, base_dir=Path.cwd())
+        else:
+            app_config = load_app_config(Path(options.config_path))
         generator_config = resolve_generator_config(app_config.generator)
     except RuntimeError as error:
         return _fail(str(error))

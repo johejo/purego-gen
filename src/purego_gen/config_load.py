@@ -15,7 +15,7 @@ from purego_gen.config_model import AppConfig, GeneratorSpec, HeaderOverlay, Loc
 from purego_gen.config_normalize import build_generator_spec, resolve_config_path
 from purego_gen.config_schema import AppConfigInput
 from purego_gen.generator_config import GeneratorConfig, build_generator_config
-from purego_gen.json_load import load_json_model, read_json_text
+from purego_gen.json_load import load_json_model, read_json_text, validate_json_model
 
 if TYPE_CHECKING:
     from purego_gen.config_schema import GeneratorInput
@@ -66,6 +66,22 @@ def load_app_config(path: Path) -> AppConfig:
         config_path=resolved_path,
         generator=generator,
     )
+
+
+def load_app_config_from_text(text: str, *, base_dir: Path) -> AppConfig:
+    """Load and validate shared generator config from a JSON string.
+
+    Returns:
+        Parsed generator config.
+    """
+    parsed = validate_json_model(text, model_type=AppConfigInput, context="config `<stdin>`")
+    generator_input = cast("_HasGeneratorInput", parsed).generator
+    generator = build_generator_spec(
+        generator_input,
+        base_dir=base_dir,
+        config_path=base_dir / "<stdin>",
+    )
+    return AppConfig(config_path=base_dir / "<stdin>", generator=generator)
 
 
 def resolve_generator_config(generator: GeneratorSpec) -> GeneratorConfig:
@@ -166,6 +182,7 @@ def dump_signature_payload(path: Path) -> dict[str, object]:
 __all__ = [
     "dump_signature_payload",
     "load_app_config",
+    "load_app_config_from_text",
     "load_generator_config_input",
     "resolve_generator_config",
 ]
