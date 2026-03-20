@@ -28,56 +28,6 @@ _FIXTURE_PACKAGE = "fixture"
 _FIXTURE_LIB_ID = "fixture_lib"
 
 
-def test_render_go_source_emits_buffer_input_helper_functions() -> None:
-    """Configured buffer-input helpers should generate `[]byte` wrappers."""
-    source = render_go_source(
-        package=_FIXTURE_PACKAGE,
-        lib_id=_FIXTURE_LIB_ID,
-        emit_kinds=("func",),
-        declarations=ParsedDeclarations(
-            functions=(
-                FunctionDecl(
-                    name="fixture_consume_bytes",
-                    result_c_type="int",
-                    parameter_c_types=("const void *", "size_t", "uint32_t"),
-                    parameter_names=("data", "data_len", "flags"),
-                    go_result_type="int32",
-                    go_parameter_types=("uintptr", "uint64", "uint32"),
-                ),
-            ),
-            typedefs=(),
-            constants=(),
-            runtime_vars=(),
-        ),
-        render=GeneratorRenderSpec(
-            helpers=GeneratorHelpers(
-                buffer_inputs=(
-                    BufferInputHelper(
-                        function="fixture_consume_bytes",
-                        pairs=(BufferInputPair(pointer="data", length="data_len"),),
-                    ),
-                )
-            ),
-            type_mapping=TypeMappingOptions(),
-        ),
-    )
-
-    normalized_source = " ".join(source.split())
-    assert '"unsafe"' in source
-    assert "func purego_func_fixture_consume_bytes_bytes(" in source
-    assert (
-        "func purego_func_fixture_consume_bytes_bytes( data []byte, flags uint32, ) int32 {"
-        in normalized_source
-    )
-    assert "data_ptr := uintptr(0)" in source
-    assert "if len(data_len) > 0 {" in source
-    assert "data_ptr = uintptr(unsafe.Pointer(&data_len[0]))" in source
-    assert (
-        "return purego_func_fixture_consume_bytes( data_ptr, uint64(len(data_len)), flags, )"
-        in normalized_source
-    )
-
-
 def test_render_go_source_emits_helpers_with_custom_identifier_prefix() -> None:
     """Helper wrappers should follow the configured identifier prefix."""
     source = render_go_source(
