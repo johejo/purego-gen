@@ -7,7 +7,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from purego_gen.cli_args import CliOptions, parse_options
+from purego_gen.cli_args import GenOptions, InspectOptions, parse_options
 from purego_gen.config_load import load_app_config, resolve_generator_config
 from purego_gen.diagnostics import emit_generation_diagnostics
 from purego_gen.generation_pipeline import (
@@ -17,6 +17,7 @@ from purego_gen.generation_pipeline import (
     render_formatted_go_source,
     write_output,
 )
+from purego_gen.inspect_cmd import run_inspect
 
 
 def _system_exit_to_code(error: SystemExit) -> int:
@@ -42,18 +43,12 @@ def _fail(message: str) -> int:
     return 1
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Run the CLI entrypoint.
+def _run_gen(options: GenOptions) -> int:
+    """Run the gen subcommand.
 
     Returns:
         Process-style exit code.
     """
-    args = list(argv) if argv is not None else sys.argv[1:]
-    try:
-        options = parse_options(args)
-    except SystemExit as error:
-        return _system_exit_to_code(error)
-
     try:
         app_config = load_app_config(Path(options.config_path))
         generator_config = resolve_generator_config(app_config.generator)
@@ -88,4 +83,22 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-__all__ = ["CliOptions", "main", "parse_options"]
+def main(argv: list[str] | None = None) -> int:
+    """Run the CLI entrypoint.
+
+    Returns:
+        Process-style exit code.
+    """
+    args = list(argv) if argv is not None else sys.argv[1:]
+    try:
+        options = parse_options(args)
+    except SystemExit as error:
+        return _system_exit_to_code(error)
+
+    if isinstance(options, GenOptions):
+        return _run_gen(options)
+
+    return run_inspect(options)
+
+
+__all__ = ["GenOptions", "InspectOptions", "main", "parse_options"]

@@ -1,6 +1,6 @@
 # Copyright (c) 2026 purego-gen contributors.
 
-"""Smoke tests for `scripts/inspect_target_library.py`."""
+"""Tests for ``purego-gen inspect`` subcommand."""
 
 from __future__ import annotations
 
@@ -14,11 +14,10 @@ from .helper.stdout_assertions import assert_text_contains_fragments
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SRC_DIR = _REPO_ROOT / "src"
-_SCRIPT_PATH = _REPO_ROOT / "scripts" / "inspect_target_library.py"
 
 
-def _run_script(*args: str) -> CommandResult:
-    """Run inspect script via Python for end-to-end behavior checks.
+def _run_inspect(*args: str) -> CommandResult:
+    """Run ``purego-gen inspect`` via subprocess for end-to-end behavior checks.
 
     Returns:
         Completed process result.
@@ -30,16 +29,16 @@ def _run_script(*args: str) -> CommandResult:
         src_path if existing_pythonpath is None else f"{src_path}:{existing_pythonpath}"
     )
     return run_command(
-        [sys.executable, str(_SCRIPT_PATH), *args],
+        [sys.executable, "-m", "purego_gen", "inspect", *args],
         cwd=_REPO_ROOT,
         env=env,
     )
 
 
-def test_inspect_script_exits_zero_for_local_fixture_header() -> None:
-    """Inspect script should complete successfully for local fixture header."""
+def test_inspect_exits_zero_for_local_fixture_header() -> None:
+    """Inspect subcommand should complete successfully for local fixture header."""
     header_path = _REPO_ROOT / "tests" / "fixtures" / "basic.h"
-    result = _run_script(
+    result = _run_inspect(
         "--header-path",
         str(header_path),
         "--sample-size",

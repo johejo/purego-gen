@@ -11,7 +11,7 @@ When using purego, you often need to write a lot of boilerplate code to call C f
 ## Getting Started
 
 ```sh
-nix run github:johejo/purego-gen -- --config /path/to/config.json --out /path/to/generated.go
+nix run github:johejo/purego-gen -- gen --config /path/to/config.json --out /path/to/generated.go
 ```
 
 Config filters can now work in two directions:

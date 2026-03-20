@@ -115,7 +115,7 @@ def _run_cli(*args: str) -> CommandResult:
         src_path if existing_pythonpath is None else f"{src_path}:{existing_pythonpath}"
     )
     return run_command(
-        [sys.executable, "-m", "purego_gen", *args],
+        [sys.executable, "-m", "purego_gen", "gen", *args],
         cwd=_REPO_ROOT,
         env=env,
     )
@@ -125,7 +125,7 @@ def test_help() -> None:
     """`--help` should succeed and expose top-level usage."""
     result = _run_cli("--help")
     assert result.returncode == 0
-    assert "usage: purego-gen" in result.stdout
+    assert "usage: purego-gen gen" in result.stdout
 
 
 def test_reports_inventory_summary_for_enabled_emit_categories(tmp_path: Path) -> None:

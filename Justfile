@@ -46,9 +46,6 @@ go-staticcheck:
 go-test:
   go test ./...
 
-inspect-libzstd:
-  {{python_src_prefix}} scripts/inspect_target_library.py --header-path "$PUREGO_GEN_TEST_LIBZSTD_INCLUDE_DIR/zstd.h"
-
 golden-update:
   {{python_src_prefix}} scripts/golden_cases.py --mode update
 

@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import argparse
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -21,10 +20,8 @@ from purego_gen.emit_kinds import parse_emit_kinds
 from purego_gen.renderer import render_go_source
 
 if TYPE_CHECKING:
+    from purego_gen.cli_args import InspectOptions
     from purego_gen.model import ParsedDeclarations
-
-_DEFAULT_SAMPLE_SIZE = 12
-_DEFAULT_EMIT_KINDS = "func,type,const,var"
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,22 +30,6 @@ class _ResolvedTarget:
 
     header_path: Path
     clang_args: tuple[str, ...]
-
-
-class _ParsedArgs(argparse.Namespace):
-    """Typed argparse namespace for this script."""
-
-    header_path: str
-    clang_args: list[str]
-    sample_size: int
-    render_out: str | None
-    render_lib_id: str | None
-    render_pkg: str
-    render_emit: str
-    func_filter: str | None
-    type_filter: str | None
-    const_filter: str | None
-    var_filter: str | None
 
 
 def _write_line(message: str = "") -> None:
@@ -76,54 +57,6 @@ def _default_lib_id() -> str:
         Fallback lib id.
     """
     return "bindings"
-
-
-def _build_arg_parser() -> argparse.ArgumentParser:
-    """Build CLI parser for the inspection script.
-
-    Returns:
-        Configured argument parser.
-    """
-    parser = argparse.ArgumentParser(
-        description="Inspect parser coverage and optionally render generated Go source.",
-    )
-    parser.add_argument("--header-path", required=True, help="Header file path.")
-    parser.add_argument(
-        "--clang-arg",
-        action="append",
-        default=[],
-        dest="clang_args",
-        help="Additional clang arg. Repeat this flag as needed.",
-    )
-    parser.add_argument(
-        "--sample-size",
-        type=int,
-        default=_DEFAULT_SAMPLE_SIZE,
-        help=f"How many functions/skipped typedefs to sample (default: {_DEFAULT_SAMPLE_SIZE}).",
-    )
-    parser.add_argument(
-        "--render-out",
-        help="Write rendered Go output to path (optional).",
-    )
-    parser.add_argument(
-        "--render-lib-id",
-        help="Library id used when rendering (default: bindings).",
-    )
-    parser.add_argument(
-        "--render-pkg",
-        default="bindings",
-        help="Go package name used when rendering (default: bindings).",
-    )
-    parser.add_argument(
-        "--render-emit",
-        default=_DEFAULT_EMIT_KINDS,
-        help=f"Comma-separated emit categories for render mode (default: {_DEFAULT_EMIT_KINDS}).",
-    )
-    parser.add_argument("--func-filter", help="Optional regex filter for function names.")
-    parser.add_argument("--type-filter", help="Optional regex filter for type names.")
-    parser.add_argument("--const-filter", help="Optional regex filter for constant names.")
-    parser.add_argument("--var-filter", help="Optional regex filter for runtime variable names.")
-    return parser
 
 
 def _render_output(
@@ -204,40 +137,37 @@ def _report_declarations(
 
 
 def _load_patterns(
-    namespace: _ParsedArgs,
+    options: InspectOptions,
 ) -> CompiledDeclarationFilters:
-    """Compile regex filters from parsed args.
+    """Compile regex filters from parsed options.
 
     Returns:
         Compiled filter tuple in func/type/const/var order.
     """
     return CompiledDeclarationFilters(
-        func=compile_filter(namespace.func_filter, option_name="--func-filter"),
-        type_=compile_filter(namespace.type_filter, option_name="--type-filter"),
-        const=compile_filter(namespace.const_filter, option_name="--const-filter"),
-        var=compile_filter(namespace.var_filter, option_name="--var-filter"),
+        func=compile_filter(options.func_filter, option_name="--func-filter"),
+        type_=compile_filter(options.type_filter, option_name="--type-filter"),
+        const=compile_filter(options.const_filter, option_name="--const-filter"),
+        var=compile_filter(options.var_filter, option_name="--var-filter"),
     )
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Run the script.
+def run_inspect(options: InspectOptions) -> int:
+    """Run the inspect subcommand.
 
     Returns:
         Process-like exit code.
     """
-    parser = _build_arg_parser()
-    namespace = parser.parse_args(argv, namespace=_ParsedArgs())
-
-    if namespace.sample_size < 0:
+    if options.sample_size < 0:
         _write_line("sample-size must be >= 0.")
         return 1
 
     try:
-        emit_kinds = parse_emit_kinds(namespace.render_emit, option_name="--render-emit")
-        filters = _load_patterns(namespace)
+        emit_kinds = parse_emit_kinds(options.render_emit, option_name="--render-emit")
+        filters = _load_patterns(options)
         target = _resolve_target(
-            str(namespace.header_path),
-            clang_args=tuple(namespace.clang_args),
+            options.header_path,
+            clang_args=options.clang_args,
         )
     except (RuntimeError, ValueError) as error:
         _write_line(str(error))
@@ -248,17 +178,17 @@ def main(argv: list[str] | None = None) -> int:
         clang_args=target.clang_args,
     )
     filtered = _filter_declarations(declarations, filters=filters)
-    _report_declarations(target, filtered, namespace.sample_size)
+    _report_declarations(target, filtered, options.sample_size)
 
-    render_out = namespace.render_out
+    render_out = options.render_out
     if render_out is not None:
         out_path = Path(render_out).expanduser().resolve()
-        lib_id = namespace.render_lib_id or _default_lib_id()
+        lib_id = options.render_lib_id or _default_lib_id()
         _render_output(
             filtered,
             out_path=out_path,
             lib_id=lib_id,
-            package=namespace.render_pkg,
+            package=options.render_pkg,
             emit_kinds=emit_kinds,
         )
         _write_line(f"rendered_go={out_path}")
@@ -266,5 +196,4 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+__all__ = ["run_inspect"]
