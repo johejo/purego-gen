@@ -38,7 +38,7 @@ type (
 	purego_type_fixture_with_array_t = struct {
 		values [4]int32
 	}
-	purego_type_fixture_opaque_t uintptr // struct fixture_opaque
+	purego_type_fixture_opaque_t struct{} // struct fixture_opaque
 )
 
 const (

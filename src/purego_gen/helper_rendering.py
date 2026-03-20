@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, TypedDict
 
 from purego_gen.c_type_utils import (
+    extract_double_pointer_typedef_name,
     extract_pointer_typedef_name,
     is_function_pointer_c_type,
     normalize_c_type_for_lookup,
@@ -138,10 +139,28 @@ class HelperTypeResolver:
         if go_type != "uintptr":
             return go_type
 
+        return self._resolve_opaque_pointer_type(c_type=c_type, fallback=go_type)
+
+    def _resolve_opaque_pointer_type(self, *, c_type: str, fallback: str) -> str:
+        """Resolve an opaque pointer C type to its Go alias with prefix.
+
+        Returns:
+            Go type with ``*`` or ``**`` prefix, or *fallback* when unresolved.
+        """
+        double_pointer_name = extract_double_pointer_typedef_name(c_type)
+        if double_pointer_name is not None:
+            opaque_alias = self.type_aliases["opaque"].get(double_pointer_name)
+            if opaque_alias is not None:
+                return f"**{opaque_alias}"
+            return fallback
+
         typedef_name = extract_pointer_typedef_name(c_type)
         if typedef_name is None:
-            return go_type
-        return self.type_aliases["opaque"].get(typedef_name, go_type)
+            return fallback
+        opaque_alias = self.type_aliases["opaque"].get(typedef_name)
+        if opaque_alias is not None:
+            return f"*{opaque_alias}"
+        return fallback
 
     def build_callback_func_type(self, *, c_type: str) -> str:
         """Build one Go `func` type from a callback C type spelling.
@@ -203,12 +222,7 @@ class HelperTypeResolver:
         if typedef_go_type is not None:
             return typedef_go_type
 
-        typedef_name = extract_pointer_typedef_name(c_type)
-        if typedef_name is not None:
-            opaque_alias = self.type_aliases["opaque"].get(typedef_name)
-            return opaque_alias or "uintptr"
-
-        return self.resolve_parameter_type(go_type="uintptr", c_type=c_type)
+        return self._resolve_opaque_pointer_type(c_type=c_type, fallback="uintptr")
 
 
 def build_typedef_c_type_by_lookup(declarations: ParsedDeclarations) -> dict[str, str]:

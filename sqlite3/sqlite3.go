@@ -60,7 +60,7 @@ type connector struct {
 }
 
 type SQLiteConn struct {
-	db     raw.DB
+	db     *raw.DB
 	config connectionConfig
 
 	mu     sync.Mutex
@@ -74,7 +74,7 @@ type SQLiteConn struct {
 
 type SQLiteStmt struct {
 	conn      *SQLiteConn
-	stmt      raw.Stmt
+	stmt      *raw.Stmt
 	ephemeral bool
 	closed    bool
 }
@@ -110,8 +110,8 @@ type connectionConfig struct {
 
 type scalarFunction struct {
 	value      reflect.Value
-	args       []func(raw.Value) (reflect.Value, error)
-	returnFunc func(raw.Context, []reflect.Value)
+	args       []func(*raw.Value) (reflect.Value, error)
+	returnFunc func(*raw.Context, []reflect.Value)
 }
 
 type collationFunction struct {
@@ -228,7 +228,7 @@ func (c *SQLiteConn) Close() error {
 	c.closed = true
 
 	result := raw.CloseV2(c.db)
-	c.db = 0
+	c.db = nil
 	if result != raw.SQLITE_OK {
 		return c.errorFromResult(result)
 	}
@@ -236,11 +236,11 @@ func (c *SQLiteConn) Close() error {
 }
 
 func (c *SQLiteConn) forceClose() {
-	if c.db == 0 {
+	if c.db == nil {
 		return
 	}
 	_ = raw.CloseV2(c.db)
-	c.db = 0
+	c.db = nil
 	c.closed = true
 }
 
@@ -290,7 +290,7 @@ func (c *SQLiteConn) ResetSession(context.Context) error {
 }
 
 func (c *SQLiteConn) IsValid() bool {
-	return !c.closed && c.db != 0
+	return !c.closed && c.db != nil
 }
 
 func (c *SQLiteConn) CheckNamedValue(nv *driver.NamedValue) error {
@@ -355,7 +355,7 @@ func (c *SQLiteConn) RegisterFunc(name string, fn any, pure bool) error {
 		int32(len(compiled.args)),
 		flags,
 		id,
-		func(ctx raw.Context, argc int32, values uintptr) {
+		func(ctx *raw.Context, argc int32, values **raw.Value) {
 			c.invokeScalar(ctx, argc, values)
 		},
 		func(userData uintptr) {
@@ -421,7 +421,7 @@ func (s *SQLiteStmt) Close() error {
 	s.closed = true
 
 	result := raw.Finalize(s.stmt)
-	s.stmt = 0
+	s.stmt = nil
 	if result != raw.SQLITE_OK {
 		return s.conn.errorFromResult(result)
 	}
@@ -689,7 +689,7 @@ func (s *SQLiteStmt) newRows(ctx context.Context) (*SQLiteRows, error) {
 }
 
 func (s *SQLiteStmt) resetForReuse() error {
-	if s.closed || s.stmt == 0 {
+	if s.closed || s.stmt == nil {
 		return nil
 	}
 	if result := raw.Reset(s.stmt); result != raw.SQLITE_OK {
@@ -763,7 +763,7 @@ func (c *SQLiteConn) applyPragmas() error {
 }
 
 func (c *SQLiteConn) checkUsable() error {
-	if c.closed || c.db == 0 {
+	if c.closed || c.db == nil {
 		return driver.ErrBadConn
 	}
 	return nil
@@ -781,7 +781,7 @@ func (c *SQLiteConn) errorFromResult(result int32) error {
 		return nil
 	}
 	message := sqliteErrorString(result)
-	if c != nil && c.db != 0 {
+	if c != nil && c.db != nil {
 		if dbMessage := raw.Errmsg(c.db); dbMessage != "" {
 			message = dbMessage
 		}
@@ -986,7 +986,7 @@ func compileScalarFunction(fn any) (*scalarFunction, error) {
 		return nil, fmt.Errorf("sqlite3: variadic functions are not supported")
 	}
 
-	args := make([]func(raw.Value) (reflect.Value, error), fnType.NumIn())
+	args := make([]func(*raw.Value) (reflect.Value, error), fnType.NumIn())
 	for index := range args {
 		decoder, err := buildValueDecoder(fnType.In(index))
 		if err != nil {
@@ -1007,26 +1007,26 @@ func compileScalarFunction(fn any) (*scalarFunction, error) {
 	}, nil
 }
 
-func buildValueDecoder(target reflect.Type) (func(raw.Value) (reflect.Value, error), error) {
+func buildValueDecoder(target reflect.Type) (func(*raw.Value) (reflect.Value, error), error) {
 	switch {
 	case target.Kind() == reflect.String:
-		return func(value raw.Value) (reflect.Value, error) {
+		return func(value *raw.Value) (reflect.Value, error) {
 			return reflect.ValueOf(raw.ValueText(value)).Convert(target), nil
 		}, nil
 	case target.Kind() == reflect.Slice && target.Elem().Kind() == reflect.Uint8:
-		return func(value raw.Value) (reflect.Value, error) {
+		return func(value *raw.Value) (reflect.Value, error) {
 			return reflect.ValueOf(raw.ValueBlobBytes(value)).Convert(target), nil
 		}, nil
 	case target.Kind() == reflect.Bool:
-		return func(value raw.Value) (reflect.Value, error) {
+		return func(value *raw.Value) (reflect.Value, error) {
 			return reflect.ValueOf(raw.ValueInt64(value) != 0).Convert(target), nil
 		}, nil
 	case isSignedInt(target.Kind()):
-		return func(value raw.Value) (reflect.Value, error) {
+		return func(value *raw.Value) (reflect.Value, error) {
 			return reflect.ValueOf(raw.ValueInt64(value)).Convert(target), nil
 		}, nil
 	case isUnsignedInt(target.Kind()):
-		return func(value raw.Value) (reflect.Value, error) {
+		return func(value *raw.Value) (reflect.Value, error) {
 			number := raw.ValueInt64(value)
 			if number < 0 {
 				return reflect.Value{}, fmt.Errorf("negative value %d for unsigned integer", number)
@@ -1034,11 +1034,11 @@ func buildValueDecoder(target reflect.Type) (func(raw.Value) (reflect.Value, err
 			return reflect.ValueOf(uint64(number)).Convert(target), nil
 		}, nil
 	case target.Kind() == reflect.Float32 || target.Kind() == reflect.Float64:
-		return func(value raw.Value) (reflect.Value, error) {
+		return func(value *raw.Value) (reflect.Value, error) {
 			return reflect.ValueOf(raw.ValueDouble(value)).Convert(target), nil
 		}, nil
 	case target == reflect.TypeOf(time.Time{}):
-		return func(value raw.Value) (reflect.Value, error) {
+		return func(value *raw.Value) (reflect.Value, error) {
 			text := raw.ValueText(value)
 			parsed, ok := parseSQLiteTime(text, time.Local)
 			if !ok {
@@ -1051,21 +1051,21 @@ func buildValueDecoder(target reflect.Type) (func(raw.Value) (reflect.Value, err
 	}
 }
 
-func buildReturnEncoder(fnType reflect.Type) (func(raw.Context, []reflect.Value), error) {
+func buildReturnEncoder(fnType reflect.Type) (func(*raw.Context, []reflect.Value), error) {
 	switch fnType.NumOut() {
 	case 0:
-		return func(ctx raw.Context, _ []reflect.Value) {
+		return func(ctx *raw.Context, _ []reflect.Value) {
 			raw.ResultNull(ctx)
 		}, nil
 	case 1:
-		return func(ctx raw.Context, results []reflect.Value) {
+		return func(ctx *raw.Context, results []reflect.Value) {
 			encodeResultValue(ctx, results[0], nil)
 		}, nil
 	case 2:
 		if !fnType.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
 			return nil, fmt.Errorf("sqlite3: second return value must be error")
 		}
-		return func(ctx raw.Context, results []reflect.Value) {
+		return func(ctx *raw.Context, results []reflect.Value) {
 			var err error
 			if !results[1].IsNil() {
 				err = results[1].Interface().(error)
@@ -1077,7 +1077,7 @@ func buildReturnEncoder(fnType reflect.Type) (func(raw.Context, []reflect.Value)
 	}
 }
 
-func encodeResultValue(ctx raw.Context, value reflect.Value, err error) {
+func encodeResultValue(ctx *raw.Context, value reflect.Value, err error) {
 	if err != nil {
 		raw.ResultError(ctx, err.Error())
 		return
@@ -1122,7 +1122,7 @@ func encodeResultValue(ctx raw.Context, value reflect.Value, err error) {
 	}
 }
 
-func (c *SQLiteConn) invokeScalar(ctx raw.Context, argc int32, values uintptr) {
+func (c *SQLiteConn) invokeScalar(ctx *raw.Context, argc int32, values **raw.Value) {
 	function := c.lookupScalar(raw.UserData(ctx))
 	if function == nil {
 		raw.ResultError(ctx, "sqlite3: function registry entry not found")
@@ -1133,7 +1133,7 @@ func (c *SQLiteConn) invokeScalar(ctx raw.Context, argc int32, values uintptr) {
 		return
 	}
 
-	sqliteValues := unsafe.Slice((*raw.Value)(unsafe.Add(unsafe.Pointer(nil), values)), int(argc))
+	sqliteValues := unsafe.Slice(values, int(argc))
 	callArgs := make([]reflect.Value, len(sqliteValues))
 	for index := range sqliteValues {
 		decoded, err := function.args[index](sqliteValues[index])
@@ -1184,9 +1184,9 @@ type cancelState struct {
 	interrupted atomic.Bool
 }
 
-func interruptWatcher(ctx context.Context, db raw.DB) *cancelState {
+func interruptWatcher(ctx context.Context, db *raw.DB) *cancelState {
 	state := &cancelState{done: make(chan struct{})}
-	if ctx == nil || ctx.Done() == nil || db == 0 {
+	if ctx == nil || ctx.Done() == nil || db == nil {
 		close(state.done)
 		return state
 	}

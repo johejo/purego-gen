@@ -18,14 +18,14 @@ type (
 	// *************************************
 	// Explicit context
 	// *************************************
-	purego_type_ZSTD_CCtx uintptr // struct ZSTD_CCtx_s
-	purego_type_ZSTD_DCtx uintptr // struct ZSTD_DCtx_s
+	purego_type_ZSTD_CCtx struct{} // struct ZSTD_CCtx_s
+	purego_type_ZSTD_DCtx struct{} // struct ZSTD_DCtx_s
 	// *********************************
 	// Bulk processing dictionary API
 	// ********************************
-	purego_type_ZSTD_CDict     uintptr // struct ZSTD_CDict_s
-	purego_type_ZSTD_DDict     uintptr // struct ZSTD_DDict_s
-	purego_type_ZSTD_ErrorCode int32   // enum ZSTD_ErrorCode
+	purego_type_ZSTD_CDict     struct{} // struct ZSTD_CDict_s
+	purego_type_ZSTD_DDict     struct{} // struct ZSTD_DDict_s
+	purego_type_ZSTD_ErrorCode int32    // enum ZSTD_ErrorCode
 )
 
 const (
@@ -101,9 +101,9 @@ var (
 	) string
 	purego_func_ZSTD_minCLevel  func() int32
 	purego_func_ZSTD_maxCLevel  func() int32
-	purego_func_ZSTD_createCCtx func() purego_type_ZSTD_CCtx
+	purego_func_ZSTD_createCCtx func() *purego_type_ZSTD_CCtx
 	purego_func_ZSTD_freeCCtx   func(
-		cctx purego_type_ZSTD_CCtx,
+		cctx *purego_type_ZSTD_CCtx,
 	) uint64
 	// ! ZSTD_compressCCtx() :
 	// Same as ZSTD_compress(), using an explicit ZSTD_CCtx.
@@ -113,23 +113,23 @@ var (
 	// If any advanced parameter was set using the advanced API,
 	// they will all be reset. Only @compressionLevel remains.
 	purego_func_ZSTD_compressCCtx func(
-		cctx purego_type_ZSTD_CCtx,
+		cctx *purego_type_ZSTD_CCtx,
 		dst uintptr, // void *
 		dstCapacity uint64,
 		src uintptr, // const void *
 		srcSize uint64,
 		compressionLevel int32,
 	) uint64
-	purego_func_ZSTD_createDCtx func() purego_type_ZSTD_DCtx
+	purego_func_ZSTD_createDCtx func() *purego_type_ZSTD_DCtx
 	purego_func_ZSTD_freeDCtx   func(
-		dctx purego_type_ZSTD_DCtx,
+		dctx *purego_type_ZSTD_DCtx,
 	) uint64
 	// ! ZSTD_decompressDCtx() :
 	// Same as ZSTD_decompress(),
 	// requires an allocated ZSTD_DCtx.
 	// Compatible with sticky parameters (see below).
 	purego_func_ZSTD_decompressDCtx func(
-		dctx purego_type_ZSTD_DCtx,
+		dctx *purego_type_ZSTD_DCtx,
 		dst uintptr, // void *
 		dstCapacity uint64,
 		src uintptr, // const void *
@@ -146,7 +146,7 @@ var (
 	// It's intended for a dictionary used only once.
 	// Note 2 : When `dict == NULL || dictSize < 8` no dictionary is used.
 	purego_func_ZSTD_compress_usingDict func(
-		ctx purego_type_ZSTD_CCtx,
+		ctx *purego_type_ZSTD_CCtx,
 		dst uintptr, // void *
 		dstCapacity uint64,
 		src uintptr, // const void *
@@ -162,7 +162,7 @@ var (
 	// It's intended for a dictionary used only once.
 	// Note : When `dict == NULL || dictSize < 8` no dictionary is used.
 	purego_func_ZSTD_decompress_usingDict func(
-		dctx purego_type_ZSTD_DCtx,
+		dctx *purego_type_ZSTD_DCtx,
 		dst uintptr, // void *
 		dstCapacity uint64,
 		src uintptr, // const void *
@@ -209,7 +209,7 @@ func purego_func_ZSTD_decompress_bytes(
 	)
 }
 func purego_func_ZSTD_compress_usingDict_bytes(
-	ctx purego_type_ZSTD_CCtx,
+	ctx *purego_type_ZSTD_CCtx,
 	dst uintptr,
 	dstCapacity uint64,
 	src []byte,
@@ -238,7 +238,7 @@ func purego_func_ZSTD_compress_usingDict_bytes(
 	)
 }
 func purego_func_ZSTD_decompress_usingDict_bytes(
-	dctx purego_type_ZSTD_DCtx,
+	dctx *purego_type_ZSTD_DCtx,
 	dst uintptr,
 	dstCapacity uint64,
 	src []byte,
@@ -291,7 +291,7 @@ func purego_func_ZSTD_getFrameContentSize_bytes(
 	)
 }
 func purego_func_ZSTD_compressCCtx_bytes(
-	cctx purego_type_ZSTD_CCtx,
+	cctx *purego_type_ZSTD_CCtx,
 	dst uintptr,
 	dstCapacity uint64,
 	src []byte,
@@ -312,7 +312,7 @@ func purego_func_ZSTD_compressCCtx_bytes(
 	)
 }
 func purego_func_ZSTD_decompressDCtx_bytes(
-	dctx purego_type_ZSTD_DCtx,
+	dctx *purego_type_ZSTD_DCtx,
 	dst uintptr,
 	dstCapacity uint64,
 	src []byte,

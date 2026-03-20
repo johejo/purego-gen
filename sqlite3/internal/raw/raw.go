@@ -26,7 +26,7 @@ type (
 var (
 	loadOnce sync.Once
 	loadErr  error
-	openV2Fn func(filename string, ppDB uintptr, flags int32, zVfs uintptr) int32
+	openV2Fn func(filename string, ppDB **purego_type_sqlite3, flags int32, zVfs uintptr) int32
 )
 
 // Load resolves libsqlite3 and registers all required symbols once per process.
@@ -114,84 +114,84 @@ func dedupeStrings(values []string) []string {
 	return out
 }
 
-func OpenV2(filename string, flags int32, vfs string, db *DB) int32 {
+func OpenV2(filename string, flags int32, vfs string, db **DB) int32 {
 	if vfs != "" {
-		return purego_func_sqlite3_open_v2(filename, uintptr(unsafe.Pointer(db)), flags, vfs)
+		return purego_func_sqlite3_open_v2(filename, db, flags, vfs)
 	}
-	return openV2Fn(filename, uintptr(unsafe.Pointer(db)), flags, 0)
+	return openV2Fn(filename, db, flags, 0)
 }
 
-func CloseV2(db DB) int32               { return purego_func_sqlite3_close_v2(db) }
-func Errmsg(db DB) string               { return purego_func_sqlite3_errmsg(db) }
-func ExtendedErrcode(db DB) int32       { return purego_func_sqlite3_extended_errcode(db) }
-func BusyTimeout(db DB, ms int32) int32 { return purego_func_sqlite3_busy_timeout(db, ms) }
+func CloseV2(db *DB) int32               { return purego_func_sqlite3_close_v2(db) }
+func Errmsg(db *DB) string               { return purego_func_sqlite3_errmsg(db) }
+func ExtendedErrcode(db *DB) int32       { return purego_func_sqlite3_extended_errcode(db) }
+func BusyTimeout(db *DB, ms int32) int32 { return purego_func_sqlite3_busy_timeout(db, ms) }
 
-func PrepareV2(db DB, sql string, stmt *Stmt) int32 {
-	return purego_func_sqlite3_prepare_v2(db, sql, -1, uintptr(unsafe.Pointer(stmt)), 0)
+func PrepareV2(db *DB, sql string, stmt **Stmt) int32 {
+	return purego_func_sqlite3_prepare_v2(db, sql, -1, stmt, 0)
 }
 
-func Finalize(stmt Stmt) int32      { return purego_func_sqlite3_finalize(stmt) }
-func Reset(stmt Stmt) int32         { return purego_func_sqlite3_reset(stmt) }
-func ClearBindings(stmt Stmt) int32 { return purego_func_sqlite3_clear_bindings(stmt) }
-func Step(stmt Stmt) int32          { return purego_func_sqlite3_step(stmt) }
-func Interrupt(db DB)               { purego_func_sqlite3_interrupt(db) }
+func Finalize(stmt *Stmt) int32      { return purego_func_sqlite3_finalize(stmt) }
+func Reset(stmt *Stmt) int32         { return purego_func_sqlite3_reset(stmt) }
+func ClearBindings(stmt *Stmt) int32 { return purego_func_sqlite3_clear_bindings(stmt) }
+func Step(stmt *Stmt) int32          { return purego_func_sqlite3_step(stmt) }
+func Interrupt(db *DB)               { purego_func_sqlite3_interrupt(db) }
 
-func BindParameterCount(stmt Stmt) int32 { return purego_func_sqlite3_bind_parameter_count(stmt) }
-func BindParameterIndex(stmt Stmt, name string) int32 {
+func BindParameterCount(stmt *Stmt) int32 { return purego_func_sqlite3_bind_parameter_count(stmt) }
+func BindParameterIndex(stmt *Stmt, name string) int32 {
 	return purego_func_sqlite3_bind_parameter_index(stmt, name)
 }
-func BindParameterName(stmt Stmt, index int32) string {
+func BindParameterName(stmt *Stmt, index int32) string {
 	return purego_func_sqlite3_bind_parameter_name(stmt, index)
 }
-func BindNull(stmt Stmt, index int32) int32 { return purego_func_sqlite3_bind_null(stmt, index) }
-func BindBlobBytes(stmt Stmt, index int32, value []byte, destructor DestructorType) int32 {
+func BindNull(stmt *Stmt, index int32) int32 { return purego_func_sqlite3_bind_null(stmt, index) }
+func BindBlobBytes(stmt *Stmt, index int32, value []byte, destructor DestructorType) int32 {
 	return purego_func_sqlite3_bind_blob_bytes(stmt, index, value, destructor)
 }
-func BindDouble(stmt Stmt, index int32, value float64) int32 {
+func BindDouble(stmt *Stmt, index int32, value float64) int32 {
 	return purego_func_sqlite3_bind_double(stmt, index, value)
 }
-func BindInt64(stmt Stmt, index int32, value int64) int32 {
+func BindInt64(stmt *Stmt, index int32, value int64) int32 {
 	return purego_func_sqlite3_bind_int64(stmt, index, value)
 }
-func BindText(stmt Stmt, index int32, value string, destructor DestructorType) int32 {
+func BindText(stmt *Stmt, index int32, value string, destructor DestructorType) int32 {
 	return purego_func_sqlite3_bind_text(stmt, index, value, -1, destructor)
 }
 
-func ColumnCount(stmt Stmt) int32 { return purego_func_sqlite3_column_count(stmt) }
-func ColumnType(stmt Stmt, index int32) int32 {
+func ColumnCount(stmt *Stmt) int32 { return purego_func_sqlite3_column_count(stmt) }
+func ColumnType(stmt *Stmt, index int32) int32 {
 	return purego_func_sqlite3_column_type(stmt, index)
 }
-func ColumnBytes(stmt Stmt, index int32) int32 {
+func ColumnBytes(stmt *Stmt, index int32) int32 {
 	return purego_func_sqlite3_column_bytes(stmt, index)
 }
-func ColumnInt64(stmt Stmt, index int32) int64 {
+func ColumnInt64(stmt *Stmt, index int32) int64 {
 	return purego_func_sqlite3_column_int64(stmt, index)
 }
-func ColumnDouble(stmt Stmt, index int32) float64 {
+func ColumnDouble(stmt *Stmt, index int32) float64 {
 	return purego_func_sqlite3_column_double(stmt, index)
 }
-func ColumnText(stmt Stmt, index int32) string { return purego_func_sqlite3_column_text(stmt, index) }
-func ColumnName(stmt Stmt, index int32) string { return purego_func_sqlite3_column_name(stmt, index) }
-func ColumnDeclType(stmt Stmt, index int32) string {
+func ColumnText(stmt *Stmt, index int32) string { return purego_func_sqlite3_column_text(stmt, index) }
+func ColumnName(stmt *Stmt, index int32) string { return purego_func_sqlite3_column_name(stmt, index) }
+func ColumnDeclType(stmt *Stmt, index int32) string {
 	return purego_func_sqlite3_column_decltype(stmt, index)
 }
-func ColumnBlobBytes(stmt Stmt, index int32) []byte {
+func ColumnBlobBytes(stmt *Stmt, index int32) []byte {
 	ptr := purego_func_sqlite3_column_blob(stmt, index)
 	length := purego_func_sqlite3_column_bytes(stmt, index)
 	return copyBytes(ptr, length)
 }
 
-func Changes64(db DB) int64        { return purego_func_sqlite3_changes64(db) }
-func LastInsertRowid(db DB) int64  { return purego_func_sqlite3_last_insert_rowid(db) }
-func UserData(ctx Context) uintptr { return purego_func_sqlite3_user_data(ctx) }
+func Changes64(db *DB) int64        { return purego_func_sqlite3_changes64(db) }
+func LastInsertRowid(db *DB) int64  { return purego_func_sqlite3_last_insert_rowid(db) }
+func UserData(ctx *Context) uintptr { return purego_func_sqlite3_user_data(ctx) }
 
 func CreateFunctionV2Callbacks(
-	db DB,
+	db *DB,
 	name string,
 	nArg int32,
 	textRep int32,
 	app uintptr,
-	xFunc func(Context, int32, uintptr),
+	xFunc func(*Context, int32, **Value),
 	xDestroy func(uintptr),
 ) int32 {
 	return purego_func_sqlite3_create_function_v2_callbacks(
@@ -208,7 +208,7 @@ func CreateFunctionV2Callbacks(
 }
 
 func CreateCollationV2Callbacks(
-	db DB,
+	db *DB,
 	name string,
 	textRep int32,
 	app uintptr,
@@ -225,26 +225,26 @@ func CreateCollationV2Callbacks(
 	)
 }
 
-func ValueType(value Value) int32     { return purego_func_sqlite3_value_type(value) }
-func ValueInt64(value Value) int64    { return purego_func_sqlite3_value_int64(value) }
-func ValueDouble(value Value) float64 { return purego_func_sqlite3_value_double(value) }
-func ValueText(value Value) string    { return purego_func_sqlite3_value_text(value) }
-func ValueBlobBytes(value Value) []byte {
+func ValueType(value *Value) int32     { return purego_func_sqlite3_value_type(value) }
+func ValueInt64(value *Value) int64    { return purego_func_sqlite3_value_int64(value) }
+func ValueDouble(value *Value) float64 { return purego_func_sqlite3_value_double(value) }
+func ValueText(value *Value) string    { return purego_func_sqlite3_value_text(value) }
+func ValueBlobBytes(value *Value) []byte {
 	ptr := purego_func_sqlite3_value_blob(value)
 	length := purego_func_sqlite3_value_bytes(value)
 	return copyBytes(ptr, length)
 }
 
-func ResultNull(ctx Context) { purego_func_sqlite3_result_null(ctx) }
-func ResultBlobBytes(ctx Context, value []byte, destructor DestructorType) {
+func ResultNull(ctx *Context) { purego_func_sqlite3_result_null(ctx) }
+func ResultBlobBytes(ctx *Context, value []byte, destructor DestructorType) {
 	purego_func_sqlite3_result_blob_bytes(ctx, value, destructor)
 }
-func ResultDouble(ctx Context, value float64) { purego_func_sqlite3_result_double(ctx, value) }
-func ResultInt64(ctx Context, value int64)    { purego_func_sqlite3_result_int64(ctx, value) }
-func ResultText(ctx Context, value string, destructor DestructorType) {
+func ResultDouble(ctx *Context, value float64) { purego_func_sqlite3_result_double(ctx, value) }
+func ResultInt64(ctx *Context, value int64)    { purego_func_sqlite3_result_int64(ctx, value) }
+func ResultText(ctx *Context, value string, destructor DestructorType) {
 	purego_func_sqlite3_result_text(ctx, value, -1, destructor)
 }
-func ResultError(ctx Context, value string) { purego_func_sqlite3_result_error(ctx, value, -1) }
+func ResultError(ctx *Context, value string) { purego_func_sqlite3_result_error(ctx, value, -1) }
 
 func copyBytes(ptr uintptr, length int32) []byte {
 	if ptr == 0 || length <= 0 {

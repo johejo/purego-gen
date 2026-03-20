@@ -103,7 +103,7 @@ def _extract_typedef(
                     TypedefDecl(
                         name=str(cursor.spelling),
                         c_type=str(underlying.spelling),
-                        go_type="uintptr",
+                        go_type="struct{}",
                         comment=_extract_cursor_comment(cursor),
                     ),
                     None,

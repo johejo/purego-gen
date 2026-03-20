@@ -15,7 +15,7 @@ var (
 type (
 	purego_type_my_int    = int32   // int
 	purego_type_my_handle = uintptr // void *
-	purego_type_not_basic uintptr   // struct not_basic
+	purego_type_not_basic struct{}  // struct not_basic
 )
 
 var (

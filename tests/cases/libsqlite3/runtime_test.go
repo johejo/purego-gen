@@ -13,19 +13,19 @@ import (
 
 type sqliteConnection struct {
 	handle     uintptr
-	db         purego_type_sqlite3
+	db         *purego_type_sqlite3
 	closed     bool
 	useCloseV2 bool
 }
 
 type sqliteStatement struct {
-	db        purego_type_sqlite3
-	handle    purego_type_sqlite3_stmt
+	db        *purego_type_sqlite3
+	handle    *purego_type_sqlite3_stmt
 	finalized bool
 }
 
-func sqliteErrmsg(db purego_type_sqlite3) string {
-	if db == 0 {
+func sqliteErrmsg(db *purego_type_sqlite3) string {
+	if db == nil {
 		return ""
 	}
 	return purego_func_sqlite3_errmsg(db)
@@ -59,7 +59,7 @@ func openSQLiteConnection(t *testing.T) *sqliteConnection {
 		t.Fatal("sqlite3_libversion() returned empty string")
 	}
 
-	openResult := purego_func_sqlite3_open(":memory:", uintptr(unsafe.Pointer(&connection.db)))
+	openResult := purego_func_sqlite3_open(":memory:", &connection.db)
 	if openResult != purego_const_SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_open(:memory:) = %d, want %d, errmsg=%q",
@@ -68,7 +68,7 @@ func openSQLiteConnection(t *testing.T) *sqliteConnection {
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if connection.db == 0 {
+	if connection.db == nil {
 		t.Fatal("sqlite3_open returned nil database handle")
 	}
 
@@ -110,7 +110,7 @@ func openSQLiteConnectionV2(
 
 	openResult := purego_func_sqlite3_open_v2(
 		filename,
-		uintptr(unsafe.Pointer(&connection.db)),
+		&connection.db,
 		flags,
 		vfsName,
 	)
@@ -123,7 +123,7 @@ func openSQLiteConnectionV2(
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if connection.db == 0 {
+	if connection.db == nil {
 		t.Fatal("sqlite3_open_v2 returned nil database handle")
 	}
 
@@ -143,7 +143,7 @@ func (connection *sqliteConnection) close() error {
 		return nil
 	}
 
-	if connection.db != 0 {
+	if connection.db != nil {
 		closeResult := int32(0)
 		closeName := "sqlite3_close"
 		if connection.useCloseV2 {
@@ -161,7 +161,7 @@ func (connection *sqliteConnection) close() error {
 				sqliteErrmsg(connection.db),
 			)
 		}
-		connection.db = 0
+		connection.db = nil
 	}
 
 	if connection.handle != 0 {
@@ -177,7 +177,7 @@ func (connection *sqliteConnection) close() error {
 
 func prepareSQLiteStatement(
 	t *testing.T,
-	db purego_type_sqlite3,
+	db *purego_type_sqlite3,
 	sql string,
 ) *sqliteStatement {
 	t.Helper()
@@ -187,7 +187,7 @@ func prepareSQLiteStatement(
 		db,
 		sql,
 		-1,
-		uintptr(unsafe.Pointer(&statement.handle)),
+		&statement.handle,
 		0,
 	)
 	if prepareResult != purego_const_SQLITE_OK {
@@ -199,7 +199,7 @@ func prepareSQLiteStatement(
 			sqliteErrmsg(db),
 		)
 	}
-	if statement.handle == 0 {
+	if statement.handle == nil {
 		t.Fatalf("sqlite3_prepare_v2(%q) returned nil statement handle", sql)
 	}
 
@@ -221,7 +221,7 @@ func (statement *sqliteStatement) Finalize(t *testing.T) {
 }
 
 func (statement *sqliteStatement) finalize() error {
-	if statement == nil || statement.finalized || statement.handle == 0 {
+	if statement == nil || statement.finalized || statement.handle == nil {
 		return nil
 	}
 
@@ -235,12 +235,12 @@ func (statement *sqliteStatement) finalize() error {
 		)
 	}
 
-	statement.handle = 0
+	statement.handle = nil
 	statement.finalized = true
 	return nil
 }
 
-func mustExecSQLite(t *testing.T, db purego_type_sqlite3, sql string) {
+func mustExecSQLite(t *testing.T, db *purego_type_sqlite3, sql string) {
 	t.Helper()
 
 	execResult := purego_func_sqlite3_exec(
@@ -319,12 +319,11 @@ func sqliteUTF16BytesString(ptr uintptr, length int32) string {
 	return string(utf16.Decode(unsafe.Slice((*uint16)(pointerData), int(length)/2)))
 }
 
-func sqliteValueArray(values uintptr, count int32) []purego_type_sqlite3_value {
-	if values == 0 || count <= 0 {
+func sqliteValueArray(values **purego_type_sqlite3_value, count int32) []*purego_type_sqlite3_value {
+	if values == nil || count <= 0 {
 		return nil
 	}
-	pointerData := *(*unsafe.Pointer)(unsafe.Pointer(&values))
-	return unsafe.Slice((*purego_type_sqlite3_value)(pointerData), int(count))
+	return unsafe.Slice(values, int(count))
 }
 
 func sqliteCompareByLengthThenLex(leftText string, rightText string) int32 {
@@ -344,7 +343,7 @@ func sqliteCompareByLengthThenLex(leftText string, rightText string) int32 {
 
 func collectFirstColumnTextRows(
 	t *testing.T,
-	db purego_type_sqlite3,
+	db *purego_type_sqlite3,
 	statement *sqliteStatement,
 ) []string {
 	t.Helper()
@@ -801,9 +800,9 @@ func TestGeneratedBindingsRegisterScalarFunctionWithDestructorInLibsqlite3(t *te
 		purego_const_SQLITE_UTF8,
 		appData,
 		func(
-			context purego_type_sqlite3_context,
+			context *purego_type_sqlite3_context,
 			count int32,
-			values uintptr,
+			values **purego_type_sqlite3_value,
 		) {
 			sqliteValues := sqliteValueArray(values, count)
 			if len(sqliteValues) != 1 {
@@ -878,9 +877,9 @@ func TestGeneratedBindingsRegisterScalarFunctionWithLibsqlite3(t *testing.T) {
 		purego_const_SQLITE_UTF8,
 		appData,
 		func(
-			context purego_type_sqlite3_context,
+			context *purego_type_sqlite3_context,
 			count int32,
-			values uintptr,
+			values **purego_type_sqlite3_value,
 		) {
 			sqliteValues := sqliteValueArray(values, count)
 			if len(sqliteValues) != 1 {
@@ -936,9 +935,9 @@ func TestGeneratedBindingsRegisterScalarFunction16WithLibsqlite3(t *testing.T) {
 	var observedArg string
 
 	scalarCallback := purego.NewCallback(func(
-		context purego_type_sqlite3_context,
+		context *purego_type_sqlite3_context,
 		count int32,
-		values uintptr,
+		values **purego_type_sqlite3_value,
 	) {
 		sqliteValues := sqliteValueArray(values, count)
 		if len(sqliteValues) != 1 {

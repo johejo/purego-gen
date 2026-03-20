@@ -91,7 +91,7 @@ func TestGeneratedBindingsResolveLibzstdSymbols(t *testing.T) {
 	}
 
 	cctx := purego_func_ZSTD_createCCtx()
-	if cctx == 0 {
+	if cctx == nil {
 		t.Fatal("ZSTD_createCCtx returned nil context")
 	}
 	t.Cleanup(func() {
@@ -102,7 +102,7 @@ func TestGeneratedBindingsResolveLibzstdSymbols(t *testing.T) {
 	})
 
 	dctx := purego_func_ZSTD_createDCtx()
-	if dctx == 0 {
+	if dctx == nil {
 		t.Fatal("ZSTD_createDCtx returned nil context")
 	}
 	t.Cleanup(func() {

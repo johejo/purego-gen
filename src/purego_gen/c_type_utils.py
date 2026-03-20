@@ -10,6 +10,9 @@ from typing import Final
 _OPAQUE_POINTER_TYPEDEF_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^(?:(?:const|volatile|restrict)\s+)*([A-Za-z_][A-Za-z0-9_]*)\s*\*(?:\s*(?:const|volatile|restrict))*$"
 )
+_OPAQUE_DOUBLE_POINTER_TYPEDEF_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"^(?:(?:const|volatile|restrict)\s+)*([A-Za-z_][A-Za-z0-9_]*)\s*\*\s*\*(?:\s*(?:const|volatile|restrict))*$"
+)
 _FUNCTION_POINTER_C_TYPE_PATTERN: Final[re.Pattern[str]] = re.compile(r"\(\s*\*\s*\)")
 _ENUM_TYPEDEF_C_TYPE_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^enum\s+([A-Za-z_][A-Za-z0-9_]*)$"
@@ -28,6 +31,19 @@ def extract_pointer_typedef_name(c_type: str) -> str | None:
     """
     normalized = " ".join(c_type.split())
     matched = _OPAQUE_POINTER_TYPEDEF_PATTERN.fullmatch(normalized)
+    if matched is None:
+        return None
+    return matched.group(1)
+
+
+def extract_double_pointer_typedef_name(c_type: str) -> str | None:
+    """Extract typedef name from a double-pointer C type spelling.
+
+    Returns:
+        Matched typedef name when pattern matches, otherwise `None`.
+    """
+    normalized = " ".join(c_type.split())
+    matched = _OPAQUE_DOUBLE_POINTER_TYPEDEF_PATTERN.fullmatch(normalized)
     if matched is None:
         return None
     return matched.group(1)

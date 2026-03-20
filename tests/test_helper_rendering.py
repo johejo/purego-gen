@@ -261,7 +261,7 @@ def test_render_go_source_emits_callback_input_helper_functions() -> None:
                 ),
             ),
             typedefs=(
-                TypedefDecl(name="fixture_ctx_t", c_type="struct fixture_ctx", go_type="uintptr"),
+                TypedefDecl(name="fixture_ctx_t", c_type="struct fixture_ctx", go_type="struct{}"),
             ),
             constants=(),
             runtime_vars=(),
@@ -298,7 +298,7 @@ def test_render_go_source_emits_callback_input_helper_functions() -> None:
     assert "func purego_func_fixture_register_hook_callbacks(" in source
     expected_signature = (
         "func purego_func_fixture_register_hook_callbacks("
-        " ctx purego_type_fixture_ctx_t,"
+        " ctx *purego_type_fixture_ctx_t,"
         " callback func(uintptr, int32) int32,"
         " user_data uintptr, ) int32 {"
     )
@@ -333,12 +333,12 @@ def test_render_go_source_emits_callback_input_helper_for_opaque_and_pointer_arg
                 ),
             ),
             typedefs=(
-                TypedefDecl(name="fixture_db_t", c_type="struct fixture_db", go_type="uintptr"),
-                TypedefDecl(name="fixture_ctx_t", c_type="struct fixture_ctx", go_type="uintptr"),
+                TypedefDecl(name="fixture_db_t", c_type="struct fixture_db", go_type="struct{}"),
+                TypedefDecl(name="fixture_ctx_t", c_type="struct fixture_ctx", go_type="struct{}"),
                 TypedefDecl(
                     name="fixture_value_t",
                     c_type="struct fixture_value",
-                    go_type="uintptr",
+                    go_type="struct{}",
                 ),
             ),
             constants=(),
@@ -399,7 +399,10 @@ def test_render_go_source_emits_callback_input_helper_for_opaque_and_pointer_arg
     )
 
     normalized_source = " ".join(source.split())
-    assert "callback func(purego_type_fixture_ctx_t, int32, uintptr)" in normalized_source
+    assert (
+        "callback func(*purego_type_fixture_ctx_t, int32, **purego_type_fixture_value_t)"
+        in normalized_source
+    )
 
 
 def test_render_go_source_rejects_missing_callback_helper_function() -> None:
