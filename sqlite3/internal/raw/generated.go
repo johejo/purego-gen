@@ -15,13 +15,18 @@ var (
 )
 
 type (
-	purego_type_sqlite3                 struct{}  // struct sqlite3
-	purego_type_sqlite3_int64           = int64   // sqlite_int64
-	purego_type_sqlite3_stmt            struct{}  // struct sqlite3_stmt
-	purego_type_sqlite3_value           struct{}  // struct sqlite3_value
-	purego_type_sqlite3_context         struct{}  // struct sqlite3_context
-	purego_type_sqlite3_destructor_type = uintptr // void (*)(void *)
+	purego_type_sqlite3                      struct{}        // struct sqlite3
+	purego_type_sqlite3_int64                = int64         // sqlite_int64
+	purego_type_sqlite3_stmt                 struct{}        // struct sqlite3_stmt
+	purego_type_sqlite3_value                struct{}        // struct sqlite3_value
+	purego_type_sqlite3_context              struct{}        // struct sqlite3_context
+	purego_type_sqlite3_destructor_type      = uintptr       // void (*)(void *)
+	purego_type_sqlite3_destructor_type_func = func(uintptr) // void (*)(void *)
 )
+
+func purego_new_sqlite3_destructor_type(fn purego_type_sqlite3_destructor_type_func) purego_type_sqlite3_destructor_type {
+	return purego_type_sqlite3_destructor_type(purego.NewCallback(fn))
+}
 
 const (
 	SQLITE_OK                                                 = 0

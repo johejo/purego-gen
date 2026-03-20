@@ -15,11 +15,11 @@ import (
 )
 
 type (
-	DB             = purego_type_sqlite3
-	Stmt           = purego_type_sqlite3_stmt
-	Value          = purego_type_sqlite3_value
-	Context        = purego_type_sqlite3_context
-	Int64          = purego_type_sqlite3_int64
+	DB                 = purego_type_sqlite3
+	Stmt               = purego_type_sqlite3_stmt
+	Value              = purego_type_sqlite3_value
+	Context            = purego_type_sqlite3_context
+	Int64              = purego_type_sqlite3_int64
 	DestructorType = purego_type_sqlite3_destructor_type
 )
 

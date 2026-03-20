@@ -104,6 +104,22 @@ class GeneratorNaming:
         """
         return f"{self.var_prefix}var_{identifier}"
 
+    def func_type_name(self, identifier: str) -> str:
+        """Build one generated func-type alias name for a function-pointer typedef.
+
+        Returns:
+            Generated func-type alias identifier.
+        """
+        return f"{self.type_prefix}type_{identifier}_func"
+
+    def newcallback_name(self, identifier: str) -> str:
+        """Build one generated NewCallback helper name for a function-pointer typedef.
+
+        Returns:
+            Generated NewCallback helper identifier.
+        """
+        return f"{self.func_prefix}new_{identifier}"
+
     def register_functions_name(self, lib_id: str) -> str:
         """Build the generated function-registration helper name.
 

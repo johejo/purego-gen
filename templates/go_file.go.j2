@@ -3,9 +3,12 @@
 package {{ package }}
 
 {% set unsafe_helpers = helpers | selectattr("slice_parameters") | list %}
-{% if "func" in emit_kinds or "var" in emit_kinds %}
+{% set needs_purego_import = "func" in emit_kinds or "var" in emit_kinds or newcallback_helpers %}
+{% if needs_purego_import %}
 import (
+    {% if "func" in emit_kinds or "var" in emit_kinds %}
     "fmt"
+    {% endif %}
     {% if unsafe_helpers %}
     "unsafe"
     {% endif %}
@@ -13,13 +16,15 @@ import (
     "github.com/ebitengine/purego"
 )
 
+    {% if "func" in emit_kinds or "var" in emit_kinds %}
 var (
     _ = fmt.Errorf
-    {% if unsafe_helpers %}
+        {% if unsafe_helpers %}
     _ = unsafe.Pointer(nil)
-    {% endif %}
+        {% endif %}
 )
 
+    {% endif %}
 {% endif %}
 {% if "type" in emit_kinds and type_aliases %}
 type (
@@ -43,7 +48,23 @@ type (
             {% endif %}
         {% endif %}
     {% endfor %}
+    {% for func_type_alias in func_type_aliases %}
+        {% if func_type_alias.c_type_comment %}
+    {{ func_type_alias.name }} = {{ func_type_alias.go_type }} // {{ func_type_alias.c_type_comment }}
+        {% else %}
+    {{ func_type_alias.name }} = {{ func_type_alias.go_type }}
+        {% endif %}
+    {% endfor %}
 )
+    {% if newcallback_helpers %}
+
+        {% for helper in newcallback_helpers %}
+func {{ helper.name }}(fn {{ helper.param_type }}) {{ helper.return_type }} {
+    return {{ helper.return_type }}(purego.NewCallback(fn))
+}
+
+        {% endfor %}
+    {% endif %}
 {% endif %}
 {% if "const" in emit_kinds and constants %}
 const (

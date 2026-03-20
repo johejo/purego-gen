@@ -42,6 +42,8 @@ def test_render_template_fails_on_missing_nested_key() -> None:
                 "package": _FIXTURE_PACKAGE,
                 "emit_kinds": ("func",),
                 "type_aliases": (),
+                "func_type_aliases": (),
+                "newcallback_helpers": (),
                 "constants": (),
                 "functions": ({"name": "add"},),
                 "helpers": (),
@@ -384,3 +386,87 @@ def test_render_go_source_types_casted_sentinel_constants_with_typedef_alias() -
 
     assert "purego_const_FIXTURE_STATIC purego_type_fixture_destructor_t = 0" in source
     assert "purego_const_FIXTURE_TRANSIENT purego_type_fixture_destructor_t = ^uintptr(0)" in source
+
+
+def test_render_go_source_generates_func_type_and_newcallback_for_function_pointer_typedef() -> (
+    None
+):
+    """Function-pointer typedefs should generate func type aliases and NewCallback helpers."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("type",),
+        declarations=ParsedDeclarations(
+            functions=(),
+            typedefs=(
+                TypedefDecl(
+                    name="fixture_callback_t",
+                    c_type="int (*)(int)",
+                    go_type="uintptr",
+                ),
+            ),
+            constants=(),
+            runtime_vars=(),
+        ),
+    )
+
+    assert "purego_type_fixture_callback_t = uintptr // int (*)(int)" in source
+    assert "purego_type_fixture_callback_t_func = func(int32) int32 // int (*)(int)" in source
+    assert (
+        "func purego_new_fixture_callback_t(fn purego_type_fixture_callback_t_func) "
+        "purego_type_fixture_callback_t {" in source
+    )
+    assert "return purego_type_fixture_callback_t(purego.NewCallback(fn))" in source
+
+
+def test_render_go_source_skips_func_type_for_unsupported_callback_types() -> None:
+    """Function-pointer typedefs with unsupported parameter types should be skipped."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("type",),
+        declarations=ParsedDeclarations(
+            functions=(),
+            typedefs=(
+                TypedefDecl(
+                    name="fixture_name_t",
+                    c_type="const char *",
+                    go_type="uintptr",
+                ),
+            ),
+            constants=(),
+            runtime_vars=(),
+        ),
+    )
+
+    assert "purego_type_fixture_name_t = uintptr" in source
+    assert "_func" not in source
+    assert "purego_new_" not in source
+
+
+def test_render_go_source_generates_void_callback_func_type() -> None:
+    """Void-returning function-pointer typedefs should generate func type without return."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("type",),
+        declarations=ParsedDeclarations(
+            functions=(),
+            typedefs=(
+                TypedefDecl(
+                    name="fixture_destructor_t",
+                    c_type="void (*)(void *)",
+                    go_type="uintptr",
+                ),
+            ),
+            constants=(),
+            runtime_vars=(),
+        ),
+    )
+
+    assert "purego_type_fixture_destructor_t = uintptr // void (*)(void *)" in source
+    assert "purego_type_fixture_destructor_t_func = func(uintptr) // void (*)(void *)" in source
+    assert (
+        "func purego_new_fixture_destructor_t(fn purego_type_fixture_destructor_t_func) "
+        "purego_type_fixture_destructor_t {" in source
+    )

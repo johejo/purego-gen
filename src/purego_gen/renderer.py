@@ -50,6 +50,8 @@ _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "package",
     "emit_kinds",
     "type_aliases",
+    "func_type_aliases",
+    "newcallback_helpers",
     "constants",
     "functions",
     "helpers",
@@ -106,10 +108,24 @@ class _HelperContext(TypedDict):
     call_arguments: tuple[str, ...]
 
 
+class _FuncTypeAliasContext(TypedDict):
+    name: str
+    go_type: str
+    c_type_comment: str
+
+
+class _NewCallbackHelperContext(TypedDict):
+    name: str
+    param_type: str
+    return_type: str
+
+
 class _TemplateContext(TypedDict):
     package: str
     emit_kinds: tuple[str, ...]
     type_aliases: tuple[_TypeAliasContext, ...]
+    func_type_aliases: tuple[_FuncTypeAliasContext, ...]
+    newcallback_helpers: tuple[_NewCallbackHelperContext, ...]
     constants: tuple[_ConstantContext, ...]
     functions: tuple[_FunctionContext, ...]
     helpers: tuple[_HelperContext, ...]
@@ -632,6 +648,46 @@ def _build_function_context(
     }
 
 
+def _build_func_type_and_newcallback_contexts(
+    *,
+    declarations: ParsedDeclarations,
+    type_identifiers: tuple[str, ...],
+    emit_kinds: tuple[str, ...],
+    naming: GeneratorNaming,
+    type_resolver: HelperTypeResolver,
+) -> tuple[tuple[_FuncTypeAliasContext, ...], tuple[_NewCallbackHelperContext, ...]]:
+    """Build func-type alias and NewCallback helper contexts for function-pointer typedefs.
+
+    Returns:
+        Tuple of func-type alias contexts and NewCallback helper contexts.
+    """
+    if "type" not in emit_kinds:
+        return (), ()
+
+    func_type_aliases: list[_FuncTypeAliasContext] = []
+    newcallback_helpers: list[_NewCallbackHelperContext] = []
+    for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True):
+        if typedef.go_type != "uintptr" or not is_function_pointer_c_type(typedef.c_type):
+            continue
+        try:
+            go_func_type = type_resolver.build_callback_func_type(c_type=typedef.c_type)
+        except HelperRenderingError:
+            continue
+        func_type_name = naming.func_type_name(identifier)
+        return_type = naming.type_name(identifier)
+        func_type_aliases.append({
+            "name": func_type_name,
+            "go_type": go_func_type,
+            "c_type_comment": typedef.c_type,
+        })
+        newcallback_helpers.append({
+            "name": naming.newcallback_name(identifier),
+            "param_type": func_type_name,
+            "return_type": return_type,
+        })
+    return tuple(func_type_aliases), tuple(newcallback_helpers)
+
+
 def _build_context(
     *,
     package: str,
@@ -687,6 +743,14 @@ def _build_context(
     except HelperRenderingError as error:
         raise RendererError(str(error)) from error
 
+    func_type_aliases, newcallback_helpers = _build_func_type_and_newcallback_contexts(
+        declarations=declarations,
+        type_identifiers=type_identifiers,
+        emit_kinds=emit_kinds,
+        naming=render.naming,
+        type_resolver=type_resolver,
+    )
+
     return {
         "package": package,
         "emit_kinds": emit_kinds,
@@ -703,6 +767,8 @@ def _build_context(
             }
             for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
         ),
+        "func_type_aliases": func_type_aliases,
+        "newcallback_helpers": newcallback_helpers,
         "constants": tuple(
             {
                 "name": render.naming.const_name(identifier),

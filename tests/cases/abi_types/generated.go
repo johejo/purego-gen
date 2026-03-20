@@ -2,6 +2,10 @@
 
 package fixture
 
+import (
+	"github.com/ebitengine/purego"
+)
+
 type (
 	purego_type_fixture_mode_t       = int32   // enum fixture_mode
 	purego_type_fixture_mode_alias_t = int32   // fixture_mode_t
@@ -38,8 +42,13 @@ type (
 	purego_type_fixture_with_array_t = struct {
 		values [4]int32
 	}
-	purego_type_fixture_opaque_t struct{} // struct fixture_opaque
+	purego_type_fixture_opaque_t        struct{}            // struct fixture_opaque
+	purego_type_fixture_callback_t_func = func(int32) int32 // int (*)(int)
 )
+
+func purego_new_fixture_callback_t(fn purego_type_fixture_callback_t_func) purego_type_fixture_callback_t {
+	return purego_type_fixture_callback_t(purego.NewCallback(fn))
+}
 
 const (
 	purego_const_FIXTURE_MODE_OFF = 0
