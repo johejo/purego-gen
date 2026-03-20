@@ -101,7 +101,7 @@
             description = "Practical C-header-to-purego binding generator";
             pythonImportsCheck = [ "purego_gen" ];
           };
-          goldenCasesRunner = mkPackagedPuregoGenApplication {
+          goldenCasesPackage = mkPackagedPuregoGenApplication {
             pname = "golden-cases";
             mainProgram = "golden-cases";
             description = "Run purego-gen golden cases with nix-provided Python/toolchain";
@@ -159,7 +159,7 @@
 
           packages = {
             purego-gen = puregoGenPackage;
-            golden-cases = goldenCasesRunner;
+            golden-cases = goldenCasesPackage;
             default = puregoGenPackage;
             libduckdb-bin = pkgs.callPackage ./libduckdb-bin.nix {
               source = sources."libduckdb-${system}-bin";
@@ -175,8 +175,8 @@
               };
               goldenCasesApp = {
                 type = "app";
-                program = lib.getExe goldenCasesRunner;
-                meta = goldenCasesRunner.meta;
+                program = lib.getExe goldenCasesPackage;
+                meta = goldenCasesPackage.meta;
               };
             in
             {
