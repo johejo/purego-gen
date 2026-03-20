@@ -15,15 +15,24 @@ var (
 )
 
 type (
-	purego_type_sqlite3                      struct{}                                                                 // struct sqlite3
-	purego_type_sqlite3_int64                = int64                                                                  // sqlite_int64
-	purego_type_sqlite3_stmt                 struct{}                                                                 // struct sqlite3_stmt
-	purego_type_sqlite3_value                struct{}                                                                 // struct sqlite3_value
-	purego_type_sqlite3_context              struct{}                                                                 // struct sqlite3_context
-	purego_type_sqlite3_destructor_type      = uintptr                                                                // void (*)(void *)
-	purego_type_sqlite3_destructor_type_func = func(uintptr)                                                          // void (*)(void *)
-	purego_type_xFunc_func                   = func(*purego_type_sqlite3_context, int32, **purego_type_sqlite3_value) // void (*)(sqlite3_context *, int, sqlite3_value **)
-	purego_type_xCompare_func                = func(uintptr, int32, uintptr, int32, uintptr) int32                    // int (*)(void *, int, const void *, int, const void *)
+	// C: struct sqlite3
+	purego_type_sqlite3 struct{}
+	// C: sqlite_int64
+	purego_type_sqlite3_int64 = int64
+	// C: struct sqlite3_stmt
+	purego_type_sqlite3_stmt struct{}
+	// C: struct sqlite3_value
+	purego_type_sqlite3_value struct{}
+	// C: struct sqlite3_context
+	purego_type_sqlite3_context struct{}
+	// C: void (*)(void *)
+	purego_type_sqlite3_destructor_type = uintptr
+	// C: void (*)(void *)
+	purego_type_sqlite3_destructor_type_func = func(uintptr)
+	// C: void (*)(sqlite3_context *, int, sqlite3_value **)
+	purego_type_xFunc_func = func(*purego_type_sqlite3_context, int32, **purego_type_sqlite3_value)
+	// C: int (*)(void *, int, const void *, int, const void *)
+	purego_type_xCompare_func = func(uintptr, int32, uintptr, int32, uintptr) int32
 )
 
 func purego_new_sqlite3_destructor_type(fn purego_type_sqlite3_destructor_type_func) purego_type_sqlite3_destructor_type {
@@ -122,12 +131,14 @@ var (
 		zSql string,
 		nByte int32,
 		ppStmt **purego_type_sqlite3_stmt,
-		pzTail uintptr, // const char **
+		// C: const char **
+		pzTail uintptr,
 	) int32
 	purego_func_sqlite3_bind_blob func(
 		arg1 *purego_type_sqlite3_stmt,
 		arg2 int32,
-		arg3 uintptr, // const void *
+		// C: const void *
+		arg3 uintptr,
 		n int32,
 		arg5 purego_type_sqlite3_destructor_type,
 	) int32
@@ -183,7 +194,8 @@ var (
 	purego_func_sqlite3_column_blob func(
 		arg1 *purego_type_sqlite3_stmt,
 		iCol int32,
-	) uintptr // const void *
+		// C: const void *
+	) uintptr
 	purego_func_sqlite3_column_double func(
 		arg1 *purego_type_sqlite3_stmt,
 		iCol int32,
@@ -215,15 +227,20 @@ var (
 		zFunctionName string,
 		nArg int32,
 		eTextRep int32,
-		pApp uintptr, // void *
-		xFunc uintptr, // void (*)(sqlite3_context *, int, sqlite3_value **)
-		xStep uintptr, // void (*)(sqlite3_context *, int, sqlite3_value **)
-		xFinal uintptr, // void (*)(sqlite3_context *)
+		// C: void *
+		pApp uintptr,
+		// C: void (*)(sqlite3_context *, int, sqlite3_value **)
+		xFunc uintptr,
+		// C: void (*)(sqlite3_context *, int, sqlite3_value **)
+		xStep uintptr,
+		// C: void (*)(sqlite3_context *)
+		xFinal uintptr,
 		xDestroy purego_type_sqlite3_destructor_type,
 	) int32
 	purego_func_sqlite3_value_blob func(
 		arg1 *purego_type_sqlite3_value,
-	) uintptr // const void *
+		// C: const void *
+	) uintptr
 	purego_func_sqlite3_value_double func(
 		arg1 *purego_type_sqlite3_value,
 	) float64
@@ -241,10 +258,12 @@ var (
 	) int32
 	purego_func_sqlite3_user_data func(
 		arg1 *purego_type_sqlite3_context,
-	) uintptr // void *
+		// C: void *
+	) uintptr
 	purego_func_sqlite3_result_blob func(
 		arg1 *purego_type_sqlite3_context,
-		arg2 uintptr, // const void *
+		// C: const void *
+		arg2 uintptr,
 		arg3 int32,
 		arg4 purego_type_sqlite3_destructor_type,
 	)
@@ -274,8 +293,10 @@ var (
 		arg1 *purego_type_sqlite3,
 		zName string,
 		eTextRep int32,
-		pArg uintptr, // void *
-		xCompare uintptr, // int (*)(void *, int, const void *, int, const void *)
+		// C: void *
+		pArg uintptr,
+		// C: int (*)(void *, int, const void *, int, const void *)
+		xCompare uintptr,
 		xDestroy purego_type_sqlite3_destructor_type,
 	) int32
 )

@@ -15,7 +15,8 @@ var (
 )
 
 type (
-	purego_type_strict_typing_demo_error_code_t int32 // enum strict_typing_demo_error_code
+	// C: enum strict_typing_demo_error_code
+	purego_type_strict_typing_demo_error_code_t int32
 )
 
 const (

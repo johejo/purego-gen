@@ -260,7 +260,7 @@ def _map_record_field_to_go_line(
     field_name = _allocate_unique_field_name(base_name, seen_field_names)
     seen_field_names.add(field_name)
     if go_type == "uintptr":
-        return f"\t{field_name} {go_type} // {field_cursor.type.spelling}", None
+        return f"\t// C: {field_cursor.type.spelling}\n\t{field_name} {go_type}", None
     return f"\t{field_name} {go_type}", None
 
 
