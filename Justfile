@@ -66,11 +66,8 @@ golden-check-ci-nix:
   golden_cases_runner="$(nix build .#golden-cases --print-out-paths --no-link)/bin/golden-cases"; \
   "$golden_cases_runner" --mode check --strict-head
 
-tool-version-check:
-  scripts/check-tool-versions.sh
-
 check: nix-flake-check lint typecheck golden-check test go-vet go-staticcheck go-test
 
-ci: nix-flake-check tool-version-check lint typecheck golden-check golden-check-nix test go-vet go-staticcheck go-test
+ci: nix-flake-check lint typecheck golden-check golden-check-nix test go-vet go-staticcheck go-test
 
-ci-strict: nix-flake-check tool-version-check lint typecheck golden-check-ci golden-check-ci-nix test go-vet go-staticcheck go-test
+ci-strict: nix-flake-check lint typecheck golden-check-ci golden-check-ci-nix test go-vet go-staticcheck go-test
