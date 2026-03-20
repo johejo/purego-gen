@@ -371,19 +371,18 @@ func tokenizeCursor(
 ) []purego_type_CXToken {
 	t.Helper()
 
-	var tokensPtr uintptr
+	var tokensPtr *purego_type_CXToken
 	var tokenCount uint32
 	purego_func_clang_tokenize(
 		translationUnit,
 		purego_func_clang_getCursorExtent(cursor),
-		uintptr(unsafe.Pointer(&tokensPtr)),
+		&tokensPtr,
 		uintptr(unsafe.Pointer(&tokenCount)),
 	)
-	if tokensPtr == 0 || tokenCount == 0 {
+	if tokensPtr == nil || tokenCount == 0 {
 		t.Fatal("clang_tokenize returned no tokens")
 	}
-	tokenData := *(*unsafe.Pointer)(unsafe.Pointer(&tokensPtr))
-	return unsafe.Slice((*purego_type_CXToken)(tokenData), int(tokenCount))
+	return unsafe.Slice(tokensPtr, int(tokenCount))
 }
 
 func disposeTokens(translationUnit purego_type_CXTranslationUnit, tokens []purego_type_CXToken) {
@@ -392,7 +391,7 @@ func disposeTokens(translationUnit purego_type_CXTranslationUnit, tokens []pureg
 	}
 	purego_func_clang_disposeTokens(
 		translationUnit,
-		uintptr(unsafe.Pointer(&tokens[0])),
+		&tokens[0],
 		uint32(len(tokens)),
 	)
 }

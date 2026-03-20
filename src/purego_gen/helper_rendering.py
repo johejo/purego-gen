@@ -147,28 +147,32 @@ class HelperTypeResolver:
         return self._resolve_opaque_pointer_type(c_type=c_type, fallback=go_type)
 
     def _resolve_opaque_pointer_type(self, *, c_type: str, fallback: str) -> str:
-        """Resolve an opaque pointer C type to its Go alias with prefix.
+        """Resolve a pointer-to-typedef C type to its Go alias with prefix.
 
         Returns:
             Go type with ``*`` or ``**`` prefix, or *fallback* when unresolved.
         """
         double_pointer_name = extract_double_pointer_typedef_name(c_type)
         if double_pointer_name is not None:
-            opaque_alias = self.type_aliases["opaque"].get(
-                double_pointer_name
-            ) or self.type_aliases["opaque_pointer"].get(double_pointer_name)
-            if opaque_alias is not None:
-                return f"**{opaque_alias}"
+            alias = (
+                self.type_aliases["opaque"].get(double_pointer_name)
+                or self.type_aliases["opaque_pointer"].get(double_pointer_name)
+                or self.type_aliases["record"].get(double_pointer_name)
+            )
+            if alias is not None:
+                return f"**{alias}"
             return fallback
 
         typedef_name = extract_pointer_typedef_name(c_type)
         if typedef_name is None:
             return fallback
-        opaque_alias = self.type_aliases["opaque"].get(typedef_name) or self.type_aliases[
-            "opaque_pointer"
-        ].get(typedef_name)
-        if opaque_alias is not None:
-            return f"*{opaque_alias}"
+        alias = (
+            self.type_aliases["opaque"].get(typedef_name)
+            or self.type_aliases["opaque_pointer"].get(typedef_name)
+            or self.type_aliases["record"].get(typedef_name)
+        )
+        if alias is not None:
+            return f"*{alias}"
         return fallback
 
     def build_callback_func_type(self, *, c_type: str) -> str:

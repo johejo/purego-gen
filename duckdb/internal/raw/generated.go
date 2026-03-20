@@ -340,16 +340,14 @@ var (
 	purego_func_duckdb_query func(
 		connection purego_type_duckdb_connection,
 		query string,
-		// C: duckdb_result *
-		out_result uintptr,
+		out_result *purego_type_duckdb_result,
 	) int32
 	// !
 	// Closes the result and de-allocates all memory allocated for that result.
 	//
 	// @param result The result to destroy.
 	purego_func_duckdb_destroy_result func(
-		// C: duckdb_result *
-		result uintptr,
+		result *purego_type_duckdb_result,
 	)
 	// !
 	// Returns the column name of the specified column. The result should not need to be freed; the column names will
@@ -361,8 +359,7 @@ var (
 	// @param col The column index.
 	// @return The column name of the specified column.
 	purego_func_duckdb_column_name func(
-		// C: duckdb_result *
-		result uintptr,
+		result *purego_type_duckdb_result,
 		col uint64,
 	) string
 	// !
@@ -374,8 +371,7 @@ var (
 	// @param col The column index.
 	// @return The column type of the specified column.
 	purego_func_duckdb_column_type func(
-		// C: duckdb_result *
-		result uintptr,
+		result *purego_type_duckdb_result,
 		col uint64,
 	) int32
 	// !
@@ -389,8 +385,7 @@ var (
 	// @param col The column index.
 	// @return The logical column type of the specified column.
 	purego_func_duckdb_column_logical_type func(
-		// C: duckdb_result *
-		result uintptr,
+		result *purego_type_duckdb_result,
 		col uint64,
 	) purego_type_duckdb_logical_type
 	// !
@@ -399,8 +394,7 @@ var (
 	// @param result The result object.
 	// @return The number of columns present in the result object.
 	purego_func_duckdb_column_count func(
-		// C: duckdb_result *
-		result uintptr,
+		result *purego_type_duckdb_result,
 	) uint64
 	// !
 	// Returns the number of rows changed by the query stored in the result. This is relevant only for INSERT/UPDATE/DELETE
@@ -409,8 +403,7 @@ var (
 	// @param result The result object.
 	// @return The number of rows changed.
 	purego_func_duckdb_rows_changed func(
-		// C: duckdb_result *
-		result uintptr,
+		result *purego_type_duckdb_result,
 	) uint64
 	// !
 	// Returns the error message contained within the result. The error is only set if `duckdb_query` returns `DuckDBError`.
@@ -420,8 +413,7 @@ var (
 	// @param result The result object to fetch the error from.
 	// @return The error of the result.
 	purego_func_duckdb_result_error func(
-		// C: duckdb_result *
-		result uintptr,
+		result *purego_type_duckdb_result,
 	) string
 	// !
 	// Returns the return_type of the given result, or DUCKDB_RETURN_TYPE_INVALID on error
@@ -645,8 +637,7 @@ var (
 	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
 	purego_func_duckdb_execute_prepared func(
 		prepared_statement purego_type_duckdb_prepared_statement,
-		// C: duckdb_result *
-		out_result uintptr,
+		out_result *purego_type_duckdb_result,
 	) int32
 	// !
 	// Retrieves the enum `duckdb_type` of a `duckdb_logical_type`.

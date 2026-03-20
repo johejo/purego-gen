@@ -172,15 +172,15 @@ func DestroyConfig(config *Config) {
 // Query
 
 func Query(conn Connection, query string, result *Result) int32 {
-	return purego_func_duckdb_query(conn, query, uintptr(unsafe.Pointer(result)))
+	return purego_func_duckdb_query(conn, query, result)
 }
 
 func DestroyResult(result *Result) {
-	purego_func_duckdb_destroy_result(uintptr(unsafe.Pointer(result)))
+	purego_func_duckdb_destroy_result(result)
 }
 
 func ResultError(result *Result) string {
-	return purego_func_duckdb_result_error(uintptr(unsafe.Pointer(result)))
+	return purego_func_duckdb_result_error(result)
 }
 
 func ResultReturnType(result Result) int32 {
@@ -188,23 +188,23 @@ func ResultReturnType(result Result) int32 {
 }
 
 func RowsChanged(result *Result) uint64 {
-	return purego_func_duckdb_rows_changed(uintptr(unsafe.Pointer(result)))
+	return purego_func_duckdb_rows_changed(result)
 }
 
 func ColumnCount(result *Result) uint64 {
-	return purego_func_duckdb_column_count(uintptr(unsafe.Pointer(result)))
+	return purego_func_duckdb_column_count(result)
 }
 
 func ColumnName(result *Result, col uint64) string {
-	return purego_func_duckdb_column_name(uintptr(unsafe.Pointer(result)), col)
+	return purego_func_duckdb_column_name(result, col)
 }
 
 func ColumnType(result *Result, col uint64) int32 {
-	return purego_func_duckdb_column_type(uintptr(unsafe.Pointer(result)), col)
+	return purego_func_duckdb_column_type(result, col)
 }
 
 func ColumnLogicalType(result *Result, col uint64) LogicalType {
-	return purego_func_duckdb_column_logical_type(uintptr(unsafe.Pointer(result)), col)
+	return purego_func_duckdb_column_logical_type(result, col)
 }
 
 // Prepared Statements
@@ -240,7 +240,7 @@ func ClearBindings(stmt PreparedStatement) int32 {
 }
 
 func ExecutePrepared(stmt PreparedStatement, result *Result) int32 {
-	return purego_func_duckdb_execute_prepared(stmt, uintptr(unsafe.Pointer(result)))
+	return purego_func_duckdb_execute_prepared(stmt, result)
 }
 
 func PreparedStatementType(stmt PreparedStatement) int32 {

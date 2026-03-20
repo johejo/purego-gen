@@ -555,16 +555,14 @@ var (
 	purego_func_clang_tokenize func(
 		TU purego_type_CXTranslationUnit,
 		Range purego_type_CXSourceRange,
-		// C: CXToken **
-		Tokens uintptr,
+		Tokens **purego_type_CXToken,
 		// C: unsigned int *
 		NumTokens uintptr,
 	)
 	// Free the given set of tokens.
 	purego_func_clang_disposeTokens func(
 		TU purego_type_CXTranslationUnit,
-		// C: CXToken *
-		Tokens uintptr,
+		Tokens *purego_type_CXToken,
 		NumTokens uint32,
 	)
 	// \defgroup CINDEX_DEBUG Debugging facilities
