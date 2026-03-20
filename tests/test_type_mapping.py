@@ -106,6 +106,19 @@ def _fake_type(kind_name: str, *, size: int | None = None) -> TypeLike:
     return cast("TypeLike", _FakeType(kind=_FakeTypeKind(name=kind_name), _size=size))
 
 
+def _fake_pointer_type(pointee_kind_name: str, *, pointee_size: int | None = None) -> TypeLike:
+    """Build a fake pointer TypeLike whose pointee has the given kind.
+
+    Returns:
+        Fake pointer type satisfying the TypeLike protocol.
+    """
+    pointee = _FakeType(kind=_FakeTypeKind(name=pointee_kind_name), _size=pointee_size)
+    return cast(
+        "TypeLike",
+        _FakeType(kind=_FakeTypeKind(name="POINTER"), _pointee=pointee),
+    )
+
+
 @pytest.mark.parametrize(
     ("kind_name", "size", "expected_go_type"),
     [
@@ -142,3 +155,36 @@ def test_static_mapping_unaffected_for_fixed_size_kinds() -> None:
     """Fixed-size kinds should still use the static dictionary regardless of size."""
     for kind_name, expected in [("INT", "int32"), ("UINT", "uint32"), ("SHORT", "int16")]:
         assert map_type_to_go_name(_fake_type(kind_name, size=8)) == expected
+
+
+@pytest.mark.parametrize(
+    ("pointee_kind", "pointee_size", "expected_go_type"),
+    [
+        pytest.param("INT", None, "*int32", id="int-ptr"),
+        pytest.param("UINT", None, "*uint32", id="uint-ptr"),
+        pytest.param("SHORT", None, "*int16", id="short-ptr"),
+        pytest.param("USHORT", None, "*uint16", id="ushort-ptr"),
+        pytest.param("LONG", 8, "*int64", id="long-8-ptr"),
+        pytest.param("LONG", 4, "*int32", id="long-4-ptr"),
+        pytest.param("ULONG", 8, "*uint64", id="ulong-8-ptr"),
+        pytest.param("ULONG", 4, "*uint32", id="ulong-4-ptr"),
+        pytest.param("LONGLONG", None, "*int64", id="longlong-ptr"),
+        pytest.param("ULONGLONG", None, "*uint64", id="ulonglong-ptr"),
+        pytest.param("FLOAT", None, "*float32", id="float-ptr"),
+        pytest.param("DOUBLE", None, "*float64", id="double-ptr"),
+        pytest.param("BOOL", None, "*bool", id="bool-ptr"),
+        pytest.param("CHAR_S", None, "uintptr", id="char-s-ptr-stays-uintptr"),
+        pytest.param("CHAR_U", None, "uintptr", id="char-u-ptr-stays-uintptr"),
+        pytest.param("UCHAR", None, "uintptr", id="uchar-ptr-stays-uintptr"),
+        pytest.param("VOID", None, "uintptr", id="void-ptr-stays-uintptr"),
+        pytest.param("RECORD", None, "uintptr", id="record-ptr-stays-uintptr"),
+        pytest.param("POINTER", None, "uintptr", id="double-ptr-stays-uintptr"),
+        pytest.param("FUNCTIONPROTO", None, "uintptr", id="funcptr-stays-uintptr"),
+    ],
+)
+def test_pointer_to_primitive_mapping(
+    pointee_kind: str, pointee_size: int | None, expected_go_type: str
+) -> None:
+    """Pointer-to-primitive types should resolve to typed Go pointers."""
+    fake = _fake_pointer_type(pointee_kind, pointee_size=pointee_size)
+    assert map_type_to_go_name(fake) == expected_go_type

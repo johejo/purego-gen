@@ -556,8 +556,7 @@ var (
 		TU purego_type_CXTranslationUnit,
 		Range purego_type_CXSourceRange,
 		Tokens **purego_type_CXToken,
-		// C: unsigned int *
-		NumTokens uintptr,
+		NumTokens *uint32,
 	)
 	// Free the given set of tokens.
 	purego_func_clang_disposeTokens func(
@@ -610,12 +609,9 @@ var (
 		location purego_type_CXSourceLocation,
 		// C: CXFile *
 		file uintptr,
-		// C: unsigned int *
-		line uintptr,
-		// C: unsigned int *
-		column uintptr,
-		// C: unsigned int *
-		offset uintptr,
+		line *uint32,
+		column *uint32,
+		offset *uint32,
 	)
 	// Retrieve the complete file and path name of the given file.
 	purego_func_clang_getFileName func(

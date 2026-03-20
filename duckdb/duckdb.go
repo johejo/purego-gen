@@ -417,7 +417,7 @@ func vectorPtr(data uintptr, byteOffset uintptr) unsafe.Pointer {
 func (r *DuckDBRows) readValue(col, row uint64) (driver.Value, error) {
 	vector := raw.DataChunkGetVector(r.chunk, col)
 	validity := raw.VectorGetValidity(vector)
-	if validity != 0 && !raw.ValidityRowIsValid(validity, row) {
+	if validity != nil && !raw.ValidityRowIsValid(validity, row) {
 		return nil, nil
 	}
 

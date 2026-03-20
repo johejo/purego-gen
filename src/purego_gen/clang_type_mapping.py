@@ -64,9 +64,20 @@ _UNION_DECL_KIND_NAME: Final[str] = "UNION_DECL"
 
 
 def _map_pointer_type_to_go_name(canonical_type: TypeLike) -> str:
-    pointee_kind_name = canonical_type.get_pointee().get_canonical().kind.name
+    pointee_canonical = canonical_type.get_pointee().get_canonical()
+    pointee_kind_name = pointee_canonical.kind.name
     if pointee_kind_name in _FUNCTION_TYPE_KINDS:
         return "uintptr"
+    if pointee_kind_name in _STRING_POINTEE_TYPE_KINDS:
+        return "uintptr"
+    if pointee_kind_name in {"VOID", "POINTER", _RECORD_TYPE_KIND_NAME}:
+        return "uintptr"
+    size_mapped = _map_variable_size_type_to_go_name(pointee_kind_name, pointee_canonical)
+    if size_mapped is not None:
+        return f"*{size_mapped}"
+    static_mapped = _TYPE_KIND_TO_GO_TYPE.get(pointee_kind_name)
+    if static_mapped is not None:
+        return f"*{static_mapped}"
     return "uintptr"
 
 

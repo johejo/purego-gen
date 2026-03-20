@@ -102,9 +102,8 @@ type (
 	// ! `duckdb_column_type`, and `duckdb_column_name`.
 	purego_type_duckdb_column = struct {
 		// C: void *
-		deprecated_data uintptr
-		// C: _Bool *
-		deprecated_nullmask uintptr
+		deprecated_data     uintptr
+		deprecated_nullmask *bool
 		deprecated_type     int32
 		_                   [4]byte
 		// C: char *
@@ -544,8 +543,7 @@ var (
 	// Retrieve the index of the parameter for the prepared statement, identified by name
 	purego_func_duckdb_bind_parameter_index func(
 		prepared_statement purego_type_duckdb_prepared_statement,
-		// C: idx_t *
-		param_idx_out uintptr,
+		param_idx_out *uint64,
 		name string,
 	) int32
 	// !
@@ -748,8 +746,7 @@ var (
 	// @return The pointer to the validity mask, or NULL if no validity mask is present
 	purego_func_duckdb_vector_get_validity func(
 		vector purego_type_duckdb_vector,
-		// C: uint64_t *
-	) uintptr
+	) *uint64
 	// !
 	// Returns whether or not a row is valid (i.e. not NULL) in the given validity mask.
 	//
@@ -757,8 +754,7 @@ var (
 	// @param row The row index
 	// @return true if the row is valid, false otherwise
 	purego_func_duckdb_validity_row_is_valid func(
-		// C: uint64_t *
-		validity uintptr,
+		validity *uint64,
 		row uint64,
 	) bool
 	// !

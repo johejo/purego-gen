@@ -231,7 +231,7 @@ func ParameterName(stmt PreparedStatement, index uint64) string {
 
 func BindParameterIndex(stmt PreparedStatement, name string) (uint64, int32) {
 	var idx uint64
-	state := purego_func_duckdb_bind_parameter_index(stmt, uintptr(unsafe.Pointer(&idx)), name)
+	state := purego_func_duckdb_bind_parameter_index(stmt, &idx, name)
 	return idx, state
 }
 
@@ -323,11 +323,11 @@ func VectorGetData(vector Vector) uintptr {
 	return purego_func_duckdb_vector_get_data(vector)
 }
 
-func VectorGetValidity(vector Vector) uintptr {
+func VectorGetValidity(vector Vector) *uint64 {
 	return purego_func_duckdb_vector_get_validity(vector)
 }
 
-func ValidityRowIsValid(validity uintptr, row uint64) bool {
+func ValidityRowIsValid(validity *uint64, row uint64) bool {
 	return purego_func_duckdb_validity_row_is_valid(validity, row)
 }
 

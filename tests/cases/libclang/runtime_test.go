@@ -204,9 +204,9 @@ func TestGeneratedBindingsParseHeaderWithLibclang(t *testing.T) {
 	purego_func_clang_getExpansionLocation(
 		location,
 		uintptr(unsafe.Pointer(&file)),
-		uintptr(unsafe.Pointer(&line)),
-		uintptr(unsafe.Pointer(&column)),
-		uintptr(unsafe.Pointer(&offset)),
+		&line,
+		&column,
+		&offset,
 	)
 	if got := consumeString(purego_func_clang_getFileName(uintptr(file))); got != headerPath {
 		t.Fatalf("clang_getFileName(file) = %q, want %q", got, headerPath)
@@ -377,7 +377,7 @@ func tokenizeCursor(
 		translationUnit,
 		purego_func_clang_getCursorExtent(cursor),
 		&tokensPtr,
-		uintptr(unsafe.Pointer(&tokenCount)),
+		&tokenCount,
 	)
 	if tokensPtr == nil || tokenCount == 0 {
 		t.Fatal("clang_tokenize returned no tokens")

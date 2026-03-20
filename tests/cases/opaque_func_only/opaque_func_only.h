@@ -4,4 +4,4 @@
  */
 typedef struct foo foo_t;
 
-foo_t *create_ctx(const foo_t *ctx);
+foo_t* create_ctx(const foo_t* ctx);
