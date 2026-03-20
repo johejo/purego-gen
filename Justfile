@@ -46,6 +46,9 @@ go-staticcheck:
 go-test:
   go test ./...
 
+go-generate:
+  go generate ./...
+
 golden-update:
   {{python_src_prefix}} scripts/golden_cases.py --mode update
 

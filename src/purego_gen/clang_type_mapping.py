@@ -467,6 +467,35 @@ def extract_record_typedef_decl(
     )
 
 
+def is_opaque_pointer_typedef(canonical_pointer_type: TypeLike) -> bool:
+    """Check whether a pointer typedef refers to an opaque handle pattern.
+
+    Detects two patterns:
+    1. Incomplete struct pointer: ``typedef struct _foo* foo;``
+    2. Single-void-pointer struct: ``typedef struct { void *internal_ptr; } *foo;``
+
+    Returns:
+        `True` when typedef references an opaque pointer handle.
+    """
+    pointee = canonical_pointer_type.get_pointee().get_canonical()
+    if pointee.kind.name != _RECORD_TYPE_KIND_NAME:
+        return False
+    declaration = pointee.get_declaration()
+    if declaration.kind.name != _STRUCT_DECL_KIND_NAME:
+        return False
+    if not declaration.is_definition():
+        return True
+    field_decls = [
+        child for child in declaration.get_children() if child.kind.name == _FIELD_DECL_KIND_NAME
+    ]
+    if len(field_decls) != 1:
+        return False
+    field_canonical = field_decls[0].type.get_canonical()
+    if field_canonical.kind.name != "POINTER":
+        return False
+    return field_canonical.get_pointee().get_canonical().kind.name == "VOID"
+
+
 def is_opaque_record_typedef(canonical_record_type: TypeLike) -> bool:
     """Check whether a record typedef refers to an incomplete struct declaration.
 

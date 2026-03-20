@@ -262,6 +262,55 @@ def _build_opaque_alias_type_by_typedef_name(
     }
 
 
+def _build_emitted_opaque_pointer_typedef_names(
+    *,
+    emit_kinds: tuple[str, ...],
+    declarations: ParsedDeclarations,
+) -> set[str]:
+    """Build emitted opaque pointer typedef-name set.
+
+    Returns:
+        Set of opaque pointer typedef names emitted in this render.
+    """
+    if "type" not in emit_kinds:
+        return set()
+
+    emitted_typedef_names = {typedef.name for typedef in declarations.typedefs}
+    return set(declarations.opaque_pointer_typedef_names & emitted_typedef_names)
+
+
+def _build_opaque_pointer_alias_type_by_typedef_name(
+    *,
+    declarations: ParsedDeclarations,
+    type_identifiers: tuple[str, ...],
+    emitted_opaque_pointer_typedef_names: set[str],
+    naming: GeneratorNaming,
+) -> dict[str, str]:
+    """Build emitted opaque pointer typedef alias lookup for function signatures.
+
+    Returns:
+        Mapping of opaque pointer typedef spellings to generated alias type names.
+    """
+    type_identifier_by_name = {
+        typedef.name: identifier
+        for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
+    }
+    alias_type_by_typedef_name: dict[str, str] = {}
+    for typedef_name in emitted_opaque_pointer_typedef_names:
+        identifier = type_identifier_by_name.get(typedef_name)
+        if identifier is None:
+            continue
+        alias_name = naming.type_name(identifier)
+        alias_type_by_typedef_name[typedef_name] = alias_name
+        typedef_by_name = {typedef.name: typedef for typedef in declarations.typedefs}
+        typedef = typedef_by_name.get(typedef_name)
+        if typedef is None:
+            continue
+        normalized_c_type = normalize_c_type_for_lookup(typedef.c_type)
+        alias_type_by_typedef_name[normalized_c_type] = alias_name
+    return alias_type_by_typedef_name
+
+
 def _build_emitted_strict_enum_typedef_names(
     *,
     emit_kinds: tuple[str, ...],
@@ -529,12 +578,14 @@ def _build_typedef_render_helpers(
     dict[str, str],
     set[str],
     set[str],
+    set[str],
 ]:
     """Build typedef-related lookups and emitted-name sets used during rendering.
 
     Returns:
         Function-signature alias lookups, typedef alias lookup, typedef Go-type
-        lookup, opaque typedef names, and strict enum typedef names.
+        lookup, opaque typedef names, strict enum typedef names, and opaque
+        pointer typedef names.
     """
     emitted_record_typedef_names = _build_emitted_record_typedef_names(
         emit_kinds=emit_kinds,
@@ -543,6 +594,10 @@ def _build_typedef_render_helpers(
     emitted_opaque_struct_typedef_names = _build_emitted_opaque_struct_typedef_names(
         declarations=declarations,
         emitted_record_typedef_names=emitted_record_typedef_names,
+    )
+    emitted_opaque_pointer_typedef_names = _build_emitted_opaque_pointer_typedef_names(
+        emit_kinds=emit_kinds,
+        declarations=declarations,
     )
     emitted_strict_enum_typedef_names = _build_emitted_strict_enum_typedef_names(
         emit_kinds=emit_kinds,
@@ -573,6 +628,12 @@ def _build_typedef_render_helpers(
             emit_kinds=emit_kinds,
             naming=naming,
         ),
+        "opaque_pointer": _build_opaque_pointer_alias_type_by_typedef_name(
+            declarations=declarations,
+            type_identifiers=type_identifiers,
+            emitted_opaque_pointer_typedef_names=emitted_opaque_pointer_typedef_names,
+            naming=naming,
+        ),
     }
     return (
         func_sig_type_aliases,
@@ -585,6 +646,7 @@ def _build_typedef_render_helpers(
         _build_typedef_go_type_by_lookup(declarations),
         emitted_opaque_struct_typedef_names,
         emitted_strict_enum_typedef_names,
+        emitted_opaque_pointer_typedef_names,
     )
 
 
@@ -822,18 +884,18 @@ def _build_context(
     type_identifiers, constant_identifiers, function_identifiers, runtime_var_identifiers = (
         _build_render_identifiers(declarations)
     )
-    (
-        function_signature_type_aliases,
-        typedef_alias_type_by_lookup,
-        typedef_go_type_by_lookup,
-        emitted_opaque_struct_typedef_names,
-        emitted_strict_enum_typedef_names,
-    ) = _build_typedef_render_helpers(
+    typedef_render_helpers = _build_typedef_render_helpers(
         emit_kinds=emit_kinds,
         declarations=declarations,
         type_identifiers=type_identifiers,
         type_mapping=render.type_mapping,
         naming=render.naming,
+    )
+    function_signature_type_aliases = typedef_render_helpers[0]
+    typedef_alias_type_by_lookup = typedef_render_helpers[1]
+    typedef_go_type_by_lookup = typedef_render_helpers[2]
+    emitted_strict_typedef_names = (
+        typedef_render_helpers[3] | typedef_render_helpers[4] | typedef_render_helpers[5]
     )
     function_identifier_by_name = {
         function.name: identifier
@@ -884,10 +946,7 @@ def _build_context(
             {
                 "name": render.naming.type_name(identifier),
                 "go_type": typedef.go_type,
-                "is_strict": (
-                    typedef.name in emitted_opaque_struct_typedef_names
-                    or typedef.name in emitted_strict_enum_typedef_names
-                ),
+                "is_strict": typedef.name in emitted_strict_typedef_names,
                 "comment_lines": _normalize_comment_lines(typedef.comment),
                 "c_type_comment": typedef.c_type if "\n" not in typedef.go_type else "",
             }

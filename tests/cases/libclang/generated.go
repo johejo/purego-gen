@@ -21,7 +21,7 @@ type (
 	purego_type_CXIndex = uintptr
 	// A single translation unit, which resides in an index.
 	// C: struct CXTranslationUnitImpl *
-	purego_type_CXTranslationUnit = uintptr
+	purego_type_CXTranslationUnit uintptr
 	// A cursor representing some element in the abstract syntax tree for
 	// a translation unit.
 	//
@@ -288,16 +288,14 @@ var (
 	// \returns the file handle for the named file in the translation unit \p tu,
 	// or a NULL file handle if the file was not a part of this translation unit.
 	purego_func_clang_getFile func(
-		// C: CXTranslationUnit
-		tu uintptr,
+		tu purego_type_CXTranslationUnit,
 		file_name string,
 		// C: CXFile
 	) uintptr
 	// Retrieves the source location associated with a given file/line/column
 	// in a particular translation unit.
 	purego_func_clang_getLocation func(
-		// C: CXTranslationUnit
-		tu uintptr,
+		tu purego_type_CXTranslationUnit,
 		// C: CXFile
 		file uintptr,
 		line uint32,
@@ -306,8 +304,7 @@ var (
 	// Determine the number of diagnostics produced for the given
 	// translation unit.
 	purego_func_clang_getNumDiagnostics func(
-		// C: CXTranslationUnit
-		Unit uintptr,
+		Unit purego_type_CXTranslationUnit,
 	) uint32
 	// Same as \c clang_parseTranslationUnit2, but returns
 	// the \c CXTranslationUnit instead of an error code.  In case of an error this
@@ -324,20 +321,17 @@ var (
 		unsaved_files uintptr,
 		num_unsaved_files uint32,
 		options uint32,
-		// C: CXTranslationUnit
-	) uintptr
+	) purego_type_CXTranslationUnit
 	// Destroy the specified CXTranslationUnit object.
 	purego_func_clang_disposeTranslationUnit func(
-		// C: CXTranslationUnit
-		arg1 uintptr,
+		arg1 purego_type_CXTranslationUnit,
 	)
 	// Retrieve the cursor that represents the given translation unit.
 	//
 	// The translation unit cursor can be used to start traversing the
 	// various declarations within the given translation unit.
 	purego_func_clang_getTranslationUnitCursor func(
-		// C: CXTranslationUnit
-		arg1 uintptr,
+		arg1 purego_type_CXTranslationUnit,
 	) purego_type_CXCursor
 	// Retrieve the kind of the given cursor.
 	purego_func_clang_getCursorKind func(
@@ -357,8 +351,7 @@ var (
 	// \returns a cursor representing the entity at the given source location, or
 	// a NULL cursor if no such entity can be found.
 	purego_func_clang_getCursor func(
-		// C: CXTranslationUnit
-		arg1 uintptr,
+		arg1 purego_type_CXTranslationUnit,
 		arg2 purego_type_CXSourceLocation,
 	) purego_type_CXCursor
 	// Retrieve the physical location of the source constructor referenced
@@ -542,8 +535,7 @@ var (
 	// The spelling of a token is the textual representation of that token, e.g.,
 	// the text of an identifier or keyword.
 	purego_func_clang_getTokenSpelling func(
-		// C: CXTranslationUnit
-		arg1 uintptr,
+		arg1 purego_type_CXTranslationUnit,
 		arg2 purego_type_CXToken,
 	) purego_type_CXString
 	// Tokenize the source code described by the given range into raw
@@ -561,8 +553,7 @@ var (
 	// \param NumTokens will be set to the number of tokens in the \c *Tokens
 	// array.
 	purego_func_clang_tokenize func(
-		// C: CXTranslationUnit
-		TU uintptr,
+		TU purego_type_CXTranslationUnit,
 		Range purego_type_CXSourceRange,
 		// C: CXToken **
 		Tokens uintptr,
@@ -571,8 +562,7 @@ var (
 	)
 	// Free the given set of tokens.
 	purego_func_clang_disposeTokens func(
-		// C: CXTranslationUnit
-		TU uintptr,
+		TU purego_type_CXTranslationUnit,
 		// C: CXToken *
 		Tokens uintptr,
 		NumTokens uint32,

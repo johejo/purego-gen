@@ -115,7 +115,7 @@ type (
 	// ! 1. A standalone vector that must be destroyed, or
 	// ! 2. A vector to a column in a data chunk that lives as long as the data chunk lives.
 	// C: struct _duckdb_vector *
-	purego_type_duckdb_vector = uintptr
+	purego_type_duckdb_vector uintptr
 	// ! Strings are composed of a `char` pointer and a size.
 	// ! You must free `string.data` with `duckdb_free`.
 	purego_type_duckdb_string = struct {
@@ -145,26 +145,26 @@ type (
 	}
 	// ! A database object. Must be closed with `duckdb_close`.
 	// C: struct _duckdb_database *
-	purego_type_duckdb_database = uintptr
+	purego_type_duckdb_database uintptr
 	// ! A connection to a duckdb database. Must be closed with `duckdb_disconnect`.
 	// C: struct _duckdb_connection *
-	purego_type_duckdb_connection = uintptr
+	purego_type_duckdb_connection uintptr
 	// ! A prepared statement is a parameterized query that allows you to bind parameters to it.
 	// ! Must be destroyed with `duckdb_destroy_prepare`.
 	// C: struct _duckdb_prepared_statement *
-	purego_type_duckdb_prepared_statement = uintptr
+	purego_type_duckdb_prepared_statement uintptr
 	// ! The configuration can be used to provide start-up options for a database.
 	// ! Must be destroyed with `duckdb_destroy_config`.
 	// C: struct _duckdb_config *
-	purego_type_duckdb_config = uintptr
+	purego_type_duckdb_config uintptr
 	// ! A logical type.
 	// ! Must be destroyed with `duckdb_destroy_logical_type`.
 	// C: struct _duckdb_logical_type *
-	purego_type_duckdb_logical_type = uintptr
+	purego_type_duckdb_logical_type uintptr
 	// ! Contains a data chunk of a duckdb_result.
 	// ! Must be destroyed with `duckdb_destroy_data_chunk`.
 	// C: struct _duckdb_data_chunk *
-	purego_type_duckdb_data_chunk = uintptr
+	purego_type_duckdb_data_chunk uintptr
 )
 
 const (
@@ -243,8 +243,7 @@ var (
 		path string,
 		// C: duckdb_database *
 		out_database uintptr,
-		// C: duckdb_config
-		config uintptr,
+		config purego_type_duckdb_config,
 		// C: char **
 		out_error uintptr,
 	) int32
@@ -268,8 +267,7 @@ var (
 	// @param out_connection The result connection object.
 	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
 	purego_func_duckdb_connect func(
-		// C: duckdb_database
-		database uintptr,
+		database purego_type_duckdb_database,
 		// C: duckdb_connection *
 		out_connection uintptr,
 	) int32
@@ -278,8 +276,7 @@ var (
 	//
 	// @param connection The connection to interrupt
 	purego_func_duckdb_interrupt func(
-		// C: duckdb_connection
-		connection uintptr,
+		connection purego_type_duckdb_connection,
 	)
 	// !
 	// Closes the specified connection and de-allocates all memory allocated for that connection.
@@ -323,8 +320,7 @@ var (
 	// @param option The value to set the configuration flag to.
 	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
 	purego_func_duckdb_set_config func(
-		// C: duckdb_config
-		config uintptr,
+		config purego_type_duckdb_config,
 		name string,
 		option string,
 	) int32
@@ -349,8 +345,7 @@ var (
 	// @param out_result The query result.
 	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
 	purego_func_duckdb_query func(
-		// C: duckdb_connection
-		connection uintptr,
+		connection purego_type_duckdb_connection,
 		query string,
 		// C: duckdb_result *
 		out_result uintptr,
@@ -404,8 +399,7 @@ var (
 		// C: duckdb_result *
 		result uintptr,
 		col uint64,
-		// C: duckdb_logical_type
-	) uintptr
+	) purego_type_duckdb_logical_type
 	// !
 	// Returns the number of columns present in a the result object.
 	//
@@ -506,8 +500,7 @@ var (
 	// @param out_prepared_statement The resulting prepared statement object
 	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
 	purego_func_duckdb_prepare func(
-		// C: duckdb_connection
-		connection uintptr,
+		connection purego_type_duckdb_connection,
 		query string,
 		// C: duckdb_prepared_statement *
 		out_prepared_statement uintptr,
@@ -529,8 +522,7 @@ var (
 	// @param prepared_statement The prepared statement to obtain the error from.
 	// @return The error message, or `nullptr` if there is none.
 	purego_func_duckdb_prepare_error func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 	) string
 	// !
 	// Returns the number of parameters that can be provided to the given prepared statement.
@@ -539,8 +531,7 @@ var (
 	//
 	// @param prepared_statement The prepared statement to obtain the number of parameters for.
 	purego_func_duckdb_nparams func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 	) uint64
 	// !
 	// Returns the name used to identify the parameter
@@ -550,15 +541,13 @@ var (
 	//
 	// @param prepared_statement The prepared statement for which to get the parameter name from.
 	purego_func_duckdb_parameter_name func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 		index uint64,
 	) string
 	// !
 	// Clear the params bind to the prepared statement.
 	purego_func_duckdb_clear_bindings func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 	) int32
 	// !
 	// Returns the statement type of the statement to be executed
@@ -566,14 +555,12 @@ var (
 	// @param statement The prepared statement.
 	// @return duckdb_statement_type value or DUCKDB_STATEMENT_TYPE_INVALID
 	purego_func_duckdb_prepared_statement_type func(
-		// C: duckdb_prepared_statement
-		statement uintptr,
+		statement purego_type_duckdb_prepared_statement,
 	) int32
 	// !
 	// Retrieve the index of the parameter for the prepared statement, identified by name
 	purego_func_duckdb_bind_parameter_index func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 		// C: idx_t *
 		param_idx_out uintptr,
 		name string,
@@ -581,48 +568,42 @@ var (
 	// !
 	// Binds a bool value to the prepared statement at the specified index.
 	purego_func_duckdb_bind_boolean func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 		param_idx uint64,
 		val bool,
 	) int32
 	// !
 	// Binds an int32_t value to the prepared statement at the specified index.
 	purego_func_duckdb_bind_int32 func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 		param_idx uint64,
 		val int32,
 	) int32
 	// !
 	// Binds an int64_t value to the prepared statement at the specified index.
 	purego_func_duckdb_bind_int64 func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 		param_idx uint64,
 		val int64,
 	) int32
 	// !
 	// Binds a float value to the prepared statement at the specified index.
 	purego_func_duckdb_bind_float func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 		param_idx uint64,
 		val float32,
 	) int32
 	// !
 	// Binds a double value to the prepared statement at the specified index.
 	purego_func_duckdb_bind_double func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 		param_idx uint64,
 		val float64,
 	) int32
 	// !
 	// Binds a duckdb_timestamp value to the prepared statement at the specified index.
 	purego_func_duckdb_bind_timestamp func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 		param_idx uint64,
 		val purego_type_duckdb_timestamp,
 	) int32
@@ -631,8 +612,7 @@ var (
 	//
 	// Superseded by `duckdb_bind_value`.
 	purego_func_duckdb_bind_varchar func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 		param_idx uint64,
 		val string,
 	) int32
@@ -641,8 +621,7 @@ var (
 	//
 	// Superseded by `duckdb_bind_value`.
 	purego_func_duckdb_bind_varchar_length func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 		param_idx uint64,
 		val string,
 		length uint64,
@@ -650,8 +629,7 @@ var (
 	// !
 	// Binds a blob value to the prepared statement at the specified index.
 	purego_func_duckdb_bind_blob func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 		param_idx uint64,
 		// C: const void *
 		data uintptr,
@@ -660,8 +638,7 @@ var (
 	// !
 	// Binds a NULL value to the prepared statement at the specified index.
 	purego_func_duckdb_bind_null func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 		param_idx uint64,
 	) int32
 	// !
@@ -676,8 +653,7 @@ var (
 	// @param out_result The query result.
 	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
 	purego_func_duckdb_execute_prepared func(
-		// C: duckdb_prepared_statement
-		prepared_statement uintptr,
+		prepared_statement purego_type_duckdb_prepared_statement,
 		// C: duckdb_result *
 		out_result uintptr,
 	) int32
@@ -687,8 +663,7 @@ var (
 	// @param type The logical type.
 	// @return The `duckdb_type` id.
 	purego_func_duckdb_get_type_id func(
-		// C: duckdb_logical_type
-		type_ uintptr,
+		type_ purego_type_duckdb_logical_type,
 	) int32
 	// !
 	// Retrieves the width of a decimal type.
@@ -696,8 +671,7 @@ var (
 	// @param type The logical type object
 	// @return The width of the decimal type
 	purego_func_duckdb_decimal_width func(
-		// C: duckdb_logical_type
-		type_ uintptr,
+		type_ purego_type_duckdb_logical_type,
 	) uint8
 	// !
 	// Retrieves the scale of a decimal type.
@@ -705,8 +679,7 @@ var (
 	// @param type The logical type object
 	// @return The scale of the decimal type
 	purego_func_duckdb_decimal_scale func(
-		// C: duckdb_logical_type
-		type_ uintptr,
+		type_ purego_type_duckdb_logical_type,
 	) uint8
 	// !
 	// Destroys the logical type and de-allocates all memory allocated for that type.
@@ -730,8 +703,7 @@ var (
 	// @param chunk The data chunk to get the data from
 	// @return The number of columns in the data chunk
 	purego_func_duckdb_data_chunk_get_column_count func(
-		// C: duckdb_data_chunk
-		chunk uintptr,
+		chunk purego_type_duckdb_data_chunk,
 	) uint64
 	// !
 	// Retrieves the vector at the specified column index in the data chunk.
@@ -742,19 +714,16 @@ var (
 	// @param chunk The data chunk to get the data from
 	// @return The vector
 	purego_func_duckdb_data_chunk_get_vector func(
-		// C: duckdb_data_chunk
-		chunk uintptr,
+		chunk purego_type_duckdb_data_chunk,
 		col_idx uint64,
-		// C: duckdb_vector
-	) uintptr
+	) purego_type_duckdb_vector
 	// !
 	// Retrieves the current number of tuples in a data chunk.
 	//
 	// @param chunk The data chunk to get the data from
 	// @return The number of tuples in the data chunk
 	purego_func_duckdb_data_chunk_get_size func(
-		// C: duckdb_data_chunk
-		chunk uintptr,
+		chunk purego_type_duckdb_data_chunk,
 	) uint64
 	// !
 	// Retrieves the column type of the specified vector.
@@ -764,10 +733,8 @@ var (
 	// @param vector The vector get the data from
 	// @return The type of the vector
 	purego_func_duckdb_vector_get_column_type func(
-		// C: duckdb_vector
-		vector uintptr,
-		// C: duckdb_logical_type
-	) uintptr
+		vector purego_type_duckdb_vector,
+	) purego_type_duckdb_logical_type
 	// !
 	// Retrieves the data pointer of the vector.
 	//
@@ -777,8 +744,7 @@ var (
 	// @param vector The vector to get the data from
 	// @return The data pointer
 	purego_func_duckdb_vector_get_data func(
-		// C: duckdb_vector
-		vector uintptr,
+		vector purego_type_duckdb_vector,
 		// C: void *
 	) uintptr
 	// !
@@ -801,8 +767,7 @@ var (
 	// @param vector The vector to get the data from
 	// @return The pointer to the validity mask, or NULL if no validity mask is present
 	purego_func_duckdb_vector_get_validity func(
-		// C: duckdb_vector
-		vector uintptr,
+		vector purego_type_duckdb_vector,
 		// C: uint64_t *
 	) uintptr
 	// !
@@ -827,8 +792,7 @@ var (
 	// @return The resulting data chunk. Returns `NULL` if the result has an error.
 	purego_func_duckdb_fetch_chunk func(
 		result purego_type_duckdb_result,
-		// C: duckdb_data_chunk
-	) uintptr
+	) purego_type_duckdb_data_chunk
 )
 
 func purego_duckdb_register_functions(handle uintptr) error {

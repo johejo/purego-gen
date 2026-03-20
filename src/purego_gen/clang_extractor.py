@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from purego_gen.clang_type_mapping import (
     extract_record_typedef_decl,
+    is_opaque_pointer_typedef,
     is_opaque_record_typedef,
     map_function_parameter_type_to_go_name,
     map_function_result_type_to_go_name,
@@ -82,11 +83,12 @@ def _extract_function(cursor: CursorLike, *, type_mapping: TypeMappingOptions) -
 
 def _extract_typedef(
     cursor: CursorLike,
-) -> tuple[TypedefDecl | None, UnsupportedTypeDiagnostic | None, RecordTypedefDecl | None]:
+) -> tuple[TypedefDecl | None, UnsupportedTypeDiagnostic | None, RecordTypedefDecl | None, bool]:
     """Convert a typedef cursor to model when it is basic.
 
     Returns:
-        Typedef result, optional unsupported diagnostic, and optional record metadata.
+        Typedef result, optional unsupported diagnostic, optional record metadata,
+        and whether this is an opaque pointer typedef.
     """
     underlying = cursor.underlying_typedef_type
     canonical = underlying.get_canonical()
@@ -108,8 +110,9 @@ def _extract_typedef(
                     ),
                     None,
                     record_typedef,
+                    False,
                 )
-            return None, mapping_result.unsupported_diagnostic, record_typedef
+            return None, mapping_result.unsupported_diagnostic, record_typedef, False
         return (
             TypedefDecl(
                 name=str(cursor.spelling),
@@ -119,11 +122,25 @@ def _extract_typedef(
             ),
             None,
             record_typedef,
+            False,
+        )
+
+    if canonical.kind.name == "POINTER" and is_opaque_pointer_typedef(canonical):
+        return (
+            TypedefDecl(
+                name=str(cursor.spelling),
+                c_type=str(underlying.spelling),
+                go_type="uintptr",
+                comment=_extract_cursor_comment(cursor),
+            ),
+            None,
+            None,
+            True,
         )
 
     go_type = map_type_to_go_name(underlying)
     if go_type is None:
-        return None, None, None
+        return None, None, None, False
     return (
         TypedefDecl(
             name=str(cursor.spelling),
@@ -133,6 +150,7 @@ def _extract_typedef(
         ),
         None,
         None,
+        False,
     )
 
 
@@ -240,9 +258,11 @@ def collect_typedef(
     if cursor.spelling in seen.typedef_names:
         return True
 
-    typedef, unsupported_diagnostic, record_typedef = _extract_typedef(cursor)
+    typedef, unsupported_diagnostic, record_typedef, is_opaque_pointer = _extract_typedef(cursor)
     if record_typedef is not None:
         declarations.record_typedefs.append(record_typedef)
+    if is_opaque_pointer and typedef is not None:
+        declarations.opaque_pointer_typedef_names.add(str(cursor.spelling))
     if typedef is None:
         if unsupported_diagnostic is not None:
             declarations.skipped_typedefs.append(

@@ -44,7 +44,7 @@ func parseHeader(
 	headerPath string,
 	commandLineArgs cStringArray,
 	options uint32,
-) uintptr {
+) purego_type_CXTranslationUnit {
 	t.Helper()
 
 	translationUnit := purego_func_clang_parseTranslationUnit(
@@ -319,7 +319,7 @@ func TestGeneratedBindingsParseHeaderWithLibclang(t *testing.T) {
 
 func mustCursorBySpelling(
 	t *testing.T,
-	translationUnit uintptr,
+	translationUnit purego_type_CXTranslationUnit,
 	headerPath string,
 	spelling string,
 ) purego_type_CXCursor {
@@ -366,7 +366,7 @@ func mustLineColumnForToken(t *testing.T, path string, token string) (int, int) 
 
 func tokenizeCursor(
 	t *testing.T,
-	translationUnit uintptr,
+	translationUnit purego_type_CXTranslationUnit,
 	cursor purego_type_CXCursor,
 ) []purego_type_CXToken {
 	t.Helper()
@@ -386,7 +386,7 @@ func tokenizeCursor(
 	return unsafe.Slice((*purego_type_CXToken)(tokenData), int(tokenCount))
 }
 
-func disposeTokens(translationUnit uintptr, tokens []purego_type_CXToken) {
+func disposeTokens(translationUnit purego_type_CXTranslationUnit, tokens []purego_type_CXToken) {
 	if len(tokens) == 0 {
 		return
 	}
@@ -397,7 +397,7 @@ func disposeTokens(translationUnit uintptr, tokens []purego_type_CXToken) {
 	)
 }
 
-func tokenSpellings(translationUnit uintptr, tokens []purego_type_CXToken) []string {
+func tokenSpellings(translationUnit purego_type_CXTranslationUnit, tokens []purego_type_CXToken) []string {
 	spellings := make([]string, 0, len(tokens))
 	for _, token := range tokens {
 		spellings = append(spellings, consumeString(purego_func_clang_getTokenSpelling(translationUnit, token)))

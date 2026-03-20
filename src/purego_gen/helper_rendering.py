@@ -93,6 +93,7 @@ class FunctionSignatureTypeAliases(TypedDict):
     opaque: Mapping[str, str]
     enum: Mapping[str, str]
     function_pointer: Mapping[str, str]
+    opaque_pointer: Mapping[str, str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +136,10 @@ class HelperTypeResolver:
         )
         if function_pointer_alias is not None:
             return function_pointer_alias
+
+        opaque_pointer_alias = self.type_aliases["opaque_pointer"].get(normalized_c_type)
+        if opaque_pointer_alias is not None:
+            return opaque_pointer_alias
 
         if go_type != "uintptr":
             return go_type

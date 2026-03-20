@@ -205,6 +205,11 @@ def apply_declaration_filters(
         name_getter=lambda declaration: declaration.name,
     )
 
+    surviving_typedef_names = frozenset(td.name for td in typedefs)
+    opaque_pointer_typedef_names = (
+        declarations.opaque_pointer_typedef_names & surviving_typedef_names
+    )
+
     return ParsedDeclarations(
         functions=functions,
         typedefs=typedefs,
@@ -212,6 +217,7 @@ def apply_declaration_filters(
         runtime_vars=runtime_vars,
         skipped_typedefs=declarations.skipped_typedefs,
         record_typedefs=record_typedefs,
+        opaque_pointer_typedef_names=opaque_pointer_typedef_names,
     )
 
 

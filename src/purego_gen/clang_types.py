@@ -44,6 +44,7 @@ class CollectedDeclarations:
     runtime_vars: list[RuntimeVarDecl]
     skipped_typedefs: list[SkippedTypedefDecl]
     record_typedefs: list[RecordTypedefDecl]
+    opaque_pointer_typedef_names: set[str]
 
 
 class _SourceFileLike(Protocol):

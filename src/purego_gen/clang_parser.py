@@ -65,6 +65,7 @@ def parse_declarations(
         runtime_vars=[],
         skipped_typedefs=[],
         record_typedefs=[],
+        opaque_pointer_typedef_names=set(),
     )
     seen = SeenDeclarations(
         function_names=set(),
@@ -80,24 +81,18 @@ def parse_declarations(
             message = f"header not found: {header_path}"
             raise ClangParserError(message)
 
-        (
-            parsed_functions,
-            parsed_typedefs,
-            parsed_constants,
-            parsed_runtime_vars,
-            parsed_skipped_typedefs,
-            parsed_record_typedefs,
-        ) = parse_header(
+        parsed = parse_header(
             parse_context=parse_context,
             header_path=header_path,
             seen=seen,
         )
-        all_declarations.functions.extend(parsed_functions)
-        all_declarations.typedefs.extend(parsed_typedefs)
-        all_declarations.constants.extend(parsed_constants)
-        all_declarations.runtime_vars.extend(parsed_runtime_vars)
-        all_declarations.skipped_typedefs.extend(parsed_skipped_typedefs)
-        all_declarations.record_typedefs.extend(parsed_record_typedefs)
+        all_declarations.functions.extend(parsed[0])
+        all_declarations.typedefs.extend(parsed[1])
+        all_declarations.constants.extend(parsed[2])
+        all_declarations.runtime_vars.extend(parsed[3])
+        all_declarations.skipped_typedefs.extend(parsed[4])
+        all_declarations.record_typedefs.extend(parsed[5])
+        all_declarations.opaque_pointer_typedef_names.update(parsed[6])
 
     return ParsedDeclarations(
         functions=tuple(all_declarations.functions),
@@ -106,6 +101,7 @@ def parse_declarations(
         runtime_vars=tuple(all_declarations.runtime_vars),
         skipped_typedefs=tuple(all_declarations.skipped_typedefs),
         record_typedefs=tuple(all_declarations.record_typedefs),
+        opaque_pointer_typedef_names=frozenset(all_declarations.opaque_pointer_typedef_names),
     )
 
 

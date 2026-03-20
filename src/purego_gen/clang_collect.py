@@ -127,6 +127,7 @@ def parse_header(
     list[RuntimeVarDecl],
     list[SkippedTypedefDecl],
     list[RecordTypedefDecl],
+    set[str],
 ]:
     """Parse one header and extract supported declarations.
 
@@ -144,7 +145,7 @@ def parse_header(
 
     root_cursor = translation_unit.cursor
     if root_cursor is None:
-        return [], [], [], [], [], []
+        return [], [], [], [], [], [], set()
 
     declarations = CollectedDeclarations(
         functions=[],
@@ -153,6 +154,7 @@ def parse_header(
         runtime_vars=[],
         skipped_typedefs=[],
         record_typedefs=[],
+        opaque_pointer_typedef_names=set(),
     )
     macro_state = MacroCollectionState(
         known_constant_values={},
@@ -212,4 +214,5 @@ def parse_header(
         declarations.runtime_vars,
         declarations.skipped_typedefs,
         declarations.record_typedefs,
+        declarations.opaque_pointer_typedef_names,
     )

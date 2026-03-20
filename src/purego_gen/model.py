@@ -158,3 +158,4 @@ class ParsedDeclarations:
     runtime_vars: tuple[RuntimeVarDecl, ...]
     skipped_typedefs: tuple[SkippedTypedefDecl, ...] = ()
     record_typedefs: tuple[RecordTypedefDecl, ...] = ()
+    opaque_pointer_typedef_names: frozenset[str] = frozenset()

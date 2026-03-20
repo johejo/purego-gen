@@ -132,7 +132,7 @@ func Open(path string, db *Database) int32 {
 }
 
 func OpenExt(path string, db *Database, config Config, outError *uintptr) int32 {
-	return purego_func_duckdb_open_ext(path, uintptr(unsafe.Pointer(db)), uintptr(config), uintptr(unsafe.Pointer(outError)))
+	return purego_func_duckdb_open_ext(path, uintptr(unsafe.Pointer(db)), config, uintptr(unsafe.Pointer(outError)))
 }
 
 func Close(db *Database) {
@@ -140,7 +140,7 @@ func Close(db *Database) {
 }
 
 func Connect(db Database, conn *Connection) int32 {
-	return purego_func_duckdb_connect(uintptr(db), uintptr(unsafe.Pointer(conn)))
+	return purego_func_duckdb_connect(db, uintptr(unsafe.Pointer(conn)))
 }
 
 func Disconnect(conn *Connection) {
@@ -148,7 +148,7 @@ func Disconnect(conn *Connection) {
 }
 
 func Interrupt(conn Connection) {
-	purego_func_duckdb_interrupt(uintptr(conn))
+	purego_func_duckdb_interrupt(conn)
 }
 
 func LibraryVersion() string {
@@ -162,7 +162,7 @@ func CreateConfig(config *Config) int32 {
 }
 
 func SetConfig(config Config, name string, option string) int32 {
-	return purego_func_duckdb_set_config(uintptr(config), name, option)
+	return purego_func_duckdb_set_config(config, name, option)
 }
 
 func DestroyConfig(config *Config) {
@@ -172,7 +172,7 @@ func DestroyConfig(config *Config) {
 // Query
 
 func Query(conn Connection, query string, result *Result) int32 {
-	return purego_func_duckdb_query(uintptr(conn), query, uintptr(unsafe.Pointer(result)))
+	return purego_func_duckdb_query(conn, query, uintptr(unsafe.Pointer(result)))
 }
 
 func DestroyResult(result *Result) {
@@ -204,13 +204,13 @@ func ColumnType(result *Result, col uint64) int32 {
 }
 
 func ColumnLogicalType(result *Result, col uint64) LogicalType {
-	return LogicalType(purego_func_duckdb_column_logical_type(uintptr(unsafe.Pointer(result)), col))
+	return purego_func_duckdb_column_logical_type(uintptr(unsafe.Pointer(result)), col)
 }
 
 // Prepared Statements
 
 func Prepare(conn Connection, query string, stmt *PreparedStatement) int32 {
-	return purego_func_duckdb_prepare(uintptr(conn), query, uintptr(unsafe.Pointer(stmt)))
+	return purego_func_duckdb_prepare(conn, query, uintptr(unsafe.Pointer(stmt)))
 }
 
 func DestroyPrepare(stmt *PreparedStatement) {
@@ -218,63 +218,63 @@ func DestroyPrepare(stmt *PreparedStatement) {
 }
 
 func PrepareError(stmt PreparedStatement) string {
-	return purego_func_duckdb_prepare_error(uintptr(stmt))
+	return purego_func_duckdb_prepare_error(stmt)
 }
 
 func Nparams(stmt PreparedStatement) uint64 {
-	return purego_func_duckdb_nparams(uintptr(stmt))
+	return purego_func_duckdb_nparams(stmt)
 }
 
 func ParameterName(stmt PreparedStatement, index uint64) string {
-	return purego_func_duckdb_parameter_name(uintptr(stmt), index)
+	return purego_func_duckdb_parameter_name(stmt, index)
 }
 
 func BindParameterIndex(stmt PreparedStatement, name string) (uint64, int32) {
 	var idx uint64
-	state := purego_func_duckdb_bind_parameter_index(uintptr(stmt), uintptr(unsafe.Pointer(&idx)), name)
+	state := purego_func_duckdb_bind_parameter_index(stmt, uintptr(unsafe.Pointer(&idx)), name)
 	return idx, state
 }
 
 func ClearBindings(stmt PreparedStatement) int32 {
-	return purego_func_duckdb_clear_bindings(uintptr(stmt))
+	return purego_func_duckdb_clear_bindings(stmt)
 }
 
 func ExecutePrepared(stmt PreparedStatement, result *Result) int32 {
-	return purego_func_duckdb_execute_prepared(uintptr(stmt), uintptr(unsafe.Pointer(result)))
+	return purego_func_duckdb_execute_prepared(stmt, uintptr(unsafe.Pointer(result)))
 }
 
 func PreparedStatementType(stmt PreparedStatement) int32 {
-	return purego_func_duckdb_prepared_statement_type(uintptr(stmt))
+	return purego_func_duckdb_prepared_statement_type(stmt)
 }
 
 // Binding
 
 func BindBoolean(stmt PreparedStatement, idx uint64, val bool) int32 {
-	return purego_func_duckdb_bind_boolean(uintptr(stmt), idx, val)
+	return purego_func_duckdb_bind_boolean(stmt, idx, val)
 }
 
 func BindInt32(stmt PreparedStatement, idx uint64, val int32) int32 {
-	return purego_func_duckdb_bind_int32(uintptr(stmt), idx, val)
+	return purego_func_duckdb_bind_int32(stmt, idx, val)
 }
 
 func BindInt64(stmt PreparedStatement, idx uint64, val int64) int32 {
-	return purego_func_duckdb_bind_int64(uintptr(stmt), idx, val)
+	return purego_func_duckdb_bind_int64(stmt, idx, val)
 }
 
 func BindFloat(stmt PreparedStatement, idx uint64, val float32) int32 {
-	return purego_func_duckdb_bind_float(uintptr(stmt), idx, val)
+	return purego_func_duckdb_bind_float(stmt, idx, val)
 }
 
 func BindDouble(stmt PreparedStatement, idx uint64, val float64) int32 {
-	return purego_func_duckdb_bind_double(uintptr(stmt), idx, val)
+	return purego_func_duckdb_bind_double(stmt, idx, val)
 }
 
 func BindVarchar(stmt PreparedStatement, idx uint64, val string) int32 {
-	return purego_func_duckdb_bind_varchar(uintptr(stmt), idx, val)
+	return purego_func_duckdb_bind_varchar(stmt, idx, val)
 }
 
 func BindVarcharLength(stmt PreparedStatement, idx uint64, val string, length uint64) int32 {
-	return purego_func_duckdb_bind_varchar_length(uintptr(stmt), idx, val, length)
+	return purego_func_duckdb_bind_varchar_length(stmt, idx, val, length)
 }
 
 func BindBlob(stmt PreparedStatement, idx uint64, data []byte) int32 {
@@ -282,21 +282,21 @@ func BindBlob(stmt PreparedStatement, idx uint64, data []byte) int32 {
 	if len(data) > 0 {
 		ptr = uintptr(unsafe.Pointer(&data[0]))
 	}
-	return purego_func_duckdb_bind_blob(uintptr(stmt), idx, ptr, uint64(len(data)))
+	return purego_func_duckdb_bind_blob(stmt, idx, ptr, uint64(len(data)))
 }
 
 func BindNull(stmt PreparedStatement, idx uint64) int32 {
-	return purego_func_duckdb_bind_null(uintptr(stmt), idx)
+	return purego_func_duckdb_bind_null(stmt, idx)
 }
 
 func BindTimestamp(stmt PreparedStatement, idx uint64, val Timestamp) int32 {
-	return purego_func_duckdb_bind_timestamp(uintptr(stmt), idx, val)
+	return purego_func_duckdb_bind_timestamp(stmt, idx, val)
 }
 
 // Data Chunk / Vector API
 
 func FetchChunk(result Result) DataChunk {
-	return DataChunk(purego_func_duckdb_fetch_chunk(result))
+	return purego_func_duckdb_fetch_chunk(result)
 }
 
 func DestroyDataChunk(chunk *DataChunk) {
@@ -304,27 +304,27 @@ func DestroyDataChunk(chunk *DataChunk) {
 }
 
 func DataChunkGetSize(chunk DataChunk) uint64 {
-	return purego_func_duckdb_data_chunk_get_size(uintptr(chunk))
+	return purego_func_duckdb_data_chunk_get_size(chunk)
 }
 
 func DataChunkGetColumnCount(chunk DataChunk) uint64 {
-	return purego_func_duckdb_data_chunk_get_column_count(uintptr(chunk))
+	return purego_func_duckdb_data_chunk_get_column_count(chunk)
 }
 
 func DataChunkGetVector(chunk DataChunk, colIdx uint64) Vector {
-	return Vector(purego_func_duckdb_data_chunk_get_vector(uintptr(chunk), colIdx))
+	return purego_func_duckdb_data_chunk_get_vector(chunk, colIdx)
 }
 
 func VectorGetColumnType(vector Vector) LogicalType {
-	return LogicalType(purego_func_duckdb_vector_get_column_type(uintptr(vector)))
+	return purego_func_duckdb_vector_get_column_type(vector)
 }
 
 func VectorGetData(vector Vector) uintptr {
-	return purego_func_duckdb_vector_get_data(uintptr(vector))
+	return purego_func_duckdb_vector_get_data(vector)
 }
 
 func VectorGetValidity(vector Vector) uintptr {
-	return purego_func_duckdb_vector_get_validity(uintptr(vector))
+	return purego_func_duckdb_vector_get_validity(vector)
 }
 
 func ValidityRowIsValid(validity uintptr, row uint64) bool {
@@ -338,15 +338,15 @@ func VectorSize() uint64 {
 // Logical Type
 
 func GetTypeId(logicalType LogicalType) int32 {
-	return purego_func_duckdb_get_type_id(uintptr(logicalType))
+	return purego_func_duckdb_get_type_id(logicalType)
 }
 
 func DecimalWidth(logicalType LogicalType) uint8 {
-	return purego_func_duckdb_decimal_width(uintptr(logicalType))
+	return purego_func_duckdb_decimal_width(logicalType)
 }
 
 func DecimalScale(logicalType LogicalType) uint8 {
-	return purego_func_duckdb_decimal_scale(uintptr(logicalType))
+	return purego_func_duckdb_decimal_scale(logicalType)
 }
 
 func DestroyLogicalType(logicalType *LogicalType) {
