@@ -5,11 +5,9 @@ Completed work is intentionally omitted.
 
 ## Target Library Coverage
 
-- [ ] Add `libduckdb` harness fixture and golden outputs (must).
 - [ ] Add `onnxruntime` harness fixture and golden outputs.
 - [ ] Add optional Linux-only `libsystemd` harness fixture.
 - [ ] Wire target-library jobs into the CI matrix with platform guards.
-- [ ] Record known unsupported declarations per library.
 
 ## Future Capabilities
 
@@ -29,11 +27,8 @@ Completed work is intentionally omitted.
 - [ ] Emit a clearer supported/skipped declaration inventory so users can quickly see what still requires handwritten code after generation.
 - [ ] Explore an optional helper-layer generation mode that builds small ergonomic wrappers on top of the low-level purego bindings without baking target-library-specific policy into the core generator.
 - [ ] Add an opt-in downstream package scaffold mode that can emit a private raw package config plus symbol-loader/bootstrap glue so practical driver/wrapper packages need less handwritten setup around generated bindings.
-- [ ] Revisit config schema/model/normalize/load boundaries so config additions stop requiring repeated cross-file edits.
-- [ ] Continue simplifying config-loading boundaries after the shared type-mapping and validation helper extraction.
 
 ## Open Decisions
 
 - [ ] Decide macro evaluation boundary beyond enum-like constants.
-- [x] ~~Decide whether enum mapping should stay on `int32` or use libclang-derived underlying size/signedness for ABI-accurate fixed-width Go types.~~ Resolved: `ENUM`, `LONG`, and `ULONG` now use `get_size()` to derive the correct fixed-width Go type, falling back to the static mapping when size metadata is unavailable.
 - [ ] Re-evaluate Windows support scope after v1 (API and symbol-loading strategy).
