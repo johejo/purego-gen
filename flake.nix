@@ -28,7 +28,7 @@
       perSystem = forAllSystems (
         { pkgs }:
         let
-          system = pkgs.system;
+          system = pkgs.stdenv.hostPlatform.system;
           lib = pkgs.lib;
           pythonPkgs = pkgs.python314Packages;
           treefmt = (mkTreefmt pkgs).config.build.wrapper;
@@ -94,6 +94,8 @@
             PUREGO_GEN_TEST_LIBZSTD_LIB_DIR = "${pkgs.zstd.out}/lib";
             PUREGO_GEN_TEST_LIBSQLITE3_INCLUDE_DIR = "${pkgs.sqlite.dev}/include";
             PUREGO_GEN_TEST_LIBSQLITE3_LIB_DIR = "${pkgs.sqlite.out}/lib";
+            PUREGO_GEN_TEST_LIBDUCKDB_INCLUDE_DIR = "${self.packages.${system}.libduckdb-bin}/include";
+            PUREGO_GEN_TEST_LIBDUCKDB_LIB_DIR = "${self.packages.${system}.libduckdb-bin}/lib";
           };
           puregoGenPackage = mkPackagedPuregoGenApplication {
             pname = "purego-gen";
