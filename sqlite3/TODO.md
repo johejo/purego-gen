@@ -1,7 +1,7 @@
 # SQLITE3 TODO
 
 Open sqlite3-driver-specific follow-ups only.
-Generic purego-gen issues belong in [`TODO.md`](./TODO.md).
+Generic purego-gen issues belong in root [`TODO.md`](../TODO.md).
 
 - [ ] Add aggregate-function registration on top of `sqlite3_create_function_v2`.
 - [ ] Add broader DSN compatibility for mattn/go-sqlite3 options that are still intentionally out of scope in v1.

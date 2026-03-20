@@ -1,7 +1,7 @@
-# DuckDB purego-gen Gap Tracker
+# DUCKDB TODO
 
 Issues discovered while building the DuckDB database/sql driver.
-Items that are purego-gen core improvements are tracked in root `TODO.md`.
+Items that are purego-gen core improvements are tracked in root [`TODO.md`](../TODO.md).
 
 ## purego-gen Gaps Found (tracked in root TODO.md)
 
