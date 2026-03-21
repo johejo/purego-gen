@@ -476,13 +476,11 @@ func (r *DuckDBRows) readValue(col, row uint64) (driver.Value, error) {
 	case raw.DUCKDB_TYPE_DATE:
 		date := *(*raw.Date)(vectorPtr(data, uintptr(row)*4))
 		ds := raw.FromDate(date)
-		year, month, day := raw.DateStructFields(&ds)
-		return time.Date(int(year), time.Month(month), int(day), 0, 0, 0, 0, time.UTC), nil
+		return time.Date(int(ds.Get_year()), time.Month(ds.Get_month()), int(ds.Get_day()), 0, 0, 0, 0, time.UTC), nil
 	case raw.DUCKDB_TYPE_TIME, raw.DUCKDB_TYPE_TIME_TZ:
 		t := *(*raw.Time)(vectorPtr(data, uintptr(row)*8))
 		ts := raw.FromTime(t)
-		hour, min, sec, micros := raw.TimeStructFields(&ts)
-		return time.Date(0, 1, 1, int(hour), int(min), int(sec), int(micros)*1000, time.UTC), nil
+		return time.Date(0, 1, 1, int(ts.Get_hour()), int(ts.Get_min()), int(ts.Get_sec()), int(ts.Get_micros())*1000, time.UTC), nil
 	case raw.DUCKDB_TYPE_HUGEINT:
 		hi := *(*raw.Hugeint)(vectorPtr(data, uintptr(row)*16))
 		return hugeintToString(hi), nil

@@ -16,6 +16,8 @@ from purego_gen.model import (
     ConstantDecl,
     FunctionDecl,
     ParsedDeclarations,
+    RecordFieldDecl,
+    RecordTypedefDecl,
     RuntimeVarDecl,
     TypedefDecl,
     TypeMappingOptions,
@@ -54,6 +56,7 @@ def test_render_template_fails_on_missing_nested_key() -> None:
                 "functions": ({"name": "add"},),
                 "helpers": (),
                 "owned_string_helpers": (),
+                "struct_accessors": (),
                 "runtime_vars": (),
                 "register_functions_name": "purego_fixture_lib_register_functions",
                 "load_runtime_vars_name": "purego_fixture_lib_load_runtime_vars",
@@ -560,3 +563,207 @@ def test_render_go_source_deduplicates_same_signature_callback_params() -> None:
     # Should NOT have qualified names
     assert "purego_type_fixture_fn_a_on_done_func" not in source
     assert "purego_type_fixture_fn_b_on_done_func" not in source
+
+
+def _make_record_typedef(
+    name: str,
+    fields: tuple[RecordFieldDecl, ...],
+) -> RecordTypedefDecl:
+    return RecordTypedefDecl(
+        name=name,
+        c_type=f"struct {name}",
+        record_kind="STRUCT_DECL",
+        size_bytes=8,
+        align_bytes=4,
+        fields=fields,
+        supported=True,
+        unsupported_code=None,
+        unsupported_reason=None,
+    )
+
+
+def _make_supported_field(name: str, c_type: str, go_name: str, go_type: str) -> RecordFieldDecl:
+    return RecordFieldDecl(
+        name=name,
+        c_type=c_type,
+        kind="FIELD_DECL",
+        offset_bits=0,
+        size_bytes=4,
+        align_bytes=4,
+        is_bitfield=False,
+        bitfield_width=None,
+        supported=True,
+        unsupported_code=None,
+        unsupported_reason=None,
+        go_name=go_name,
+        go_type=go_type,
+    )
+
+
+def test_render_go_source_struct_accessors_enabled() -> None:
+    """struct_accessors=True should generate getter/setter methods."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("type",),
+        declarations=ParsedDeclarations(
+            functions=(),
+            typedefs=(
+                TypedefDecl(
+                    name="my_struct",
+                    c_type="struct {\n\tint32 year;\n\tint8 month;\n}",
+                    go_type="struct {\n\tyear  int32\n\tmonth int8\n}",
+                ),
+            ),
+            constants=(),
+            runtime_vars=(),
+            record_typedefs=(
+                _make_record_typedef(
+                    "my_struct",
+                    fields=(
+                        _make_supported_field("year", "int32_t", "year", "int32"),
+                        _make_supported_field("month", "int8_t", "month", "int8"),
+                    ),
+                ),
+            ),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(),
+            type_mapping=TypeMappingOptions(),
+            struct_accessors=True,
+        ),
+    )
+
+    assert "func (s *purego_type_my_struct) Get_year() int32 {" in source
+    assert "return s.year" in source
+    assert "func (s *purego_type_my_struct) Set_year(v int32) {" in source
+    assert "s.year = v" in source
+    assert "func (s *purego_type_my_struct) Get_month() int8 {" in source
+    assert "func (s *purego_type_my_struct) Set_month(v int8) {" in source
+
+
+def test_render_go_source_struct_accessors_disabled_by_default() -> None:
+    """struct_accessors should not generate methods when disabled (default)."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("type",),
+        declarations=ParsedDeclarations(
+            functions=(),
+            typedefs=(
+                TypedefDecl(
+                    name="my_struct",
+                    c_type="struct {\n\tint32 year;\n}",
+                    go_type="struct {\n\tyear int32\n}",
+                ),
+            ),
+            constants=(),
+            runtime_vars=(),
+            record_typedefs=(
+                _make_record_typedef(
+                    "my_struct",
+                    fields=(_make_supported_field("year", "int32_t", "year", "int32"),),
+                ),
+            ),
+        ),
+    )
+
+    assert "Get_year()" not in source
+    assert "Set_year(" not in source
+
+
+def test_render_go_source_struct_accessors_skips_unsupported_fields() -> None:
+    """Unsupported fields (go_name=None) should not generate accessors."""
+    unsupported_field = RecordFieldDecl(
+        name="bitfield",
+        c_type="unsigned int",
+        kind="FIELD_DECL",
+        offset_bits=0,
+        size_bytes=4,
+        align_bytes=4,
+        is_bitfield=True,
+        bitfield_width=3,
+        supported=False,
+        unsupported_code="unsupported_bitfield",
+        unsupported_reason="bitfield not supported",
+        go_name=None,
+        go_type=None,
+    )
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("type",),
+        declarations=ParsedDeclarations(
+            functions=(),
+            typedefs=(
+                TypedefDecl(
+                    name="my_struct",
+                    c_type="struct {\n\tint32 year;\n}",
+                    go_type="struct {\n\tyear int32\n}",
+                ),
+            ),
+            constants=(),
+            runtime_vars=(),
+            record_typedefs=(
+                _make_record_typedef(
+                    "my_struct",
+                    fields=(
+                        _make_supported_field("year", "int32_t", "year", "int32"),
+                        unsupported_field,
+                    ),
+                ),
+            ),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(),
+            type_mapping=TypeMappingOptions(),
+            struct_accessors=True,
+        ),
+    )
+
+    assert "Get_year()" in source
+    assert "Get_bitfield()" not in source
+
+
+def test_render_go_source_struct_accessors_skips_nested_struct_fields() -> None:
+    """Fields with anonymous struct types (multiline go_type) should not generate accessors."""
+    nested_field = _make_supported_field(
+        "date",
+        "duckdb_date_struct",
+        "date",
+        "struct {\n\tyear  int32\n\tmonth int8\n\tday   int8\n\t_     [2]byte\n}",
+    )
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("type",),
+        declarations=ParsedDeclarations(
+            functions=(),
+            typedefs=(
+                TypedefDecl(
+                    name="my_ts",
+                    c_type="struct {\n\tduckdb_date_struct date;\n\tint32 micros;\n}",
+                    go_type="struct {\n\tdate struct { ... }\n\tmicros int32\n}",
+                ),
+            ),
+            constants=(),
+            runtime_vars=(),
+            record_typedefs=(
+                _make_record_typedef(
+                    "my_ts",
+                    fields=(
+                        nested_field,
+                        _make_supported_field("micros", "int32_t", "micros", "int32"),
+                    ),
+                ),
+            ),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(),
+            type_mapping=TypeMappingOptions(),
+            struct_accessors=True,
+        ),
+    )
+
+    assert "Get_date()" not in source
+    assert "Get_micros()" in source

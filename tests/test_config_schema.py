@@ -718,3 +718,35 @@ def test_resolve_generator_config_resolves_env_include_overlay_paths_from_includ
     expected_path = str((include_dir / "virtual.h").resolve())
     assert resolved.parse.headers == (expected_path,)
     assert resolved.parse.overlays[0].path == expected_path
+
+
+def test_config_schema_accepts_struct_accessors_true() -> None:
+    """struct_accessors=true should be accepted in render config."""
+    payload = _config_payload(func_filter="^add$")
+    generator = _payload_generator(payload)
+    render = cast("dict[str, object]", generator.setdefault("render", {}))
+    render["struct_accessors"] = True
+    config = AppConfigInput.model_validate_json(json.dumps(payload))
+    assert config.generator.render.struct_accessors is True
+
+
+def test_config_schema_struct_accessors_defaults_false() -> None:
+    """struct_accessors should default to False when not specified."""
+    payload = _config_payload(func_filter="^add$")
+    config = AppConfigInput.model_validate_json(json.dumps(payload))
+    assert config.generator.render.struct_accessors is False
+
+
+def test_config_normalize_passes_struct_accessors_to_render_spec(tmp_path: Path) -> None:
+    """struct_accessors=true should propagate through normalization."""
+    payload = _config_payload(func_filter="^add$")
+    generator = _payload_generator(payload)
+    render = cast("dict[str, object]", generator.setdefault("render", {}))
+    render["struct_accessors"] = True
+    config = AppConfigInput.model_validate_json(json.dumps(payload))
+    spec = build_generator_spec(
+        config.generator,
+        base_dir=tmp_path,
+        config_path=tmp_path / "config.json",
+    )
+    assert spec.render.struct_accessors is True

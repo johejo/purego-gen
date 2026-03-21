@@ -243,6 +243,7 @@ def build_generator_spec(
             ),
             helpers=helpers,
             type_mapping=normalize_type_mapping(generator.render.type_mapping),
+            struct_accessors=bool(generator.render.struct_accessors),
         ),
     )
 

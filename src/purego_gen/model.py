@@ -129,6 +129,8 @@ class RecordFieldDecl:
     supported: bool
     unsupported_code: str | None
     unsupported_reason: str | None
+    go_name: str | None = None
+    go_type: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

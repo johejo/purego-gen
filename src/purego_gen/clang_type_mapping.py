@@ -275,7 +275,12 @@ def _map_record_field_to_go_line(
     return f"\t{field_name} {go_type}", None
 
 
-def _extract_record_field_decl(field_cursor: CursorLike, *, index: int) -> RecordFieldDecl:
+def _extract_record_field_decl(
+    field_cursor: CursorLike,
+    *,
+    index: int,
+    seen_field_names: set[str],
+) -> RecordFieldDecl:
     """Extract structured metadata for one record field.
 
     Returns:
@@ -283,8 +288,18 @@ def _extract_record_field_decl(field_cursor: CursorLike, *, index: int) -> Recor
     """
     canonical_field_type = field_cursor.type.get_canonical()
     go_type, unsupported_diagnostic = _evaluate_record_field_support(field_cursor, index=index)
-    _ = go_type
     is_bitfield = field_cursor.is_bitfield()
+
+    resolved_go_name: str | None = None
+    resolved_go_type: str | None = go_type
+    if unsupported_diagnostic is None and go_type is not None:
+        base_name = sanitize_struct_field_identifier(
+            str(field_cursor.spelling),
+            fallback=f"field_{index}",
+        )
+        resolved_go_name = _allocate_unique_field_name(base_name, seen_field_names)
+        seen_field_names.add(resolved_go_name)
+
     return RecordFieldDecl(
         name=str(field_cursor.spelling) or f"<anonymous field #{index}>",
         c_type=str(field_cursor.type.spelling),
@@ -301,6 +316,8 @@ def _extract_record_field_decl(field_cursor: CursorLike, *, index: int) -> Recor
         unsupported_reason=(
             unsupported_diagnostic.message if unsupported_diagnostic is not None else None
         ),
+        go_name=resolved_go_name,
+        go_type=resolved_go_type,
     )
 
 
@@ -450,8 +467,9 @@ def extract_record_typedef_decl(
     is_incomplete = (
         declaration.kind.name == _STRUCT_DECL_KIND_NAME and not declaration.is_definition()
     )
+    seen_field_names: set[str] = set()
     fields = tuple(
-        _extract_record_field_decl(field_cursor, index=index)
+        _extract_record_field_decl(field_cursor, index=index, seen_field_names=seen_field_names)
         for index, field_cursor in enumerate(declaration.get_children(), start=1)
         if field_cursor.kind.name == _FIELD_DECL_KIND_NAME
     )

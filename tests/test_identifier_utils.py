@@ -4,7 +4,23 @@
 
 from __future__ import annotations
 
-from purego_gen.identifier_utils import validate_generated_names
+from purego_gen.identifier_utils import (
+    accessor_getter_name,
+    accessor_setter_name,
+    validate_generated_names,
+)
+
+
+def test_accessor_getter_name_preserves_c_name() -> None:
+    """Getter name should preserve the original C field name."""
+    assert accessor_getter_name("year") == "Get_year"
+    assert accessor_getter_name("deprecated_data") == "Get_deprecated_data"
+
+
+def test_accessor_setter_name_preserves_c_name() -> None:
+    """Setter name should preserve the original C field name."""
+    assert accessor_setter_name("year") == "Set_year"
+    assert accessor_setter_name("deprecated_data") == "Set_deprecated_data"
 
 
 def test_validate_generated_names_no_collision_single_entry() -> None:

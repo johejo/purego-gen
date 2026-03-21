@@ -282,10 +282,30 @@ def validate_generated_names(
     return errors
 
 
+def accessor_getter_name(c_field_name: str) -> str:
+    """Build an exported getter method name preserving the original C field name.
+
+    Returns:
+        Getter name in ``Get_<c_name>`` form.
+    """
+    return f"Get_{c_field_name}"
+
+
+def accessor_setter_name(c_field_name: str) -> str:
+    """Build an exported setter method name preserving the original C field name.
+
+    Returns:
+        Setter name in ``Set_<c_name>`` form.
+    """
+    return f"Set_{c_field_name}"
+
+
 __all__ = [
     "GO_IDENTIFIER_PATTERN",
     "GO_KEYWORDS",
     "GO_PREDECLARED",
+    "accessor_getter_name",
+    "accessor_setter_name",
     "allocate_unique_identifier",
     "build_unique_identifiers",
     "is_go_identifier",

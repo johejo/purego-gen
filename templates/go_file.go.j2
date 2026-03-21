@@ -56,6 +56,18 @@ func {{ helper.name }}(fn {{ helper.param_type }}) {{ helper.return_type }} {
         {% endfor %}
     {% endif %}
 {% endif %}
+{% if struct_accessors %}
+    {% for accessor in struct_accessors %}
+func (s *{{ accessor.receiver_type }}) {{ accessor.getter_name }}() {{ accessor.go_type }} {
+    return s.{{ accessor.field_name }}
+}
+
+func (s *{{ accessor.receiver_type }}) {{ accessor.setter_name }}(v {{ accessor.go_type }}) {
+    s.{{ accessor.field_name }} = v
+}
+
+    {% endfor %}
+{% endif %}
 {% if "const" in emit_kinds and constants %}
 const (
     {% for constant in constants %}

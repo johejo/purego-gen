@@ -226,7 +226,7 @@ func Nparams(stmt PreparedStatement) uint64 {
 }
 
 func ParameterName(stmt PreparedStatement, index uint64) string {
-	return purego_func_duckdb_parameter_name(stmt, index)
+	return purego_func_duckdb_parameter_name_string(stmt, index)
 }
 
 func BindParameterIndex(stmt PreparedStatement, name string) (uint64, int32) {
@@ -414,24 +414,4 @@ func ReadBlobFromVector(base uintptr, row uint64) []byte {
 	dst := make([]byte, len(src))
 	copy(dst, src)
 	return dst
-}
-
-// DateStructFields extracts year, month, day from a DateStruct.
-// The generated struct has unexported fields, so we use unsafe access.
-func DateStructFields(d *DateStruct) (year int32, month int8, day int8) {
-	p := unsafe.Pointer(d)
-	year = *(*int32)(p)
-	month = *(*int8)(unsafe.Add(p, 4))
-	day = *(*int8)(unsafe.Add(p, 5))
-	return
-}
-
-// TimeStructFields extracts hour, min, sec, micros from a TimeStruct.
-func TimeStructFields(t *TimeStruct) (hour, min, sec int8, micros int32) {
-	p := unsafe.Pointer(t)
-	hour = *(*int8)(p)
-	min = *(*int8)(unsafe.Add(p, 1))
-	sec = *(*int8)(unsafe.Add(p, 2))
-	micros = *(*int32)(unsafe.Add(p, 4))
-	return
 }

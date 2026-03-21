@@ -152,6 +152,7 @@
       "naming": {
         "const_prefix": ""
       },
+      "struct_accessors": true,
       "type_mapping": {
         "const_char_as_string": true,
         "typed_sentinel_constants": true

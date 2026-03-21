@@ -116,6 +116,7 @@ class RenderInput(StrictModel):
     naming: NamingInput = Field(default_factory=NamingInput)
     helpers: HelpersInput = Field(default_factory=HelpersInput)
     type_mapping: TypeMappingInput = Field(default_factory=TypeMappingInput)
+    struct_accessors: bool = False
 
 
 class GeneratorInput(StrictModel):

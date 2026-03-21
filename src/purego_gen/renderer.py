@@ -36,7 +36,12 @@ from purego_gen.helper_rendering import (
     build_owned_string_return_helpers,
     build_typedef_c_type_by_lookup,
 )
-from purego_gen.identifier_utils import build_unique_identifiers, validate_generated_names
+from purego_gen.identifier_utils import (
+    accessor_getter_name,
+    accessor_setter_name,
+    build_unique_identifiers,
+    validate_generated_names,
+)
 from purego_gen.typedef_lookups import build_typedef_render_helpers
 
 if TYPE_CHECKING:
@@ -59,6 +64,7 @@ _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "functions",
     "helpers",
     "owned_string_helpers",
+    "struct_accessors",
     "runtime_vars",
     "register_functions_name",
     "load_runtime_vars_name",
@@ -133,6 +139,14 @@ class _OwnedStringHelperContext(TypedDict):
     call_arguments: tuple[str, ...]
 
 
+class _StructAccessorContext(TypedDict):
+    receiver_type: str
+    field_name: str
+    getter_name: str
+    setter_name: str
+    go_type: str
+
+
 class _TemplateContext(TypedDict):
     package: str
     emit_kinds: tuple[str, ...]
@@ -147,6 +161,7 @@ class _TemplateContext(TypedDict):
     functions: tuple[_FunctionContext, ...]
     helpers: tuple[_HelperContext, ...]
     owned_string_helpers: tuple[_OwnedStringHelperContext, ...]
+    struct_accessors: tuple[_StructAccessorContext, ...]
     runtime_vars: tuple[_RuntimeVarContext, ...]
     register_functions_name: str
     load_runtime_vars_name: str
@@ -476,6 +491,43 @@ def _build_owned_string_contexts(
     return tuple(function_contexts), owned_string_helpers
 
 
+def _build_struct_accessor_contexts(
+    *,
+    declarations: ParsedDeclarations,
+    type_identifiers: tuple[str, ...],
+    naming: GeneratorNaming,
+) -> tuple[_StructAccessorContext, ...]:
+    """Build struct accessor getter/setter contexts for record typedefs.
+
+    Returns:
+        Tuple of struct accessor contexts for each supported field.
+    """
+    emitted_typedef_names = {
+        naming.type_name(identifier): typedef.name
+        for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
+    }
+    record_typedef_by_name = {rt.name: rt for rt in declarations.record_typedefs}
+
+    accessors: list[_StructAccessorContext] = []
+    for go_type_name, c_typedef_name in emitted_typedef_names.items():
+        record_typedef = record_typedef_by_name.get(c_typedef_name)
+        if record_typedef is None:
+            continue
+        for field in record_typedef.fields:
+            if field.go_name is None or field.go_type is None:
+                continue
+            if "\n" in field.go_type:
+                continue
+            accessors.append({
+                "receiver_type": go_type_name,
+                "field_name": field.go_name,
+                "getter_name": accessor_getter_name(field.name),
+                "setter_name": accessor_setter_name(field.name),
+                "go_type": field.go_type,
+            })
+    return tuple(accessors)
+
+
 def _build_context(
     *,
     package: str,
@@ -624,6 +676,15 @@ def _build_context(
             for helper in helper_contexts
         ),
         "owned_string_helpers": owned_string_result[1],
+        "struct_accessors": (
+            _build_struct_accessor_contexts(
+                declarations=declarations,
+                type_identifiers=type_identifiers,
+                naming=render.naming,
+            )
+            if render.struct_accessors and "type" in emit_kinds
+            else ()
+        ),
         "runtime_vars": tuple(
             {
                 "name": render.naming.runtime_var_name(identifier),
@@ -721,6 +782,14 @@ def _collect_generated_names(
     names.extend(
         (helper["name"], "owned-string helper", check_func)
         for helper in context["owned_string_helpers"]
+    )
+    names.extend(
+        entry
+        for accessor in context["struct_accessors"]
+        for entry in (
+            (accessor["getter_name"], "struct accessor getter", check_type),
+            (accessor["setter_name"], "struct accessor setter", check_type),
+        )
     )
     names.extend(
         (var["name"], f"runtime var from C symbol '{var['symbol']}'", check_var)

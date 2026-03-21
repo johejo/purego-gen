@@ -4,6 +4,7 @@ package raw
 
 import (
 	"fmt"
+	"strings"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -165,6 +166,262 @@ type (
 	// C: struct _duckdb_data_chunk *
 	purego_type_duckdb_data_chunk uintptr
 )
+
+func (s *purego_type_duckdb_date) Get_days() int32 {
+	return s.days
+}
+
+func (s *purego_type_duckdb_date) Set_days(v int32) {
+	s.days = v
+}
+
+func (s *purego_type_duckdb_date_struct) Get_year() int32 {
+	return s.year
+}
+
+func (s *purego_type_duckdb_date_struct) Set_year(v int32) {
+	s.year = v
+}
+
+func (s *purego_type_duckdb_date_struct) Get_month() int8 {
+	return s.month
+}
+
+func (s *purego_type_duckdb_date_struct) Set_month(v int8) {
+	s.month = v
+}
+
+func (s *purego_type_duckdb_date_struct) Get_day() int8 {
+	return s.day
+}
+
+func (s *purego_type_duckdb_date_struct) Set_day(v int8) {
+	s.day = v
+}
+
+func (s *purego_type_duckdb_time) Get_micros() int64 {
+	return s.micros
+}
+
+func (s *purego_type_duckdb_time) Set_micros(v int64) {
+	s.micros = v
+}
+
+func (s *purego_type_duckdb_time_struct) Get_hour() int8 {
+	return s.hour
+}
+
+func (s *purego_type_duckdb_time_struct) Set_hour(v int8) {
+	s.hour = v
+}
+
+func (s *purego_type_duckdb_time_struct) Get_min() int8 {
+	return s.min
+}
+
+func (s *purego_type_duckdb_time_struct) Set_min(v int8) {
+	s.min = v
+}
+
+func (s *purego_type_duckdb_time_struct) Get_sec() int8 {
+	return s.sec
+}
+
+func (s *purego_type_duckdb_time_struct) Set_sec(v int8) {
+	s.sec = v
+}
+
+func (s *purego_type_duckdb_time_struct) Get_micros() int32 {
+	return s.micros
+}
+
+func (s *purego_type_duckdb_time_struct) Set_micros(v int32) {
+	s.micros = v
+}
+
+func (s *purego_type_duckdb_timestamp) Get_micros() int64 {
+	return s.micros
+}
+
+func (s *purego_type_duckdb_timestamp) Set_micros(v int64) {
+	s.micros = v
+}
+
+func (s *purego_type_duckdb_interval) Get_months() int32 {
+	return s.months
+}
+
+func (s *purego_type_duckdb_interval) Set_months(v int32) {
+	s.months = v
+}
+
+func (s *purego_type_duckdb_interval) Get_days() int32 {
+	return s.days
+}
+
+func (s *purego_type_duckdb_interval) Set_days(v int32) {
+	s.days = v
+}
+
+func (s *purego_type_duckdb_interval) Get_micros() int64 {
+	return s.micros
+}
+
+func (s *purego_type_duckdb_interval) Set_micros(v int64) {
+	s.micros = v
+}
+
+func (s *purego_type_duckdb_hugeint) Get_lower() uint64 {
+	return s.lower
+}
+
+func (s *purego_type_duckdb_hugeint) Set_lower(v uint64) {
+	s.lower = v
+}
+
+func (s *purego_type_duckdb_hugeint) Get_upper() int64 {
+	return s.upper
+}
+
+func (s *purego_type_duckdb_hugeint) Set_upper(v int64) {
+	s.upper = v
+}
+
+func (s *purego_type_duckdb_decimal) Get_width() uint8 {
+	return s.width
+}
+
+func (s *purego_type_duckdb_decimal) Set_width(v uint8) {
+	s.width = v
+}
+
+func (s *purego_type_duckdb_decimal) Get_scale() uint8 {
+	return s.scale
+}
+
+func (s *purego_type_duckdb_decimal) Set_scale(v uint8) {
+	s.scale = v
+}
+
+func (s *purego_type_duckdb_column) Get_deprecated_data() uintptr {
+	return s.deprecated_data
+}
+
+func (s *purego_type_duckdb_column) Set_deprecated_data(v uintptr) {
+	s.deprecated_data = v
+}
+
+func (s *purego_type_duckdb_column) Get_deprecated_nullmask() *bool {
+	return s.deprecated_nullmask
+}
+
+func (s *purego_type_duckdb_column) Set_deprecated_nullmask(v *bool) {
+	s.deprecated_nullmask = v
+}
+
+func (s *purego_type_duckdb_column) Get_deprecated_type() int32 {
+	return s.deprecated_type
+}
+
+func (s *purego_type_duckdb_column) Set_deprecated_type(v int32) {
+	s.deprecated_type = v
+}
+
+func (s *purego_type_duckdb_column) Get_deprecated_name() uintptr {
+	return s.deprecated_name
+}
+
+func (s *purego_type_duckdb_column) Set_deprecated_name(v uintptr) {
+	s.deprecated_name = v
+}
+
+func (s *purego_type_duckdb_column) Get_internal_data() uintptr {
+	return s.internal_data
+}
+
+func (s *purego_type_duckdb_column) Set_internal_data(v uintptr) {
+	s.internal_data = v
+}
+
+func (s *purego_type_duckdb_string) Get_data() uintptr {
+	return s.data
+}
+
+func (s *purego_type_duckdb_string) Set_data(v uintptr) {
+	s.data = v
+}
+
+func (s *purego_type_duckdb_string) Get_size() uint64 {
+	return s.size
+}
+
+func (s *purego_type_duckdb_string) Set_size(v uint64) {
+	s.size = v
+}
+
+func (s *purego_type_duckdb_blob) Get_data() uintptr {
+	return s.data
+}
+
+func (s *purego_type_duckdb_blob) Set_data(v uintptr) {
+	s.data = v
+}
+
+func (s *purego_type_duckdb_blob) Get_size() uint64 {
+	return s.size
+}
+
+func (s *purego_type_duckdb_blob) Set_size(v uint64) {
+	s.size = v
+}
+
+func (s *purego_type_duckdb_result) Get_deprecated_column_count() uint64 {
+	return s.deprecated_column_count
+}
+
+func (s *purego_type_duckdb_result) Set_deprecated_column_count(v uint64) {
+	s.deprecated_column_count = v
+}
+
+func (s *purego_type_duckdb_result) Get_deprecated_row_count() uint64 {
+	return s.deprecated_row_count
+}
+
+func (s *purego_type_duckdb_result) Set_deprecated_row_count(v uint64) {
+	s.deprecated_row_count = v
+}
+
+func (s *purego_type_duckdb_result) Get_deprecated_rows_changed() uint64 {
+	return s.deprecated_rows_changed
+}
+
+func (s *purego_type_duckdb_result) Set_deprecated_rows_changed(v uint64) {
+	s.deprecated_rows_changed = v
+}
+
+func (s *purego_type_duckdb_result) Get_deprecated_columns() uintptr {
+	return s.deprecated_columns
+}
+
+func (s *purego_type_duckdb_result) Set_deprecated_columns(v uintptr) {
+	s.deprecated_columns = v
+}
+
+func (s *purego_type_duckdb_result) Get_deprecated_error_message() uintptr {
+	return s.deprecated_error_message
+}
+
+func (s *purego_type_duckdb_result) Set_deprecated_error_message(v uintptr) {
+	s.deprecated_error_message = v
+}
+
+func (s *purego_type_duckdb_result) Get_internal_data() uintptr {
+	return s.internal_data
+}
+
+func (s *purego_type_duckdb_result) Set_internal_data(v uintptr) {
+	s.internal_data = v
+}
 
 const (
 	DUCKDB_TYPE_INVALID             = 0
@@ -525,7 +782,8 @@ var (
 	purego_func_duckdb_parameter_name func(
 		prepared_statement purego_type_duckdb_prepared_statement,
 		index uint64,
-	) string
+		// C: const char *
+	) uintptr
 	// !
 	// Clear the params bind to the prepared statement.
 	purego_func_duckdb_clear_bindings func(
@@ -770,6 +1028,33 @@ var (
 		result purego_type_duckdb_result,
 	) purego_type_duckdb_data_chunk
 )
+
+func purego_func_duckdb_parameter_name_string(
+	prepared_statement purego_type_duckdb_prepared_statement,
+	index uint64,
+) string {
+	rawPtr := purego_func_duckdb_parameter_name(
+		prepared_statement,
+		index,
+	)
+	result := purego_gostring(rawPtr)
+	if rawPtr != 0 {
+		purego_func_duckdb_free(rawPtr)
+	}
+	return result
+}
+
+func purego_gostring(ptr uintptr) string {
+	if ptr == 0 {
+		return ""
+	}
+	p := *(*unsafe.Pointer)(unsafe.Pointer(&ptr))
+	var n int
+	for *(*byte)(unsafe.Add(p, n)) != 0 {
+		n++
+	}
+	return strings.Clone(unsafe.String((*byte)(p), n))
+}
 
 func purego_duckdb_register_functions(handle uintptr) error {
 	purego_func_duckdb_open_symbol, err := purego.Dlsym(handle, "duckdb_open")

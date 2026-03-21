@@ -240,6 +240,7 @@ class GeneratorRenderSpec:
     naming: GeneratorNaming = field(default_factory=GeneratorNaming)
     helpers: GeneratorHelpers = field(default_factory=GeneratorHelpers)
     type_mapping: TypeMappingOptionsType = field(default_factory=TypeMappingOptions)
+    struct_accessors: bool = False
 
 
 @dataclass(frozen=True, slots=True)
