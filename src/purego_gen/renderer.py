@@ -36,7 +36,7 @@ from purego_gen.helper_rendering import (
     build_owned_string_return_helpers,
     build_typedef_c_type_by_lookup,
 )
-from purego_gen.identifier_utils import build_unique_identifiers
+from purego_gen.identifier_utils import build_unique_identifiers, validate_generated_names
 from purego_gen.typedef_lookups import build_typedef_render_helpers
 
 if TYPE_CHECKING:
@@ -677,6 +677,63 @@ def render_template(template_name: str, context: Mapping[str, object]) -> str:
         raise RendererError(message) from error
 
 
+def _has_empty_prefix(naming: GeneratorNaming) -> bool:
+    # Only trigger validation when a newly-relaxed category (type, func, var)
+    # has an empty prefix.  const_prefix="" was supported before this feature
+    # and should not by itself gate into the validation path.
+    return not (naming.type_prefix and naming.func_prefix and naming.var_prefix)
+
+
+def _collect_generated_names(
+    context: _TemplateContext,
+    naming: GeneratorNaming,
+) -> list[tuple[str, str, bool]]:
+    """Collect all generated names from a template context for validation.
+
+    Returns:
+        List of ``(name, origin, check_reserved)`` triples.
+        *check_reserved* is ``True`` for names from categories whose
+        prefix is empty.
+    """
+    check_type = not naming.type_prefix
+    check_const = not naming.const_prefix
+    check_func = not naming.func_prefix
+    check_var = not naming.var_prefix
+
+    names: list[tuple[str, str, bool]] = [
+        (alias["name"], "type from C typedef", check_type) for alias in context["type_aliases"]
+    ]
+    names.extend(
+        (alias["name"], "func type alias", check_type) for alias in context["func_type_aliases"]
+    )
+    names.extend(
+        (helper["name"], "NewCallback helper", check_func)
+        for helper in context["newcallback_helpers"]
+    )
+    names.extend((const["name"], "constant", check_const) for const in context["constants"])
+    names.extend(
+        (func["name"], f"function from C symbol '{func['symbol']}'", check_func)
+        for func in context["functions"]
+    )
+    names.extend(
+        (helper["name"], "buffer/callback helper", check_func) for helper in context["helpers"]
+    )
+    names.extend(
+        (helper["name"], "owned-string helper", check_func)
+        for helper in context["owned_string_helpers"]
+    )
+    names.extend(
+        (var["name"], f"runtime var from C symbol '{var['symbol']}'", check_var)
+        for var in context["runtime_vars"]
+    )
+    names.extend([
+        (context["register_functions_name"], "register_functions helper", check_func),
+        (context["load_runtime_vars_name"], "load_runtime_vars helper", check_func),
+        (context["gostring_func_name"], "gostring utility", check_func),
+    ])
+    return names
+
+
 def render_go_source(
     *,
     package: str,
@@ -689,12 +746,24 @@ def render_go_source(
 
     Returns:
         Unformatted Go source rendered from templates.
+
+    Raises:
+        RendererError: Prefix-free naming produces invalid identifiers.
     """
+    effective_render = render if render is not None else GeneratorRenderSpec()
     context = _build_context(
         package=package,
         lib_id=lib_id,
         emit_kinds=emit_kinds,
         declarations=declarations,
-        render=render if render is not None else GeneratorRenderSpec(),
+        render=effective_render,
     )
+    if _has_empty_prefix(effective_render.naming):
+        generated_names = _collect_generated_names(context, effective_render.naming)
+        errors = validate_generated_names(generated_names)
+        if errors:
+            raise RendererError(
+                "prefix-free naming produced invalid identifiers:\n"
+                + "\n".join(f"  - {e}" for e in errors)
+            )
     return render_template(_MAIN_TEMPLATE_NAME, context)

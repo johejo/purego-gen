@@ -309,6 +309,203 @@ def test_render_go_source_qualifies_callback_param_names_on_signature_conflict()
     assert "purego_type_handler_func" not in source
 
 
+def test_render_go_source_prefix_free_naming() -> None:
+    """Empty prefixes should produce clean, infix-free generated names."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func", "type", "const", "var"),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="add",
+                    result_c_type="int",
+                    parameter_c_types=("int", "int"),
+                    parameter_names=("lhs", "rhs"),
+                    go_result_type="int32",
+                    go_parameter_types=("int32", "int32"),
+                ),
+            ),
+            typedefs=(TypedefDecl(name="mode_t", c_type="int", go_type="int32"),),
+            constants=(ConstantDecl(name="STATUS_OK", value=0),),
+            runtime_vars=(RuntimeVarDecl(name="counter", c_type="int"),),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(),
+            type_mapping=TypeMappingOptions(),
+            naming=GeneratorNaming(
+                type_prefix="",
+                const_prefix="",
+                func_prefix="",
+                var_prefix="",
+            ),
+        ),
+    )
+
+    # Type should be clean (no type_ infix)
+    assert "mode_t = int32" in source
+    # Constant should be clean (no const_ infix)
+    assert "STATUS_OK = 0" in source
+    # Function should be clean (no func_ infix)
+    assert "add func(" in source
+    # Runtime var should be clean (no var_ infix)
+    assert "counter uintptr" in source
+    # Register/load helpers should use lib_id prefix only
+    assert "func fixture_lib_register_functions(" in source
+    assert "func fixture_lib_load_runtime_vars(" in source
+
+
+def test_render_go_source_prefix_free_errors_on_predeclared_collision() -> None:
+    """Prefix-free naming should error when a generated name shadows a Go predeclared identifier."""
+    with pytest.raises(RendererError, match="predeclared"):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=ParsedDeclarations(
+                functions=(
+                    FunctionDecl(
+                        name="string",
+                        result_c_type="int",
+                        parameter_c_types=(),
+                        parameter_names=(),
+                        go_result_type="int32",
+                        go_parameter_types=(),
+                    ),
+                ),
+                typedefs=(),
+                constants=(),
+                runtime_vars=(),
+            ),
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(),
+                type_mapping=TypeMappingOptions(),
+                naming=GeneratorNaming(
+                    type_prefix="",
+                    const_prefix="",
+                    func_prefix="",
+                    var_prefix="",
+                ),
+            ),
+        )
+
+
+def test_render_go_source_prefix_free_errors_on_cross_category_collision() -> None:
+    """Prefix-free naming should error when names collide across categories."""
+    with pytest.raises(RendererError, match="collides with"):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func", "const"),
+            declarations=ParsedDeclarations(
+                functions=(
+                    FunctionDecl(
+                        name="status",
+                        result_c_type="int",
+                        parameter_c_types=(),
+                        parameter_names=(),
+                        go_result_type="int32",
+                        go_parameter_types=(),
+                    ),
+                ),
+                typedefs=(),
+                constants=(ConstantDecl(name="status", value=0),),
+                runtime_vars=(),
+            ),
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(),
+                type_mapping=TypeMappingOptions(),
+                naming=GeneratorNaming(
+                    type_prefix="",
+                    const_prefix="",
+                    func_prefix="",
+                    var_prefix="",
+                ),
+            ),
+        )
+
+
+def test_render_go_source_const_prefix_empty_does_not_check_predeclared() -> None:
+    """Existing const_prefix='' feature should not regress with reserved-name validation."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("const",),
+        declarations=ParsedDeclarations(
+            functions=(),
+            typedefs=(),
+            constants=(ConstantDecl(name="string", value=42),),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(),
+            type_mapping=TypeMappingOptions(),
+            naming=GeneratorNaming(const_prefix=""),
+        ),
+    )
+
+    assert "string = 42" in source
+
+
+def test_render_go_source_partial_empty_prefix_validates_only_empty_categories() -> None:
+    """Only categories with empty prefix should be checked for reserved-name issues."""
+    with pytest.raises(RendererError, match="import name"):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func", "type"),
+            declarations=ParsedDeclarations(
+                functions=(
+                    FunctionDecl(
+                        name="fmt",
+                        result_c_type="void",
+                        parameter_c_types=(),
+                        parameter_names=(),
+                        go_result_type=None,
+                        go_parameter_types=(),
+                    ),
+                ),
+                typedefs=(TypedefDecl(name="string", c_type="char *", go_type="uintptr"),),
+                constants=(),
+                runtime_vars=(),
+            ),
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(),
+                type_mapping=TypeMappingOptions(),
+                naming=GeneratorNaming(
+                    type_prefix="pfx_",
+                    func_prefix="",
+                ),
+            ),
+        )
+
+
+def test_render_go_source_skips_validation_when_all_prefixes_set() -> None:
+    """No validation overhead when all prefixes are non-empty."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="string",
+                    result_c_type="int",
+                    parameter_c_types=(),
+                    parameter_names=(),
+                    go_result_type="int32",
+                    go_parameter_types=(),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+    )
+
+    assert "purego_func_string func(" in source
+
+
 def test_render_go_source_deduplicates_same_signature_callback_params() -> None:
     """Same param name with same signature across functions should generate one type."""
     source = render_go_source(

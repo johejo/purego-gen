@@ -159,7 +159,10 @@ def build_generator_spec(
 
     try:
         type_prefix = normalize_identifier_prefix(
-            naming_input.type_prefix or naming_input.identifier_prefix
+            naming_input.type_prefix
+            if naming_input.type_prefix is not None
+            else naming_input.identifier_prefix,
+            allow_empty=True,
         )
     except ValueError as error:
         message = f"config `{config_path}` generator.render.naming.type_prefix is invalid: {error}"
@@ -178,7 +181,10 @@ def build_generator_spec(
 
     try:
         func_prefix = normalize_identifier_prefix(
-            naming_input.func_prefix or naming_input.identifier_prefix
+            naming_input.func_prefix
+            if naming_input.func_prefix is not None
+            else naming_input.identifier_prefix,
+            allow_empty=True,
         )
     except ValueError as error:
         message = f"config `{config_path}` generator.render.naming.func_prefix is invalid: {error}"
@@ -186,7 +192,10 @@ def build_generator_spec(
 
     try:
         var_prefix = normalize_identifier_prefix(
-            naming_input.var_prefix or naming_input.identifier_prefix
+            naming_input.var_prefix
+            if naming_input.var_prefix is not None
+            else naming_input.identifier_prefix,
+            allow_empty=True,
         )
     except ValueError as error:
         message = f"config `{config_path}` generator.render.naming.var_prefix is invalid: {error}"

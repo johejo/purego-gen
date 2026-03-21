@@ -117,15 +117,15 @@ def test_build_generator_spec_accepts_custom_identifier_prefix(tmp_path: Path) -
     assert spec.render.naming.var_prefix == "purego_gen_"
 
 
-def test_config_schema_rejects_empty_identifier_prefix() -> None:
-    """Common fallback prefixes must not be empty."""
+def test_config_schema_accepts_empty_identifier_prefix() -> None:
+    """Empty identifier prefix should be allowed for prefix-free naming."""
     payload = _config_payload(func_filter="^add$")
     generator = _payload_generator(payload)
     render = _generator_render(generator)
     render["naming"] = {"identifier_prefix": ""}
 
-    with pytest.raises(ValidationError):
-        AppConfigInput.model_validate_json(json.dumps(payload))
+    parsed = AppConfigInput.model_validate_json(json.dumps(payload))
+    assert not parsed.generator.render.naming.identifier_prefix
 
 
 def test_config_schema_accepts_empty_const_prefix() -> None:
@@ -461,6 +461,51 @@ def test_load_app_config_resolves_config_path(tmp_path: Path, monkeypatch: Monke
     loaded = load_app_config(Path("config.json"))
 
     assert loaded.config_path == config_path.resolve()
+
+
+def test_build_generator_spec_preserves_empty_identifier_prefix(tmp_path: Path) -> None:
+    """Empty identifier_prefix should propagate to all category prefixes."""
+    payload = _config_payload(func_filter="^add$")
+    generator = _payload_generator(payload)
+    render = _generator_render(generator)
+    render["naming"] = {"identifier_prefix": ""}
+    parsed = AppConfigInput.model_validate_json(json.dumps(payload))
+
+    spec = build_generator_spec(
+        parsed.generator,
+        base_dir=tmp_path,
+        config_path=tmp_path / "config.json",
+    )
+
+    assert not spec.render.naming.type_prefix
+    assert not spec.render.naming.const_prefix
+    assert not spec.render.naming.func_prefix
+    assert not spec.render.naming.var_prefix
+
+
+def test_build_generator_spec_preserves_per_category_empty_prefix(tmp_path: Path) -> None:
+    """Per-category empty prefix should be preserved (not swallowed by or-fallback)."""
+    payload = _config_payload(func_filter="^add$")
+    generator = _payload_generator(payload)
+    render = _generator_render(generator)
+    render["naming"] = {
+        "type_prefix": "",
+        "func_prefix": "",
+        "var_prefix": "",
+    }
+    parsed = AppConfigInput.model_validate_json(json.dumps(payload))
+
+    spec = build_generator_spec(
+        parsed.generator,
+        base_dir=tmp_path,
+        config_path=tmp_path / "config.json",
+    )
+
+    assert not spec.render.naming.type_prefix
+    assert not spec.render.naming.func_prefix
+    assert not spec.render.naming.var_prefix
+    # const_prefix falls back to identifier_prefix default "purego_"
+    assert spec.render.naming.const_prefix == "purego_"
 
 
 def test_resolve_generator_config_preserves_shared_fields_for_local_headers(

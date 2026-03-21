@@ -8,6 +8,56 @@ import re
 from typing import Final
 
 GO_IDENTIFIER_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+GO_PREDECLARED: Final[frozenset[str]] = frozenset({
+    "bool",
+    "byte",
+    "cap",
+    "close",
+    "complex",
+    "complex64",
+    "complex128",
+    "copy",
+    "delete",
+    "error",
+    "false",
+    "float32",
+    "float64",
+    "imag",
+    "int",
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "iota",
+    "len",
+    "make",
+    "new",
+    "nil",
+    "panic",
+    "print",
+    "println",
+    "real",
+    "recover",
+    "rune",
+    "string",
+    "true",
+    "uint",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+    "uintptr",
+})
+
+# Package names imported by the generated Go file template (go_file.go.j2).
+# Update this set when template imports change.
+_IMPORT_NAMES: Final[frozenset[str]] = frozenset({
+    "purego",
+    "unsafe",
+    "fmt",
+    "strings",
+})
+
 GO_KEYWORDS: Final[frozenset[str]] = frozenset({
     "break",
     "case",
@@ -178,3 +228,72 @@ def normalize_identifier_prefix(value: str, *, allow_empty: bool = False) -> str
         )
         raise ValueError(message)
     return value
+
+
+def validate_generated_names(
+    names: list[tuple[str, str, bool]],
+) -> list[str]:
+    """Validate generated names for collisions and Go naming issues.
+
+    Args:
+        names: List of ``(generated_go_name, origin_description,
+            check_reserved)`` triples.  *check_reserved* is ``True``
+            for names from categories whose prefix is empty; only those
+            are checked against Go keywords, predeclared identifiers,
+            and import names.  Cross-category collision detection always
+            applies to every entry.
+
+    Returns:
+        List of error messages.  Empty when all names are valid.
+    """
+    errors: list[str] = []
+    seen: dict[str, str] = {}
+
+    for name, origin, check_reserved in names:
+        # Cross-category collision — always checked.
+        if name in seen:
+            errors.append(
+                f"generated name {name!r} ({origin}) collides with "
+                f"previously generated name ({seen[name]}); "
+                "set identifier_prefix or a per-category prefix in config"
+            )
+        else:
+            seen[name] = origin
+
+        if not check_reserved:
+            continue
+
+        if name in GO_KEYWORDS:
+            errors.append(
+                f"generated name {name!r} ({origin}) collides with Go keyword; "
+                "set identifier_prefix or a per-category prefix in config"
+            )
+        if name in GO_PREDECLARED:
+            errors.append(
+                f"generated name {name!r} ({origin}) shadows Go predeclared identifier; "
+                "set identifier_prefix or a per-category prefix in config"
+            )
+        if name in _IMPORT_NAMES:
+            errors.append(
+                f"generated name {name!r} ({origin}) shadows import name; "
+                "set identifier_prefix or a per-category prefix in config"
+            )
+
+    return errors
+
+
+__all__ = [
+    "GO_IDENTIFIER_PATTERN",
+    "GO_KEYWORDS",
+    "GO_PREDECLARED",
+    "allocate_unique_identifier",
+    "build_unique_identifiers",
+    "is_go_identifier",
+    "is_go_identifier_prefix",
+    "normalize_identifier_prefix",
+    "normalize_lib_id",
+    "sanitize_identifier",
+    "sanitize_struct_field_identifier",
+    "sanitize_symbol_suffix",
+    "validate_generated_names",
+]
