@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": {
     "lib_id": "duckdb",
-    "package": "raw",
+    "package": "duckdbsys",
     "emit": "func,type,const",
     "parse": {
       "headers": {

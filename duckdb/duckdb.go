@@ -15,7 +15,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/johejo/purego-gen/duckdb/internal/raw"
+	"github.com/johejo/purego-gen/duckdb/duckdbsys"
 )
 
 const driverName = "duckdb"
@@ -32,8 +32,8 @@ type connector struct {
 }
 
 type DuckDBConn struct {
-	db   raw.Database
-	conn raw.Connection
+	db   duckdbsys.Database
+	conn duckdbsys.Connection
 
 	mu     sync.Mutex
 	closed bool
@@ -41,13 +41,13 @@ type DuckDBConn struct {
 
 type DuckDBStmt struct {
 	conn      *DuckDBConn
-	stmt      raw.PreparedStatement
+	stmt      duckdbsys.PreparedStatement
 	ephemeral bool
 	closed    bool
 }
 
 type DuckDBRows struct {
-	result    raw.Result
+	result    duckdbsys.Result
 	conn      *DuckDBConn
 	stmt      *DuckDBStmt
 	ctx       context.Context
@@ -57,7 +57,7 @@ type DuckDBRows struct {
 	types     []int32
 
 	// current chunk state
-	chunk       raw.DataChunk
+	chunk       duckdbsys.DataChunk
 	chunkSize   uint64
 	chunkRow    uint64
 	columnCount uint64
@@ -100,7 +100,7 @@ func (d *DuckDBDriver) OpenConnector(name string) (driver.Connector, error) {
 }
 
 func (c *connector) Connect(_ context.Context) (driver.Conn, error) {
-	if err := raw.Load(); err != nil {
+	if err := duckdbsys.Load(); err != nil {
 		return nil, err
 	}
 
@@ -111,12 +111,12 @@ func (c *connector) Connect(_ context.Context) (driver.Conn, error) {
 		dsn = ":memory:"
 	}
 
-	if state := raw.Open(dsn, &conn.db); state != raw.DuckDBSuccess {
+	if state := duckdbsys.Open(dsn, &conn.db); state != duckdbsys.DuckDBSuccess {
 		return nil, fmt.Errorf("duckdb: failed to open database %q", dsn)
 	}
 
-	if state := raw.Connect(conn.db, &conn.conn); state != raw.DuckDBSuccess {
-		raw.Close(&conn.db)
+	if state := duckdbsys.Connect(conn.db, &conn.conn); state != duckdbsys.DuckDBSuccess {
+		duckdbsys.Close(&conn.db)
 		return nil, fmt.Errorf("duckdb: failed to connect to database")
 	}
 
@@ -143,9 +143,9 @@ func (c *DuckDBConn) PrepareContext(ctx context.Context, query string) (driver.S
 	}
 
 	stmt := &DuckDBStmt{conn: c}
-	if state := raw.Prepare(c.conn, query, &stmt.stmt); state != raw.DuckDBSuccess {
-		errMsg := raw.PrepareError(stmt.stmt)
-		raw.DestroyPrepare(&stmt.stmt)
+	if state := duckdbsys.Prepare(c.conn, query, &stmt.stmt); state != duckdbsys.DuckDBSuccess {
+		errMsg := duckdbsys.PrepareError(stmt.stmt)
+		duckdbsys.DestroyPrepare(&stmt.stmt)
 		return nil, fmt.Errorf("duckdb: prepare: %s", errMsg)
 	}
 	return stmt, nil
@@ -160,8 +160,8 @@ func (c *DuckDBConn) Close() error {
 	}
 	c.closed = true
 
-	raw.Disconnect(&c.conn)
-	raw.Close(&c.db)
+	duckdbsys.Disconnect(&c.conn)
+	duckdbsys.Close(&c.db)
 	return nil
 }
 
@@ -251,12 +251,12 @@ func (s *DuckDBStmt) Close() error {
 		return nil
 	}
 	s.closed = true
-	raw.DestroyPrepare(&s.stmt)
+	duckdbsys.DestroyPrepare(&s.stmt)
 	return nil
 }
 
 func (s *DuckDBStmt) NumInput() int {
-	return int(raw.Nparams(s.stmt))
+	return int(duckdbsys.Nparams(s.stmt))
 }
 
 func (s *DuckDBStmt) Exec(args []driver.Value) (driver.Result, error) {
@@ -298,7 +298,7 @@ func (r *DuckDBRows) Close() error {
 	r.closeOnce.Do(func() {
 		r.closed = true
 		r.destroyChunk()
-		raw.DestroyResult(&r.result)
+		duckdbsys.DestroyResult(&r.result)
 		if r.stmt != nil && r.stmt.ephemeral {
 			err = r.stmt.Close()
 		}
@@ -326,12 +326,12 @@ func (r *DuckDBRows) Next(dest []driver.Value) error {
 
 		r.destroyChunk()
 
-		r.chunk = raw.FetchChunk(r.result)
+		r.chunk = duckdbsys.FetchChunk(r.result)
 		if r.chunk == 0 {
 			_ = r.Close()
 			return io.EOF
 		}
-		r.chunkSize = raw.DataChunkGetSize(r.chunk)
+		r.chunkSize = duckdbsys.DataChunkGetSize(r.chunk)
 		r.chunkRow = 0
 
 		if r.chunkSize == 0 {
@@ -344,43 +344,43 @@ func (r *DuckDBRows) Next(dest []driver.Value) error {
 
 func (r *DuckDBRows) ColumnTypeDatabaseTypeName(index int) string {
 	switch r.types[index] {
-	case raw.DUCKDB_TYPE_BOOLEAN:
+	case duckdbsys.DUCKDB_TYPE_BOOLEAN:
 		return "BOOLEAN"
-	case raw.DUCKDB_TYPE_TINYINT:
+	case duckdbsys.DUCKDB_TYPE_TINYINT:
 		return "TINYINT"
-	case raw.DUCKDB_TYPE_SMALLINT:
+	case duckdbsys.DUCKDB_TYPE_SMALLINT:
 		return "SMALLINT"
-	case raw.DUCKDB_TYPE_INTEGER:
+	case duckdbsys.DUCKDB_TYPE_INTEGER:
 		return "INTEGER"
-	case raw.DUCKDB_TYPE_BIGINT:
+	case duckdbsys.DUCKDB_TYPE_BIGINT:
 		return "BIGINT"
-	case raw.DUCKDB_TYPE_UTINYINT:
+	case duckdbsys.DUCKDB_TYPE_UTINYINT:
 		return "UTINYINT"
-	case raw.DUCKDB_TYPE_USMALLINT:
+	case duckdbsys.DUCKDB_TYPE_USMALLINT:
 		return "USMALLINT"
-	case raw.DUCKDB_TYPE_UINTEGER:
+	case duckdbsys.DUCKDB_TYPE_UINTEGER:
 		return "UINTEGER"
-	case raw.DUCKDB_TYPE_UBIGINT:
+	case duckdbsys.DUCKDB_TYPE_UBIGINT:
 		return "UBIGINT"
-	case raw.DUCKDB_TYPE_FLOAT:
+	case duckdbsys.DUCKDB_TYPE_FLOAT:
 		return "FLOAT"
-	case raw.DUCKDB_TYPE_DOUBLE:
+	case duckdbsys.DUCKDB_TYPE_DOUBLE:
 		return "DOUBLE"
-	case raw.DUCKDB_TYPE_TIMESTAMP, raw.DUCKDB_TYPE_TIMESTAMP_S, raw.DUCKDB_TYPE_TIMESTAMP_MS, raw.DUCKDB_TYPE_TIMESTAMP_NS, raw.DUCKDB_TYPE_TIMESTAMP_TZ:
+	case duckdbsys.DUCKDB_TYPE_TIMESTAMP, duckdbsys.DUCKDB_TYPE_TIMESTAMP_S, duckdbsys.DUCKDB_TYPE_TIMESTAMP_MS, duckdbsys.DUCKDB_TYPE_TIMESTAMP_NS, duckdbsys.DUCKDB_TYPE_TIMESTAMP_TZ:
 		return "TIMESTAMP"
-	case raw.DUCKDB_TYPE_DATE:
+	case duckdbsys.DUCKDB_TYPE_DATE:
 		return "DATE"
-	case raw.DUCKDB_TYPE_TIME, raw.DUCKDB_TYPE_TIME_TZ:
+	case duckdbsys.DUCKDB_TYPE_TIME, duckdbsys.DUCKDB_TYPE_TIME_TZ:
 		return "TIME"
-	case raw.DUCKDB_TYPE_INTERVAL:
+	case duckdbsys.DUCKDB_TYPE_INTERVAL:
 		return "INTERVAL"
-	case raw.DUCKDB_TYPE_HUGEINT:
+	case duckdbsys.DUCKDB_TYPE_HUGEINT:
 		return "HUGEINT"
-	case raw.DUCKDB_TYPE_VARCHAR:
+	case duckdbsys.DUCKDB_TYPE_VARCHAR:
 		return "VARCHAR"
-	case raw.DUCKDB_TYPE_BLOB:
+	case duckdbsys.DUCKDB_TYPE_BLOB:
 		return "BLOB"
-	case raw.DUCKDB_TYPE_DECIMAL:
+	case duckdbsys.DUCKDB_TYPE_DECIMAL:
 		return "DECIMAL"
 	default:
 		return "UNKNOWN"
@@ -389,20 +389,20 @@ func (r *DuckDBRows) ColumnTypeDatabaseTypeName(index int) string {
 
 func (r *DuckDBRows) ColumnTypeScanType(index int) reflect.Type {
 	switch r.types[index] {
-	case raw.DUCKDB_TYPE_BOOLEAN:
+	case duckdbsys.DUCKDB_TYPE_BOOLEAN:
 		return reflect.TypeOf(false)
-	case raw.DUCKDB_TYPE_TINYINT, raw.DUCKDB_TYPE_SMALLINT, raw.DUCKDB_TYPE_INTEGER, raw.DUCKDB_TYPE_BIGINT:
+	case duckdbsys.DUCKDB_TYPE_TINYINT, duckdbsys.DUCKDB_TYPE_SMALLINT, duckdbsys.DUCKDB_TYPE_INTEGER, duckdbsys.DUCKDB_TYPE_BIGINT:
 		return reflect.TypeOf(int64(0))
-	case raw.DUCKDB_TYPE_UTINYINT, raw.DUCKDB_TYPE_USMALLINT, raw.DUCKDB_TYPE_UINTEGER, raw.DUCKDB_TYPE_UBIGINT:
+	case duckdbsys.DUCKDB_TYPE_UTINYINT, duckdbsys.DUCKDB_TYPE_USMALLINT, duckdbsys.DUCKDB_TYPE_UINTEGER, duckdbsys.DUCKDB_TYPE_UBIGINT:
 		return reflect.TypeOf(int64(0))
-	case raw.DUCKDB_TYPE_FLOAT, raw.DUCKDB_TYPE_DOUBLE:
+	case duckdbsys.DUCKDB_TYPE_FLOAT, duckdbsys.DUCKDB_TYPE_DOUBLE:
 		return reflect.TypeOf(float64(0))
-	case raw.DUCKDB_TYPE_TIMESTAMP, raw.DUCKDB_TYPE_TIMESTAMP_S, raw.DUCKDB_TYPE_TIMESTAMP_MS, raw.DUCKDB_TYPE_TIMESTAMP_NS, raw.DUCKDB_TYPE_TIMESTAMP_TZ,
-		raw.DUCKDB_TYPE_DATE, raw.DUCKDB_TYPE_TIME, raw.DUCKDB_TYPE_TIME_TZ:
+	case duckdbsys.DUCKDB_TYPE_TIMESTAMP, duckdbsys.DUCKDB_TYPE_TIMESTAMP_S, duckdbsys.DUCKDB_TYPE_TIMESTAMP_MS, duckdbsys.DUCKDB_TYPE_TIMESTAMP_NS, duckdbsys.DUCKDB_TYPE_TIMESTAMP_TZ,
+		duckdbsys.DUCKDB_TYPE_DATE, duckdbsys.DUCKDB_TYPE_TIME, duckdbsys.DUCKDB_TYPE_TIME_TZ:
 		return reflect.TypeOf(time.Time{})
-	case raw.DUCKDB_TYPE_BLOB:
+	case duckdbsys.DUCKDB_TYPE_BLOB:
 		return reflect.TypeOf([]byte(nil))
-	case raw.DUCKDB_TYPE_VARCHAR:
+	case duckdbsys.DUCKDB_TYPE_VARCHAR:
 		return reflect.TypeOf("")
 	default:
 		return reflect.TypeOf("")
@@ -415,76 +415,76 @@ func vectorPtr(data uintptr, byteOffset uintptr) unsafe.Pointer {
 }
 
 func (r *DuckDBRows) readValue(col, row uint64) (driver.Value, error) {
-	vector := raw.DataChunkGetVector(r.chunk, col)
-	validity := raw.VectorGetValidity(vector)
-	if validity != nil && !raw.ValidityRowIsValid(validity, row) {
+	vector := duckdbsys.DataChunkGetVector(r.chunk, col)
+	validity := duckdbsys.VectorGetValidity(vector)
+	if validity != nil && !duckdbsys.ValidityRowIsValid(validity, row) {
 		return nil, nil
 	}
 
-	data := raw.VectorGetData(vector)
+	data := duckdbsys.VectorGetData(vector)
 
 	switch r.types[col] {
-	case raw.DUCKDB_TYPE_BOOLEAN:
+	case duckdbsys.DUCKDB_TYPE_BOOLEAN:
 		val := *(*bool)(vectorPtr(data, uintptr(row)))
 		return val, nil
-	case raw.DUCKDB_TYPE_TINYINT:
+	case duckdbsys.DUCKDB_TYPE_TINYINT:
 		val := *(*int8)(vectorPtr(data, uintptr(row)))
 		return int64(val), nil
-	case raw.DUCKDB_TYPE_SMALLINT:
+	case duckdbsys.DUCKDB_TYPE_SMALLINT:
 		val := *(*int16)(vectorPtr(data, uintptr(row)*2))
 		return int64(val), nil
-	case raw.DUCKDB_TYPE_INTEGER:
+	case duckdbsys.DUCKDB_TYPE_INTEGER:
 		val := *(*int32)(vectorPtr(data, uintptr(row)*4))
 		return int64(val), nil
-	case raw.DUCKDB_TYPE_BIGINT:
+	case duckdbsys.DUCKDB_TYPE_BIGINT:
 		val := *(*int64)(vectorPtr(data, uintptr(row)*8))
 		return val, nil
-	case raw.DUCKDB_TYPE_UTINYINT:
+	case duckdbsys.DUCKDB_TYPE_UTINYINT:
 		val := *(*uint8)(vectorPtr(data, uintptr(row)))
 		return int64(val), nil
-	case raw.DUCKDB_TYPE_USMALLINT:
+	case duckdbsys.DUCKDB_TYPE_USMALLINT:
 		val := *(*uint16)(vectorPtr(data, uintptr(row)*2))
 		return int64(val), nil
-	case raw.DUCKDB_TYPE_UINTEGER:
+	case duckdbsys.DUCKDB_TYPE_UINTEGER:
 		val := *(*uint32)(vectorPtr(data, uintptr(row)*4))
 		return int64(val), nil
-	case raw.DUCKDB_TYPE_UBIGINT:
+	case duckdbsys.DUCKDB_TYPE_UBIGINT:
 		val := *(*uint64)(vectorPtr(data, uintptr(row)*8))
 		return int64(val), nil
-	case raw.DUCKDB_TYPE_FLOAT:
+	case duckdbsys.DUCKDB_TYPE_FLOAT:
 		val := *(*float32)(vectorPtr(data, uintptr(row)*4))
 		return float64(val), nil
-	case raw.DUCKDB_TYPE_DOUBLE:
+	case duckdbsys.DUCKDB_TYPE_DOUBLE:
 		val := *(*float64)(vectorPtr(data, uintptr(row)*8))
 		return val, nil
-	case raw.DUCKDB_TYPE_VARCHAR:
-		return raw.ReadStringFromVector(data, row), nil
-	case raw.DUCKDB_TYPE_BLOB:
-		return raw.ReadBlobFromVector(data, row), nil
-	case raw.DUCKDB_TYPE_TIMESTAMP, raw.DUCKDB_TYPE_TIMESTAMP_TZ:
-		ts := *(*raw.Timestamp)(vectorPtr(data, uintptr(row)*8))
+	case duckdbsys.DUCKDB_TYPE_VARCHAR:
+		return duckdbsys.ReadStringFromVector(data, row), nil
+	case duckdbsys.DUCKDB_TYPE_BLOB:
+		return duckdbsys.ReadBlobFromVector(data, row), nil
+	case duckdbsys.DUCKDB_TYPE_TIMESTAMP, duckdbsys.DUCKDB_TYPE_TIMESTAMP_TZ:
+		ts := *(*duckdbsys.Timestamp)(vectorPtr(data, uintptr(row)*8))
 		return timestampToTime(ts), nil
-	case raw.DUCKDB_TYPE_TIMESTAMP_S:
+	case duckdbsys.DUCKDB_TYPE_TIMESTAMP_S:
 		seconds := *(*int64)(vectorPtr(data, uintptr(row)*8))
 		return time.Unix(seconds, 0).UTC(), nil
-	case raw.DUCKDB_TYPE_TIMESTAMP_MS:
+	case duckdbsys.DUCKDB_TYPE_TIMESTAMP_MS:
 		millis := *(*int64)(vectorPtr(data, uintptr(row)*8))
 		return time.Unix(millis/1000, (millis%1000)*int64(time.Millisecond)).UTC(), nil
-	case raw.DUCKDB_TYPE_TIMESTAMP_NS:
+	case duckdbsys.DUCKDB_TYPE_TIMESTAMP_NS:
 		nanos := *(*int64)(vectorPtr(data, uintptr(row)*8))
 		return time.Unix(0, nanos).UTC(), nil
-	case raw.DUCKDB_TYPE_DATE:
-		date := *(*raw.Date)(vectorPtr(data, uintptr(row)*4))
-		ds := raw.FromDate(date)
+	case duckdbsys.DUCKDB_TYPE_DATE:
+		date := *(*duckdbsys.Date)(vectorPtr(data, uintptr(row)*4))
+		ds := duckdbsys.FromDate(date)
 		return time.Date(int(ds.Get_year()), time.Month(ds.Get_month()), int(ds.Get_day()), 0, 0, 0, 0, time.UTC), nil
-	case raw.DUCKDB_TYPE_TIME, raw.DUCKDB_TYPE_TIME_TZ:
-		t := *(*raw.Time)(vectorPtr(data, uintptr(row)*8))
-		ts := raw.FromTime(t)
+	case duckdbsys.DUCKDB_TYPE_TIME, duckdbsys.DUCKDB_TYPE_TIME_TZ:
+		t := *(*duckdbsys.Time)(vectorPtr(data, uintptr(row)*8))
+		ts := duckdbsys.FromTime(t)
 		return time.Date(0, 1, 1, int(ts.Get_hour()), int(ts.Get_min()), int(ts.Get_sec()), int(ts.Get_micros())*1000, time.UTC), nil
-	case raw.DUCKDB_TYPE_HUGEINT:
-		hi := *(*raw.Hugeint)(vectorPtr(data, uintptr(row)*16))
+	case duckdbsys.DUCKDB_TYPE_HUGEINT:
+		hi := *(*duckdbsys.Hugeint)(vectorPtr(data, uintptr(row)*16))
 		return hugeintToString(hi), nil
-	case raw.DUCKDB_TYPE_DECIMAL:
+	case duckdbsys.DUCKDB_TYPE_DECIMAL:
 		return readDecimalValue(vector, data, row), nil
 	default:
 		return fmt.Sprintf("unsupported type %d", r.types[col]), nil
@@ -493,7 +493,7 @@ func (r *DuckDBRows) readValue(col, row uint64) (driver.Value, error) {
 
 func (r *DuckDBRows) destroyChunk() {
 	if r.chunk != 0 {
-		raw.DestroyDataChunk(&r.chunk)
+		duckdbsys.DestroyDataChunk(&r.chunk)
 		r.chunk = 0
 	}
 }
@@ -502,7 +502,7 @@ func (s *DuckDBStmt) bindNamedValues(args []driver.NamedValue) error {
 	if err := s.conn.checkUsable(); err != nil {
 		return err
 	}
-	if state := raw.ClearBindings(s.stmt); state != raw.DuckDBSuccess {
+	if state := duckdbsys.ClearBindings(s.stmt); state != duckdbsys.DuckDBSuccess {
 		return fmt.Errorf("duckdb: clear bindings failed")
 	}
 	for _, arg := range args {
@@ -521,11 +521,11 @@ func (s *DuckDBStmt) resolveIndex(arg driver.NamedValue) (uint64, error) {
 	if arg.Name == "" {
 		return uint64(arg.Ordinal), nil
 	}
-	idx, state := raw.BindParameterIndex(s.stmt, arg.Name)
-	if state != raw.DuckDBSuccess {
+	idx, state := duckdbsys.BindParameterIndex(s.stmt, arg.Name)
+	if state != duckdbsys.DuckDBSuccess {
 		// Try with $ prefix
-		idx, state = raw.BindParameterIndex(s.stmt, "$"+arg.Name)
-		if state != raw.DuckDBSuccess {
+		idx, state = duckdbsys.BindParameterIndex(s.stmt, "$"+arg.Name)
+		if state != duckdbsys.DuckDBSuccess {
 			return 0, fmt.Errorf("duckdb: unknown named parameter %q", arg.Name)
 		}
 	}
@@ -536,20 +536,20 @@ func (s *DuckDBStmt) bindValue(idx uint64, value any) error {
 	var state int32
 	switch v := value.(type) {
 	case nil:
-		state = raw.BindNull(s.stmt, idx)
+		state = duckdbsys.BindNull(s.stmt, idx)
 	case bool:
-		state = raw.BindBoolean(s.stmt, idx, v)
+		state = duckdbsys.BindBoolean(s.stmt, idx, v)
 	case int64:
-		state = raw.BindInt64(s.stmt, idx, v)
+		state = duckdbsys.BindInt64(s.stmt, idx, v)
 	case float64:
-		state = raw.BindDouble(s.stmt, idx, v)
+		state = duckdbsys.BindDouble(s.stmt, idx, v)
 	case string:
-		state = raw.BindVarchar(s.stmt, idx, v)
+		state = duckdbsys.BindVarchar(s.stmt, idx, v)
 	case []byte:
-		state = raw.BindBlob(s.stmt, idx, v)
+		state = duckdbsys.BindBlob(s.stmt, idx, v)
 	case time.Time:
 		ts := timeToTimestamp(v)
-		state = raw.BindTimestamp(s.stmt, idx, ts)
+		state = duckdbsys.BindTimestamp(s.stmt, idx, ts)
 	default:
 		normalized, err := normalizeValue(v)
 		if err != nil {
@@ -560,30 +560,30 @@ func (s *DuckDBStmt) bindValue(idx uint64, value any) error {
 		}
 		return s.bindValue(idx, normalized)
 	}
-	if state != raw.DuckDBSuccess {
+	if state != duckdbsys.DuckDBSuccess {
 		return fmt.Errorf("duckdb: bind parameter %d failed", idx)
 	}
 	return nil
 }
 
 func (s *DuckDBStmt) execBound(ctx context.Context) (driver.Result, error) {
-	var result raw.Result
+	var result duckdbsys.Result
 
 	cancel := interruptWatcher(ctx, s.conn.conn)
-	state := raw.ExecutePrepared(s.stmt, &result)
+	state := duckdbsys.ExecutePrepared(s.stmt, &result)
 	cancel.stop()
 
-	if state != raw.DuckDBSuccess {
-		errMsg := raw.ResultError(&result)
-		raw.DestroyResult(&result)
+	if state != duckdbsys.DuckDBSuccess {
+		errMsg := duckdbsys.ResultError(&result)
+		duckdbsys.DestroyResult(&result)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 		return nil, fmt.Errorf("duckdb: exec: %s", errMsg)
 	}
 
-	rowsAffected := int64(raw.RowsChanged(&result))
-	raw.DestroyResult(&result)
+	rowsAffected := int64(duckdbsys.RowsChanged(&result))
+	duckdbsys.DestroyResult(&result)
 	return duckdbResult{rowsAffected: rowsAffected}, nil
 }
 
@@ -595,25 +595,25 @@ func (s *DuckDBStmt) queryBound(ctx context.Context) (*DuckDBRows, error) {
 	}
 
 	cancel := interruptWatcher(ctx, s.conn.conn)
-	state := raw.ExecutePrepared(s.stmt, &rows.result)
+	state := duckdbsys.ExecutePrepared(s.stmt, &rows.result)
 	cancel.stop()
 
-	if state != raw.DuckDBSuccess {
-		errMsg := raw.ResultError(&rows.result)
-		raw.DestroyResult(&rows.result)
+	if state != duckdbsys.DuckDBSuccess {
+		errMsg := duckdbsys.ResultError(&rows.result)
+		duckdbsys.DestroyResult(&rows.result)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 		return nil, fmt.Errorf("duckdb: query: %s", errMsg)
 	}
 
-	colCount := raw.ColumnCount(&rows.result)
+	colCount := duckdbsys.ColumnCount(&rows.result)
 	rows.columnCount = colCount
 	rows.names = make([]string, colCount)
 	rows.types = make([]int32, colCount)
 	for i := uint64(0); i < colCount; i++ {
-		rows.names[i] = raw.ColumnName(&rows.result, i)
-		rows.types[i] = raw.ColumnType(&rows.result, i)
+		rows.names[i] = duckdbsys.ColumnName(&rows.result, i)
+		rows.types[i] = duckdbsys.ColumnType(&rows.result, i)
 	}
 
 	return rows, nil
@@ -647,23 +647,23 @@ func (c *DuckDBConn) execTransient(
 }
 
 func (c *DuckDBConn) execDirect(ctx context.Context, query string) (driver.Result, error) {
-	var result raw.Result
+	var result duckdbsys.Result
 
 	cancel := interruptWatcher(ctx, c.conn)
-	state := raw.Query(c.conn, query, &result)
+	state := duckdbsys.Query(c.conn, query, &result)
 	cancel.stop()
 
-	if state != raw.DuckDBSuccess {
-		errMsg := raw.ResultError(&result)
-		raw.DestroyResult(&result)
+	if state != duckdbsys.DuckDBSuccess {
+		errMsg := duckdbsys.ResultError(&result)
+		duckdbsys.DestroyResult(&result)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 		return nil, fmt.Errorf("duckdb: exec: %s", errMsg)
 	}
 
-	rowsAffected := int64(raw.RowsChanged(&result))
-	raw.DestroyResult(&result)
+	rowsAffected := int64(duckdbsys.RowsChanged(&result))
+	duckdbsys.DestroyResult(&result)
 	return duckdbResult{rowsAffected: rowsAffected}, nil
 }
 
@@ -684,7 +684,7 @@ type cancelState struct {
 	interrupted atomic.Bool
 }
 
-func interruptWatcher(ctx context.Context, conn raw.Connection) *cancelState {
+func interruptWatcher(ctx context.Context, conn duckdbsys.Connection) *cancelState {
 	state := &cancelState{done: make(chan struct{})}
 	if ctx == nil || ctx.Done() == nil || conn == 0 {
 		close(state.done)
@@ -694,7 +694,7 @@ func interruptWatcher(ctx context.Context, conn raw.Connection) *cancelState {
 		select {
 		case <-ctx.Done():
 			state.interrupted.Store(true)
-			raw.Interrupt(conn)
+			duckdbsys.Interrupt(conn)
 		case <-state.done:
 		}
 	}()
@@ -764,7 +764,7 @@ func normalizeValue(value any) (any, error) {
 // Timestamp helpers
 
 // duckdb epoch: 1970-01-01 00:00:00 UTC, stored as microseconds
-func timestampToTime(ts raw.Timestamp) time.Time {
+func timestampToTime(ts duckdbsys.Timestamp) time.Time {
 	micros := *(*int64)(unsafe.Pointer(&ts))
 	seconds := micros / 1_000_000
 	remainder := micros % 1_000_000
@@ -775,15 +775,15 @@ func timestampToTime(ts raw.Timestamp) time.Time {
 	return time.Unix(seconds, remainder*1000).UTC()
 }
 
-func timeToTimestamp(t time.Time) raw.Timestamp {
+func timeToTimestamp(t time.Time) duckdbsys.Timestamp {
 	micros := t.Unix()*1_000_000 + int64(t.Nanosecond())/1000
-	var ts raw.Timestamp
+	var ts duckdbsys.Timestamp
 	*(*int64)(unsafe.Pointer(&ts)) = micros
 	return ts
 }
 
 // Hugeint helper
-func hugeintToString(h raw.Hugeint) string {
+func hugeintToString(h duckdbsys.Hugeint) string {
 	p := unsafe.Pointer(&h)
 	upper := *(*int64)(unsafe.Add(p, 8))
 	lower := *(*uint64)(p)
@@ -809,22 +809,22 @@ func hugeintToString(h raw.Hugeint) string {
 	return strconv.FormatUint(uint64(upper), 10) + fmt.Sprintf("%020d", lower)
 }
 
-func readDecimalValue(vector raw.Vector, data uintptr, row uint64) driver.Value {
-	logType := raw.VectorGetColumnType(vector)
-	defer raw.DestroyLogicalType(&logType)
-	typeID := raw.GetTypeId(logType)
-	scale := raw.DecimalScale(logType)
+func readDecimalValue(vector duckdbsys.Vector, data uintptr, row uint64) driver.Value {
+	logType := duckdbsys.VectorGetColumnType(vector)
+	defer duckdbsys.DestroyLogicalType(&logType)
+	typeID := duckdbsys.GetTypeId(logType)
+	scale := duckdbsys.DecimalScale(logType)
 
 	var intVal int64
 	switch typeID {
-	case raw.DUCKDB_TYPE_SMALLINT:
+	case duckdbsys.DUCKDB_TYPE_SMALLINT:
 		intVal = int64(*(*int16)(vectorPtr(data, uintptr(row)*2)))
-	case raw.DUCKDB_TYPE_INTEGER:
+	case duckdbsys.DUCKDB_TYPE_INTEGER:
 		intVal = int64(*(*int32)(vectorPtr(data, uintptr(row)*4)))
-	case raw.DUCKDB_TYPE_BIGINT:
+	case duckdbsys.DUCKDB_TYPE_BIGINT:
 		intVal = *(*int64)(vectorPtr(data, uintptr(row)*8))
-	case raw.DUCKDB_TYPE_HUGEINT:
-		h := *(*raw.Hugeint)(vectorPtr(data, uintptr(row)*16))
+	case duckdbsys.DUCKDB_TYPE_HUGEINT:
+		h := *(*duckdbsys.Hugeint)(vectorPtr(data, uintptr(row)*16))
 		return hugeintToString(h) // Fallback: return as string
 	default:
 		return "0"
