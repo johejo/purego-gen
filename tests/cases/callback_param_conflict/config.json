@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": "func",
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "callback_param_conflict.h"
+        ]
+      }
+    },
+    "render": {
+      "helpers": {
+        "callback_inputs": [
+          {
+            "function": "fixture_fn_a",
+            "parameters": ["handler"]
+          },
+          {
+            "function": "fixture_fn_b",
+            "parameters": ["handler"]
+          }
+        ]
+      }
+    }
+  }
+}

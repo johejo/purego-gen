@@ -157,29 +157,20 @@ def build_generator_spec(
 
     naming_input = generator.render.naming
 
-    try:
-        type_prefix = normalize_identifier_prefix(naming_input.type_prefix, allow_empty=True)
-    except ValueError as error:
-        message = f"config `{config_path}` generator.render.naming.type_prefix is invalid: {error}"
-        raise RuntimeError(message) from error
-
-    try:
-        const_prefix = normalize_identifier_prefix(naming_input.const_prefix, allow_empty=True)
-    except ValueError as error:
-        message = f"config `{config_path}` generator.render.naming.const_prefix is invalid: {error}"
-        raise RuntimeError(message) from error
-
-    try:
-        func_prefix = normalize_identifier_prefix(naming_input.func_prefix, allow_empty=True)
-    except ValueError as error:
-        message = f"config `{config_path}` generator.render.naming.func_prefix is invalid: {error}"
-        raise RuntimeError(message) from error
-
-    try:
-        var_prefix = normalize_identifier_prefix(naming_input.var_prefix, allow_empty=True)
-    except ValueError as error:
-        message = f"config `{config_path}` generator.render.naming.var_prefix is invalid: {error}"
-        raise RuntimeError(message) from error
+    raw_prefixes: dict[str, str] = {
+        "type_prefix": naming_input.type_prefix,
+        "const_prefix": naming_input.const_prefix,
+        "func_prefix": naming_input.func_prefix,
+        "var_prefix": naming_input.var_prefix,
+    }
+    prefixes: dict[str, str] = {}
+    for field_name, raw_value in raw_prefixes.items():
+        try:
+            prefixes[field_name] = normalize_identifier_prefix(raw_value, allow_empty=True)
+        except ValueError as error:
+            loc = f"generator.render.naming.{field_name}"
+            message = f"config `{config_path}` {loc} is invalid: {error}"
+            raise RuntimeError(message) from error
 
     try:
         package_name = _validate_package_name(generator.package)
@@ -215,12 +206,7 @@ def build_generator_spec(
             clang_args=tuple(generator.parse.clang_args),
         ),
         render=GeneratorRenderSpec(
-            naming=GeneratorNaming(
-                type_prefix=type_prefix,
-                const_prefix=const_prefix,
-                func_prefix=func_prefix,
-                var_prefix=var_prefix,
-            ),
+            naming=GeneratorNaming(**prefixes),
             helpers=helpers,
             type_mapping=normalize_type_mapping(generator.render.type_mapping),
             struct_accessors=bool(generator.render.struct_accessors),

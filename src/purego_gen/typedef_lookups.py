@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from purego_gen.c_type_utils import (
@@ -285,6 +286,19 @@ def _build_typedef_go_type_by_lookup(
     return go_type_by_lookup
 
 
+@dataclass(frozen=True, slots=True)
+class TypedefRenderHelpers:
+    """Typedef-related lookups and emitted-name sets used during rendering."""
+
+    func_sig_type_aliases: FunctionSignatureTypeAliases
+    typedef_alias_type_by_lookup: dict[str, str]
+    typedef_go_type_by_lookup: dict[str, str]
+    emitted_opaque_struct_typedef_names: set[str]
+    emitted_strict_enum_typedef_names: set[str]
+    emitted_opaque_pointer_typedef_names: set[str]
+    emitted_record_typedef_names: set[str]
+
+
 def build_typedef_render_helpers(
     *,
     emit_kinds: tuple[str, ...],
@@ -292,21 +306,11 @@ def build_typedef_render_helpers(
     type_identifiers: tuple[str, ...],
     type_mapping: TypeMappingOptions,
     naming: GeneratorNaming,
-) -> tuple[
-    FunctionSignatureTypeAliases,
-    dict[str, str],
-    dict[str, str],
-    set[str],
-    set[str],
-    set[str],
-    set[str],
-]:
+) -> TypedefRenderHelpers:
     """Build typedef-related lookups and emitted-name sets used during rendering.
 
     Returns:
-        Function-signature alias lookups, typedef alias lookup, typedef Go-type
-        lookup, opaque typedef names, strict enum typedef names, opaque
-        pointer typedef names, and record typedef names.
+        Consolidated typedef render helpers.
     """
     emitted_record_typedef_names = _build_emitted_record_typedef_names(
         emit_kinds=emit_kinds,
@@ -356,17 +360,17 @@ def build_typedef_render_helpers(
             naming=naming,
         ),
     }
-    return (
-        func_sig_type_aliases,
-        _build_typedef_alias_type_by_lookup(
+    return TypedefRenderHelpers(
+        func_sig_type_aliases=func_sig_type_aliases,
+        typedef_alias_type_by_lookup=_build_typedef_alias_type_by_lookup(
             declarations=declarations,
             type_identifiers=type_identifiers,
             emit_kinds=emit_kinds,
             naming=naming,
         ),
-        _build_typedef_go_type_by_lookup(declarations),
-        emitted_opaque_struct_typedef_names,
-        emitted_strict_enum_typedef_names,
-        emitted_opaque_pointer_typedef_names,
-        emitted_record_typedef_names,
+        typedef_go_type_by_lookup=_build_typedef_go_type_by_lookup(declarations),
+        emitted_opaque_struct_typedef_names=emitted_opaque_struct_typedef_names,
+        emitted_strict_enum_typedef_names=emitted_strict_enum_typedef_names,
+        emitted_opaque_pointer_typedef_names=emitted_opaque_pointer_typedef_names,
+        emitted_record_typedef_names=emitted_record_typedef_names,
     )

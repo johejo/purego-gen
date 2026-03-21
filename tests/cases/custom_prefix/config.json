@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": "func,type,const,var",
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "custom_prefix.h"
+        ]
+      }
+    },
+    "render": {
+      "naming": {
+        "type_prefix": "purego_gen_",
+        "const_prefix": "purego_gen_",
+        "func_prefix": "purego_gen_",
+        "var_prefix": "purego_gen_"
+      }
+    }
+  }
+}
