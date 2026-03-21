@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 _TYPE_MAPPING_DEFAULTS: dict[str, bool] = {
-    "const_char_as_string": False,
+    "const_char_as_string": True,
     "strict_enum_typedefs": False,
     "typed_sentinel_constants": False,
 }

@@ -134,7 +134,6 @@
         ]
       },
       "type_mapping": {
-        "const_char_as_string": true,
         "strict_enum_typedefs": true,
         "typed_sentinel_constants": true
       }

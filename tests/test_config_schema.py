@@ -394,10 +394,10 @@ def test_build_generator_spec_rejects_helpers_without_func_emit(tmp_path: Path) 
 
 
 def test_build_type_mapping_options_defaults_unset_values() -> None:
-    """Shared type-mapping helper should default missing flags to false."""
+    """Shared type-mapping helper should apply correct defaults for missing flags."""
     options = build_type_mapping_options(raw_values={"strict_enum_typedefs": True})
 
-    assert options.const_char_as_string is False
+    assert options.const_char_as_string is True
     assert options.strict_enum_typedefs is True
     assert options.typed_sentinel_constants is False
 

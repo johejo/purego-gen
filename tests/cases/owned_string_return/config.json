@@ -19,9 +19,6 @@
       }
     },
     "render": {
-      "type_mapping": {
-        "const_char_as_string": true
-      },
       "helpers": {
         "owned_string_returns": [
           {

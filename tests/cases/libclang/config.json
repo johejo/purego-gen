@@ -119,11 +119,6 @@
           "CXToken_Comment"
         ]
       }
-    },
-    "render": {
-      "type_mapping": {
-        "const_char_as_string": true
-      }
     }
   },
   "golden": {

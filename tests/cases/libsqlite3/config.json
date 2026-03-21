@@ -187,7 +187,6 @@
         ]
       },
       "type_mapping": {
-        "const_char_as_string": true,
         "typed_sentinel_constants": true
       }
     }

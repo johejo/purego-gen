@@ -69,7 +69,7 @@ class FunctionDecl:
 class TypeMappingOptions:
     """Type-mapping policy toggles for generated Go function signatures."""
 
-    const_char_as_string: bool = False
+    const_char_as_string: bool = True
     strict_enum_typedefs: bool = False
     typed_sentinel_constants: bool = False
 

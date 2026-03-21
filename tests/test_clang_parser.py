@@ -90,23 +90,23 @@ def test_parse_type_mapping_edge_cases() -> None:
 
 
 def test_parse_const_unsigned_char_string_mapping_toggle() -> None:
-    """Parser should map const unsigned char* to string only when enabled."""
+    """Parser should map const unsigned char* to string by default, uintptr when disabled."""
     header = _FIXTURES_DIR / "unsigned_char_strings.h"
 
     default_declarations = parse_declarations(headers=(str(header),), clang_args=())
-    mapped_declarations = parse_declarations(
+    disabled_declarations = parse_declarations(
         headers=(str(header),),
         clang_args=(),
-        type_mapping=TypeMappingOptions(const_char_as_string=True),
+        type_mapping=TypeMappingOptions(const_char_as_string=False),
     )
 
     default_functions = {function.name: function for function in default_declarations.functions}
-    mapped_functions = {function.name: function for function in mapped_declarations.functions}
+    disabled_functions = {function.name: function for function in disabled_declarations.functions}
 
-    assert default_functions["fixture_text_result"].go_result_type == "uintptr"
-    assert default_functions["fixture_text_param"].go_parameter_types == ("uintptr",)
-    assert mapped_functions["fixture_text_result"].go_result_type == "string"
-    assert mapped_functions["fixture_text_param"].go_parameter_types == ("string",)
+    assert default_functions["fixture_text_result"].go_result_type == "string"
+    assert default_functions["fixture_text_param"].go_parameter_types == ("string",)
+    assert disabled_functions["fixture_text_result"].go_result_type == "uintptr"
+    assert disabled_functions["fixture_text_param"].go_parameter_types == ("uintptr",)
 
 
 def test_parse_casted_sentinel_macros_preserves_type_metadata() -> None:
