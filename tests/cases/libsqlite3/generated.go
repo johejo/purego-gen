@@ -16,249 +16,249 @@ var (
 
 type (
 	// C: struct sqlite3
-	purego_type_sqlite3 struct{}
+	sqlite3 struct{}
 	// C: sqlite_int64
-	purego_type_sqlite3_int64 = int64
+	sqlite3_int64 = int64
 	// C: int (*)(void *, int, char **, char **)
-	purego_type_sqlite3_callback = uintptr
+	sqlite3_callback = uintptr
 	// C: struct sqlite3_stmt
-	purego_type_sqlite3_stmt struct{}
+	sqlite3_stmt struct{}
 	// C: struct sqlite3_value
-	purego_type_sqlite3_value struct{}
+	sqlite3_value struct{}
 	// C: struct sqlite3_context
-	purego_type_sqlite3_context struct{}
+	sqlite3_context struct{}
 	// C: void (*)(void *)
-	purego_type_sqlite3_destructor_type = uintptr
+	sqlite3_destructor_type = uintptr
 	// C: int (*)(void *, int, char **, char **)
-	purego_type_sqlite3_callback_func = func(uintptr, int32, uintptr, uintptr) int32
+	sqlite3_callback_func = func(uintptr, int32, uintptr, uintptr) int32
 	// C: void (*)(void *)
-	purego_type_sqlite3_destructor_type_func = func(uintptr)
+	sqlite3_destructor_type_func = func(uintptr)
 	// C: void (*)(sqlite3_context *, int, sqlite3_value **)
-	purego_type_xFunc_func = func(*purego_type_sqlite3_context, int32, **purego_type_sqlite3_value)
+	xFunc_func = func(*sqlite3_context, int32, **sqlite3_value)
 	// C: void (*)(sqlite3_context *, int, sqlite3_value **)
-	purego_type_xStep_func = func(*purego_type_sqlite3_context, int32, **purego_type_sqlite3_value)
+	xStep_func = func(*sqlite3_context, int32, **sqlite3_value)
 	// C: void (*)(sqlite3_context *)
-	purego_type_xFinal_func = func(*purego_type_sqlite3_context)
+	xFinal_func = func(*sqlite3_context)
 	// C: int (*)(void *, int, const void *, int, const void *)
-	purego_type_xCompare_func = func(uintptr, int32, uintptr, int32, uintptr) int32
+	xCompare_func = func(uintptr, int32, uintptr, int32, uintptr) int32
 	// C: int (*)(void *)
-	purego_type_sqlite3_commit_hook_arg2_func = func(uintptr) int32
+	sqlite3_commit_hook_arg2_func = func(uintptr) int32
 	// C: void (*)(void *, int, const char *, const char *, sqlite3_int64)
-	purego_type_sqlite3_update_hook_arg2_func = func(uintptr, int32, uintptr, uintptr, int64)
+	sqlite3_update_hook_arg2_func = func(uintptr, int32, uintptr, uintptr, int64)
 	// C: int (*)(void *)
-	purego_type_arg3_func = func(uintptr) int32
+	arg3_func = func(uintptr) int32
 	// C: int (*)(unsigned int, void *, void *, void *)
-	purego_type_xCallback_func = func(uint32, uintptr, uintptr, uintptr) int32
+	xCallback_func = func(uint32, uintptr, uintptr, uintptr) int32
 )
 
-func purego_new_sqlite3_callback(fn purego_type_sqlite3_callback_func) purego_type_sqlite3_callback {
-	return purego_type_sqlite3_callback(purego.NewCallback(fn))
+func new_sqlite3_callback(fn sqlite3_callback_func) sqlite3_callback {
+	return sqlite3_callback(purego.NewCallback(fn))
 }
 
-func purego_new_sqlite3_destructor_type(fn purego_type_sqlite3_destructor_type_func) purego_type_sqlite3_destructor_type {
-	return purego_type_sqlite3_destructor_type(purego.NewCallback(fn))
+func new_sqlite3_destructor_type(fn sqlite3_destructor_type_func) sqlite3_destructor_type {
+	return sqlite3_destructor_type(purego.NewCallback(fn))
 }
 
-func purego_new_xFunc(fn purego_type_xFunc_func) uintptr {
+func new_xFunc(fn xFunc_func) uintptr {
 	return uintptr(purego.NewCallback(fn))
 }
 
-func purego_new_xStep(fn purego_type_xStep_func) uintptr {
+func new_xStep(fn xStep_func) uintptr {
 	return uintptr(purego.NewCallback(fn))
 }
 
-func purego_new_xFinal(fn purego_type_xFinal_func) uintptr {
+func new_xFinal(fn xFinal_func) uintptr {
 	return uintptr(purego.NewCallback(fn))
 }
 
-func purego_new_xCompare(fn purego_type_xCompare_func) uintptr {
+func new_xCompare(fn xCompare_func) uintptr {
 	return uintptr(purego.NewCallback(fn))
 }
 
-func purego_new_sqlite3_commit_hook_arg2(fn purego_type_sqlite3_commit_hook_arg2_func) uintptr {
+func new_sqlite3_commit_hook_arg2(fn sqlite3_commit_hook_arg2_func) uintptr {
 	return uintptr(purego.NewCallback(fn))
 }
 
-func purego_new_sqlite3_update_hook_arg2(fn purego_type_sqlite3_update_hook_arg2_func) uintptr {
+func new_sqlite3_update_hook_arg2(fn sqlite3_update_hook_arg2_func) uintptr {
 	return uintptr(purego.NewCallback(fn))
 }
 
-func purego_new_arg3(fn purego_type_arg3_func) uintptr {
+func new_arg3(fn arg3_func) uintptr {
 	return uintptr(purego.NewCallback(fn))
 }
 
-func purego_new_xCallback(fn purego_type_xCallback_func) uintptr {
+func new_xCallback(fn xCallback_func) uintptr {
 	return uintptr(purego.NewCallback(fn))
 }
 
 const (
-	purego_const_SQLITE_OK                                                 = 0
-	purego_const_SQLITE_ERROR                                              = 1
-	purego_const_SQLITE_ROW                                                = 100
-	purego_const_SQLITE_DONE                                               = 101
-	purego_const_SQLITE_OPEN_READONLY                                      = 1
-	purego_const_SQLITE_OPEN_READWRITE                                     = 2
-	purego_const_SQLITE_OPEN_CREATE                                        = 4
-	purego_const_SQLITE_OPEN_URI                                           = 64
-	purego_const_SQLITE_OPEN_MEMORY                                        = 128
-	purego_const_SQLITE_OPEN_NOMUTEX                                       = 32768
-	purego_const_SQLITE_OPEN_FULLMUTEX                                     = 65536
-	purego_const_SQLITE_INSERT                                             = 18
-	purego_const_SQLITE_TRACE_STMT                                         = 1
-	purego_const_SQLITE_TRACE_ROW                                          = 4
-	purego_const_SQLITE_INTEGER                                            = 1
-	purego_const_SQLITE_FLOAT                                              = 2
-	purego_const_SQLITE_BLOB                                               = 4
-	purego_const_SQLITE_NULL                                               = 5
-	purego_const_SQLITE_TEXT                                               = 3
-	purego_const_SQLITE_UTF8                                               = 1
-	purego_const_SQLITE_UTF16                                              = 4
-	purego_const_SQLITE_STATIC         purego_type_sqlite3_destructor_type = 0
-	purego_const_SQLITE_TRANSIENT      purego_type_sqlite3_destructor_type = ^uintptr(0)
+	SQLITE_OK                                     = 0
+	SQLITE_ERROR                                  = 1
+	SQLITE_ROW                                    = 100
+	SQLITE_DONE                                   = 101
+	SQLITE_OPEN_READONLY                          = 1
+	SQLITE_OPEN_READWRITE                         = 2
+	SQLITE_OPEN_CREATE                            = 4
+	SQLITE_OPEN_URI                               = 64
+	SQLITE_OPEN_MEMORY                            = 128
+	SQLITE_OPEN_NOMUTEX                           = 32768
+	SQLITE_OPEN_FULLMUTEX                         = 65536
+	SQLITE_INSERT                                 = 18
+	SQLITE_TRACE_STMT                             = 1
+	SQLITE_TRACE_ROW                              = 4
+	SQLITE_INTEGER                                = 1
+	SQLITE_FLOAT                                  = 2
+	SQLITE_BLOB                                   = 4
+	SQLITE_NULL                                   = 5
+	SQLITE_TEXT                                   = 3
+	SQLITE_UTF8                                   = 1
+	SQLITE_UTF16                                  = 4
+	SQLITE_STATIC         sqlite3_destructor_type = 0
+	SQLITE_TRANSIENT      sqlite3_destructor_type = ^uintptr(0)
 )
 
 var (
-	purego_func_sqlite3_libversion func() string
-	purego_func_sqlite3_close      func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_libversion func() string
+	sqlite3_close      func(
+		arg1 *sqlite3,
 	) int32
-	purego_func_sqlite3_close_v2 func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_close_v2 func(
+		arg1 *sqlite3,
 	) int32
-	purego_func_sqlite3_exec func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_exec func(
+		arg1 *sqlite3,
 		sql string,
-		callback purego_type_sqlite3_callback,
+		callback sqlite3_callback,
 		// C: void *
 		arg4 uintptr,
 		// C: char **
 		errmsg uintptr,
 	) int32
-	purego_func_sqlite3_last_insert_rowid func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_last_insert_rowid func(
+		arg1 *sqlite3,
 	) int64
-	purego_func_sqlite3_changes64 func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_changes64 func(
+		arg1 *sqlite3,
 	) int64
-	purego_func_sqlite3_busy_timeout func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_busy_timeout func(
+		arg1 *sqlite3,
 		ms int32,
 	) int32
-	purego_func_sqlite3_trace_v2 func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_trace_v2 func(
+		arg1 *sqlite3,
 		uMask uint32,
 		// C: int (*)(unsigned int, void *, void *, void *)
 		xCallback uintptr,
 		// C: void *
 		pCtx uintptr,
 	) int32
-	purego_func_sqlite3_progress_handler func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_progress_handler func(
+		arg1 *sqlite3,
 		arg2 int32,
 		// C: int (*)(void *)
 		arg3 uintptr,
 		// C: void *
 		arg4 uintptr,
 	)
-	purego_func_sqlite3_open func(
+	sqlite3_open func(
 		filename string,
-		ppDb **purego_type_sqlite3,
+		ppDb **sqlite3,
 	) int32
-	purego_func_sqlite3_open_v2 func(
+	sqlite3_open_v2 func(
 		filename string,
-		ppDb **purego_type_sqlite3,
+		ppDb **sqlite3,
 		flags int32,
 		zVfs string,
 	) int32
-	purego_func_sqlite3_extended_errcode func(
-		db *purego_type_sqlite3,
+	sqlite3_extended_errcode func(
+		db *sqlite3,
 	) int32
-	purego_func_sqlite3_errmsg func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_errmsg func(
+		arg1 *sqlite3,
 	) string
-	purego_func_sqlite3_prepare_v2 func(
-		db *purego_type_sqlite3,
+	sqlite3_prepare_v2 func(
+		db *sqlite3,
 		zSql string,
 		nByte int32,
-		ppStmt **purego_type_sqlite3_stmt,
+		ppStmt **sqlite3_stmt,
 		// C: const char **
 		pzTail uintptr,
 	) int32
-	purego_func_sqlite3_bind_blob func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_bind_blob func(
+		arg1 *sqlite3_stmt,
 		arg2 int32,
 		// C: const void *
 		arg3 uintptr,
 		n int32,
-		arg5 purego_type_sqlite3_destructor_type,
+		arg5 sqlite3_destructor_type,
 	) int32
-	purego_func_sqlite3_bind_double func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_bind_double func(
+		arg1 *sqlite3_stmt,
 		arg2 int32,
 		arg3 float64,
 	) int32
-	purego_func_sqlite3_bind_int64 func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_bind_int64 func(
+		arg1 *sqlite3_stmt,
 		arg2 int32,
 		arg3 int64,
 	) int32
-	purego_func_sqlite3_bind_null func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_bind_null func(
+		arg1 *sqlite3_stmt,
 		arg2 int32,
 	) int32
-	purego_func_sqlite3_bind_text func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_bind_text func(
+		arg1 *sqlite3_stmt,
 		arg2 int32,
 		arg3 string,
 		arg4 int32,
-		arg5 purego_type_sqlite3_destructor_type,
+		arg5 sqlite3_destructor_type,
 	) int32
-	purego_func_sqlite3_clear_bindings func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_clear_bindings func(
+		arg1 *sqlite3_stmt,
 	) int32
-	purego_func_sqlite3_column_count func(
-		pStmt *purego_type_sqlite3_stmt,
+	sqlite3_column_count func(
+		pStmt *sqlite3_stmt,
 	) int32
-	purego_func_sqlite3_step func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_step func(
+		arg1 *sqlite3_stmt,
 	) int32
-	purego_func_sqlite3_column_blob func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_column_blob func(
+		arg1 *sqlite3_stmt,
 		iCol int32,
 		// C: const void *
 	) uintptr
-	purego_func_sqlite3_column_double func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_column_double func(
+		arg1 *sqlite3_stmt,
 		iCol int32,
 	) float64
-	purego_func_sqlite3_column_int func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_column_int func(
+		arg1 *sqlite3_stmt,
 		iCol int32,
 	) int32
-	purego_func_sqlite3_column_int64 func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_column_int64 func(
+		arg1 *sqlite3_stmt,
 		iCol int32,
 	) int64
-	purego_func_sqlite3_column_text func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_column_text func(
+		arg1 *sqlite3_stmt,
 		iCol int32,
 	) string
-	purego_func_sqlite3_column_bytes func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_column_bytes func(
+		arg1 *sqlite3_stmt,
 		iCol int32,
 	) int32
-	purego_func_sqlite3_column_type func(
-		arg1 *purego_type_sqlite3_stmt,
+	sqlite3_column_type func(
+		arg1 *sqlite3_stmt,
 		iCol int32,
 	) int32
-	purego_func_sqlite3_finalize func(
-		pStmt *purego_type_sqlite3_stmt,
+	sqlite3_finalize func(
+		pStmt *sqlite3_stmt,
 	) int32
-	purego_func_sqlite3_reset func(
-		pStmt *purego_type_sqlite3_stmt,
+	sqlite3_reset func(
+		pStmt *sqlite3_stmt,
 	) int32
-	purego_func_sqlite3_create_function func(
-		db *purego_type_sqlite3,
+	sqlite3_create_function func(
+		db *sqlite3,
 		zFunctionName string,
 		nArg int32,
 		eTextRep int32,
@@ -271,8 +271,8 @@ var (
 		// C: void (*)(sqlite3_context *)
 		xFinal uintptr,
 	) int32
-	purego_func_sqlite3_create_function16 func(
-		db *purego_type_sqlite3,
+	sqlite3_create_function16 func(
+		db *sqlite3,
 		// C: const void *
 		zFunctionName uintptr,
 		nArg int32,
@@ -286,8 +286,8 @@ var (
 		// C: void (*)(sqlite3_context *)
 		xFinal uintptr,
 	) int32
-	purego_func_sqlite3_create_function_v2 func(
-		db *purego_type_sqlite3,
+	sqlite3_create_function_v2 func(
+		db *sqlite3,
 		zFunctionName string,
 		nArg int32,
 		eTextRep int32,
@@ -299,30 +299,30 @@ var (
 		xStep uintptr,
 		// C: void (*)(sqlite3_context *)
 		xFinal uintptr,
-		xDestroy purego_type_sqlite3_destructor_type,
+		xDestroy sqlite3_destructor_type,
 	) int32
-	purego_func_sqlite3_value_int func(
-		arg1 *purego_type_sqlite3_value,
+	sqlite3_value_int func(
+		arg1 *sqlite3_value,
 	) int32
-	purego_func_sqlite3_value_text func(
-		arg1 *purego_type_sqlite3_value,
+	sqlite3_value_text func(
+		arg1 *sqlite3_value,
 	) string
-	purego_func_sqlite3_user_data func(
-		arg1 *purego_type_sqlite3_context,
+	sqlite3_user_data func(
+		arg1 *sqlite3_context,
 		// C: void *
 	) uintptr
-	purego_func_sqlite3_result_int func(
-		arg1 *purego_type_sqlite3_context,
+	sqlite3_result_int func(
+		arg1 *sqlite3_context,
 		arg2 int32,
 	)
-	purego_func_sqlite3_result_text func(
-		arg1 *purego_type_sqlite3_context,
+	sqlite3_result_text func(
+		arg1 *sqlite3_context,
 		arg2 string,
 		arg3 int32,
-		arg4 purego_type_sqlite3_destructor_type,
+		arg4 sqlite3_destructor_type,
 	)
-	purego_func_sqlite3_create_collation func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_create_collation func(
+		arg1 *sqlite3,
 		zName string,
 		eTextRep int32,
 		// C: void *
@@ -330,18 +330,18 @@ var (
 		// C: int (*)(void *, int, const void *, int, const void *)
 		xCompare uintptr,
 	) int32
-	purego_func_sqlite3_create_collation_v2 func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_create_collation_v2 func(
+		arg1 *sqlite3,
 		zName string,
 		eTextRep int32,
 		// C: void *
 		pArg uintptr,
 		// C: int (*)(void *, int, const void *, int, const void *)
 		xCompare uintptr,
-		xDestroy purego_type_sqlite3_destructor_type,
+		xDestroy sqlite3_destructor_type,
 	) int32
-	purego_func_sqlite3_create_collation16 func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_create_collation16 func(
+		arg1 *sqlite3,
 		// C: const void *
 		zName uintptr,
 		eTextRep int32,
@@ -350,23 +350,23 @@ var (
 		// C: int (*)(void *, int, const void *, int, const void *)
 		xCompare uintptr,
 	) int32
-	purego_func_sqlite3_commit_hook func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_commit_hook func(
+		arg1 *sqlite3,
 		// C: int (*)(void *)
 		arg2 uintptr,
 		// C: void *
 		arg3 uintptr,
 		// C: void *
 	) uintptr
-	purego_func_sqlite3_rollback_hook func(
-		arg1 *purego_type_sqlite3,
-		arg2 purego_type_sqlite3_destructor_type,
+	sqlite3_rollback_hook func(
+		arg1 *sqlite3,
+		arg2 sqlite3_destructor_type,
 		// C: void *
 		arg3 uintptr,
 		// C: void *
 	) uintptr
-	purego_func_sqlite3_update_hook func(
-		arg1 *purego_type_sqlite3,
+	sqlite3_update_hook func(
+		arg1 *sqlite3,
 		// C: void (*)(void *, int, const char *, const char *, sqlite3_int64)
 		arg2 uintptr,
 		// C: void *
@@ -375,18 +375,18 @@ var (
 	) uintptr
 )
 
-func purego_func_sqlite3_bind_blob_bytes(
-	arg1 *purego_type_sqlite3_stmt,
+func sqlite3_bind_blob_bytes(
+	arg1 *sqlite3_stmt,
 	arg2 int32,
 	arg3 []byte,
-	arg5 purego_type_sqlite3_destructor_type,
+	arg5 sqlite3_destructor_type,
 ) int32 {
 	arg3_ptr := uintptr(0)
 	arg3_len := arg3
 	if len(arg3_len) > 0 {
 		arg3_ptr = uintptr(unsafe.Pointer(&arg3_len[0]))
 	}
-	return purego_func_sqlite3_bind_blob(
+	return sqlite3_bind_blob(
 		arg1,
 		arg2,
 		arg3_ptr,
@@ -394,8 +394,8 @@ func purego_func_sqlite3_bind_blob_bytes(
 		arg5,
 	)
 }
-func purego_func_sqlite3_exec_callbacks(
-	arg1 *purego_type_sqlite3,
+func sqlite3_exec_callbacks(
+	arg1 *sqlite3,
 	sql string,
 	callback func(uintptr, int32, uintptr, uintptr) int32,
 	arg4 uintptr,
@@ -405,7 +405,7 @@ func purego_func_sqlite3_exec_callbacks(
 	if callback != nil {
 		callback_callback = purego.NewCallback(callback)
 	}
-	return purego_func_sqlite3_exec(
+	return sqlite3_exec(
 		arg1,
 		sql,
 		callback_callback,
@@ -413,15 +413,15 @@ func purego_func_sqlite3_exec_callbacks(
 		errmsg,
 	)
 }
-func purego_func_sqlite3_create_function_callbacks(
-	db *purego_type_sqlite3,
+func sqlite3_create_function_callbacks(
+	db *sqlite3,
 	zFunctionName string,
 	nArg int32,
 	eTextRep int32,
 	pApp uintptr,
-	xFunc purego_type_xFunc_func,
-	xStep purego_type_xStep_func,
-	xFinal purego_type_xFinal_func,
+	xFunc xFunc_func,
+	xStep xStep_func,
+	xFinal xFinal_func,
 ) int32 {
 	xFunc_callback := uintptr(0)
 	xStep_callback := uintptr(0)
@@ -435,7 +435,7 @@ func purego_func_sqlite3_create_function_callbacks(
 	if xFinal != nil {
 		xFinal_callback = purego.NewCallback(xFinal)
 	}
-	return purego_func_sqlite3_create_function(
+	return sqlite3_create_function(
 		db,
 		zFunctionName,
 		nArg,
@@ -446,15 +446,15 @@ func purego_func_sqlite3_create_function_callbacks(
 		xFinal_callback,
 	)
 }
-func purego_func_sqlite3_create_function_v2_callbacks(
-	db *purego_type_sqlite3,
+func sqlite3_create_function_v2_callbacks(
+	db *sqlite3,
 	zFunctionName string,
 	nArg int32,
 	eTextRep int32,
 	pApp uintptr,
-	xFunc purego_type_xFunc_func,
-	xStep purego_type_xStep_func,
-	xFinal purego_type_xFinal_func,
+	xFunc xFunc_func,
+	xStep xStep_func,
+	xFinal xFinal_func,
 	xDestroy func(uintptr),
 ) int32 {
 	xFunc_callback := uintptr(0)
@@ -473,7 +473,7 @@ func purego_func_sqlite3_create_function_v2_callbacks(
 	if xDestroy != nil {
 		xDestroy_callback = purego.NewCallback(xDestroy)
 	}
-	return purego_func_sqlite3_create_function_v2(
+	return sqlite3_create_function_v2(
 		db,
 		zFunctionName,
 		nArg,
@@ -485,18 +485,18 @@ func purego_func_sqlite3_create_function_v2_callbacks(
 		xDestroy_callback,
 	)
 }
-func purego_func_sqlite3_create_collation_callbacks(
-	arg1 *purego_type_sqlite3,
+func sqlite3_create_collation_callbacks(
+	arg1 *sqlite3,
 	zName string,
 	eTextRep int32,
 	pArg uintptr,
-	xCompare purego_type_xCompare_func,
+	xCompare xCompare_func,
 ) int32 {
 	xCompare_callback := uintptr(0)
 	if xCompare != nil {
 		xCompare_callback = purego.NewCallback(xCompare)
 	}
-	return purego_func_sqlite3_create_collation(
+	return sqlite3_create_collation(
 		arg1,
 		zName,
 		eTextRep,
@@ -504,12 +504,12 @@ func purego_func_sqlite3_create_collation_callbacks(
 		xCompare_callback,
 	)
 }
-func purego_func_sqlite3_create_collation_v2_callbacks(
-	arg1 *purego_type_sqlite3,
+func sqlite3_create_collation_v2_callbacks(
+	arg1 *sqlite3,
 	zName string,
 	eTextRep int32,
 	pArg uintptr,
-	xCompare purego_type_xCompare_func,
+	xCompare xCompare_func,
 	xDestroy func(uintptr),
 ) int32 {
 	xCompare_callback := uintptr(0)
@@ -520,7 +520,7 @@ func purego_func_sqlite3_create_collation_v2_callbacks(
 	if xDestroy != nil {
 		xDestroy_callback = purego.NewCallback(xDestroy)
 	}
-	return purego_func_sqlite3_create_collation_v2(
+	return sqlite3_create_collation_v2(
 		arg1,
 		zName,
 		eTextRep,
@@ -529,23 +529,23 @@ func purego_func_sqlite3_create_collation_v2_callbacks(
 		xDestroy_callback,
 	)
 }
-func purego_func_sqlite3_commit_hook_callbacks(
-	arg1 *purego_type_sqlite3,
-	arg2 purego_type_sqlite3_commit_hook_arg2_func,
+func sqlite3_commit_hook_callbacks(
+	arg1 *sqlite3,
+	arg2 sqlite3_commit_hook_arg2_func,
 	arg3 uintptr,
 ) uintptr {
 	arg2_callback := uintptr(0)
 	if arg2 != nil {
 		arg2_callback = purego.NewCallback(arg2)
 	}
-	return purego_func_sqlite3_commit_hook(
+	return sqlite3_commit_hook(
 		arg1,
 		arg2_callback,
 		arg3,
 	)
 }
-func purego_func_sqlite3_rollback_hook_callbacks(
-	arg1 *purego_type_sqlite3,
+func sqlite3_rollback_hook_callbacks(
+	arg1 *sqlite3,
 	arg2 func(uintptr),
 	arg3 uintptr,
 ) uintptr {
@@ -553,55 +553,55 @@ func purego_func_sqlite3_rollback_hook_callbacks(
 	if arg2 != nil {
 		arg2_callback = purego.NewCallback(arg2)
 	}
-	return purego_func_sqlite3_rollback_hook(
+	return sqlite3_rollback_hook(
 		arg1,
 		arg2_callback,
 		arg3,
 	)
 }
-func purego_func_sqlite3_update_hook_callbacks(
-	arg1 *purego_type_sqlite3,
-	arg2 purego_type_sqlite3_update_hook_arg2_func,
+func sqlite3_update_hook_callbacks(
+	arg1 *sqlite3,
+	arg2 sqlite3_update_hook_arg2_func,
 	arg3 uintptr,
 ) uintptr {
 	arg2_callback := uintptr(0)
 	if arg2 != nil {
 		arg2_callback = purego.NewCallback(arg2)
 	}
-	return purego_func_sqlite3_update_hook(
+	return sqlite3_update_hook(
 		arg1,
 		arg2_callback,
 		arg3,
 	)
 }
-func purego_func_sqlite3_progress_handler_callbacks(
-	arg1 *purego_type_sqlite3,
+func sqlite3_progress_handler_callbacks(
+	arg1 *sqlite3,
 	arg2 int32,
-	arg3 purego_type_arg3_func,
+	arg3 arg3_func,
 	arg4 uintptr,
 ) {
 	arg3_callback := uintptr(0)
 	if arg3 != nil {
 		arg3_callback = purego.NewCallback(arg3)
 	}
-	purego_func_sqlite3_progress_handler(
+	sqlite3_progress_handler(
 		arg1,
 		arg2,
 		arg3_callback,
 		arg4,
 	)
 }
-func purego_func_sqlite3_trace_v2_callbacks(
-	arg1 *purego_type_sqlite3,
+func sqlite3_trace_v2_callbacks(
+	arg1 *sqlite3,
 	uMask uint32,
-	xCallback purego_type_xCallback_func,
+	xCallback xCallback_func,
 	pCtx uintptr,
 ) int32 {
 	xCallback_callback := uintptr(0)
 	if xCallback != nil {
 		xCallback_callback = purego.NewCallback(xCallback)
 	}
-	return purego_func_sqlite3_trace_v2(
+	return sqlite3_trace_v2(
 		arg1,
 		uMask,
 		xCallback_callback,
@@ -609,231 +609,231 @@ func purego_func_sqlite3_trace_v2_callbacks(
 	)
 }
 
-func purego_sqlite3_register_functions(handle uintptr) error {
-	purego_func_sqlite3_libversion_symbol, err := purego.Dlsym(handle, "sqlite3_libversion")
+func sqlite3_register_functions(handle uintptr) error {
+	sqlite3_libversion_symbol, err := purego.Dlsym(handle, "sqlite3_libversion")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_libversion: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_libversion, purego_func_sqlite3_libversion_symbol)
-	purego_func_sqlite3_close_symbol, err := purego.Dlsym(handle, "sqlite3_close")
+	purego.RegisterFunc(&sqlite3_libversion, sqlite3_libversion_symbol)
+	sqlite3_close_symbol, err := purego.Dlsym(handle, "sqlite3_close")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_close: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_close, purego_func_sqlite3_close_symbol)
-	purego_func_sqlite3_close_v2_symbol, err := purego.Dlsym(handle, "sqlite3_close_v2")
+	purego.RegisterFunc(&sqlite3_close, sqlite3_close_symbol)
+	sqlite3_close_v2_symbol, err := purego.Dlsym(handle, "sqlite3_close_v2")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_close_v2: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_close_v2, purego_func_sqlite3_close_v2_symbol)
-	purego_func_sqlite3_exec_symbol, err := purego.Dlsym(handle, "sqlite3_exec")
+	purego.RegisterFunc(&sqlite3_close_v2, sqlite3_close_v2_symbol)
+	sqlite3_exec_symbol, err := purego.Dlsym(handle, "sqlite3_exec")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_exec: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_exec, purego_func_sqlite3_exec_symbol)
-	purego_func_sqlite3_last_insert_rowid_symbol, err := purego.Dlsym(handle, "sqlite3_last_insert_rowid")
+	purego.RegisterFunc(&sqlite3_exec, sqlite3_exec_symbol)
+	sqlite3_last_insert_rowid_symbol, err := purego.Dlsym(handle, "sqlite3_last_insert_rowid")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_last_insert_rowid: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_last_insert_rowid, purego_func_sqlite3_last_insert_rowid_symbol)
-	purego_func_sqlite3_changes64_symbol, err := purego.Dlsym(handle, "sqlite3_changes64")
+	purego.RegisterFunc(&sqlite3_last_insert_rowid, sqlite3_last_insert_rowid_symbol)
+	sqlite3_changes64_symbol, err := purego.Dlsym(handle, "sqlite3_changes64")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_changes64: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_changes64, purego_func_sqlite3_changes64_symbol)
-	purego_func_sqlite3_busy_timeout_symbol, err := purego.Dlsym(handle, "sqlite3_busy_timeout")
+	purego.RegisterFunc(&sqlite3_changes64, sqlite3_changes64_symbol)
+	sqlite3_busy_timeout_symbol, err := purego.Dlsym(handle, "sqlite3_busy_timeout")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_busy_timeout: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_busy_timeout, purego_func_sqlite3_busy_timeout_symbol)
-	purego_func_sqlite3_trace_v2_symbol, err := purego.Dlsym(handle, "sqlite3_trace_v2")
+	purego.RegisterFunc(&sqlite3_busy_timeout, sqlite3_busy_timeout_symbol)
+	sqlite3_trace_v2_symbol, err := purego.Dlsym(handle, "sqlite3_trace_v2")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_trace_v2: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_trace_v2, purego_func_sqlite3_trace_v2_symbol)
-	purego_func_sqlite3_progress_handler_symbol, err := purego.Dlsym(handle, "sqlite3_progress_handler")
+	purego.RegisterFunc(&sqlite3_trace_v2, sqlite3_trace_v2_symbol)
+	sqlite3_progress_handler_symbol, err := purego.Dlsym(handle, "sqlite3_progress_handler")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_progress_handler: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_progress_handler, purego_func_sqlite3_progress_handler_symbol)
-	purego_func_sqlite3_open_symbol, err := purego.Dlsym(handle, "sqlite3_open")
+	purego.RegisterFunc(&sqlite3_progress_handler, sqlite3_progress_handler_symbol)
+	sqlite3_open_symbol, err := purego.Dlsym(handle, "sqlite3_open")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_open: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_open, purego_func_sqlite3_open_symbol)
-	purego_func_sqlite3_open_v2_symbol, err := purego.Dlsym(handle, "sqlite3_open_v2")
+	purego.RegisterFunc(&sqlite3_open, sqlite3_open_symbol)
+	sqlite3_open_v2_symbol, err := purego.Dlsym(handle, "sqlite3_open_v2")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_open_v2: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_open_v2, purego_func_sqlite3_open_v2_symbol)
-	purego_func_sqlite3_extended_errcode_symbol, err := purego.Dlsym(handle, "sqlite3_extended_errcode")
+	purego.RegisterFunc(&sqlite3_open_v2, sqlite3_open_v2_symbol)
+	sqlite3_extended_errcode_symbol, err := purego.Dlsym(handle, "sqlite3_extended_errcode")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_extended_errcode: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_extended_errcode, purego_func_sqlite3_extended_errcode_symbol)
-	purego_func_sqlite3_errmsg_symbol, err := purego.Dlsym(handle, "sqlite3_errmsg")
+	purego.RegisterFunc(&sqlite3_extended_errcode, sqlite3_extended_errcode_symbol)
+	sqlite3_errmsg_symbol, err := purego.Dlsym(handle, "sqlite3_errmsg")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_errmsg: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_errmsg, purego_func_sqlite3_errmsg_symbol)
-	purego_func_sqlite3_prepare_v2_symbol, err := purego.Dlsym(handle, "sqlite3_prepare_v2")
+	purego.RegisterFunc(&sqlite3_errmsg, sqlite3_errmsg_symbol)
+	sqlite3_prepare_v2_symbol, err := purego.Dlsym(handle, "sqlite3_prepare_v2")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_prepare_v2: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_prepare_v2, purego_func_sqlite3_prepare_v2_symbol)
-	purego_func_sqlite3_bind_blob_symbol, err := purego.Dlsym(handle, "sqlite3_bind_blob")
+	purego.RegisterFunc(&sqlite3_prepare_v2, sqlite3_prepare_v2_symbol)
+	sqlite3_bind_blob_symbol, err := purego.Dlsym(handle, "sqlite3_bind_blob")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_bind_blob: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_bind_blob, purego_func_sqlite3_bind_blob_symbol)
-	purego_func_sqlite3_bind_double_symbol, err := purego.Dlsym(handle, "sqlite3_bind_double")
+	purego.RegisterFunc(&sqlite3_bind_blob, sqlite3_bind_blob_symbol)
+	sqlite3_bind_double_symbol, err := purego.Dlsym(handle, "sqlite3_bind_double")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_bind_double: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_bind_double, purego_func_sqlite3_bind_double_symbol)
-	purego_func_sqlite3_bind_int64_symbol, err := purego.Dlsym(handle, "sqlite3_bind_int64")
+	purego.RegisterFunc(&sqlite3_bind_double, sqlite3_bind_double_symbol)
+	sqlite3_bind_int64_symbol, err := purego.Dlsym(handle, "sqlite3_bind_int64")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_bind_int64: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_bind_int64, purego_func_sqlite3_bind_int64_symbol)
-	purego_func_sqlite3_bind_null_symbol, err := purego.Dlsym(handle, "sqlite3_bind_null")
+	purego.RegisterFunc(&sqlite3_bind_int64, sqlite3_bind_int64_symbol)
+	sqlite3_bind_null_symbol, err := purego.Dlsym(handle, "sqlite3_bind_null")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_bind_null: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_bind_null, purego_func_sqlite3_bind_null_symbol)
-	purego_func_sqlite3_bind_text_symbol, err := purego.Dlsym(handle, "sqlite3_bind_text")
+	purego.RegisterFunc(&sqlite3_bind_null, sqlite3_bind_null_symbol)
+	sqlite3_bind_text_symbol, err := purego.Dlsym(handle, "sqlite3_bind_text")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_bind_text: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_bind_text, purego_func_sqlite3_bind_text_symbol)
-	purego_func_sqlite3_clear_bindings_symbol, err := purego.Dlsym(handle, "sqlite3_clear_bindings")
+	purego.RegisterFunc(&sqlite3_bind_text, sqlite3_bind_text_symbol)
+	sqlite3_clear_bindings_symbol, err := purego.Dlsym(handle, "sqlite3_clear_bindings")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_clear_bindings: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_clear_bindings, purego_func_sqlite3_clear_bindings_symbol)
-	purego_func_sqlite3_column_count_symbol, err := purego.Dlsym(handle, "sqlite3_column_count")
+	purego.RegisterFunc(&sqlite3_clear_bindings, sqlite3_clear_bindings_symbol)
+	sqlite3_column_count_symbol, err := purego.Dlsym(handle, "sqlite3_column_count")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_column_count: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_column_count, purego_func_sqlite3_column_count_symbol)
-	purego_func_sqlite3_step_symbol, err := purego.Dlsym(handle, "sqlite3_step")
+	purego.RegisterFunc(&sqlite3_column_count, sqlite3_column_count_symbol)
+	sqlite3_step_symbol, err := purego.Dlsym(handle, "sqlite3_step")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_step: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_step, purego_func_sqlite3_step_symbol)
-	purego_func_sqlite3_column_blob_symbol, err := purego.Dlsym(handle, "sqlite3_column_blob")
+	purego.RegisterFunc(&sqlite3_step, sqlite3_step_symbol)
+	sqlite3_column_blob_symbol, err := purego.Dlsym(handle, "sqlite3_column_blob")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_column_blob: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_column_blob, purego_func_sqlite3_column_blob_symbol)
-	purego_func_sqlite3_column_double_symbol, err := purego.Dlsym(handle, "sqlite3_column_double")
+	purego.RegisterFunc(&sqlite3_column_blob, sqlite3_column_blob_symbol)
+	sqlite3_column_double_symbol, err := purego.Dlsym(handle, "sqlite3_column_double")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_column_double: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_column_double, purego_func_sqlite3_column_double_symbol)
-	purego_func_sqlite3_column_int_symbol, err := purego.Dlsym(handle, "sqlite3_column_int")
+	purego.RegisterFunc(&sqlite3_column_double, sqlite3_column_double_symbol)
+	sqlite3_column_int_symbol, err := purego.Dlsym(handle, "sqlite3_column_int")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_column_int: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_column_int, purego_func_sqlite3_column_int_symbol)
-	purego_func_sqlite3_column_int64_symbol, err := purego.Dlsym(handle, "sqlite3_column_int64")
+	purego.RegisterFunc(&sqlite3_column_int, sqlite3_column_int_symbol)
+	sqlite3_column_int64_symbol, err := purego.Dlsym(handle, "sqlite3_column_int64")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_column_int64: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_column_int64, purego_func_sqlite3_column_int64_symbol)
-	purego_func_sqlite3_column_text_symbol, err := purego.Dlsym(handle, "sqlite3_column_text")
+	purego.RegisterFunc(&sqlite3_column_int64, sqlite3_column_int64_symbol)
+	sqlite3_column_text_symbol, err := purego.Dlsym(handle, "sqlite3_column_text")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_column_text: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_column_text, purego_func_sqlite3_column_text_symbol)
-	purego_func_sqlite3_column_bytes_symbol, err := purego.Dlsym(handle, "sqlite3_column_bytes")
+	purego.RegisterFunc(&sqlite3_column_text, sqlite3_column_text_symbol)
+	sqlite3_column_bytes_symbol, err := purego.Dlsym(handle, "sqlite3_column_bytes")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_column_bytes: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_column_bytes, purego_func_sqlite3_column_bytes_symbol)
-	purego_func_sqlite3_column_type_symbol, err := purego.Dlsym(handle, "sqlite3_column_type")
+	purego.RegisterFunc(&sqlite3_column_bytes, sqlite3_column_bytes_symbol)
+	sqlite3_column_type_symbol, err := purego.Dlsym(handle, "sqlite3_column_type")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_column_type: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_column_type, purego_func_sqlite3_column_type_symbol)
-	purego_func_sqlite3_finalize_symbol, err := purego.Dlsym(handle, "sqlite3_finalize")
+	purego.RegisterFunc(&sqlite3_column_type, sqlite3_column_type_symbol)
+	sqlite3_finalize_symbol, err := purego.Dlsym(handle, "sqlite3_finalize")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_finalize: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_finalize, purego_func_sqlite3_finalize_symbol)
-	purego_func_sqlite3_reset_symbol, err := purego.Dlsym(handle, "sqlite3_reset")
+	purego.RegisterFunc(&sqlite3_finalize, sqlite3_finalize_symbol)
+	sqlite3_reset_symbol, err := purego.Dlsym(handle, "sqlite3_reset")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_reset: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_reset, purego_func_sqlite3_reset_symbol)
-	purego_func_sqlite3_create_function_symbol, err := purego.Dlsym(handle, "sqlite3_create_function")
+	purego.RegisterFunc(&sqlite3_reset, sqlite3_reset_symbol)
+	sqlite3_create_function_symbol, err := purego.Dlsym(handle, "sqlite3_create_function")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_create_function: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_create_function, purego_func_sqlite3_create_function_symbol)
-	purego_func_sqlite3_create_function16_symbol, err := purego.Dlsym(handle, "sqlite3_create_function16")
+	purego.RegisterFunc(&sqlite3_create_function, sqlite3_create_function_symbol)
+	sqlite3_create_function16_symbol, err := purego.Dlsym(handle, "sqlite3_create_function16")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_create_function16: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_create_function16, purego_func_sqlite3_create_function16_symbol)
-	purego_func_sqlite3_create_function_v2_symbol, err := purego.Dlsym(handle, "sqlite3_create_function_v2")
+	purego.RegisterFunc(&sqlite3_create_function16, sqlite3_create_function16_symbol)
+	sqlite3_create_function_v2_symbol, err := purego.Dlsym(handle, "sqlite3_create_function_v2")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_create_function_v2: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_create_function_v2, purego_func_sqlite3_create_function_v2_symbol)
-	purego_func_sqlite3_value_int_symbol, err := purego.Dlsym(handle, "sqlite3_value_int")
+	purego.RegisterFunc(&sqlite3_create_function_v2, sqlite3_create_function_v2_symbol)
+	sqlite3_value_int_symbol, err := purego.Dlsym(handle, "sqlite3_value_int")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_value_int: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_value_int, purego_func_sqlite3_value_int_symbol)
-	purego_func_sqlite3_value_text_symbol, err := purego.Dlsym(handle, "sqlite3_value_text")
+	purego.RegisterFunc(&sqlite3_value_int, sqlite3_value_int_symbol)
+	sqlite3_value_text_symbol, err := purego.Dlsym(handle, "sqlite3_value_text")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_value_text: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_value_text, purego_func_sqlite3_value_text_symbol)
-	purego_func_sqlite3_user_data_symbol, err := purego.Dlsym(handle, "sqlite3_user_data")
+	purego.RegisterFunc(&sqlite3_value_text, sqlite3_value_text_symbol)
+	sqlite3_user_data_symbol, err := purego.Dlsym(handle, "sqlite3_user_data")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_user_data: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_user_data, purego_func_sqlite3_user_data_symbol)
-	purego_func_sqlite3_result_int_symbol, err := purego.Dlsym(handle, "sqlite3_result_int")
+	purego.RegisterFunc(&sqlite3_user_data, sqlite3_user_data_symbol)
+	sqlite3_result_int_symbol, err := purego.Dlsym(handle, "sqlite3_result_int")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_result_int: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_result_int, purego_func_sqlite3_result_int_symbol)
-	purego_func_sqlite3_result_text_symbol, err := purego.Dlsym(handle, "sqlite3_result_text")
+	purego.RegisterFunc(&sqlite3_result_int, sqlite3_result_int_symbol)
+	sqlite3_result_text_symbol, err := purego.Dlsym(handle, "sqlite3_result_text")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_result_text: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_result_text, purego_func_sqlite3_result_text_symbol)
-	purego_func_sqlite3_create_collation_symbol, err := purego.Dlsym(handle, "sqlite3_create_collation")
+	purego.RegisterFunc(&sqlite3_result_text, sqlite3_result_text_symbol)
+	sqlite3_create_collation_symbol, err := purego.Dlsym(handle, "sqlite3_create_collation")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_create_collation: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_create_collation, purego_func_sqlite3_create_collation_symbol)
-	purego_func_sqlite3_create_collation_v2_symbol, err := purego.Dlsym(handle, "sqlite3_create_collation_v2")
+	purego.RegisterFunc(&sqlite3_create_collation, sqlite3_create_collation_symbol)
+	sqlite3_create_collation_v2_symbol, err := purego.Dlsym(handle, "sqlite3_create_collation_v2")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_create_collation_v2: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_create_collation_v2, purego_func_sqlite3_create_collation_v2_symbol)
-	purego_func_sqlite3_create_collation16_symbol, err := purego.Dlsym(handle, "sqlite3_create_collation16")
+	purego.RegisterFunc(&sqlite3_create_collation_v2, sqlite3_create_collation_v2_symbol)
+	sqlite3_create_collation16_symbol, err := purego.Dlsym(handle, "sqlite3_create_collation16")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_create_collation16: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_create_collation16, purego_func_sqlite3_create_collation16_symbol)
-	purego_func_sqlite3_commit_hook_symbol, err := purego.Dlsym(handle, "sqlite3_commit_hook")
+	purego.RegisterFunc(&sqlite3_create_collation16, sqlite3_create_collation16_symbol)
+	sqlite3_commit_hook_symbol, err := purego.Dlsym(handle, "sqlite3_commit_hook")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_commit_hook: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_commit_hook, purego_func_sqlite3_commit_hook_symbol)
-	purego_func_sqlite3_rollback_hook_symbol, err := purego.Dlsym(handle, "sqlite3_rollback_hook")
+	purego.RegisterFunc(&sqlite3_commit_hook, sqlite3_commit_hook_symbol)
+	sqlite3_rollback_hook_symbol, err := purego.Dlsym(handle, "sqlite3_rollback_hook")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_rollback_hook: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_rollback_hook, purego_func_sqlite3_rollback_hook_symbol)
-	purego_func_sqlite3_update_hook_symbol, err := purego.Dlsym(handle, "sqlite3_update_hook")
+	purego.RegisterFunc(&sqlite3_rollback_hook, sqlite3_rollback_hook_symbol)
+	sqlite3_update_hook_symbol, err := purego.Dlsym(handle, "sqlite3_update_hook")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_update_hook: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_sqlite3_update_hook, purego_func_sqlite3_update_hook_symbol)
+	purego.RegisterFunc(&sqlite3_update_hook, sqlite3_update_hook_symbol)
 	return nil
 }

@@ -15,17 +15,17 @@ var (
 )
 
 var (
-	purego_func_base_add func(
+	base_add func(
 		lhs int32,
 		rhs int32,
 	) int32
 )
 
-func purego_fixture_lib_register_functions(handle uintptr) error {
-	purego_func_base_add_symbol, err := purego.Dlsym(handle, "base_add")
+func fixture_lib_register_functions(handle uintptr) error {
+	base_add_symbol, err := purego.Dlsym(handle, "base_add")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol base_add: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_base_add, purego_func_base_add_symbol)
+	purego.RegisterFunc(&base_add, base_add_symbol)
 	return nil
 }

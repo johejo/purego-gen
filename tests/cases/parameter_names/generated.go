@@ -15,51 +15,51 @@ var (
 )
 
 var (
-	purego_func_fixture_named_params func(
+	fixture_named_params func(
 		lhs int32,
 		rhs int32,
 	) int32
-	purego_func_fixture_unnamed_first func(
+	fixture_unnamed_first func(
 		arg1 int32,
 		rhs int32,
 	) int32
-	purego_func_fixture_keyword_name func(
+	fixture_keyword_name func(
 		map_ int32,
 	) int32
-	purego_func_fixture_underscore_name func(
+	fixture_underscore_name func(
 		arg1 int32,
 	) int32
-	purego_func_fixture_fallback_name_collision func(
+	fixture_fallback_name_collision func(
 		arg2 int32,
 		arg2_2 int32,
 	) int32
 )
 
-func purego_fixture_lib_register_functions(handle uintptr) error {
-	purego_func_fixture_named_params_symbol, err := purego.Dlsym(handle, "fixture_named_params")
+func fixture_lib_register_functions(handle uintptr) error {
+	fixture_named_params_symbol, err := purego.Dlsym(handle, "fixture_named_params")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol fixture_named_params: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_fixture_named_params, purego_func_fixture_named_params_symbol)
-	purego_func_fixture_unnamed_first_symbol, err := purego.Dlsym(handle, "fixture_unnamed_first")
+	purego.RegisterFunc(&fixture_named_params, fixture_named_params_symbol)
+	fixture_unnamed_first_symbol, err := purego.Dlsym(handle, "fixture_unnamed_first")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol fixture_unnamed_first: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_fixture_unnamed_first, purego_func_fixture_unnamed_first_symbol)
-	purego_func_fixture_keyword_name_symbol, err := purego.Dlsym(handle, "fixture_keyword_name")
+	purego.RegisterFunc(&fixture_unnamed_first, fixture_unnamed_first_symbol)
+	fixture_keyword_name_symbol, err := purego.Dlsym(handle, "fixture_keyword_name")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol fixture_keyword_name: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_fixture_keyword_name, purego_func_fixture_keyword_name_symbol)
-	purego_func_fixture_underscore_name_symbol, err := purego.Dlsym(handle, "fixture_underscore_name")
+	purego.RegisterFunc(&fixture_keyword_name, fixture_keyword_name_symbol)
+	fixture_underscore_name_symbol, err := purego.Dlsym(handle, "fixture_underscore_name")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol fixture_underscore_name: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_fixture_underscore_name, purego_func_fixture_underscore_name_symbol)
-	purego_func_fixture_fallback_name_collision_symbol, err := purego.Dlsym(handle, "fixture_fallback_name_collision")
+	purego.RegisterFunc(&fixture_underscore_name, fixture_underscore_name_symbol)
+	fixture_fallback_name_collision_symbol, err := purego.Dlsym(handle, "fixture_fallback_name_collision")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol fixture_fallback_name_collision: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_fixture_fallback_name_collision, purego_func_fixture_fallback_name_collision_symbol)
+	purego.RegisterFunc(&fixture_fallback_name_collision, fixture_fallback_name_collision_symbol)
 	return nil
 }

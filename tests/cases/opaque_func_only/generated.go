@@ -15,18 +15,18 @@ var (
 )
 
 var (
-	purego_func_create_ctx func(
+	create_ctx func(
 		// C: const foo_t *
 		ctx uintptr,
 		// C: foo_t *
 	) uintptr
 )
 
-func purego_fixture_lib_register_functions(handle uintptr) error {
-	purego_func_create_ctx_symbol, err := purego.Dlsym(handle, "create_ctx")
+func fixture_lib_register_functions(handle uintptr) error {
+	create_ctx_symbol, err := purego.Dlsym(handle, "create_ctx")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol create_ctx: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_create_ctx, purego_func_create_ctx_symbol)
+	purego.RegisterFunc(&create_ctx, create_ctx_symbol)
 	return nil
 }

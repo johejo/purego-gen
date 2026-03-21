@@ -15,31 +15,31 @@ var (
 )
 
 type (
-	purego_type_fixture_point_t struct {
+	fixture_point_t struct {
 		left  int32
 		right int32
 	}
 )
 
 var (
-	purego_func_fixture_make_point func(
-		value purego_type_fixture_point_t,
-	) purego_type_fixture_point_t
-	purego_func_fixture_store_point func(
-		value purego_type_fixture_point_t,
+	fixture_make_point func(
+		value fixture_point_t,
+	) fixture_point_t
+	fixture_store_point func(
+		value fixture_point_t,
 	)
 )
 
-func purego_fixture_lib_register_functions(handle uintptr) error {
-	purego_func_fixture_make_point_symbol, err := purego.Dlsym(handle, "fixture_make_point")
+func fixture_lib_register_functions(handle uintptr) error {
+	fixture_make_point_symbol, err := purego.Dlsym(handle, "fixture_make_point")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol fixture_make_point: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_fixture_make_point, purego_func_fixture_make_point_symbol)
-	purego_func_fixture_store_point_symbol, err := purego.Dlsym(handle, "fixture_store_point")
+	purego.RegisterFunc(&fixture_make_point, fixture_make_point_symbol)
+	fixture_store_point_symbol, err := purego.Dlsym(handle, "fixture_store_point")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol fixture_store_point: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_fixture_store_point, purego_func_fixture_store_point_symbol)
+	purego.RegisterFunc(&fixture_store_point, fixture_store_point_symbol)
 	return nil
 }

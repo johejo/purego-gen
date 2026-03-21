@@ -103,11 +103,10 @@ class ParseInput(StrictModel):
 class NamingInput(StrictModel):
     """Generated Go identifier naming configuration."""
 
-    identifier_prefix: str = "purego_"
-    type_prefix: str | None = None
-    const_prefix: str | None = None
-    func_prefix: str | None = None
-    var_prefix: str | None = None
+    type_prefix: str = ""
+    const_prefix: str = ""
+    func_prefix: str = ""
+    var_prefix: str = ""
 
 
 class RenderInput(StrictModel):

@@ -16,63 +16,63 @@ var (
 
 type (
 	// C: int
-	purego_type_my_int = int32
+	my_int = int32
 	// C: void *
-	purego_type_my_handle = uintptr
+	my_handle = uintptr
 	// C: struct not_basic
-	purego_type_not_basic struct{}
+	not_basic struct{}
 	// C: unsigned int
-	purego_type_my_uint = uint32
+	my_uint = uint32
 )
 
 const (
-	purego_const_FIXTURE_STATUS_OK = 0
-	purego_const_FIXTURE_STATUS_NG = 2
+	FIXTURE_STATUS_OK = 0
+	FIXTURE_STATUS_NG = 2
 )
 
 var (
-	purego_func_add func(
+	add func(
 		lhs int32,
 		rhs int32,
 	) int32
-	purego_func_reset func()
+	reset func()
 )
 
-func purego_fixture_lib_register_functions(handle uintptr) error {
-	purego_func_add_symbol, err := purego.Dlsym(handle, "add")
+func fixture_lib_register_functions(handle uintptr) error {
+	add_symbol, err := purego.Dlsym(handle, "add")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol add: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_add, purego_func_add_symbol)
-	purego_func_reset_symbol, err := purego.Dlsym(handle, "reset")
+	purego.RegisterFunc(&add, add_symbol)
+	reset_symbol, err := purego.Dlsym(handle, "reset")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol reset: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_reset, purego_func_reset_symbol)
+	purego.RegisterFunc(&reset, reset_symbol)
 	return nil
 }
 
 var (
-	purego_var_global_counter uintptr
-	purego_var_build_id       uintptr
+	global_counter uintptr
+	build_id       uintptr
 )
 
-func purego_fixture_lib_load_runtime_vars(handle uintptr) error {
-	purego_var_global_counter_symbol, err := purego.Dlsym(handle, "global_counter")
+func fixture_lib_load_runtime_vars(handle uintptr) error {
+	global_counter_symbol, err := purego.Dlsym(handle, "global_counter")
 	if err != nil {
 		return fmt.Errorf(
 			"purego-gen: failed to resolve runtime var symbol global_counter: %w",
 			err,
 		)
 	}
-	purego_var_global_counter = purego_var_global_counter_symbol
-	purego_var_build_id_symbol, err := purego.Dlsym(handle, "build_id")
+	global_counter = global_counter_symbol
+	build_id_symbol, err := purego.Dlsym(handle, "build_id")
 	if err != nil {
 		return fmt.Errorf(
 			"purego-gen: failed to resolve runtime var symbol build_id: %w",
 			err,
 		)
 	}
-	purego_var_build_id = purego_var_build_id_symbol
+	build_id = build_id_symbol
 	return nil
 }

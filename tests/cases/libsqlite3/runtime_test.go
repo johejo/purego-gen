@@ -13,22 +13,22 @@ import (
 
 type sqliteConnection struct {
 	handle     uintptr
-	db         *purego_type_sqlite3
+	db         *sqlite3
 	closed     bool
 	useCloseV2 bool
 }
 
 type sqliteStatement struct {
-	db        *purego_type_sqlite3
-	handle    *purego_type_sqlite3_stmt
+	db        *sqlite3
+	handle    *sqlite3_stmt
 	finalized bool
 }
 
-func sqliteErrmsg(db *purego_type_sqlite3) string {
+func sqliteErrmsg(db *sqlite3) string {
 	if db == nil {
 		return ""
 	}
-	return purego_func_sqlite3_errmsg(db)
+	return sqlite3_errmsg(db)
 }
 
 func openSQLiteConnection(t *testing.T) *sqliteConnection {
@@ -52,19 +52,19 @@ func openSQLiteConnection(t *testing.T) *sqliteConnection {
 		}
 	})
 
-	if err := purego_sqlite3_register_functions(handle); err != nil {
+	if err := sqlite3_register_functions(handle); err != nil {
 		t.Fatalf("register functions: %v", err)
 	}
-	if got := purego_func_sqlite3_libversion(); got == "" {
+	if got := sqlite3_libversion(); got == "" {
 		t.Fatal("sqlite3_libversion() returned empty string")
 	}
 
-	openResult := purego_func_sqlite3_open(":memory:", &connection.db)
-	if openResult != purego_const_SQLITE_OK {
+	openResult := sqlite3_open(":memory:", &connection.db)
+	if openResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_open(:memory:) = %d, want %d, errmsg=%q",
 			openResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -101,25 +101,25 @@ func openSQLiteConnectionV2(
 		}
 	})
 
-	if err := purego_sqlite3_register_functions(handle); err != nil {
+	if err := sqlite3_register_functions(handle); err != nil {
 		t.Fatalf("register functions: %v", err)
 	}
-	if got := purego_func_sqlite3_libversion(); got == "" {
+	if got := sqlite3_libversion(); got == "" {
 		t.Fatal("sqlite3_libversion() returned empty string")
 	}
 
-	openResult := purego_func_sqlite3_open_v2(
+	openResult := sqlite3_open_v2(
 		filename,
 		&connection.db,
 		flags,
 		vfsName,
 	)
-	if openResult != purego_const_SQLITE_OK {
+	if openResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_open_v2(%q) = %d, want %d, errmsg=%q",
 			filename,
 			openResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -147,17 +147,17 @@ func (connection *sqliteConnection) close() error {
 		closeResult := int32(0)
 		closeName := "sqlite3_close"
 		if connection.useCloseV2 {
-			closeResult = purego_func_sqlite3_close_v2(connection.db)
+			closeResult = sqlite3_close_v2(connection.db)
 			closeName = "sqlite3_close_v2"
 		} else {
-			closeResult = purego_func_sqlite3_close(connection.db)
+			closeResult = sqlite3_close(connection.db)
 		}
-		if closeResult != purego_const_SQLITE_OK {
+		if closeResult != SQLITE_OK {
 			return fmt.Errorf(
 				"%s() = %d, want %d, errmsg=%q",
 				closeName,
 				closeResult,
-				purego_const_SQLITE_OK,
+				SQLITE_OK,
 				sqliteErrmsg(connection.db),
 			)
 		}
@@ -177,25 +177,25 @@ func (connection *sqliteConnection) close() error {
 
 func prepareSQLiteStatement(
 	t *testing.T,
-	db *purego_type_sqlite3,
+	db *sqlite3,
 	sql string,
 ) *sqliteStatement {
 	t.Helper()
 
 	statement := &sqliteStatement{db: db}
-	prepareResult := purego_func_sqlite3_prepare_v2(
+	prepareResult := sqlite3_prepare_v2(
 		db,
 		sql,
 		-1,
 		&statement.handle,
 		0,
 	)
-	if prepareResult != purego_const_SQLITE_OK {
+	if prepareResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_prepare_v2(%q) = %d, want %d, errmsg=%q",
 			sql,
 			prepareResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(db),
 		)
 	}
@@ -225,12 +225,12 @@ func (statement *sqliteStatement) finalize() error {
 		return nil
 	}
 
-	finalizeResult := purego_func_sqlite3_finalize(statement.handle)
-	if finalizeResult != purego_const_SQLITE_OK {
+	finalizeResult := sqlite3_finalize(statement.handle)
+	if finalizeResult != SQLITE_OK {
 		return fmt.Errorf(
 			"sqlite3_finalize() = %d, want %d, errmsg=%q",
 			finalizeResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(statement.db),
 		)
 	}
@@ -240,22 +240,22 @@ func (statement *sqliteStatement) finalize() error {
 	return nil
 }
 
-func mustExecSQLite(t *testing.T, db *purego_type_sqlite3, sql string) {
+func mustExecSQLite(t *testing.T, db *sqlite3, sql string) {
 	t.Helper()
 
-	execResult := purego_func_sqlite3_exec(
+	execResult := sqlite3_exec(
 		db,
 		sql,
-		purego_type_sqlite3_callback(0),
+		sqlite3_callback(0),
 		0,
 		0,
 	)
-	if execResult != purego_const_SQLITE_OK {
+	if execResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_exec(%q) = %d, want %d, errmsg=%q",
 			sql,
 			execResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(db),
 		)
 	}
@@ -319,7 +319,7 @@ func sqliteUTF16BytesString(ptr uintptr, length int32) string {
 	return string(utf16.Decode(unsafe.Slice((*uint16)(pointerData), int(length)/2)))
 }
 
-func sqliteValueArray(values **purego_type_sqlite3_value, count int32) []*purego_type_sqlite3_value {
+func sqliteValueArray(values **sqlite3_value, count int32) []*sqlite3_value {
 	if values == nil || count <= 0 {
 		return nil
 	}
@@ -343,25 +343,25 @@ func sqliteCompareByLengthThenLex(leftText string, rightText string) int32 {
 
 func collectFirstColumnTextRows(
 	t *testing.T,
-	db *purego_type_sqlite3,
+	db *sqlite3,
 	statement *sqliteStatement,
 ) []string {
 	t.Helper()
 
 	var rows []string
 	for {
-		stepResult := purego_func_sqlite3_step(statement.handle)
+		stepResult := sqlite3_step(statement.handle)
 		switch stepResult {
-		case purego_const_SQLITE_ROW:
-			rows = append(rows, purego_func_sqlite3_column_text(statement.handle, 0))
-		case purego_const_SQLITE_DONE:
+		case SQLITE_ROW:
+			rows = append(rows, sqlite3_column_text(statement.handle, 0))
+		case SQLITE_DONE:
 			return rows
 		default:
 			t.Fatalf(
 				"sqlite3_step() = %d, want %d or %d, errmsg=%q",
 				stepResult,
-				purego_const_SQLITE_ROW,
-				purego_const_SQLITE_DONE,
+				SQLITE_ROW,
+				SQLITE_DONE,
 				sqliteErrmsg(db),
 			)
 		}
@@ -372,22 +372,22 @@ func TestGeneratedBindingsReadTextResultsFromLibsqlite3(t *testing.T) {
 	connection := openSQLiteConnection(t)
 	statement := prepareSQLiteStatement(t, connection.db, "SELECT 'hello-from-sqlite'")
 
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_ROW {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_ROW {
 		t.Fatalf(
 			"sqlite3_step() first call = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_ROW,
+			SQLITE_ROW,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if got := purego_func_sqlite3_column_text(statement.handle, 0); got != "hello-from-sqlite" {
+	if got := sqlite3_column_text(statement.handle, 0); got != "hello-from-sqlite" {
 		t.Fatalf("sqlite3_column_text(stmt, 0) = %q, want %q", got, "hello-from-sqlite")
 	}
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_DONE {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_DONE {
 		t.Fatalf(
 			"sqlite3_step() second call = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_DONE,
+			SQLITE_DONE,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -398,7 +398,7 @@ func TestGeneratedBindingsExecuteSqliteExecCallbackWithLibsqlite3(t *testing.T) 
 
 	var callbackValues []string
 	var callbackNames []string
-	execResult := purego_func_sqlite3_exec_callbacks(
+	execResult := sqlite3_exec_callbacks(
 		connection.db,
 		"SELECT 'row-value' AS greeting",
 		func(_ uintptr, count int32, values uintptr, names uintptr) int32 {
@@ -409,11 +409,11 @@ func TestGeneratedBindingsExecuteSqliteExecCallbackWithLibsqlite3(t *testing.T) 
 		0,
 		0,
 	)
-	if execResult != purego_const_SQLITE_OK {
+	if execResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_exec() = %d, want %d, errmsg=%q",
 			execResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -429,37 +429,37 @@ func TestGeneratedBindingsBindTextWithTransientDestructorInLibsqlite3(t *testing
 	connection := openSQLiteConnection(t)
 	statement := prepareSQLiteStatement(t, connection.db, "SELECT ?1")
 
-	bindResult := purego_func_sqlite3_bind_text(
+	bindResult := sqlite3_bind_text(
 		statement.handle,
 		1,
 		"bound-text",
 		-1,
-		purego_const_SQLITE_TRANSIENT,
+		SQLITE_TRANSIENT,
 	)
-	if bindResult != purego_const_SQLITE_OK {
+	if bindResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_bind_text() = %d, want %d, errmsg=%q",
 			bindResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_ROW {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_ROW {
 		t.Fatalf(
 			"sqlite3_step() first call = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_ROW,
+			SQLITE_ROW,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if got := purego_func_sqlite3_column_text(statement.handle, 0); got != "bound-text" {
+	if got := sqlite3_column_text(statement.handle, 0); got != "bound-text" {
 		t.Fatalf("sqlite3_column_text(stmt, 0) = %q, want %q", got, "bound-text")
 	}
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_DONE {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_DONE {
 		t.Fatalf(
 			"sqlite3_step() second call = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_DONE,
+			SQLITE_DONE,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -469,19 +469,19 @@ func TestGeneratedBindingsOpenV2CloseV2AndBusyTimeoutWithLibsqlite3(t *testing.T
 	connection := openSQLiteConnectionV2(
 		t,
 		"file:purego-driver-open-v2?mode=memory&cache=private",
-		purego_const_SQLITE_OPEN_READWRITE|
-			purego_const_SQLITE_OPEN_CREATE|
-			purego_const_SQLITE_OPEN_URI|
-			purego_const_SQLITE_OPEN_FULLMUTEX,
+		SQLITE_OPEN_READWRITE|
+			SQLITE_OPEN_CREATE|
+			SQLITE_OPEN_URI|
+			SQLITE_OPEN_FULLMUTEX,
 		"unix",
 	)
 
-	busyTimeoutResult := purego_func_sqlite3_busy_timeout(connection.db, 25)
-	if busyTimeoutResult != purego_const_SQLITE_OK {
+	busyTimeoutResult := sqlite3_busy_timeout(connection.db, 25)
+	if busyTimeoutResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_busy_timeout() = %d, want %d, errmsg=%q",
 			busyTimeoutResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -493,94 +493,94 @@ func TestGeneratedBindingsDriverValueBindingsWithLibsqlite3(t *testing.T) {
 	connection := openSQLiteConnection(t)
 	statement := prepareSQLiteStatement(t, connection.db, "SELECT ?1, ?2, ?3, ?4")
 
-	const wantInt64 purego_type_sqlite3_int64 = 922337203685477000
+	const wantInt64 sqlite3_int64 = 922337203685477000
 	const wantDouble = 3.25
 	blobValue := []byte("blob-value")
 
-	if bindResult := purego_func_sqlite3_bind_int64(statement.handle, 1, wantInt64); bindResult != purego_const_SQLITE_OK {
+	if bindResult := sqlite3_bind_int64(statement.handle, 1, wantInt64); bindResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_bind_int64() = %d, want %d, errmsg=%q",
 			bindResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if bindResult := purego_func_sqlite3_bind_double(statement.handle, 2, wantDouble); bindResult != purego_const_SQLITE_OK {
+	if bindResult := sqlite3_bind_double(statement.handle, 2, wantDouble); bindResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_bind_double() = %d, want %d, errmsg=%q",
 			bindResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if bindResult := purego_func_sqlite3_bind_blob_bytes(
+	if bindResult := sqlite3_bind_blob_bytes(
 		statement.handle,
 		3,
 		blobValue,
-		purego_const_SQLITE_TRANSIENT,
-	); bindResult != purego_const_SQLITE_OK {
+		SQLITE_TRANSIENT,
+	); bindResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_bind_blob() = %d, want %d, errmsg=%q",
 			bindResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if bindResult := purego_func_sqlite3_bind_null(statement.handle, 4); bindResult != purego_const_SQLITE_OK {
+	if bindResult := sqlite3_bind_null(statement.handle, 4); bindResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_bind_null() = %d, want %d, errmsg=%q",
 			bindResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
 
-	if got := purego_func_sqlite3_column_count(statement.handle); got != 4 {
+	if got := sqlite3_column_count(statement.handle); got != 4 {
 		t.Fatalf("sqlite3_column_count(stmt) = %d, want %d", got, 4)
 	}
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_ROW {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_ROW {
 		t.Fatalf(
 			"sqlite3_step() first call = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_ROW,
+			SQLITE_ROW,
 			sqliteErrmsg(connection.db),
 		)
 	}
 
-	if got := purego_func_sqlite3_column_type(statement.handle, 0); got != purego_const_SQLITE_INTEGER {
-		t.Fatalf("sqlite3_column_type(stmt, 0) = %d, want %d", got, purego_const_SQLITE_INTEGER)
+	if got := sqlite3_column_type(statement.handle, 0); got != SQLITE_INTEGER {
+		t.Fatalf("sqlite3_column_type(stmt, 0) = %d, want %d", got, SQLITE_INTEGER)
 	}
-	if got := purego_func_sqlite3_column_int64(statement.handle, 0); got != wantInt64 {
+	if got := sqlite3_column_int64(statement.handle, 0); got != wantInt64 {
 		t.Fatalf("sqlite3_column_int64(stmt, 0) = %d, want %d", got, wantInt64)
 	}
-	if got := purego_func_sqlite3_column_type(statement.handle, 1); got != purego_const_SQLITE_FLOAT {
-		t.Fatalf("sqlite3_column_type(stmt, 1) = %d, want %d", got, purego_const_SQLITE_FLOAT)
+	if got := sqlite3_column_type(statement.handle, 1); got != SQLITE_FLOAT {
+		t.Fatalf("sqlite3_column_type(stmt, 1) = %d, want %d", got, SQLITE_FLOAT)
 	}
-	if got := purego_func_sqlite3_column_double(statement.handle, 1); got != wantDouble {
+	if got := sqlite3_column_double(statement.handle, 1); got != wantDouble {
 		t.Fatalf("sqlite3_column_double(stmt, 1) = %v, want %v", got, wantDouble)
 	}
-	if got := purego_func_sqlite3_column_type(statement.handle, 2); got != purego_const_SQLITE_BLOB {
-		t.Fatalf("sqlite3_column_type(stmt, 2) = %d, want %d", got, purego_const_SQLITE_BLOB)
+	if got := sqlite3_column_type(statement.handle, 2); got != SQLITE_BLOB {
+		t.Fatalf("sqlite3_column_type(stmt, 2) = %d, want %d", got, SQLITE_BLOB)
 	}
-	blobPointer := purego_func_sqlite3_column_blob(statement.handle, 2)
-	blobBytes := purego_func_sqlite3_column_bytes(statement.handle, 2)
+	blobPointer := sqlite3_column_blob(statement.handle, 2)
+	blobBytes := sqlite3_column_bytes(statement.handle, 2)
 	if got := cBytesString(blobPointer, blobBytes); got != string(blobValue) {
 		t.Fatalf("sqlite3_column_blob(stmt, 2) = %q, want %q", got, string(blobValue))
 	}
-	if got := purego_func_sqlite3_column_type(statement.handle, 3); got != purego_const_SQLITE_NULL {
-		t.Fatalf("sqlite3_column_type(stmt, 3) = %d, want %d", got, purego_const_SQLITE_NULL)
+	if got := sqlite3_column_type(statement.handle, 3); got != SQLITE_NULL {
+		t.Fatalf("sqlite3_column_type(stmt, 3) = %d, want %d", got, SQLITE_NULL)
 	}
-	if got := purego_func_sqlite3_column_bytes(statement.handle, 3); got != 0 {
+	if got := sqlite3_column_bytes(statement.handle, 3); got != 0 {
 		t.Fatalf("sqlite3_column_bytes(stmt, 3) = %d, want %d", got, 0)
 	}
-	if got := purego_func_sqlite3_column_blob(statement.handle, 3); got != 0 {
+	if got := sqlite3_column_blob(statement.handle, 3); got != 0 {
 		t.Fatalf("sqlite3_column_blob(stmt, 3) = %#x, want 0", got)
 	}
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_DONE {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_DONE {
 		t.Fatalf(
 			"sqlite3_step() second call = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_DONE,
+			SQLITE_DONE,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -590,139 +590,139 @@ func TestGeneratedBindingsResetAndClearBindingsWithLibsqlite3(t *testing.T) {
 	connection := openSQLiteConnection(t)
 	statement := prepareSQLiteStatement(t, connection.db, "SELECT ?1, ?2")
 
-	if bindResult := purego_func_sqlite3_bind_int64(statement.handle, 1, 42); bindResult != purego_const_SQLITE_OK {
+	if bindResult := sqlite3_bind_int64(statement.handle, 1, 42); bindResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_bind_int64() = %d, want %d, errmsg=%q",
 			bindResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if bindResult := purego_func_sqlite3_bind_text(
+	if bindResult := sqlite3_bind_text(
 		statement.handle,
 		2,
 		"first-pass",
 		-1,
-		purego_const_SQLITE_TRANSIENT,
-	); bindResult != purego_const_SQLITE_OK {
+		SQLITE_TRANSIENT,
+	); bindResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_bind_text() = %d, want %d, errmsg=%q",
 			bindResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
 
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_ROW {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_ROW {
 		t.Fatalf(
 			"sqlite3_step() first pass = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_ROW,
+			SQLITE_ROW,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if got := purego_func_sqlite3_column_int64(statement.handle, 0); got != 42 {
+	if got := sqlite3_column_int64(statement.handle, 0); got != 42 {
 		t.Fatalf("sqlite3_column_int64(stmt, 0) = %d, want %d", got, 42)
 	}
-	if got := purego_func_sqlite3_column_text(statement.handle, 1); got != "first-pass" {
+	if got := sqlite3_column_text(statement.handle, 1); got != "first-pass" {
 		t.Fatalf("sqlite3_column_text(stmt, 1) = %q, want %q", got, "first-pass")
 	}
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_DONE {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_DONE {
 		t.Fatalf(
 			"sqlite3_step() first pass second call = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_DONE,
+			SQLITE_DONE,
 			sqliteErrmsg(connection.db),
 		)
 	}
 
-	if resetResult := purego_func_sqlite3_reset(statement.handle); resetResult != purego_const_SQLITE_OK {
+	if resetResult := sqlite3_reset(statement.handle); resetResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_reset() after first pass = %d, want %d, errmsg=%q",
 			resetResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
 
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_ROW {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_ROW {
 		t.Fatalf(
 			"sqlite3_step() second pass = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_ROW,
+			SQLITE_ROW,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if got := purego_func_sqlite3_column_int64(statement.handle, 0); got != 42 {
+	if got := sqlite3_column_int64(statement.handle, 0); got != 42 {
 		t.Fatalf("sqlite3_column_int64(stmt, 0) second pass = %d, want %d", got, 42)
 	}
-	if got := purego_func_sqlite3_column_text(statement.handle, 1); got != "first-pass" {
+	if got := sqlite3_column_text(statement.handle, 1); got != "first-pass" {
 		t.Fatalf("sqlite3_column_text(stmt, 1) second pass = %q, want %q", got, "first-pass")
 	}
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_DONE {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_DONE {
 		t.Fatalf(
 			"sqlite3_step() second pass second call = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_DONE,
+			SQLITE_DONE,
 			sqliteErrmsg(connection.db),
 		)
 	}
 
-	if resetResult := purego_func_sqlite3_reset(statement.handle); resetResult != purego_const_SQLITE_OK {
+	if resetResult := sqlite3_reset(statement.handle); resetResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_reset() before clear_bindings = %d, want %d, errmsg=%q",
 			resetResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if clearResult := purego_func_sqlite3_clear_bindings(statement.handle); clearResult != purego_const_SQLITE_OK {
+	if clearResult := sqlite3_clear_bindings(statement.handle); clearResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_clear_bindings() = %d, want %d, errmsg=%q",
 			clearResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if bindResult := purego_func_sqlite3_bind_null(statement.handle, 1); bindResult != purego_const_SQLITE_OK {
+	if bindResult := sqlite3_bind_null(statement.handle, 1); bindResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_bind_null() = %d, want %d, errmsg=%q",
 			bindResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if bindResult := purego_func_sqlite3_bind_double(statement.handle, 2, 7.5); bindResult != purego_const_SQLITE_OK {
+	if bindResult := sqlite3_bind_double(statement.handle, 2, 7.5); bindResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_bind_double() = %d, want %d, errmsg=%q",
 			bindResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
 
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_ROW {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_ROW {
 		t.Fatalf(
 			"sqlite3_step() third pass = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_ROW,
+			SQLITE_ROW,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if got := purego_func_sqlite3_column_type(statement.handle, 0); got != purego_const_SQLITE_NULL {
-		t.Fatalf("sqlite3_column_type(stmt, 0) third pass = %d, want %d", got, purego_const_SQLITE_NULL)
+	if got := sqlite3_column_type(statement.handle, 0); got != SQLITE_NULL {
+		t.Fatalf("sqlite3_column_type(stmt, 0) third pass = %d, want %d", got, SQLITE_NULL)
 	}
-	if got := purego_func_sqlite3_column_type(statement.handle, 1); got != purego_const_SQLITE_FLOAT {
-		t.Fatalf("sqlite3_column_type(stmt, 1) third pass = %d, want %d", got, purego_const_SQLITE_FLOAT)
+	if got := sqlite3_column_type(statement.handle, 1); got != SQLITE_FLOAT {
+		t.Fatalf("sqlite3_column_type(stmt, 1) third pass = %d, want %d", got, SQLITE_FLOAT)
 	}
-	if got := purego_func_sqlite3_column_double(statement.handle, 1); got != 7.5 {
+	if got := sqlite3_column_double(statement.handle, 1); got != 7.5 {
 		t.Fatalf("sqlite3_column_double(stmt, 1) third pass = %v, want %v", got, 7.5)
 	}
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_DONE {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_DONE {
 		t.Fatalf(
 			"sqlite3_step() third pass second call = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_DONE,
+			SQLITE_DONE,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -731,55 +731,55 @@ func TestGeneratedBindingsResetAndClearBindingsWithLibsqlite3(t *testing.T) {
 func TestGeneratedBindingsChangesRowIDAndExtendedErrcodeWithLibsqlite3(t *testing.T) {
 	connection := openSQLiteConnection(t)
 
-	createResult := purego_func_sqlite3_exec(
+	createResult := sqlite3_exec(
 		connection.db,
 		"CREATE TABLE driver_metrics(id INTEGER PRIMARY KEY, value TEXT)",
 		0,
 		0,
 		0,
 	)
-	if createResult != purego_const_SQLITE_OK {
+	if createResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_exec(CREATE TABLE) = %d, want %d, errmsg=%q",
 			createResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
 
-	insertResult := purego_func_sqlite3_exec(
+	insertResult := sqlite3_exec(
 		connection.db,
 		"INSERT INTO driver_metrics(value) VALUES ('one'), ('two')",
 		0,
 		0,
 		0,
 	)
-	if insertResult != purego_const_SQLITE_OK {
+	if insertResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_exec(INSERT) = %d, want %d, errmsg=%q",
 			insertResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if got := purego_func_sqlite3_changes64(connection.db); got != 2 {
+	if got := sqlite3_changes64(connection.db); got != 2 {
 		t.Fatalf("sqlite3_changes64() = %d, want %d", got, 2)
 	}
-	if got := purego_func_sqlite3_last_insert_rowid(connection.db); got != 2 {
+	if got := sqlite3_last_insert_rowid(connection.db); got != 2 {
 		t.Fatalf("sqlite3_last_insert_rowid() = %d, want %d", got, 2)
 	}
 
-	execResult := purego_func_sqlite3_exec(
+	execResult := sqlite3_exec(
 		connection.db,
 		"SELECT * FROM missing_table",
 		0,
 		0,
 		0,
 	)
-	if execResult == purego_const_SQLITE_OK {
+	if execResult == SQLITE_OK {
 		t.Fatal("sqlite3_exec(missing table) returned SQLITE_OK, want failure")
 	}
-	if got := purego_func_sqlite3_extended_errcode(connection.db); got != execResult {
+	if got := sqlite3_extended_errcode(connection.db); got != execResult {
 		t.Fatalf("sqlite3_extended_errcode() = %d, want %d", got, execResult)
 	}
 }
@@ -793,30 +793,30 @@ func TestGeneratedBindingsRegisterScalarFunctionWithDestructorInLibsqlite3(t *te
 	destroyCount := 0
 	destroyArg := uintptr(0)
 
-	registerResult := purego_func_sqlite3_create_function_v2_callbacks(
+	registerResult := sqlite3_create_function_v2_callbacks(
 		connection.db,
 		"purego_echo",
 		1,
-		purego_const_SQLITE_UTF8,
+		SQLITE_UTF8,
 		appData,
 		func(
-			context *purego_type_sqlite3_context,
+			context *sqlite3_context,
 			count int32,
-			values **purego_type_sqlite3_value,
+			values **sqlite3_value,
 		) {
 			sqliteValues := sqliteValueArray(values, count)
 			if len(sqliteValues) != 1 {
-				purego_func_sqlite3_result_int(context, int32(len(sqliteValues)))
+				sqlite3_result_int(context, int32(len(sqliteValues)))
 				return
 			}
 
-			observedUserData = purego_func_sqlite3_user_data(context)
-			observedArg = purego_func_sqlite3_value_text(sqliteValues[0])
-			purego_func_sqlite3_result_text(
+			observedUserData = sqlite3_user_data(context)
+			observedArg = sqlite3_value_text(sqliteValues[0])
+			sqlite3_result_text(
 				context,
 				observedArg+"-from-callback",
 				-1,
-				purego_const_SQLITE_TRANSIENT,
+				SQLITE_TRANSIENT,
 			)
 		},
 		nil,
@@ -826,11 +826,11 @@ func TestGeneratedBindingsRegisterScalarFunctionWithDestructorInLibsqlite3(t *te
 			destroyArg = userData
 		},
 	)
-	if registerResult != purego_const_SQLITE_OK {
+	if registerResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_create_function_v2() = %d, want %d, errmsg=%q",
 			registerResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -870,40 +870,40 @@ func TestGeneratedBindingsRegisterScalarFunctionWithLibsqlite3(t *testing.T) {
 	var observedUserData uintptr
 	var observedArg string
 
-	registerResult := purego_func_sqlite3_create_function_callbacks(
+	registerResult := sqlite3_create_function_callbacks(
 		connection.db,
 		"purego_echo_basic",
 		1,
-		purego_const_SQLITE_UTF8,
+		SQLITE_UTF8,
 		appData,
 		func(
-			context *purego_type_sqlite3_context,
+			context *sqlite3_context,
 			count int32,
-			values **purego_type_sqlite3_value,
+			values **sqlite3_value,
 		) {
 			sqliteValues := sqliteValueArray(values, count)
 			if len(sqliteValues) != 1 {
-				purego_func_sqlite3_result_int(context, int32(len(sqliteValues)))
+				sqlite3_result_int(context, int32(len(sqliteValues)))
 				return
 			}
 
-			observedUserData = purego_func_sqlite3_user_data(context)
-			observedArg = purego_func_sqlite3_value_text(sqliteValues[0])
-			purego_func_sqlite3_result_text(
+			observedUserData = sqlite3_user_data(context)
+			observedArg = sqlite3_value_text(sqliteValues[0])
+			sqlite3_result_text(
 				context,
 				observedArg+"-from-function",
 				-1,
-				purego_const_SQLITE_TRANSIENT,
+				SQLITE_TRANSIENT,
 			)
 		},
 		nil,
 		nil,
 	)
-	if registerResult != purego_const_SQLITE_OK {
+	if registerResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_create_function() = %d, want %d, errmsg=%q",
 			registerResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -935,43 +935,43 @@ func TestGeneratedBindingsRegisterScalarFunction16WithLibsqlite3(t *testing.T) {
 	var observedArg string
 
 	scalarCallback := purego.NewCallback(func(
-		context *purego_type_sqlite3_context,
+		context *sqlite3_context,
 		count int32,
-		values **purego_type_sqlite3_value,
+		values **sqlite3_value,
 	) {
 		sqliteValues := sqliteValueArray(values, count)
 		if len(sqliteValues) != 1 {
-			purego_func_sqlite3_result_int(context, int32(len(sqliteValues)))
+			sqlite3_result_int(context, int32(len(sqliteValues)))
 			return
 		}
 
-		observedUserData = purego_func_sqlite3_user_data(context)
-		observedArg = purego_func_sqlite3_value_text(sqliteValues[0])
-		purego_func_sqlite3_result_text(
+		observedUserData = sqlite3_user_data(context)
+		observedArg = sqlite3_value_text(sqliteValues[0])
+		sqlite3_result_text(
 			context,
 			observedArg+"-from-function16",
 			-1,
-			purego_const_SQLITE_TRANSIENT,
+			SQLITE_TRANSIENT,
 		)
 	})
 
 	functionName, functionNamePtr := sqliteUTF16CStringPointer("purego_echo16")
-	registerResult := purego_func_sqlite3_create_function16(
+	registerResult := sqlite3_create_function16(
 		connection.db,
 		functionNamePtr,
 		1,
-		purego_const_SQLITE_UTF16,
+		SQLITE_UTF16,
 		appData,
 		scalarCallback,
 		0,
 		0,
 	)
 	runtime.KeepAlive(functionName)
-	if registerResult != purego_const_SQLITE_OK {
+	if registerResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_create_function16() = %d, want %d, errmsg=%q",
 			registerResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -1004,10 +1004,10 @@ func TestGeneratedBindingsRegisterCollationWithDestructorInLibsqlite3(t *testing
 	destroyArg := uintptr(0)
 	compareAppDataMismatch := false
 
-	registerResult := purego_func_sqlite3_create_collation_v2_callbacks(
+	registerResult := sqlite3_create_collation_v2_callbacks(
 		connection.db,
 		"purego_len",
-		purego_const_SQLITE_UTF8,
+		SQLITE_UTF8,
 		appData,
 		func(
 			userData uintptr,
@@ -1030,11 +1030,11 @@ func TestGeneratedBindingsRegisterCollationWithDestructorInLibsqlite3(t *testing
 			destroyArg = userData
 		},
 	)
-	if registerResult != purego_const_SQLITE_OK {
+	if registerResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_create_collation_v2() = %d, want %d, errmsg=%q",
 			registerResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -1081,10 +1081,10 @@ func TestGeneratedBindingsRegisterCollationWithLibsqlite3(t *testing.T) {
 	compareCount := 0
 	compareAppDataMismatch := false
 
-	registerResult := purego_func_sqlite3_create_collation_callbacks(
+	registerResult := sqlite3_create_collation_callbacks(
 		connection.db,
 		"purego_len_basic",
-		purego_const_SQLITE_UTF8,
+		SQLITE_UTF8,
 		appData,
 		func(
 			userData uintptr,
@@ -1103,11 +1103,11 @@ func TestGeneratedBindingsRegisterCollationWithLibsqlite3(t *testing.T) {
 			return sqliteCompareByLengthThenLex(leftText, rightText)
 		},
 	)
-	if registerResult != purego_const_SQLITE_OK {
+	if registerResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_create_collation() = %d, want %d, errmsg=%q",
 			registerResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -1163,19 +1163,19 @@ func TestGeneratedBindingsRegisterCollation16WithLibsqlite3(t *testing.T) {
 	})
 
 	collationName, collationNamePtr := sqliteUTF16CStringPointer("purego_len16")
-	registerResult := purego_func_sqlite3_create_collation16(
+	registerResult := sqlite3_create_collation16(
 		connection.db,
 		collationNamePtr,
-		purego_const_SQLITE_UTF16,
+		SQLITE_UTF16,
 		appData,
 		compareCallback,
 	)
 	runtime.KeepAlive(collationName)
-	if registerResult != purego_const_SQLITE_OK {
+	if registerResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_create_collation16() = %d, want %d, errmsg=%q",
 			registerResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -1214,7 +1214,7 @@ func TestGeneratedBindingsCommitHookWithLibsqlite3(t *testing.T) {
 	commitCount := 0
 	appDataMismatch := false
 
-	previousHook := purego_func_sqlite3_commit_hook_callbacks(
+	previousHook := sqlite3_commit_hook_callbacks(
 		connection.db,
 		func(userData uintptr) int32 {
 			commitCount++
@@ -1251,7 +1251,7 @@ func TestGeneratedBindingsRollbackHookWithLibsqlite3(t *testing.T) {
 	rollbackCount := 0
 	appDataMismatch := false
 
-	previousHook := purego_func_sqlite3_rollback_hook_callbacks(
+	previousHook := sqlite3_rollback_hook_callbacks(
 		connection.db,
 		func(userData uintptr) {
 			rollbackCount++
@@ -1289,16 +1289,16 @@ func TestGeneratedBindingsUpdateHookWithLibsqlite3(t *testing.T) {
 	var gotOperation int32
 	var gotDatabaseName string
 	var gotTableName string
-	var gotRowID purego_type_sqlite3_int64
+	var gotRowID sqlite3_int64
 
-	previousHook := purego_func_sqlite3_update_hook_callbacks(
+	previousHook := sqlite3_update_hook_callbacks(
 		connection.db,
 		func(
 			userData uintptr,
 			operation int32,
 			databaseName uintptr,
 			tableName uintptr,
-			rowID purego_type_sqlite3_int64,
+			rowID sqlite3_int64,
 		) {
 			updateCount++
 			if userData != appData {
@@ -1323,8 +1323,8 @@ func TestGeneratedBindingsUpdateHookWithLibsqlite3(t *testing.T) {
 	if appDataMismatch {
 		t.Fatal("update hook received unexpected app data")
 	}
-	if gotOperation != purego_const_SQLITE_INSERT {
-		t.Fatalf("update hook operation = %d, want %d", gotOperation, purego_const_SQLITE_INSERT)
+	if gotOperation != SQLITE_INSERT {
+		t.Fatalf("update hook operation = %d, want %d", gotOperation, SQLITE_INSERT)
 	}
 	if gotDatabaseName != "main" {
 		t.Fatalf("update hook database = %q, want %q", gotDatabaseName, "main")
@@ -1344,7 +1344,7 @@ func TestGeneratedBindingsProgressHandlerWithLibsqlite3(t *testing.T) {
 	progressCount := 0
 	appDataMismatch := false
 
-	purego_func_sqlite3_progress_handler_callbacks(
+	sqlite3_progress_handler_callbacks(
 		connection.db,
 		1,
 		func(userData uintptr) int32 {
@@ -1364,22 +1364,22 @@ func TestGeneratedBindingsProgressHandlerWithLibsqlite3(t *testing.T) {
 			"SELECT 1 UNION ALL SELECT x + 1 FROM cnt WHERE x < 200"+
 			") SELECT sum(x) FROM cnt",
 	)
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_ROW {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_ROW {
 		t.Fatalf(
 			"sqlite3_step() progress query = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_ROW,
+			SQLITE_ROW,
 			sqliteErrmsg(connection.db),
 		)
 	}
-	if got := purego_func_sqlite3_column_int(statement.handle, 0); got != 20100 {
+	if got := sqlite3_column_int(statement.handle, 0); got != 20100 {
 		t.Fatalf("progress query sum = %d, want %d", got, 20100)
 	}
-	if stepResult := purego_func_sqlite3_step(statement.handle); stepResult != purego_const_SQLITE_DONE {
+	if stepResult := sqlite3_step(statement.handle); stepResult != SQLITE_DONE {
 		t.Fatalf(
 			"sqlite3_step() progress query second call = %d, want %d, errmsg=%q",
 			stepResult,
-			purego_const_SQLITE_DONE,
+			SQLITE_DONE,
 			sqliteErrmsg(connection.db),
 		)
 	}
@@ -1401,29 +1401,29 @@ func TestGeneratedBindingsTraceV2WithLibsqlite3(t *testing.T) {
 	traceCount := 0
 	appDataMismatch := false
 
-	traceResult := purego_func_sqlite3_trace_v2_callbacks(
+	traceResult := sqlite3_trace_v2_callbacks(
 		connection.db,
-		purego_const_SQLITE_TRACE_STMT|purego_const_SQLITE_TRACE_ROW,
+		SQLITE_TRACE_STMT|SQLITE_TRACE_ROW,
 		func(event uint32, context uintptr, _ uintptr, _ uintptr) int32 {
 			traceCount++
 			if context != appData {
 				appDataMismatch = true
 			}
-			if event == purego_const_SQLITE_TRACE_STMT {
+			if event == SQLITE_TRACE_STMT {
 				sawStmtEvent = true
 			}
-			if event == purego_const_SQLITE_TRACE_ROW {
+			if event == SQLITE_TRACE_ROW {
 				sawRowEvent = true
 			}
 			return 0
 		},
 		appData,
 	)
-	if traceResult != purego_const_SQLITE_OK {
+	if traceResult != SQLITE_OK {
 		t.Fatalf(
 			"sqlite3_trace_v2() = %d, want %d, errmsg=%q",
 			traceResult,
-			purego_const_SQLITE_OK,
+			SQLITE_OK,
 			sqliteErrmsg(connection.db),
 		)
 	}

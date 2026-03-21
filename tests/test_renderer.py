@@ -58,9 +58,9 @@ def test_render_template_fails_on_missing_nested_key() -> None:
                 "owned_string_helpers": (),
                 "struct_accessors": (),
                 "runtime_vars": (),
-                "register_functions_name": "purego_fixture_lib_register_functions",
-                "load_runtime_vars_name": "purego_fixture_lib_load_runtime_vars",
-                "gostring_func_name": "purego_gostring",
+                "register_functions_name": "fixture_lib_register_functions",
+                "load_runtime_vars_name": "fixture_lib_load_runtime_vars",
+                "gostring_func_name": "gostring",
             },
         )
 
@@ -98,10 +98,10 @@ def test_render_go_source_adds_suffix_for_category_local_collisions() -> None:
             runtime_vars=(),
         ),
     )
-    assert "purego_func_dup_name func()" in source
-    assert "purego_func_dup_name_2 func()" in source
-    assert "purego_const_FOO_BAR = 1" in source
-    assert "purego_const_FOO_BAR_2 = 2" in source
+    assert "dup_name func()" in source
+    assert "dup_name_2 func()" in source
+    assert "FOO_BAR = 1" in source
+    assert "FOO_BAR_2 = 2" in source
 
 
 def test_render_go_source_uses_custom_identifier_prefix_everywhere() -> None:
@@ -137,10 +137,10 @@ def test_render_go_source_uses_custom_identifier_prefix_everywhere() -> None:
         ),
     )
 
-    assert "// C: int\n    purego_gen_type_fixture_mode_t = int32" in source
-    assert "purego_gen_const_FIXTURE_STATUS_OK = 0" in source
-    assert "purego_gen_func_add func(" in source
-    assert "purego_gen_var_fixture_counter uintptr" in source
+    assert "// C: int\n    purego_gen_fixture_mode_t = int32" in source
+    assert "purego_gen_FIXTURE_STATUS_OK = 0" in source
+    assert "purego_gen_add func(" in source
+    assert "purego_gen_fixture_counter uintptr" in source
     assert "func purego_gen_fixture_lib_register_functions(handle uintptr) error {" in source
     assert "func purego_gen_fixture_lib_load_runtime_vars(handle uintptr) error {" in source
 
@@ -205,11 +205,11 @@ def test_render_go_source_generates_named_func_type_for_callback_params() -> Non
         ),
     )
 
-    assert "purego_type_on_event_func = func(int32)" in source
-    assert "func purego_new_on_event(fn purego_type_on_event_func) uintptr {" in source
+    assert "on_event_func = func(int32)" in source
+    assert "func new_on_event(fn on_event_func) uintptr {" in source
     assert "return uintptr(purego.NewCallback(fn))" in source
     normalized_source = " ".join(source.split())
-    assert "on_event purego_type_on_event_func," in normalized_source
+    assert "on_event on_event_func," in normalized_source
 
 
 def test_render_go_source_skips_named_func_type_for_typedef_backed_callback_params() -> None:
@@ -253,9 +253,9 @@ def test_render_go_source_skips_named_func_type_for_typedef_backed_callback_para
     )
 
     # Typedef-derived types should exist
-    assert "purego_type_fixture_callback_t_func = func(int32) int32" in source
+    assert "fixture_callback_t_func = func(int32) int32" in source
     # No additional callback-param-derived type for "hook"
-    assert "purego_type_hook_func" not in source
+    assert "\n    hook_func" not in source
 
 
 def test_render_go_source_qualifies_callback_param_names_on_signature_conflict() -> None:
@@ -304,12 +304,12 @@ def test_render_go_source_qualifies_callback_param_names_on_signature_conflict()
         ),
     )
 
-    assert "purego_type_fixture_fn_a_handler_func = func(uintptr) int32" in source
-    assert "purego_type_fixture_fn_b_handler_func = func(uintptr, int32)" in source
-    assert "func purego_new_fixture_fn_a_handler(" in source
-    assert "func purego_new_fixture_fn_b_handler(" in source
-    # Simple name should NOT exist
-    assert "purego_type_handler_func" not in source
+    assert "fixture_fn_a_handler_func = func(uintptr) int32" in source
+    assert "fixture_fn_b_handler_func = func(uintptr, int32)" in source
+    assert "func new_fixture_fn_a_handler(" in source
+    assert "func new_fixture_fn_b_handler(" in source
+    # Simple name should NOT exist (only qualified names)
+    assert "\n    handler_func" not in source
 
 
 def test_render_go_source_prefix_free_naming() -> None:
@@ -443,7 +443,12 @@ def test_render_go_source_const_prefix_empty_does_not_check_predeclared() -> Non
         render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(),
             type_mapping=TypeMappingOptions(),
-            naming=GeneratorNaming(const_prefix=""),
+            naming=GeneratorNaming(
+                type_prefix="pfx_",
+                const_prefix="",
+                func_prefix="pfx_",
+                var_prefix="pfx_",
+            ),
         ),
     )
 
@@ -504,9 +509,19 @@ def test_render_go_source_skips_validation_when_all_prefixes_set() -> None:
             constants=(),
             runtime_vars=(),
         ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(),
+            type_mapping=TypeMappingOptions(),
+            naming=GeneratorNaming(
+                type_prefix="pfx_",
+                const_prefix="pfx_",
+                func_prefix="pfx_",
+                var_prefix="pfx_",
+            ),
+        ),
     )
 
-    assert "purego_func_string func(" in source
+    assert "pfx_string func(" in source
 
 
 def test_render_go_source_deduplicates_same_signature_callback_params() -> None:
@@ -556,13 +571,13 @@ def test_render_go_source_deduplicates_same_signature_callback_params() -> None:
     )
 
     # Should generate one simple-named type, not qualified
-    assert "purego_type_on_done_func = func(int32)" in source
-    assert "func purego_new_on_done(fn purego_type_on_done_func) uintptr {" in source
+    assert "on_done_func = func(int32)" in source
+    assert "func new_on_done(fn on_done_func) uintptr {" in source
     normalized_source = " ".join(source.split())
-    assert "on_done purego_type_on_done_func," in normalized_source
+    assert "on_done on_done_func," in normalized_source
     # Should NOT have qualified names
-    assert "purego_type_fixture_fn_a_on_done_func" not in source
-    assert "purego_type_fixture_fn_b_on_done_func" not in source
+    assert "fixture_fn_a_on_done_func" not in source
+    assert "fixture_fn_b_on_done_func" not in source
 
 
 def _make_record_typedef(
@@ -634,12 +649,12 @@ def test_render_go_source_struct_accessors_enabled() -> None:
         ),
     )
 
-    assert "func (s *purego_type_my_struct) Get_year() int32 {" in source
+    assert "func (s *my_struct) Get_year() int32 {" in source
     assert "return s.year" in source
-    assert "func (s *purego_type_my_struct) Set_year(v int32) {" in source
+    assert "func (s *my_struct) Set_year(v int32) {" in source
     assert "s.year = v" in source
-    assert "func (s *purego_type_my_struct) Get_month() int8 {" in source
-    assert "func (s *purego_type_my_struct) Set_month(v int8) {" in source
+    assert "func (s *my_struct) Get_month() int8 {" in source
+    assert "func (s *my_struct) Set_month(v int8) {" in source
 
 
 def test_render_go_source_struct_accessors_disabled_by_default() -> None:

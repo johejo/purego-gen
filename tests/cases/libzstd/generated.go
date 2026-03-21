@@ -19,29 +19,29 @@ type (
 	// Explicit context
 	// *************************************
 	// C: struct ZSTD_CCtx_s
-	purego_type_ZSTD_CCtx struct{}
+	ZSTD_CCtx struct{}
 	// C: struct ZSTD_DCtx_s
-	purego_type_ZSTD_DCtx struct{}
+	ZSTD_DCtx struct{}
 	// *********************************
 	// Bulk processing dictionary API
 	// ********************************
 	// C: struct ZSTD_CDict_s
-	purego_type_ZSTD_CDict struct{}
+	ZSTD_CDict struct{}
 	// C: struct ZSTD_DDict_s
-	purego_type_ZSTD_DDict struct{}
+	ZSTD_DDict struct{}
 	// C: enum ZSTD_ErrorCode
-	purego_type_ZSTD_ErrorCode int32
+	ZSTD_ErrorCode int32
 )
 
 const (
-	purego_const_ZSTD_CONTENTSIZE_UNKNOWN uint64 = 18446744073709551615
-	purego_const_ZSTD_CONTENTSIZE_ERROR   uint64 = 18446744073709551614
+	ZSTD_CONTENTSIZE_UNKNOWN uint64 = 18446744073709551615
+	ZSTD_CONTENTSIZE_ERROR   uint64 = 18446744073709551614
 )
 
 var (
 	// ! ZSTD_versionNumber() :
 	// Return runtime library version, the value is (MAJOR*100*100 + MINOR*100 + RELEASE).
-	purego_func_ZSTD_versionNumber func() uint32
+	ZSTD_versionNumber func() uint32
 	// *************************************
 	// Simple Core API
 	// **************************************/
@@ -51,7 +51,7 @@ var (
 	// enough space to successfully compress the data.
 	// @return : compressed size written into `dst` (<= `dstCapacity),
 	// or an error code if it fails (which can be tested using ZSTD_isError()).
-	purego_func_ZSTD_compress func(
+	ZSTD_compress func(
 		// C: void *
 		dst uintptr,
 		dstCapacity uint64,
@@ -69,7 +69,7 @@ var (
 	// If maximum upper bound isn't known, prefer using streaming mode to decompress data.
 	// @return : the number of bytes decompressed into `dst` (<= `dstCapacity`),
 	// or an errorCode if it fails (which can be tested using ZSTD_isError()).
-	purego_func_ZSTD_decompress func(
+	ZSTD_decompress func(
 		// C: void *
 		dst uintptr,
 		dstCapacity uint64,
@@ -77,7 +77,7 @@ var (
 		src uintptr,
 		compressedSize uint64,
 	) uint64
-	purego_func_ZSTD_getFrameContentSize func(
+	ZSTD_getFrameContentSize func(
 		// C: const void *
 		src uintptr,
 		srcSize uint64,
@@ -93,28 +93,28 @@ var (
 	// Note 2: this method also works with Skippable Frames. In which case,
 	// it returns the size of the complete skippable frame,
 	// which is always equal to its content size + 8 bytes for headers.
-	purego_func_ZSTD_findFrameCompressedSize func(
+	ZSTD_findFrameCompressedSize func(
 		// C: const void *
 		src uintptr,
 		srcSize uint64,
 	) uint64
-	purego_func_ZSTD_compressBound func(
+	ZSTD_compressBound func(
 		srcSize uint64,
 	) uint64
-	purego_func_ZSTD_isError func(
+	ZSTD_isError func(
 		result uint64,
 	) uint32
-	purego_func_ZSTD_getErrorCode func(
+	ZSTD_getErrorCode func(
 		functionResult uint64,
-	) purego_type_ZSTD_ErrorCode
-	purego_func_ZSTD_getErrorName func(
+	) ZSTD_ErrorCode
+	ZSTD_getErrorName func(
 		result uint64,
 	) string
-	purego_func_ZSTD_minCLevel  func() int32
-	purego_func_ZSTD_maxCLevel  func() int32
-	purego_func_ZSTD_createCCtx func() *purego_type_ZSTD_CCtx
-	purego_func_ZSTD_freeCCtx   func(
-		cctx *purego_type_ZSTD_CCtx,
+	ZSTD_minCLevel  func() int32
+	ZSTD_maxCLevel  func() int32
+	ZSTD_createCCtx func() *ZSTD_CCtx
+	ZSTD_freeCCtx   func(
+		cctx *ZSTD_CCtx,
 	) uint64
 	// ! ZSTD_compressCCtx() :
 	// Same as ZSTD_compress(), using an explicit ZSTD_CCtx.
@@ -123,8 +123,8 @@ var (
 	// __ignoring any other advanced parameter__ .
 	// If any advanced parameter was set using the advanced API,
 	// they will all be reset. Only @compressionLevel remains.
-	purego_func_ZSTD_compressCCtx func(
-		cctx *purego_type_ZSTD_CCtx,
+	ZSTD_compressCCtx func(
+		cctx *ZSTD_CCtx,
 		// C: void *
 		dst uintptr,
 		dstCapacity uint64,
@@ -133,16 +133,16 @@ var (
 		srcSize uint64,
 		compressionLevel int32,
 	) uint64
-	purego_func_ZSTD_createDCtx func() *purego_type_ZSTD_DCtx
-	purego_func_ZSTD_freeDCtx   func(
-		dctx *purego_type_ZSTD_DCtx,
+	ZSTD_createDCtx func() *ZSTD_DCtx
+	ZSTD_freeDCtx   func(
+		dctx *ZSTD_DCtx,
 	) uint64
 	// ! ZSTD_decompressDCtx() :
 	// Same as ZSTD_decompress(),
 	// requires an allocated ZSTD_DCtx.
 	// Compatible with sticky parameters (see below).
-	purego_func_ZSTD_decompressDCtx func(
-		dctx *purego_type_ZSTD_DCtx,
+	ZSTD_decompressDCtx func(
+		dctx *ZSTD_DCtx,
 		// C: void *
 		dst uintptr,
 		dstCapacity uint64,
@@ -160,8 +160,8 @@ var (
 	// Note : This function loads the dictionary, resulting in significant startup delay.
 	// It's intended for a dictionary used only once.
 	// Note 2 : When `dict == NULL || dictSize < 8` no dictionary is used.
-	purego_func_ZSTD_compress_usingDict func(
-		ctx *purego_type_ZSTD_CCtx,
+	ZSTD_compress_usingDict func(
+		ctx *ZSTD_CCtx,
 		// C: void *
 		dst uintptr,
 		dstCapacity uint64,
@@ -179,8 +179,8 @@ var (
 	// Note : This function loads the dictionary, resulting in significant startup delay.
 	// It's intended for a dictionary used only once.
 	// Note : When `dict == NULL || dictSize < 8` no dictionary is used.
-	purego_func_ZSTD_decompress_usingDict func(
-		dctx *purego_type_ZSTD_DCtx,
+	ZSTD_decompress_usingDict func(
+		dctx *ZSTD_DCtx,
 		// C: void *
 		dst uintptr,
 		dstCapacity uint64,
@@ -193,7 +193,7 @@ var (
 	) uint64
 )
 
-func purego_func_ZSTD_compress_bytes(
+func ZSTD_compress_bytes(
 	dst uintptr,
 	dstCapacity uint64,
 	src []byte,
@@ -204,7 +204,7 @@ func purego_func_ZSTD_compress_bytes(
 	if len(src_len) > 0 {
 		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
 	}
-	return purego_func_ZSTD_compress(
+	return ZSTD_compress(
 		dst,
 		dstCapacity,
 		src_ptr,
@@ -212,7 +212,7 @@ func purego_func_ZSTD_compress_bytes(
 		compressionLevel,
 	)
 }
-func purego_func_ZSTD_decompress_bytes(
+func ZSTD_decompress_bytes(
 	dst uintptr,
 	dstCapacity uint64,
 	src []byte,
@@ -222,15 +222,15 @@ func purego_func_ZSTD_decompress_bytes(
 	if len(src_len) > 0 {
 		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
 	}
-	return purego_func_ZSTD_decompress(
+	return ZSTD_decompress(
 		dst,
 		dstCapacity,
 		src_ptr,
 		uint64(len(src_len)),
 	)
 }
-func purego_func_ZSTD_compress_usingDict_bytes(
-	ctx *purego_type_ZSTD_CCtx,
+func ZSTD_compress_usingDict_bytes(
+	ctx *ZSTD_CCtx,
 	dst uintptr,
 	dstCapacity uint64,
 	src []byte,
@@ -247,7 +247,7 @@ func purego_func_ZSTD_compress_usingDict_bytes(
 	if len(dict_len) > 0 {
 		dict_ptr = uintptr(unsafe.Pointer(&dict_len[0]))
 	}
-	return purego_func_ZSTD_compress_usingDict(
+	return ZSTD_compress_usingDict(
 		ctx,
 		dst,
 		dstCapacity,
@@ -258,8 +258,8 @@ func purego_func_ZSTD_compress_usingDict_bytes(
 		compressionLevel,
 	)
 }
-func purego_func_ZSTD_decompress_usingDict_bytes(
-	dctx *purego_type_ZSTD_DCtx,
+func ZSTD_decompress_usingDict_bytes(
+	dctx *ZSTD_DCtx,
 	dst uintptr,
 	dstCapacity uint64,
 	src []byte,
@@ -275,7 +275,7 @@ func purego_func_ZSTD_decompress_usingDict_bytes(
 	if len(dict_len) > 0 {
 		dict_ptr = uintptr(unsafe.Pointer(&dict_len[0]))
 	}
-	return purego_func_ZSTD_decompress_usingDict(
+	return ZSTD_decompress_usingDict(
 		dctx,
 		dst,
 		dstCapacity,
@@ -285,7 +285,7 @@ func purego_func_ZSTD_decompress_usingDict_bytes(
 		uint64(len(dict_len)),
 	)
 }
-func purego_func_ZSTD_findFrameCompressedSize_bytes(
+func ZSTD_findFrameCompressedSize_bytes(
 	src []byte,
 ) uint64 {
 	src_ptr := uintptr(0)
@@ -293,12 +293,12 @@ func purego_func_ZSTD_findFrameCompressedSize_bytes(
 	if len(src_len) > 0 {
 		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
 	}
-	return purego_func_ZSTD_findFrameCompressedSize(
+	return ZSTD_findFrameCompressedSize(
 		src_ptr,
 		uint64(len(src_len)),
 	)
 }
-func purego_func_ZSTD_getFrameContentSize_bytes(
+func ZSTD_getFrameContentSize_bytes(
 	src []byte,
 ) uint64 {
 	src_ptr := uintptr(0)
@@ -306,13 +306,13 @@ func purego_func_ZSTD_getFrameContentSize_bytes(
 	if len(src_len) > 0 {
 		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
 	}
-	return purego_func_ZSTD_getFrameContentSize(
+	return ZSTD_getFrameContentSize(
 		src_ptr,
 		uint64(len(src_len)),
 	)
 }
-func purego_func_ZSTD_compressCCtx_bytes(
-	cctx *purego_type_ZSTD_CCtx,
+func ZSTD_compressCCtx_bytes(
+	cctx *ZSTD_CCtx,
 	dst uintptr,
 	dstCapacity uint64,
 	src []byte,
@@ -323,7 +323,7 @@ func purego_func_ZSTD_compressCCtx_bytes(
 	if len(src_len) > 0 {
 		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
 	}
-	return purego_func_ZSTD_compressCCtx(
+	return ZSTD_compressCCtx(
 		cctx,
 		dst,
 		dstCapacity,
@@ -332,8 +332,8 @@ func purego_func_ZSTD_compressCCtx_bytes(
 		compressionLevel,
 	)
 }
-func purego_func_ZSTD_decompressDCtx_bytes(
-	dctx *purego_type_ZSTD_DCtx,
+func ZSTD_decompressDCtx_bytes(
+	dctx *ZSTD_DCtx,
 	dst uintptr,
 	dstCapacity uint64,
 	src []byte,
@@ -343,7 +343,7 @@ func purego_func_ZSTD_decompressDCtx_bytes(
 	if len(src_len) > 0 {
 		src_ptr = uintptr(unsafe.Pointer(&src_len[0]))
 	}
-	return purego_func_ZSTD_decompressDCtx(
+	return ZSTD_decompressDCtx(
 		dctx,
 		dst,
 		dstCapacity,
@@ -352,101 +352,101 @@ func purego_func_ZSTD_decompressDCtx_bytes(
 	)
 }
 
-func purego_zstd_register_functions(handle uintptr) error {
-	purego_func_ZSTD_versionNumber_symbol, err := purego.Dlsym(handle, "ZSTD_versionNumber")
+func zstd_register_functions(handle uintptr) error {
+	ZSTD_versionNumber_symbol, err := purego.Dlsym(handle, "ZSTD_versionNumber")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_versionNumber: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_versionNumber, purego_func_ZSTD_versionNumber_symbol)
-	purego_func_ZSTD_compress_symbol, err := purego.Dlsym(handle, "ZSTD_compress")
+	purego.RegisterFunc(&ZSTD_versionNumber, ZSTD_versionNumber_symbol)
+	ZSTD_compress_symbol, err := purego.Dlsym(handle, "ZSTD_compress")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_compress: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_compress, purego_func_ZSTD_compress_symbol)
-	purego_func_ZSTD_decompress_symbol, err := purego.Dlsym(handle, "ZSTD_decompress")
+	purego.RegisterFunc(&ZSTD_compress, ZSTD_compress_symbol)
+	ZSTD_decompress_symbol, err := purego.Dlsym(handle, "ZSTD_decompress")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_decompress: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_decompress, purego_func_ZSTD_decompress_symbol)
-	purego_func_ZSTD_getFrameContentSize_symbol, err := purego.Dlsym(handle, "ZSTD_getFrameContentSize")
+	purego.RegisterFunc(&ZSTD_decompress, ZSTD_decompress_symbol)
+	ZSTD_getFrameContentSize_symbol, err := purego.Dlsym(handle, "ZSTD_getFrameContentSize")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_getFrameContentSize: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_getFrameContentSize, purego_func_ZSTD_getFrameContentSize_symbol)
-	purego_func_ZSTD_findFrameCompressedSize_symbol, err := purego.Dlsym(handle, "ZSTD_findFrameCompressedSize")
+	purego.RegisterFunc(&ZSTD_getFrameContentSize, ZSTD_getFrameContentSize_symbol)
+	ZSTD_findFrameCompressedSize_symbol, err := purego.Dlsym(handle, "ZSTD_findFrameCompressedSize")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_findFrameCompressedSize: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_findFrameCompressedSize, purego_func_ZSTD_findFrameCompressedSize_symbol)
-	purego_func_ZSTD_compressBound_symbol, err := purego.Dlsym(handle, "ZSTD_compressBound")
+	purego.RegisterFunc(&ZSTD_findFrameCompressedSize, ZSTD_findFrameCompressedSize_symbol)
+	ZSTD_compressBound_symbol, err := purego.Dlsym(handle, "ZSTD_compressBound")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_compressBound: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_compressBound, purego_func_ZSTD_compressBound_symbol)
-	purego_func_ZSTD_isError_symbol, err := purego.Dlsym(handle, "ZSTD_isError")
+	purego.RegisterFunc(&ZSTD_compressBound, ZSTD_compressBound_symbol)
+	ZSTD_isError_symbol, err := purego.Dlsym(handle, "ZSTD_isError")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_isError: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_isError, purego_func_ZSTD_isError_symbol)
-	purego_func_ZSTD_getErrorCode_symbol, err := purego.Dlsym(handle, "ZSTD_getErrorCode")
+	purego.RegisterFunc(&ZSTD_isError, ZSTD_isError_symbol)
+	ZSTD_getErrorCode_symbol, err := purego.Dlsym(handle, "ZSTD_getErrorCode")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_getErrorCode: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_getErrorCode, purego_func_ZSTD_getErrorCode_symbol)
-	purego_func_ZSTD_getErrorName_symbol, err := purego.Dlsym(handle, "ZSTD_getErrorName")
+	purego.RegisterFunc(&ZSTD_getErrorCode, ZSTD_getErrorCode_symbol)
+	ZSTD_getErrorName_symbol, err := purego.Dlsym(handle, "ZSTD_getErrorName")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_getErrorName: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_getErrorName, purego_func_ZSTD_getErrorName_symbol)
-	purego_func_ZSTD_minCLevel_symbol, err := purego.Dlsym(handle, "ZSTD_minCLevel")
+	purego.RegisterFunc(&ZSTD_getErrorName, ZSTD_getErrorName_symbol)
+	ZSTD_minCLevel_symbol, err := purego.Dlsym(handle, "ZSTD_minCLevel")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_minCLevel: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_minCLevel, purego_func_ZSTD_minCLevel_symbol)
-	purego_func_ZSTD_maxCLevel_symbol, err := purego.Dlsym(handle, "ZSTD_maxCLevel")
+	purego.RegisterFunc(&ZSTD_minCLevel, ZSTD_minCLevel_symbol)
+	ZSTD_maxCLevel_symbol, err := purego.Dlsym(handle, "ZSTD_maxCLevel")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_maxCLevel: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_maxCLevel, purego_func_ZSTD_maxCLevel_symbol)
-	purego_func_ZSTD_createCCtx_symbol, err := purego.Dlsym(handle, "ZSTD_createCCtx")
+	purego.RegisterFunc(&ZSTD_maxCLevel, ZSTD_maxCLevel_symbol)
+	ZSTD_createCCtx_symbol, err := purego.Dlsym(handle, "ZSTD_createCCtx")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_createCCtx: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_createCCtx, purego_func_ZSTD_createCCtx_symbol)
-	purego_func_ZSTD_freeCCtx_symbol, err := purego.Dlsym(handle, "ZSTD_freeCCtx")
+	purego.RegisterFunc(&ZSTD_createCCtx, ZSTD_createCCtx_symbol)
+	ZSTD_freeCCtx_symbol, err := purego.Dlsym(handle, "ZSTD_freeCCtx")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_freeCCtx: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_freeCCtx, purego_func_ZSTD_freeCCtx_symbol)
-	purego_func_ZSTD_compressCCtx_symbol, err := purego.Dlsym(handle, "ZSTD_compressCCtx")
+	purego.RegisterFunc(&ZSTD_freeCCtx, ZSTD_freeCCtx_symbol)
+	ZSTD_compressCCtx_symbol, err := purego.Dlsym(handle, "ZSTD_compressCCtx")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_compressCCtx: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_compressCCtx, purego_func_ZSTD_compressCCtx_symbol)
-	purego_func_ZSTD_createDCtx_symbol, err := purego.Dlsym(handle, "ZSTD_createDCtx")
+	purego.RegisterFunc(&ZSTD_compressCCtx, ZSTD_compressCCtx_symbol)
+	ZSTD_createDCtx_symbol, err := purego.Dlsym(handle, "ZSTD_createDCtx")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_createDCtx: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_createDCtx, purego_func_ZSTD_createDCtx_symbol)
-	purego_func_ZSTD_freeDCtx_symbol, err := purego.Dlsym(handle, "ZSTD_freeDCtx")
+	purego.RegisterFunc(&ZSTD_createDCtx, ZSTD_createDCtx_symbol)
+	ZSTD_freeDCtx_symbol, err := purego.Dlsym(handle, "ZSTD_freeDCtx")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_freeDCtx: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_freeDCtx, purego_func_ZSTD_freeDCtx_symbol)
-	purego_func_ZSTD_decompressDCtx_symbol, err := purego.Dlsym(handle, "ZSTD_decompressDCtx")
+	purego.RegisterFunc(&ZSTD_freeDCtx, ZSTD_freeDCtx_symbol)
+	ZSTD_decompressDCtx_symbol, err := purego.Dlsym(handle, "ZSTD_decompressDCtx")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_decompressDCtx: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_decompressDCtx, purego_func_ZSTD_decompressDCtx_symbol)
-	purego_func_ZSTD_compress_usingDict_symbol, err := purego.Dlsym(handle, "ZSTD_compress_usingDict")
+	purego.RegisterFunc(&ZSTD_decompressDCtx, ZSTD_decompressDCtx_symbol)
+	ZSTD_compress_usingDict_symbol, err := purego.Dlsym(handle, "ZSTD_compress_usingDict")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_compress_usingDict: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_compress_usingDict, purego_func_ZSTD_compress_usingDict_symbol)
-	purego_func_ZSTD_decompress_usingDict_symbol, err := purego.Dlsym(handle, "ZSTD_decompress_usingDict")
+	purego.RegisterFunc(&ZSTD_compress_usingDict, ZSTD_compress_usingDict_symbol)
+	ZSTD_decompress_usingDict_symbol, err := purego.Dlsym(handle, "ZSTD_decompress_usingDict")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol ZSTD_decompress_usingDict: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_ZSTD_decompress_usingDict, purego_func_ZSTD_decompress_usingDict_symbol)
+	purego.RegisterFunc(&ZSTD_decompress_usingDict, ZSTD_decompress_usingDict_symbol)
 	return nil
 }

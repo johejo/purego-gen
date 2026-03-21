@@ -76,10 +76,10 @@ class GeneratorHelpers:
 class GeneratorNaming:
     """Generated Go identifier naming policy."""
 
-    type_prefix: str = "purego_"
-    const_prefix: str = "purego_"
-    func_prefix: str = "purego_"
-    var_prefix: str = "purego_"
+    type_prefix: str = ""
+    const_prefix: str = ""
+    func_prefix: str = ""
+    var_prefix: str = ""
 
     def type_name(self, identifier: str) -> str:
         """Build one generated typedef alias name.
@@ -87,7 +87,7 @@ class GeneratorNaming:
         Returns:
             Generated typedef alias identifier.
         """
-        return f"{self.type_prefix}type_{identifier}" if self.type_prefix else identifier
+        return f"{self.type_prefix}{identifier}" if self.type_prefix else identifier
 
     def const_name(self, identifier: str) -> str:
         """Build one generated constant name.
@@ -95,7 +95,7 @@ class GeneratorNaming:
         Returns:
             Generated constant identifier.
         """
-        return f"{self.const_prefix}const_{identifier}" if self.const_prefix else identifier
+        return f"{self.const_prefix}{identifier}" if self.const_prefix else identifier
 
     def func_name(self, identifier: str) -> str:
         """Build one generated function variable or helper name.
@@ -103,7 +103,7 @@ class GeneratorNaming:
         Returns:
             Generated function-related identifier.
         """
-        return f"{self.func_prefix}func_{identifier}" if self.func_prefix else identifier
+        return f"{self.func_prefix}{identifier}" if self.func_prefix else identifier
 
     def runtime_var_name(self, identifier: str) -> str:
         """Build one generated runtime variable name.
@@ -111,7 +111,7 @@ class GeneratorNaming:
         Returns:
             Generated runtime-variable identifier.
         """
-        return f"{self.var_prefix}var_{identifier}" if self.var_prefix else identifier
+        return f"{self.var_prefix}{identifier}" if self.var_prefix else identifier
 
     def func_type_name(self, identifier: str) -> str:
         """Build one generated func-type alias name for a function-pointer typedef.
@@ -120,7 +120,7 @@ class GeneratorNaming:
             Generated func-type alias identifier.
         """
         if self.type_prefix:
-            return f"{self.type_prefix}type_{identifier}_func"
+            return f"{self.type_prefix}{identifier}_func"
         return f"{identifier}_func"
 
     def newcallback_name(self, identifier: str) -> str:
@@ -140,7 +140,7 @@ class GeneratorNaming:
             Generated func-type alias identifier.
         """
         if self.type_prefix:
-            return f"{self.type_prefix}type_{param_name}_func"
+            return f"{self.type_prefix}{param_name}_func"
         return f"{param_name}_func"
 
     def callback_func_type_name_qualified(self, function_name: str, param_name: str) -> str:
@@ -150,7 +150,7 @@ class GeneratorNaming:
             Generated func-type alias identifier qualified by function name.
         """
         if self.type_prefix:
-            return f"{self.type_prefix}type_{function_name}_{param_name}_func"
+            return f"{self.type_prefix}{function_name}_{param_name}_func"
         return f"{function_name}_{param_name}_func"
 
     def callback_newcallback_name(self, param_name: str) -> str:

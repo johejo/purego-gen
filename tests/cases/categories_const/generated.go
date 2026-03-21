@@ -3,6 +3,6 @@
 package fixture
 
 const (
-	purego_const_FIXTURE_STATUS_OK = 0
-	purego_const_FIXTURE_STATUS_NG = 2
+	FIXTURE_STATUS_OK = 0
+	FIXTURE_STATUS_NG = 2
 )

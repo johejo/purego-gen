@@ -36,7 +36,7 @@ _SRC_DIR = _REPO_ROOT / "src"
 _FIXTURES_DIR = _REPO_ROOT / "tests" / "fixtures"
 _FIXTURE_LIB_ID = "fixture_lib"
 _FIXTURE_PACKAGE = "fixture"
-_REGISTER_FUNCTIONS_SYMBOL = f"purego_{_FIXTURE_LIB_ID}_register_functions"
+_REGISTER_FUNCTIONS_SYMBOL = f"{_FIXTURE_LIB_ID}_register_functions"
 _NO_SUPPORTED_FIELDS_DIAGNOSTIC_COUNT = 1
 
 _PRIMARY_HEADER = _FIXTURES_DIR / "basic.h"
@@ -79,7 +79,7 @@ def _write_config(
             render = cast("JsonObject", generator["render"])
             render[key] = value
             continue
-        if key in {"identifier_prefix", "type_prefix", "const_prefix", "func_prefix", "var_prefix"}:
+        if key in {"type_prefix", "const_prefix", "func_prefix", "var_prefix"}:
             render = cast("JsonObject", generator["render"])
             naming = cast("JsonObject", render.setdefault("naming", {}))
             naming[key] = value
@@ -258,8 +258,8 @@ def test_accepts_exact_name_array_filters_in_config(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert "purego_func_add" in result.stdout
-    assert "purego_func_reset" not in result.stdout
+    assert "add func(" in result.stdout
+    assert "reset func(" not in result.stdout
     assert f"[{INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_FUNCTION_COUNT}]: 1" in result.stderr
     assert "purego-gen: excluded function reset" in result.stderr
 
@@ -319,8 +319,8 @@ def test_exclude_filter_supports_broad_collection(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert "purego_func_add" in result.stdout
-    assert "purego_func_reset" not in result.stdout
+    assert "add func(" in result.stdout
+    assert "reset func(" not in result.stdout
     assert f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT}]: 1" in result.stderr
     assert f"[{INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_FUNCTION_COUNT}]: 1" in result.stderr
     assert "purego-gen: excluded function reset" in result.stderr
@@ -344,8 +344,8 @@ def test_include_and_exclude_filters_compose_as_difference(tmp_path: Path) -> No
     )
 
     assert result.returncode == 0, result.stderr
-    assert "purego_func_add" in result.stdout
-    assert "purego_func_reset" not in result.stdout
+    assert "add func(" in result.stdout
+    assert "reset func(" not in result.stdout
     assert f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT}]: 1" in result.stderr
     assert f"[{INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_FUNCTION_COUNT}]: 1" in result.stderr
     assert "purego-gen: excluded function reset" in result.stderr
@@ -368,8 +368,8 @@ def test_exclude_filter_no_match_does_not_fail(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert "purego_func_add" in result.stdout
-    assert "purego_func_reset" in result.stdout
+    assert "add func(" in result.stdout
+    assert "reset func(" in result.stdout
     assert f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_FUNCTION_COUNT}]: 2" in result.stderr
     assert f"[{INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_FUNCTION_COUNT}]: 0" in result.stderr
 
@@ -449,7 +449,7 @@ def test_local_overlays_support_virtual_entry_headers(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert "purego_func_add" in result.stdout
+    assert "add func(" in result.stdout
 
 
 def test_env_include_overlays_can_shadow_included_headers(
@@ -491,7 +491,7 @@ def test_env_include_overlays_can_shadow_included_headers(
     )
 
     assert result.returncode == 0, result.stderr
-    assert "purego_func_add" in result.stdout
+    assert "add func(" in result.stdout
 
 
 def test_emits_buffer_input_helper_from_config(tmp_path: Path) -> None:
@@ -521,11 +521,11 @@ def test_emits_buffer_input_helper_from_config(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert "func purego_func_fixture_consume_bytes_bytes(" in result.stdout
+    assert "func fixture_consume_bytes_bytes(" in result.stdout
     assert "data []byte" in result.stdout
 
 
-def test_emits_custom_identifier_prefix_from_config(tmp_path: Path) -> None:
+def test_emits_custom_func_prefix_from_config(tmp_path: Path) -> None:
     """Config should override the leading generated identifier prefix."""
     result = _run_cli(
         "--config",
@@ -533,7 +533,6 @@ def test_emits_custom_identifier_prefix_from_config(tmp_path: Path) -> None:
             _write_config(
                 tmp_path,
                 generator_overrides=_json_object({
-                    "identifier_prefix": "purego_gen_",
                     "func_prefix": "purego_gen_",
                     "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
                     "emit": "func",
@@ -544,7 +543,7 @@ def test_emits_custom_identifier_prefix_from_config(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
-    assert "purego_gen_func_add" in result.stdout
+    assert "purego_gen_add" in result.stdout
     assert "func purego_gen_fixture_lib_register_functions(handle uintptr) error {" in result.stdout
 
 

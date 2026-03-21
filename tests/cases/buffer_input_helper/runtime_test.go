@@ -28,18 +28,18 @@ func TestGeneratedBufferInputHelperWrapsConstVoidPointerInputs(t *testing.T) {
 		}
 	}()
 
-	if err := purego_fixture_lib_register_functions(handle); err != nil {
+	if err := fixture_lib_register_functions(handle); err != nil {
 		t.Fatalf("register functions: %v", err)
 	}
 
 	payload := []byte{1, 2, 3}
-	if got := purego_func_fixture_sum_bytes_bytes(payload, 7); got != 13 {
-		t.Fatalf("purego_func_fixture_sum_bytes_bytes(payload, 7) = %d, want %d", got, 13)
+	if got := fixture_sum_bytes_bytes(payload, 7); got != 13 {
+		t.Fatalf("fixture_sum_bytes_bytes(payload, 7) = %d, want %d", got, 13)
 	}
-	if got := purego_func_fixture_sum_bytes(bytesPtr(payload), uint64(len(payload)), 7); got != 13 {
-		t.Fatalf("purego_func_fixture_sum_bytes(low-level) = %d, want %d", got, 13)
+	if got := fixture_sum_bytes(bytesPtr(payload), uint64(len(payload)), 7); got != 13 {
+		t.Fatalf("fixture_sum_bytes(low-level) = %d, want %d", got, 13)
 	}
-	if got := purego_func_fixture_sum_bytes_bytes(nil, 11); got != 11 {
-		t.Fatalf("purego_func_fixture_sum_bytes_bytes(nil, 11) = %d, want %d", got, 11)
+	if got := fixture_sum_bytes_bytes(nil, 11); got != 11 {
+		t.Fatalf("fixture_sum_bytes_bytes(nil, 11) = %d, want %d", got, 11)
 	}
 }

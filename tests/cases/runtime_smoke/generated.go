@@ -15,51 +15,51 @@ var (
 )
 
 var (
-	purego_func_smoke_reset       func() int32
-	purego_func_smoke_increment   func() int32
-	purego_func_smoke_get_counter func() int32
+	smoke_reset       func() int32
+	smoke_increment   func() int32
+	smoke_get_counter func() int32
 )
 
-func purego_fixture_lib_register_functions(handle uintptr) error {
-	purego_func_smoke_reset_symbol, err := purego.Dlsym(handle, "smoke_reset")
+func fixture_lib_register_functions(handle uintptr) error {
+	smoke_reset_symbol, err := purego.Dlsym(handle, "smoke_reset")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol smoke_reset: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_smoke_reset, purego_func_smoke_reset_symbol)
-	purego_func_smoke_increment_symbol, err := purego.Dlsym(handle, "smoke_increment")
+	purego.RegisterFunc(&smoke_reset, smoke_reset_symbol)
+	smoke_increment_symbol, err := purego.Dlsym(handle, "smoke_increment")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol smoke_increment: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_smoke_increment, purego_func_smoke_increment_symbol)
-	purego_func_smoke_get_counter_symbol, err := purego.Dlsym(handle, "smoke_get_counter")
+	purego.RegisterFunc(&smoke_increment, smoke_increment_symbol)
+	smoke_get_counter_symbol, err := purego.Dlsym(handle, "smoke_get_counter")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol smoke_get_counter: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_smoke_get_counter, purego_func_smoke_get_counter_symbol)
+	purego.RegisterFunc(&smoke_get_counter, smoke_get_counter_symbol)
 	return nil
 }
 
 var (
-	purego_var_smoke_magic uintptr
-	purego_var_smoke_epoch uintptr
+	smoke_magic uintptr
+	smoke_epoch uintptr
 )
 
-func purego_fixture_lib_load_runtime_vars(handle uintptr) error {
-	purego_var_smoke_magic_symbol, err := purego.Dlsym(handle, "smoke_magic")
+func fixture_lib_load_runtime_vars(handle uintptr) error {
+	smoke_magic_symbol, err := purego.Dlsym(handle, "smoke_magic")
 	if err != nil {
 		return fmt.Errorf(
 			"purego-gen: failed to resolve runtime var symbol smoke_magic: %w",
 			err,
 		)
 	}
-	purego_var_smoke_magic = purego_var_smoke_magic_symbol
-	purego_var_smoke_epoch_symbol, err := purego.Dlsym(handle, "smoke_epoch")
+	smoke_magic = smoke_magic_symbol
+	smoke_epoch_symbol, err := purego.Dlsym(handle, "smoke_epoch")
 	if err != nil {
 		return fmt.Errorf(
 			"purego-gen: failed to resolve runtime var symbol smoke_epoch: %w",
 			err,
 		)
 	}
-	purego_var_smoke_epoch = purego_var_smoke_epoch_symbol
+	smoke_epoch = smoke_epoch_symbol
 	return nil
 }

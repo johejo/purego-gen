@@ -4,9 +4,9 @@ package fixture
 
 type (
 	// C: int
-	purego_type_my_int = int32
+	my_int = int32
 	// C: void *
-	purego_type_my_handle = uintptr
+	my_handle = uintptr
 	// C: struct not_basic
-	purego_type_not_basic struct{}
+	not_basic struct{}
 )

@@ -158,45 +158,25 @@ def build_generator_spec(
     naming_input = generator.render.naming
 
     try:
-        type_prefix = normalize_identifier_prefix(
-            naming_input.type_prefix
-            if naming_input.type_prefix is not None
-            else naming_input.identifier_prefix,
-            allow_empty=True,
-        )
+        type_prefix = normalize_identifier_prefix(naming_input.type_prefix, allow_empty=True)
     except ValueError as error:
         message = f"config `{config_path}` generator.render.naming.type_prefix is invalid: {error}"
         raise RuntimeError(message) from error
 
     try:
-        const_prefix = normalize_identifier_prefix(
-            naming_input.const_prefix
-            if naming_input.const_prefix is not None
-            else naming_input.identifier_prefix,
-            allow_empty=True,
-        )
+        const_prefix = normalize_identifier_prefix(naming_input.const_prefix, allow_empty=True)
     except ValueError as error:
         message = f"config `{config_path}` generator.render.naming.const_prefix is invalid: {error}"
         raise RuntimeError(message) from error
 
     try:
-        func_prefix = normalize_identifier_prefix(
-            naming_input.func_prefix
-            if naming_input.func_prefix is not None
-            else naming_input.identifier_prefix,
-            allow_empty=True,
-        )
+        func_prefix = normalize_identifier_prefix(naming_input.func_prefix, allow_empty=True)
     except ValueError as error:
         message = f"config `{config_path}` generator.render.naming.func_prefix is invalid: {error}"
         raise RuntimeError(message) from error
 
     try:
-        var_prefix = normalize_identifier_prefix(
-            naming_input.var_prefix
-            if naming_input.var_prefix is not None
-            else naming_input.identifier_prefix,
-            allow_empty=True,
-        )
+        var_prefix = normalize_identifier_prefix(naming_input.var_prefix, allow_empty=True)
     except ValueError as error:
         message = f"config `{config_path}` generator.render.naming.var_prefix is invalid: {error}"
         raise RuntimeError(message) from error

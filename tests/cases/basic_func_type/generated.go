@@ -16,31 +16,31 @@ var (
 
 type (
 	// C: int
-	purego_type_my_int = int32
+	my_int = int32
 	// C: void *
-	purego_type_my_handle = uintptr
+	my_handle = uintptr
 	// C: struct not_basic
-	purego_type_not_basic struct{}
+	not_basic struct{}
 )
 
 var (
-	purego_func_add func(
+	add func(
 		lhs int32,
 		rhs int32,
 	) int32
-	purego_func_reset func()
+	reset func()
 )
 
-func purego_fixture_lib_register_functions(handle uintptr) error {
-	purego_func_add_symbol, err := purego.Dlsym(handle, "add")
+func fixture_lib_register_functions(handle uintptr) error {
+	add_symbol, err := purego.Dlsym(handle, "add")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol add: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_add, purego_func_add_symbol)
-	purego_func_reset_symbol, err := purego.Dlsym(handle, "reset")
+	purego.RegisterFunc(&add, add_symbol)
+	reset_symbol, err := purego.Dlsym(handle, "reset")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol reset: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_reset, purego_func_reset_symbol)
+	purego.RegisterFunc(&reset, reset_symbol)
 	return nil
 }

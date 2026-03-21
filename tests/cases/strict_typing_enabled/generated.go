@@ -16,27 +16,27 @@ var (
 
 type (
 	// C: enum strict_typing_demo_error_code
-	purego_type_strict_typing_demo_error_code_t int32
+	strict_typing_demo_error_code_t int32
 )
 
 const (
-	purego_const_STRICT_TYPING_DEMO_CONTENTSIZE_UNKNOWN uint64 = 18446744073709551615
-	purego_const_STRICT_TYPING_DEMO_CONTENTSIZE_ERROR   uint64 = 18446744073709551614
-	purego_const_STRICT_TYPING_DEMO_ERROR_OK                   = 0
-	purego_const_STRICT_TYPING_DEMO_ERROR_INTERNAL             = 1
+	STRICT_TYPING_DEMO_CONTENTSIZE_UNKNOWN uint64 = 18446744073709551615
+	STRICT_TYPING_DEMO_CONTENTSIZE_ERROR   uint64 = 18446744073709551614
+	STRICT_TYPING_DEMO_ERROR_OK                   = 0
+	STRICT_TYPING_DEMO_ERROR_INTERNAL             = 1
 )
 
 var (
-	purego_func_strict_typing_demo_get_error_code func(
+	strict_typing_demo_get_error_code func(
 		result uint64,
-	) purego_type_strict_typing_demo_error_code_t
+	) strict_typing_demo_error_code_t
 )
 
-func purego_fixture_lib_register_functions(handle uintptr) error {
-	purego_func_strict_typing_demo_get_error_code_symbol, err := purego.Dlsym(handle, "strict_typing_demo_get_error_code")
+func fixture_lib_register_functions(handle uintptr) error {
+	strict_typing_demo_get_error_code_symbol, err := purego.Dlsym(handle, "strict_typing_demo_get_error_code")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol strict_typing_demo_get_error_code: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_strict_typing_demo_get_error_code, purego_func_strict_typing_demo_get_error_code_symbol)
+	purego.RegisterFunc(&strict_typing_demo_get_error_code, strict_typing_demo_get_error_code_symbol)
 	return nil
 }

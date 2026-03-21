@@ -16,16 +16,16 @@ var (
 
 type (
 	// C: enum fixture_mode
-	purego_type_fixture_mode_t = int32
+	fixture_mode_t = int32
 	// C: fixture_mode_t
-	purego_type_fixture_mode_alias_t = int32
+	fixture_mode_alias_t = int32
 	// C: int (*)(int)
-	purego_type_fixture_callback_t = uintptr
+	fixture_callback_t = uintptr
 	// C: const char *
-	purego_type_fixture_name_t = uintptr
+	fixture_name_t = uintptr
 	// C: void *
-	purego_type_fixture_context_t = uintptr
-	purego_type_fixture_point_t   struct {
+	fixture_context_t = uintptr
+	fixture_point_t   struct {
 		left  int32
 		right int32
 		mode  int32
@@ -33,7 +33,7 @@ type (
 		// C: const char *
 		label uintptr
 	}
-	purego_type_fixture_point_alias_t struct {
+	fixture_point_alias_t struct {
 		left  int32
 		right int32
 		mode  int32
@@ -41,7 +41,7 @@ type (
 		// C: const char *
 		label uintptr
 	}
-	purego_type_fixture_nested_point_t struct {
+	fixture_nested_point_t struct {
 		point struct {
 			left  int32
 			right int32
@@ -55,20 +55,20 @@ type (
 		}
 		_ [4]byte
 	}
-	purego_type_fixture_with_array_t struct {
+	fixture_with_array_t struct {
 		values [4]int32
 	}
 	// C: struct fixture_opaque
-	purego_type_fixture_opaque_t struct{}
+	fixture_opaque_t struct{}
 	// C: int (*)(int)
-	purego_type_fixture_callback_t_func = func(int32) int32
+	fixture_callback_t_func = func(int32) int32
 )
 
-func purego_new_fixture_callback_t(fn purego_type_fixture_callback_t_func) purego_type_fixture_callback_t {
-	return purego_type_fixture_callback_t(purego.NewCallback(fn))
+func new_fixture_callback_t(fn fixture_callback_t_func) fixture_callback_t {
+	return fixture_callback_t(purego.NewCallback(fn))
 }
 
 const (
-	purego_const_FIXTURE_MODE_OFF = 0
-	purego_const_FIXTURE_MODE_ON  = 1
+	FIXTURE_MODE_OFF = 0
+	FIXTURE_MODE_ON  = 1
 )

@@ -16,11 +16,11 @@ var (
 
 type (
 	// C: void (*)(void *)
-	purego_type_fixture_destructor_t = uintptr
+	fixture_destructor_t = uintptr
 	// C: void (*)(void *)
-	purego_type_fixture_destructor_t_func = func(uintptr)
+	fixture_destructor_t_func = func(uintptr)
 )
 
-func purego_new_fixture_destructor_t(fn purego_type_fixture_destructor_t_func) purego_type_fixture_destructor_t {
-	return purego_type_fixture_destructor_t(purego.NewCallback(fn))
+func new_fixture_destructor_t(fn fixture_destructor_t_func) fixture_destructor_t {
+	return fixture_destructor_t(purego.NewCallback(fn))
 }

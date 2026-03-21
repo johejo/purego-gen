@@ -15,37 +15,37 @@ var (
 )
 
 const (
-	purego_const_FIXTURE_STATUS_OK = 0
+	FIXTURE_STATUS_OK = 0
 )
 
 var (
-	purego_func_add func(
+	add func(
 		lhs int32,
 		rhs int32,
 	) int32
 )
 
-func purego_fixture_lib_register_functions(handle uintptr) error {
-	purego_func_add_symbol, err := purego.Dlsym(handle, "add")
+func fixture_lib_register_functions(handle uintptr) error {
+	add_symbol, err := purego.Dlsym(handle, "add")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol add: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_add, purego_func_add_symbol)
+	purego.RegisterFunc(&add, add_symbol)
 	return nil
 }
 
 var (
-	purego_var_build_id uintptr
+	build_id uintptr
 )
 
-func purego_fixture_lib_load_runtime_vars(handle uintptr) error {
-	purego_var_build_id_symbol, err := purego.Dlsym(handle, "build_id")
+func fixture_lib_load_runtime_vars(handle uintptr) error {
+	build_id_symbol, err := purego.Dlsym(handle, "build_id")
 	if err != nil {
 		return fmt.Errorf(
 			"purego-gen: failed to resolve runtime var symbol build_id: %w",
 			err,
 		)
 	}
-	purego_var_build_id = purego_var_build_id_symbol
+	build_id = build_id_symbol
 	return nil
 }

@@ -15,30 +15,30 @@ var (
 )
 
 var (
-	purego_func_smoke_const_greeting    func() string
-	purego_func_smoke_const_is_expected func(
+	smoke_const_greeting    func() string
+	smoke_const_is_expected func(
 		value string,
 	) int32
-	purego_func_smoke_const_roundtrip func(
+	smoke_const_roundtrip func(
 		value string,
 	) string
 )
 
-func purego_fixture_lib_register_functions(handle uintptr) error {
-	purego_func_smoke_const_greeting_symbol, err := purego.Dlsym(handle, "smoke_const_greeting")
+func fixture_lib_register_functions(handle uintptr) error {
+	smoke_const_greeting_symbol, err := purego.Dlsym(handle, "smoke_const_greeting")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol smoke_const_greeting: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_smoke_const_greeting, purego_func_smoke_const_greeting_symbol)
-	purego_func_smoke_const_is_expected_symbol, err := purego.Dlsym(handle, "smoke_const_is_expected")
+	purego.RegisterFunc(&smoke_const_greeting, smoke_const_greeting_symbol)
+	smoke_const_is_expected_symbol, err := purego.Dlsym(handle, "smoke_const_is_expected")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol smoke_const_is_expected: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_smoke_const_is_expected, purego_func_smoke_const_is_expected_symbol)
-	purego_func_smoke_const_roundtrip_symbol, err := purego.Dlsym(handle, "smoke_const_roundtrip")
+	purego.RegisterFunc(&smoke_const_is_expected, smoke_const_is_expected_symbol)
+	smoke_const_roundtrip_symbol, err := purego.Dlsym(handle, "smoke_const_roundtrip")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol smoke_const_roundtrip: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_smoke_const_roundtrip, purego_func_smoke_const_roundtrip_symbol)
+	purego.RegisterFunc(&smoke_const_roundtrip, smoke_const_roundtrip_symbol)
 	return nil
 }

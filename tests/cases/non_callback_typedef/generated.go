@@ -4,5 +4,5 @@ package fixture
 
 type (
 	// C: const char *
-	purego_type_fixture_name_t = uintptr
+	fixture_name_t = uintptr
 )

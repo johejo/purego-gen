@@ -69,8 +69,8 @@ def test_render_go_source_emits_helpers_with_custom_identifier_prefix() -> None:
         ),
     )
 
-    assert "func purego_gen_func_fixture_consume_bytes_bytes(" in source
-    assert "return purego_gen_func_fixture_consume_bytes(" in source
+    assert "func purego_gen_fixture_consume_bytes_bytes(" in source
+    assert "return purego_gen_fixture_consume_bytes(" in source
 
 
 def test_render_go_source_accepts_generated_names_for_unnamed_buffer_parameters() -> None:
@@ -114,13 +114,13 @@ def test_render_go_source_accepts_generated_names_for_unnamed_buffer_parameters(
     )
 
     normalized_source = " ".join(source.split())
-    assert "func purego_func_fixture_bind_blob_bytes(" in source
+    assert "func fixture_bind_blob_bytes(" in source
     assert (
-        "func purego_func_fixture_bind_blob_bytes("
+        "func fixture_bind_blob_bytes("
         " arg1 uintptr, arg2 int32, arg3 []byte, arg5 uintptr, ) int32 {" in normalized_source
     )
     assert (
-        "return purego_func_fixture_bind_blob( arg1, arg2, arg3_ptr, uint64(len(arg3_len)), arg5, )"
+        "return fixture_bind_blob( arg1, arg2, arg3_ptr, uint64(len(arg3_len)), arg5, )"
         in normalized_source
     )
 
@@ -246,23 +246,20 @@ def test_render_go_source_emits_callback_input_helper_functions() -> None:
     )
 
     normalized_source = " ".join(source.split())
-    assert "func purego_func_fixture_register_hook_callbacks(" in source
+    assert "func fixture_register_hook_callbacks(" in source
     expected_signature = (
-        "func purego_func_fixture_register_hook_callbacks("
-        " ctx *purego_type_fixture_ctx_t,"
-        " callback purego_type_callback_func,"
+        "func fixture_register_hook_callbacks("
+        " ctx *fixture_ctx_t,"
+        " callback callback_func,"
         " user_data uintptr, ) int32 {"
     )
     assert expected_signature in normalized_source
-    assert "purego_type_callback_func = func(uintptr, int32) int32" in source
-    assert "func purego_new_callback(fn purego_type_callback_func) uintptr {" in source
+    assert "callback_func = func(uintptr, int32) int32" in source
+    assert "func new_callback(fn callback_func) uintptr {" in source
     assert "callback_callback := uintptr(0)" in source
     assert "if callback != nil {" in source
     assert "callback_callback = purego.NewCallback(callback)" in source
-    assert (
-        "return purego_func_fixture_register_hook( ctx, callback_callback, user_data, )"
-        in normalized_source
-    )
+    assert "return fixture_register_hook( ctx, callback_callback, user_data, )" in normalized_source
 
 
 def test_render_go_source_emits_callback_input_helper_for_opaque_and_pointer_args() -> None:
@@ -352,11 +349,8 @@ def test_render_go_source_emits_callback_input_helper_for_opaque_and_pointer_arg
     )
 
     normalized_source = " ".join(source.split())
-    assert "callback purego_type_callback_func," in normalized_source
-    assert (
-        "purego_type_callback_func = func(*purego_type_fixture_ctx_t, int32, "
-        "**purego_type_fixture_value_t)" in normalized_source
-    )
+    assert "callback callback_func," in normalized_source
+    assert "callback_func = func(*fixture_ctx_t, int32, **fixture_value_t)" in normalized_source
 
 
 def test_render_go_source_rejects_missing_callback_helper_function() -> None:
@@ -643,6 +637,6 @@ def test_render_go_source_emits_owned_string_return_with_custom_prefix() -> None
         ),
     )
 
-    assert "func mylib_func_fixture_get_name_string(" in source
+    assert "func mylib_fixture_get_name_string(" in source
     assert "func mylib_gostring(ptr uintptr) string {" in source
     assert "result := mylib_gostring(rawPtr)" in source

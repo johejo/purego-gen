@@ -15,7 +15,7 @@ var (
 )
 
 var (
-	purego_func_fixture_sum_bytes func(
+	fixture_sum_bytes func(
 		// C: const void *
 		data uintptr,
 		data_len uint64,
@@ -23,7 +23,7 @@ var (
 	) int32
 )
 
-func purego_func_fixture_sum_bytes_bytes(
+func fixture_sum_bytes_bytes(
 	data []byte,
 	salt uint32,
 ) int32 {
@@ -32,18 +32,18 @@ func purego_func_fixture_sum_bytes_bytes(
 	if len(data_len) > 0 {
 		data_ptr = uintptr(unsafe.Pointer(&data_len[0]))
 	}
-	return purego_func_fixture_sum_bytes(
+	return fixture_sum_bytes(
 		data_ptr,
 		uint64(len(data_len)),
 		salt,
 	)
 }
 
-func purego_fixture_lib_register_functions(handle uintptr) error {
-	purego_func_fixture_sum_bytes_symbol, err := purego.Dlsym(handle, "fixture_sum_bytes")
+func fixture_lib_register_functions(handle uintptr) error {
+	fixture_sum_bytes_symbol, err := purego.Dlsym(handle, "fixture_sum_bytes")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol fixture_sum_bytes: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_fixture_sum_bytes, purego_func_fixture_sum_bytes_symbol)
+	purego.RegisterFunc(&fixture_sum_bytes, fixture_sum_bytes_symbol)
 	return nil
 }

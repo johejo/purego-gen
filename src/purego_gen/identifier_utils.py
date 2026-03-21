@@ -255,7 +255,7 @@ def validate_generated_names(
             errors.append(
                 f"generated name {name!r} ({origin}) collides with "
                 f"previously generated name ({seen[name]}); "
-                "set identifier_prefix or a per-category prefix in config"
+                "set a per-category prefix in config"
             )
         else:
             seen[name] = origin
@@ -266,17 +266,17 @@ def validate_generated_names(
         if name in GO_KEYWORDS:
             errors.append(
                 f"generated name {name!r} ({origin}) collides with Go keyword; "
-                "set identifier_prefix or a per-category prefix in config"
+                "set a per-category prefix in config"
             )
         if name in GO_PREDECLARED:
             errors.append(
                 f"generated name {name!r} ({origin}) shadows Go predeclared identifier; "
-                "set identifier_prefix or a per-category prefix in config"
+                "set a per-category prefix in config"
             )
         if name in _IMPORT_NAMES:
             errors.append(
                 f"generated name {name!r} ({origin}) shadows import name; "
-                "set identifier_prefix or a per-category prefix in config"
+                "set a per-category prefix in config"
             )
 
     return errors

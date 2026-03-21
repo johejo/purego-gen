@@ -15,33 +15,33 @@ var (
 )
 
 var (
-	purego_func_extra_add func(
+	extra_add func(
 		lhs int32,
 		rhs int32,
 	) int32
 )
 
-func purego_fixture_lib_register_functions(handle uintptr) error {
-	purego_func_extra_add_symbol, err := purego.Dlsym(handle, "extra_add")
+func fixture_lib_register_functions(handle uintptr) error {
+	extra_add_symbol, err := purego.Dlsym(handle, "extra_add")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol extra_add: %w", err)
 	}
-	purego.RegisterFunc(&purego_func_extra_add, purego_func_extra_add_symbol)
+	purego.RegisterFunc(&extra_add, extra_add_symbol)
 	return nil
 }
 
 var (
-	purego_var_extra_counter uintptr
+	extra_counter uintptr
 )
 
-func purego_fixture_lib_load_runtime_vars(handle uintptr) error {
-	purego_var_extra_counter_symbol, err := purego.Dlsym(handle, "extra_counter")
+func fixture_lib_load_runtime_vars(handle uintptr) error {
+	extra_counter_symbol, err := purego.Dlsym(handle, "extra_counter")
 	if err != nil {
 		return fmt.Errorf(
 			"purego-gen: failed to resolve runtime var symbol extra_counter: %w",
 			err,
 		)
 	}
-	purego_var_extra_counter = purego_var_extra_counter_symbol
+	extra_counter = extra_counter_symbol
 	return nil
 }
