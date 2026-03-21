@@ -53,3 +53,33 @@ def test_inspect_exits_zero_for_local_fixture_header() -> None:
             "sample_opaque_record_typedefs:",
         ),
     )
+
+
+def test_inspect_reports_callback_candidates() -> None:
+    """Inspect should report functions with function-pointer parameters."""
+    header_path = _REPO_ROOT / "tests" / "fixtures" / "callback_candidates.h"
+    result = _run_inspect(
+        "--header-path",
+        str(header_path),
+        "--sample-size",
+        "10",
+    )
+    assert result.returncode == 0, result.stderr
+    assert_text_contains_fragments(
+        result.stdout,
+        (
+            "callback_candidates=",
+            "sample_callback_candidates:",
+            "register_handler:",
+            "set_callback:",
+            "multi_callback:",
+        ),
+    )
+    # Control function with no function-pointer params should NOT appear in candidates
+    lines = result.stdout.splitlines()
+    start = next(
+        i for i, line in enumerate(lines) if line.startswith("sample_callback_candidates:")
+    )
+    candidate_lines = [line for i, line in enumerate(lines) if i > start and line.startswith("  ")]
+    candidate_func_names = [line.split(":")[0].strip() for line in candidate_lines]
+    assert "plain_add" not in candidate_func_names

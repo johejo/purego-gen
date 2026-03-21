@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from purego_gen.c_type_utils import is_function_pointer_c_type, normalize_c_type_for_lookup
 from purego_gen.clang_parser import parse_declarations
 from purego_gen.declaration_filters import (
     CompiledDeclarationFilters,
@@ -17,6 +18,7 @@ from purego_gen.declaration_filters import (
     compile_filter,
 )
 from purego_gen.emit_kinds import parse_emit_kinds
+from purego_gen.helper_rendering import build_typedef_c_type_by_lookup
 from purego_gen.renderer import render_go_source
 
 if TYPE_CHECKING:
@@ -93,6 +95,33 @@ def _resolve_target(header_path: str, *, clang_args: tuple[str, ...]) -> _Resolv
     return _ResolvedTarget(header_path=resolved_header_path, clang_args=clang_args)
 
 
+def _find_callback_candidates(
+    declarations: ParsedDeclarations,
+) -> list[tuple[str, list[tuple[str, str]]]]:
+    """Find functions with function-pointer parameters.
+
+    Returns:
+        List of (func_name, [(param_name, param_c_type), ...]) for functions
+        that have at least one function-pointer parameter.
+    """
+    typedef_lookup = build_typedef_c_type_by_lookup(declarations)
+    candidates: list[tuple[str, list[tuple[str, str]]]] = []
+    for func in declarations.functions:
+        matching_params: list[tuple[str, str]] = []
+        for param_name, param_c_type in zip(
+            func.parameter_names, func.parameter_c_types, strict=True
+        ):
+            if is_function_pointer_c_type(param_c_type):
+                matching_params.append((param_name, param_c_type))
+            else:
+                resolved = typedef_lookup.get(normalize_c_type_for_lookup(param_c_type))
+                if resolved is not None and is_function_pointer_c_type(resolved):
+                    matching_params.append((param_name, param_c_type))
+        if matching_params:
+            candidates.append((func.name, matching_params))
+    return candidates
+
+
 def _report_declarations(
     target: _ResolvedTarget,
     declarations: ParsedDeclarations,
@@ -134,6 +163,13 @@ def _report_declarations(
             f"{record_typedef.name}: {record_typedef.unsupported_code} :: "
             f"{record_typedef.unsupported_reason}"
         )
+
+    callback_candidates = _find_callback_candidates(declarations)
+    _write_line(f"callback_candidates={len(callback_candidates)}")
+    _write_line("sample_callback_candidates:")
+    for func_name, matching_params in callback_candidates[:sample_size]:
+        params_str = ", ".join(f"{name}({c_type})" for name, c_type in matching_params)
+        _write_line(f"  {func_name}: {params_str}")
 
 
 def _load_patterns(
