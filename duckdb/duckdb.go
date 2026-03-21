@@ -765,7 +765,7 @@ func normalizeValue(value any) (any, error) {
 
 // duckdb epoch: 1970-01-01 00:00:00 UTC, stored as microseconds
 func timestampToTime(ts duckdbsys.Timestamp) time.Time {
-	micros := *(*int64)(unsafe.Pointer(&ts))
+	micros := ts.Get_micros()
 	seconds := micros / 1_000_000
 	remainder := micros % 1_000_000
 	if remainder < 0 {
@@ -778,15 +778,14 @@ func timestampToTime(ts duckdbsys.Timestamp) time.Time {
 func timeToTimestamp(t time.Time) duckdbsys.Timestamp {
 	micros := t.Unix()*1_000_000 + int64(t.Nanosecond())/1000
 	var ts duckdbsys.Timestamp
-	*(*int64)(unsafe.Pointer(&ts)) = micros
+	ts.Set_micros(micros)
 	return ts
 }
 
 // Hugeint helper
 func hugeintToString(h duckdbsys.Hugeint) string {
-	p := unsafe.Pointer(&h)
-	upper := *(*int64)(unsafe.Add(p, 8))
-	lower := *(*uint64)(p)
+	upper := h.Get_upper()
+	lower := h.Get_lower()
 	if upper == 0 {
 		return strconv.FormatUint(lower, 10)
 	}

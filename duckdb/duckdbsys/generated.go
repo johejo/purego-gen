@@ -22,12 +22,18 @@ type (
 	// ! An enum over the returned state of different functions.
 	// C: enum duckdb_state
 	duckdb_state = int32
+	// ! An enum over the pending state of a pending query result.
+	// C: enum duckdb_pending_state
+	duckdb_pending_state = int32
 	// ! An enum over DuckDB's different result types.
 	// C: enum duckdb_result_type
 	duckdb_result_type = int32
 	// ! An enum over DuckDB's different statement types.
 	// C: enum duckdb_statement_type
 	duckdb_statement_type = int32
+	// ! An enum over DuckDB's different error types.
+	// C: enum duckdb_error_type
+	duckdb_error_type = int32
 	// ! DuckDB's index type.
 	// C: uint64_t
 	idx_t = uint64
@@ -54,6 +60,21 @@ type (
 		_      [1]byte
 		micros int32
 	}
+	// ! TIME_TZ is stored as 40 bits for the int64_t microseconds, and 24 bits for the int32_t offset.
+	// ! Use the `duckdb_from_time_tz` function to extract individual information.
+	duckdb_time_tz struct {
+		bits uint64
+	}
+	duckdb_time_tz_struct struct {
+		time struct {
+			hour   int8
+			min    int8
+			sec    int8
+			_      [1]byte
+			micros int32
+		}
+		offset int32
+	}
 	// ! TIMESTAMP is stored as microseconds since 1970-01-01.
 	// ! Use the `duckdb_from_timestamp` and `duckdb_to_timestamp` functions to extract individual information.
 	duckdb_timestamp struct {
@@ -74,6 +95,18 @@ type (
 			micros int32
 		}
 	}
+	// ! TIMESTAMP_S is stored as seconds since 1970-01-01.
+	duckdb_timestamp_s struct {
+		seconds int64
+	}
+	// ! TIMESTAMP_MS is stored as milliseconds since 1970-01-01.
+	duckdb_timestamp_ms struct {
+		millis int64
+	}
+	// ! TIMESTAMP_NS is stored as nanoseconds since 1970-01-01.
+	duckdb_timestamp_ns struct {
+		nanos int64
+	}
 	// ! INTERVAL is stored in months, days, and micros.
 	duckdb_interval struct {
 		months int32
@@ -87,6 +120,13 @@ type (
 		lower uint64
 		upper int64
 	}
+	// ! UHUGEINT is composed of a lower and upper component.
+	// ! Its value is upper * 2^64 + lower.
+	// ! For simplified usage, use `duckdb_uhugeint_to_double` and `duckdb_double_to_uhugeint`.
+	duckdb_uhugeint struct {
+		lower uint64
+		upper uint64
+	}
 	// ! DECIMAL is composed of a width and a scale.
 	// ! Their value is stored in a HUGEINT.
 	duckdb_decimal struct {
@@ -97,6 +137,20 @@ type (
 			lower uint64
 			upper int64
 		}
+	}
+	// ! A type holding information about the query execution progress.
+	duckdb_query_progress_type struct {
+		percentage            float64
+		rows_processed        uint64
+		total_rows_to_process uint64
+	}
+	// ! DuckDB's LISTs are composed of a 'parent' vector holding metadata of each list,
+	// ! and a child vector holding the entries of the lists.
+	// ! The `duckdb_list_entry` struct contains the internal representation of a LIST metadata entry.
+	// ! A metadata entry contains the length of the list, and its offset in the child vector.
+	duckdb_list_entry struct {
+		offset uint64
+		length uint64
 	}
 	// ! A column consists of a pointer to its internal data. Don't operate on this type directly.
 	// ! Instead, use functions such as `duckdb_column_data`, `duckdb_nullmask_data`,
@@ -153,6 +207,21 @@ type (
 	// ! Must be destroyed with `duckdb_destroy_prepare`.
 	// C: struct _duckdb_prepared_statement *
 	duckdb_prepared_statement uintptr
+	// ! Extracted statements. Must be destroyed with `duckdb_destroy_extracted`.
+	// C: struct _duckdb_extracted_statements *
+	duckdb_extracted_statements uintptr
+	// ! The pending result represents an intermediate structure for a query that is not yet fully executed.
+	// ! Must be destroyed with `duckdb_destroy_pending`.
+	// C: struct _duckdb_pending_result *
+	duckdb_pending_result uintptr
+	// ! The appender enables fast data loading into DuckDB.
+	// ! Must be destroyed with `duckdb_appender_destroy`.
+	// C: struct _duckdb_appender *
+	duckdb_appender uintptr
+	// ! The table description allows querying information about the table.
+	// ! Must be destroyed with `duckdb_table_description_destroy`.
+	// C: struct _duckdb_table_description *
+	duckdb_table_description uintptr
 	// ! The configuration can be used to provide start-up options for a database.
 	// ! Must be destroyed with `duckdb_destroy_config`.
 	// C: struct _duckdb_config *
@@ -165,6 +234,14 @@ type (
 	// ! Must be destroyed with `duckdb_destroy_data_chunk`.
 	// C: struct _duckdb_data_chunk *
 	duckdb_data_chunk uintptr
+	// ! A value of a logical type.
+	// ! Must be destroyed with `duckdb_destroy_value`.
+	// C: struct _duckdb_value *
+	duckdb_value uintptr
+	// ! Holds a recursive tree containing profiling metrics.
+	// ! The tree matches the query plan, and has a top-level node.
+	// C: struct _duckdb_profiling_info *
+	duckdb_profiling_info uintptr
 )
 
 func (s *duckdb_date) Get_days() int32 {
@@ -239,12 +316,52 @@ func (s *duckdb_time_struct) Set_micros(v int32) {
 	s.micros = v
 }
 
+func (s *duckdb_time_tz) Get_bits() uint64 {
+	return s.bits
+}
+
+func (s *duckdb_time_tz) Set_bits(v uint64) {
+	s.bits = v
+}
+
+func (s *duckdb_time_tz_struct) Get_offset() int32 {
+	return s.offset
+}
+
+func (s *duckdb_time_tz_struct) Set_offset(v int32) {
+	s.offset = v
+}
+
 func (s *duckdb_timestamp) Get_micros() int64 {
 	return s.micros
 }
 
 func (s *duckdb_timestamp) Set_micros(v int64) {
 	s.micros = v
+}
+
+func (s *duckdb_timestamp_s) Get_seconds() int64 {
+	return s.seconds
+}
+
+func (s *duckdb_timestamp_s) Set_seconds(v int64) {
+	s.seconds = v
+}
+
+func (s *duckdb_timestamp_ms) Get_millis() int64 {
+	return s.millis
+}
+
+func (s *duckdb_timestamp_ms) Set_millis(v int64) {
+	s.millis = v
+}
+
+func (s *duckdb_timestamp_ns) Get_nanos() int64 {
+	return s.nanos
+}
+
+func (s *duckdb_timestamp_ns) Set_nanos(v int64) {
+	s.nanos = v
 }
 
 func (s *duckdb_interval) Get_months() int32 {
@@ -287,6 +404,22 @@ func (s *duckdb_hugeint) Set_upper(v int64) {
 	s.upper = v
 }
 
+func (s *duckdb_uhugeint) Get_lower() uint64 {
+	return s.lower
+}
+
+func (s *duckdb_uhugeint) Set_lower(v uint64) {
+	s.lower = v
+}
+
+func (s *duckdb_uhugeint) Get_upper() uint64 {
+	return s.upper
+}
+
+func (s *duckdb_uhugeint) Set_upper(v uint64) {
+	s.upper = v
+}
+
 func (s *duckdb_decimal) Get_width() uint8 {
 	return s.width
 }
@@ -301,6 +434,46 @@ func (s *duckdb_decimal) Get_scale() uint8 {
 
 func (s *duckdb_decimal) Set_scale(v uint8) {
 	s.scale = v
+}
+
+func (s *duckdb_query_progress_type) Get_percentage() float64 {
+	return s.percentage
+}
+
+func (s *duckdb_query_progress_type) Set_percentage(v float64) {
+	s.percentage = v
+}
+
+func (s *duckdb_query_progress_type) Get_rows_processed() uint64 {
+	return s.rows_processed
+}
+
+func (s *duckdb_query_progress_type) Set_rows_processed(v uint64) {
+	s.rows_processed = v
+}
+
+func (s *duckdb_query_progress_type) Get_total_rows_to_process() uint64 {
+	return s.total_rows_to_process
+}
+
+func (s *duckdb_query_progress_type) Set_total_rows_to_process(v uint64) {
+	s.total_rows_to_process = v
+}
+
+func (s *duckdb_list_entry) Get_offset() uint64 {
+	return s.offset
+}
+
+func (s *duckdb_list_entry) Set_offset(v uint64) {
+	s.offset = v
+}
+
+func (s *duckdb_list_entry) Get_length() uint64 {
+	return s.length
+}
+
+func (s *duckdb_list_entry) Set_length(v uint64) {
+	s.length = v
 }
 
 func (s *duckdb_column) Get_deprecated_data() uintptr {
@@ -424,51 +597,121 @@ func (s *duckdb_result) Set_internal_data(v uintptr) {
 }
 
 const (
-	DUCKDB_TYPE_INVALID             = 0
-	DUCKDB_TYPE_BOOLEAN             = 1
-	DUCKDB_TYPE_TINYINT             = 2
-	DUCKDB_TYPE_SMALLINT            = 3
-	DUCKDB_TYPE_INTEGER             = 4
-	DUCKDB_TYPE_BIGINT              = 5
-	DUCKDB_TYPE_UTINYINT            = 6
-	DUCKDB_TYPE_USMALLINT           = 7
-	DUCKDB_TYPE_UINTEGER            = 8
-	DUCKDB_TYPE_UBIGINT             = 9
-	DUCKDB_TYPE_FLOAT               = 10
-	DUCKDB_TYPE_DOUBLE              = 11
-	DUCKDB_TYPE_TIMESTAMP           = 12
-	DUCKDB_TYPE_DATE                = 13
-	DUCKDB_TYPE_TIME                = 14
-	DUCKDB_TYPE_INTERVAL            = 15
-	DUCKDB_TYPE_HUGEINT             = 16
-	DUCKDB_TYPE_UHUGEINT            = 32
-	DUCKDB_TYPE_VARCHAR             = 17
-	DUCKDB_TYPE_BLOB                = 18
-	DUCKDB_TYPE_DECIMAL             = 19
-	DUCKDB_TYPE_TIMESTAMP_S         = 20
-	DUCKDB_TYPE_TIMESTAMP_MS        = 21
-	DUCKDB_TYPE_TIMESTAMP_NS        = 22
-	DUCKDB_TYPE_ENUM                = 23
-	DUCKDB_TYPE_LIST                = 24
-	DUCKDB_TYPE_STRUCT              = 25
-	DUCKDB_TYPE_MAP                 = 26
-	DUCKDB_TYPE_ARRAY               = 33
-	DUCKDB_TYPE_UUID                = 27
-	DUCKDB_TYPE_UNION               = 28
-	DUCKDB_TYPE_BIT                 = 29
-	DUCKDB_TYPE_TIME_TZ             = 30
-	DUCKDB_TYPE_TIMESTAMP_TZ        = 31
-	DuckDBSuccess                   = 0
-	DuckDBError                     = 1
-	DUCKDB_RESULT_TYPE_INVALID      = 0
-	DUCKDB_RESULT_TYPE_CHANGED_ROWS = 1
-	DUCKDB_RESULT_TYPE_NOTHING      = 2
-	DUCKDB_RESULT_TYPE_QUERY_RESULT = 3
-	DUCKDB_STATEMENT_TYPE_INVALID   = 0
-	DUCKDB_STATEMENT_TYPE_SELECT    = 1
-	DUCKDB_STATEMENT_TYPE_INSERT    = 2
-	DUCKDB_STATEMENT_TYPE_UPDATE    = 3
-	DUCKDB_STATEMENT_TYPE_DELETE    = 5
+	DUCKDB_TYPE_INVALID                 = 0
+	DUCKDB_TYPE_BOOLEAN                 = 1
+	DUCKDB_TYPE_TINYINT                 = 2
+	DUCKDB_TYPE_SMALLINT                = 3
+	DUCKDB_TYPE_INTEGER                 = 4
+	DUCKDB_TYPE_BIGINT                  = 5
+	DUCKDB_TYPE_UTINYINT                = 6
+	DUCKDB_TYPE_USMALLINT               = 7
+	DUCKDB_TYPE_UINTEGER                = 8
+	DUCKDB_TYPE_UBIGINT                 = 9
+	DUCKDB_TYPE_FLOAT                   = 10
+	DUCKDB_TYPE_DOUBLE                  = 11
+	DUCKDB_TYPE_TIMESTAMP               = 12
+	DUCKDB_TYPE_DATE                    = 13
+	DUCKDB_TYPE_TIME                    = 14
+	DUCKDB_TYPE_INTERVAL                = 15
+	DUCKDB_TYPE_HUGEINT                 = 16
+	DUCKDB_TYPE_UHUGEINT                = 32
+	DUCKDB_TYPE_VARCHAR                 = 17
+	DUCKDB_TYPE_BLOB                    = 18
+	DUCKDB_TYPE_DECIMAL                 = 19
+	DUCKDB_TYPE_TIMESTAMP_S             = 20
+	DUCKDB_TYPE_TIMESTAMP_MS            = 21
+	DUCKDB_TYPE_TIMESTAMP_NS            = 22
+	DUCKDB_TYPE_ENUM                    = 23
+	DUCKDB_TYPE_LIST                    = 24
+	DUCKDB_TYPE_STRUCT                  = 25
+	DUCKDB_TYPE_MAP                     = 26
+	DUCKDB_TYPE_ARRAY                   = 33
+	DUCKDB_TYPE_UUID                    = 27
+	DUCKDB_TYPE_UNION                   = 28
+	DUCKDB_TYPE_BIT                     = 29
+	DUCKDB_TYPE_TIME_TZ                 = 30
+	DUCKDB_TYPE_TIMESTAMP_TZ            = 31
+	DuckDBSuccess                       = 0
+	DuckDBError                         = 1
+	DUCKDB_PENDING_RESULT_READY         = 0
+	DUCKDB_PENDING_RESULT_NOT_READY     = 1
+	DUCKDB_PENDING_ERROR                = 2
+	DUCKDB_PENDING_NO_TASKS_AVAILABLE   = 3
+	DUCKDB_RESULT_TYPE_INVALID          = 0
+	DUCKDB_RESULT_TYPE_CHANGED_ROWS     = 1
+	DUCKDB_RESULT_TYPE_NOTHING          = 2
+	DUCKDB_RESULT_TYPE_QUERY_RESULT     = 3
+	DUCKDB_STATEMENT_TYPE_INVALID       = 0
+	DUCKDB_STATEMENT_TYPE_SELECT        = 1
+	DUCKDB_STATEMENT_TYPE_INSERT        = 2
+	DUCKDB_STATEMENT_TYPE_UPDATE        = 3
+	DUCKDB_STATEMENT_TYPE_EXPLAIN       = 4
+	DUCKDB_STATEMENT_TYPE_DELETE        = 5
+	DUCKDB_STATEMENT_TYPE_PREPARE       = 6
+	DUCKDB_STATEMENT_TYPE_CREATE        = 7
+	DUCKDB_STATEMENT_TYPE_EXECUTE       = 8
+	DUCKDB_STATEMENT_TYPE_ALTER         = 9
+	DUCKDB_STATEMENT_TYPE_TRANSACTION   = 10
+	DUCKDB_STATEMENT_TYPE_COPY          = 11
+	DUCKDB_STATEMENT_TYPE_ANALYZE       = 12
+	DUCKDB_STATEMENT_TYPE_VARIABLE_SET  = 13
+	DUCKDB_STATEMENT_TYPE_CREATE_FUNC   = 14
+	DUCKDB_STATEMENT_TYPE_DROP          = 15
+	DUCKDB_STATEMENT_TYPE_EXPORT        = 16
+	DUCKDB_STATEMENT_TYPE_PRAGMA        = 17
+	DUCKDB_STATEMENT_TYPE_VACUUM        = 18
+	DUCKDB_STATEMENT_TYPE_CALL          = 19
+	DUCKDB_STATEMENT_TYPE_SET           = 20
+	DUCKDB_STATEMENT_TYPE_LOAD          = 21
+	DUCKDB_STATEMENT_TYPE_RELATION      = 22
+	DUCKDB_STATEMENT_TYPE_EXTENSION     = 23
+	DUCKDB_STATEMENT_TYPE_LOGICAL_PLAN  = 24
+	DUCKDB_STATEMENT_TYPE_ATTACH        = 25
+	DUCKDB_STATEMENT_TYPE_DETACH        = 26
+	DUCKDB_STATEMENT_TYPE_MULTI         = 27
+	DUCKDB_ERROR_INVALID                = 0
+	DUCKDB_ERROR_OUT_OF_RANGE           = 1
+	DUCKDB_ERROR_CONVERSION             = 2
+	DUCKDB_ERROR_UNKNOWN_TYPE           = 3
+	DUCKDB_ERROR_DECIMAL                = 4
+	DUCKDB_ERROR_MISMATCH_TYPE          = 5
+	DUCKDB_ERROR_DIVIDE_BY_ZERO         = 6
+	DUCKDB_ERROR_OBJECT_SIZE            = 7
+	DUCKDB_ERROR_INVALID_TYPE           = 8
+	DUCKDB_ERROR_SERIALIZATION          = 9
+	DUCKDB_ERROR_TRANSACTION            = 10
+	DUCKDB_ERROR_NOT_IMPLEMENTED        = 11
+	DUCKDB_ERROR_EXPRESSION             = 12
+	DUCKDB_ERROR_CATALOG                = 13
+	DUCKDB_ERROR_PARSER                 = 14
+	DUCKDB_ERROR_PLANNER                = 15
+	DUCKDB_ERROR_SCHEDULER              = 16
+	DUCKDB_ERROR_EXECUTOR               = 17
+	DUCKDB_ERROR_CONSTRAINT             = 18
+	DUCKDB_ERROR_INDEX                  = 19
+	DUCKDB_ERROR_STAT                   = 20
+	DUCKDB_ERROR_CONNECTION             = 21
+	DUCKDB_ERROR_SYNTAX                 = 22
+	DUCKDB_ERROR_SETTINGS               = 23
+	DUCKDB_ERROR_BINDER                 = 24
+	DUCKDB_ERROR_NETWORK                = 25
+	DUCKDB_ERROR_OPTIMIZER              = 26
+	DUCKDB_ERROR_NULL_POINTER           = 27
+	DUCKDB_ERROR_IO                     = 28
+	DUCKDB_ERROR_INTERRUPT              = 29
+	DUCKDB_ERROR_FATAL                  = 30
+	DUCKDB_ERROR_INTERNAL               = 31
+	DUCKDB_ERROR_INVALID_INPUT          = 32
+	DUCKDB_ERROR_OUT_OF_MEMORY          = 33
+	DUCKDB_ERROR_PERMISSION             = 34
+	DUCKDB_ERROR_PARAMETER_NOT_RESOLVED = 35
+	DUCKDB_ERROR_PARAMETER_NOT_ALLOWED  = 36
+	DUCKDB_ERROR_DEPENDENCY             = 37
+	DUCKDB_ERROR_HTTP                   = 38
+	DUCKDB_ERROR_MISSING_EXTENSION      = 39
+	DUCKDB_ERROR_AUTOLOAD               = 40
+	DUCKDB_ERROR_SEQUENCE               = 41
+	DUCKDB_INVALID_CONFIGURATION        = 42
 )
 
 var (
@@ -531,6 +774,14 @@ var (
 		connection duckdb_connection,
 	)
 	// !
+	// Get the progress of the running query.
+	//
+	// @param connection The connection running the query.
+	// @return The query progress type containing progress information.
+	duckdb_query_progress func(
+		connection duckdb_connection,
+	) duckdb_query_progress_type
+	// !
 	// Closes the specified connection and de-allocates all memory allocated for that connection.
 	//
 	// @param connection The connection to close.
@@ -542,6 +793,20 @@ var (
 	//
 	// Usually used for developing C extensions that must return this for a compatibility check.
 	duckdb_library_version func() string
+	// !
+	// Get the list of (fully qualified) table names of the query.
+	//
+	// @param connection The connection for which to get the table names.
+	// @param query The query for which to get the table names.
+	// @param qualified Returns fully qualified table names (catalog.schema.table), if set to true, else only the (not
+	// escaped) table names.
+	// @return A duckdb_value of type VARCHAR[] containing the (fully qualified) table names of the query. Must be destroyed
+	// with duckdb_destroy_value.
+	duckdb_get_table_names func(
+		connection duckdb_connection,
+		query string,
+		qualified bool,
+	) duckdb_value
 	// !
 	// Initializes an empty configuration object that can be used to provide start-up options for the DuckDB instance
 	// through `duckdb_open_ext`.
@@ -556,6 +821,30 @@ var (
 	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
 	duckdb_create_config func(
 		out_config *duckdb_config,
+	) int32
+	// !
+	// This returns the total amount of configuration options available for usage with `duckdb_get_config_flag`.
+	//
+	// This should not be called in a loop as it internally loops over all the options.
+	//
+	// @return The amount of config options available.
+	duckdb_config_count func() uint64
+	// !
+	// Obtains a human-readable name and description of a specific configuration option. This can be used to e.g.
+	// display configuration options. This will succeed unless `index` is out of range (i.e. `>= duckdb_config_count`).
+	//
+	// The result name or description MUST NOT be freed.
+	//
+	// @param index The index of the configuration option (between 0 and `duckdb_config_count`)
+	// @param out_name A name of the configuration flag.
+	// @param out_description A description of the configuration flag.
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_get_config_flag func(
+		index uint64,
+		// C: const char **
+		out_name uintptr,
+		// C: const char **
+		out_description uintptr,
 	) int32
 	// !
 	// Sets the specified option for the specified configuration. The configuration option is indicated by name.
@@ -631,6 +920,14 @@ var (
 		col uint64,
 	) int32
 	// !
+	// Returns the statement type of the statement that was executed
+	//
+	// @param result The result object to fetch the statement type from.
+	// @return duckdb_statement_type value or DUCKDB_STATEMENT_TYPE_INVALID
+	duckdb_result_statement_type func(
+		result duckdb_result,
+	) int32
+	// !
 	// Returns the logical column type of the specified column.
 	//
 	// The return type of this call should be destroyed with `duckdb_destroy_logical_type`.
@@ -653,6 +950,16 @@ var (
 		result *duckdb_result,
 	) uint64
 	// !
+	// *DEPRECATION NOTICE**: This method is scheduled for removal in a future release.
+	//
+	// Returns the number of rows present in the result object.
+	//
+	// @param result The result object.
+	// @return The number of rows present in the result object.
+	duckdb_row_count func(
+		result *duckdb_result,
+	) uint64
+	// !
 	// Returns the number of rows changed by the query stored in the result. This is relevant only for INSERT/UPDATE/DELETE
 	// queries. For other queries the rows_changed will be 0.
 	//
@@ -671,6 +978,57 @@ var (
 	duckdb_result_error func(
 		result *duckdb_result,
 	) string
+	// !
+	// Returns the result error type contained within the result. The error is only set if `duckdb_query` returns
+	// `DuckDBError`.
+	//
+	// @param result The result object to fetch the error from.
+	// @return The error type of the result.
+	duckdb_result_error_type func(
+		result *duckdb_result,
+	) int32
+	// !
+	// *DEPRECATION NOTICE**: This method is scheduled for removal in a future release.
+	//
+	// Fetches a data chunk from the duckdb_result. This function should be called repeatedly until the result is exhausted.
+	//
+	// The result must be destroyed with `duckdb_destroy_data_chunk`.
+	//
+	// This function supersedes all `duckdb_value` functions, as well as the `duckdb_column_data` and `duckdb_nullmask_data`
+	// functions. It results in significantly better performance, and should be preferred in newer code-bases.
+	//
+	// If this function is used, none of the other result functions can be used and vice versa (i.e. this function cannot be
+	// mixed with the legacy result functions).
+	//
+	// Use `duckdb_result_chunk_count` to figure out how many chunks there are in the result.
+	//
+	// @param result The result object to fetch the data chunk from.
+	// @param chunk_index The chunk index to fetch from.
+	// @return The resulting data chunk. Returns `NULL` if the chunk index is out of bounds.
+	duckdb_result_get_chunk func(
+		result duckdb_result,
+		chunk_index uint64,
+	) duckdb_data_chunk
+	// !
+	// *DEPRECATION NOTICE**: This method is scheduled for removal in a future release.
+	//
+	// Checks if the type of the internal result is StreamQueryResult.
+	//
+	// @param result The result object to check.
+	// @return Whether or not the result object is of the type StreamQueryResult
+	duckdb_result_is_streaming func(
+		result duckdb_result,
+	) bool
+	// !
+	// *DEPRECATION NOTICE**: This method is scheduled for removal in a future release.
+	//
+	// Returns the number of data chunks present in the result.
+	//
+	// @param result The result object
+	// @return Number of data chunks present in the result.
+	duckdb_result_chunk_count func(
+		result duckdb_result,
+	) uint64
 	// !
 	// Returns the return_type of the given result, or DUCKDB_RETURN_TYPE_INVALID on error
 	//
@@ -713,6 +1071,22 @@ var (
 		date duckdb_date,
 	) duckdb_date_struct
 	// !
+	// Re-compose a `duckdb_date` from year, month and date (`duckdb_date_struct`).
+	//
+	// @param date The year, month and date stored in a `duckdb_date_struct`.
+	// @return The `duckdb_date` element.
+	duckdb_to_date func(
+		date duckdb_date_struct,
+	) duckdb_date
+	// !
+	// Test a `duckdb_date` to see if it is a finite value.
+	//
+	// @param date The date object, as obtained from a `DUCKDB_TYPE_DATE` column.
+	// @return True if the date is finite, false if it is ±infinity.
+	duckdb_is_finite_date func(
+		date duckdb_date,
+	) bool
+	// !
 	// Decompose a `duckdb_time` object into hour, minute, second and microsecond (stored as `duckdb_time_struct`).
 	//
 	// @param time The time object, as obtained from a `DUCKDB_TYPE_TIME` column.
@@ -721,6 +1095,33 @@ var (
 		time duckdb_time,
 	) duckdb_time_struct
 	// !
+	// Create a `duckdb_time_tz` object from micros and a timezone offset.
+	//
+	// @param micros The microsecond component of the time.
+	// @param offset The timezone offset component of the time.
+	// @return The `duckdb_time_tz` element.
+	duckdb_create_time_tz func(
+		micros int64,
+		offset int32,
+	) duckdb_time_tz
+	// !
+	// Decompose a TIME_TZ objects into micros and a timezone offset.
+	//
+	// Use `duckdb_from_time` to further decompose the micros into hour, minute, second and microsecond.
+	//
+	// @param micros The time object, as obtained from a `DUCKDB_TYPE_TIME_TZ` column.
+	duckdb_from_time_tz func(
+		micros duckdb_time_tz,
+	) duckdb_time_tz_struct
+	// !
+	// Re-compose a `duckdb_time` from hour, minute, second and microsecond (`duckdb_time_struct`).
+	//
+	// @param time The hour, minute, second and microsecond in a `duckdb_time_struct`.
+	// @return The `duckdb_time` element.
+	duckdb_to_time func(
+		time duckdb_time_struct,
+	) duckdb_time
+	// !
 	// Decompose a `duckdb_timestamp` object into a `duckdb_timestamp_struct`.
 	//
 	// @param ts The ts object, as obtained from a `DUCKDB_TYPE_TIMESTAMP` column.
@@ -728,6 +1129,78 @@ var (
 	duckdb_from_timestamp func(
 		ts duckdb_timestamp,
 	) duckdb_timestamp_struct
+	// !
+	// Re-compose a `duckdb_timestamp` from a duckdb_timestamp_struct.
+	//
+	// @param ts The de-composed elements in a `duckdb_timestamp_struct`.
+	// @return The `duckdb_timestamp` element.
+	duckdb_to_timestamp func(
+		ts duckdb_timestamp_struct,
+	) duckdb_timestamp
+	// !
+	// Test a `duckdb_timestamp` to see if it is a finite value.
+	//
+	// @param ts The duckdb_timestamp object, as obtained from a `DUCKDB_TYPE_TIMESTAMP` column.
+	// @return True if the timestamp is finite, false if it is ±infinity.
+	duckdb_is_finite_timestamp func(
+		ts duckdb_timestamp,
+	) bool
+	// !
+	// Converts a duckdb_hugeint object (as obtained from a `DUCKDB_TYPE_HUGEINT` column) into a double.
+	//
+	// @param val The hugeint value.
+	// @return The converted `double` element.
+	duckdb_hugeint_to_double func(
+		val duckdb_hugeint,
+	) float64
+	// !
+	// Converts a double value to a duckdb_hugeint object.
+	//
+	// If the conversion fails because the double value is too big the result will be 0.
+	//
+	// @param val The double value.
+	// @return The converted `duckdb_hugeint` element.
+	duckdb_double_to_hugeint func(
+		val float64,
+	) duckdb_hugeint
+	// !
+	// Converts a duckdb_uhugeint object (as obtained from a `DUCKDB_TYPE_UHUGEINT` column) into a double.
+	//
+	// @param val The uhugeint value.
+	// @return The converted `double` element.
+	duckdb_uhugeint_to_double func(
+		val duckdb_uhugeint,
+	) float64
+	// !
+	// Converts a double value to a duckdb_uhugeint object.
+	//
+	// If the conversion fails because the double value is too big the result will be 0.
+	//
+	// @param val The double value.
+	// @return The converted `duckdb_uhugeint` element.
+	duckdb_double_to_uhugeint func(
+		val float64,
+	) duckdb_uhugeint
+	// !
+	// Converts a double value to a duckdb_decimal object.
+	//
+	// If the conversion fails because the double value is too big, or the width/scale are invalid the result will be 0.
+	//
+	// @param val The double value.
+	// @return The converted `duckdb_decimal` element.
+	duckdb_double_to_decimal func(
+		val float64,
+		width uint8,
+		scale uint8,
+	) duckdb_decimal
+	// !
+	// Converts a duckdb_decimal object (as obtained from a `DUCKDB_TYPE_DECIMAL` column) into a double.
+	//
+	// @param val The decimal value.
+	// @return The converted `double` element.
+	duckdb_decimal_to_double func(
+		val duckdb_decimal,
+	) float64
 	// !
 	// Create a prepared statement object from a query.
 	//
@@ -785,6 +1258,32 @@ var (
 		// C: const char *
 	) uintptr
 	// !
+	// Returns the parameter type for the parameter at the given index.
+	//
+	// Returns `DUCKDB_TYPE_INVALID` if the parameter index is out of range or the statement was not successfully prepared.
+	//
+	// @param prepared_statement The prepared statement.
+	// @param param_idx The parameter index.
+	// @return The parameter type
+	duckdb_param_type func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+	) int32
+	// !
+	// Returns the logical type for the parameter at the given index.
+	//
+	// Returns `nullptr` if the parameter index is out of range or the statement was not successfully prepared.
+	//
+	// The return type of this call should be destroyed with `duckdb_destroy_logical_type`.
+	//
+	// @param prepared_statement The prepared statement.
+	// @param param_idx The parameter index.
+	// @return The logical type of the parameter
+	duckdb_param_logical_type func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+	) duckdb_logical_type
+	// !
 	// Clear the params bind to the prepared statement.
 	duckdb_clear_bindings func(
 		prepared_statement duckdb_prepared_statement,
@@ -796,6 +1295,63 @@ var (
 	// @return duckdb_statement_type value or DUCKDB_STATEMENT_TYPE_INVALID
 	duckdb_prepared_statement_type func(
 		statement duckdb_prepared_statement,
+	) int32
+	// !
+	// Returns the number of columns present in a the result of the prepared statement. If any of the column types are invalid,
+	// the result will be 1.
+	//
+	// @param prepared_statement The prepared statement.
+	// @return The number of columns present in the result of the prepared statement.
+	duckdb_prepared_statement_column_count func(
+		prepared_statement duckdb_prepared_statement,
+	) uint64
+	// !
+	// Returns the name of the specified column of the result of the prepared_statement.
+	// The returned string should be freed using `duckdb_free`.
+	//
+	// Returns `nullptr` if the column is out of range.
+	//
+	// @param prepared_statement The prepared statement.
+	// @param col_idx The column index.
+	// @return The column name of the specified column.
+	duckdb_prepared_statement_column_name func(
+		prepared_statement duckdb_prepared_statement,
+		col_idx uint64,
+		// C: const char *
+	) uintptr
+	// !
+	// Returns the column type of the specified column of the result of the prepared_statement.
+	//
+	// Returns `DUCKDB_TYPE_INVALID` if the column is out of range.
+	// The return type of this call should be destroyed with `duckdb_destroy_logical_type`.
+	//
+	// @param prepared_statement The prepared statement to fetch the column type from.
+	// @param col_idx The column index.
+	// @return The logical type of the specified column.
+	duckdb_prepared_statement_column_logical_type func(
+		prepared_statement duckdb_prepared_statement,
+		col_idx uint64,
+	) duckdb_logical_type
+	// !
+	// Returns the column type of the specified column of the result of the prepared_statement.
+	//
+	// Returns `DUCKDB_TYPE_INVALID` if the column is out of range.
+	//
+	// @param prepared_statement The prepared statement to fetch the column type from.
+	// @param col_idx The column index.
+	// @return The type of the specified column.
+	duckdb_prepared_statement_column_type func(
+		prepared_statement duckdb_prepared_statement,
+		col_idx uint64,
+	) int32
+	// !
+	// Binds a value to the prepared statement at the specified index.
+	//
+	// Supersedes all type-specific bind functions (e.g., `duckdb_bind_varchar`, `duckdb_bind_int64`, etc.).
+	duckdb_bind_value func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val duckdb_value,
 	) int32
 	// !
 	// Retrieve the index of the parameter for the prepared statement, identified by name
@@ -812,6 +1368,20 @@ var (
 		val bool,
 	) int32
 	// !
+	// Binds an int8_t value to the prepared statement at the specified index.
+	duckdb_bind_int8 func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val int8,
+	) int32
+	// !
+	// Binds an int16_t value to the prepared statement at the specified index.
+	duckdb_bind_int16 func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val int16,
+	) int32
+	// !
 	// Binds an int32_t value to the prepared statement at the specified index.
 	duckdb_bind_int32 func(
 		prepared_statement duckdb_prepared_statement,
@@ -824,6 +1394,55 @@ var (
 		prepared_statement duckdb_prepared_statement,
 		param_idx uint64,
 		val int64,
+	) int32
+	// !
+	// Binds a duckdb_hugeint value to the prepared statement at the specified index.
+	duckdb_bind_hugeint func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val duckdb_hugeint,
+	) int32
+	// !
+	// Binds a duckdb_uhugeint value to the prepared statement at the specified index.
+	duckdb_bind_uhugeint func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val duckdb_uhugeint,
+	) int32
+	// !
+	// Binds a duckdb_decimal value to the prepared statement at the specified index.
+	duckdb_bind_decimal func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val duckdb_decimal,
+	) int32
+	// !
+	// Binds a uint8_t value to the prepared statement at the specified index.
+	duckdb_bind_uint8 func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val uint8,
+	) int32
+	// !
+	// Binds a uint16_t value to the prepared statement at the specified index.
+	duckdb_bind_uint16 func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val uint16,
+	) int32
+	// !
+	// Binds a uint32_t value to the prepared statement at the specified index.
+	duckdb_bind_uint32 func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val uint32,
+	) int32
+	// !
+	// Binds a uint64_t value to the prepared statement at the specified index.
+	duckdb_bind_uint64 func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val uint64,
 	) int32
 	// !
 	// Binds a float value to the prepared statement at the specified index.
@@ -840,11 +1459,39 @@ var (
 		val float64,
 	) int32
 	// !
+	// Binds a duckdb_date value to the prepared statement at the specified index.
+	duckdb_bind_date func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val duckdb_date,
+	) int32
+	// !
+	// Binds a duckdb_time value to the prepared statement at the specified index.
+	duckdb_bind_time func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val duckdb_time,
+	) int32
+	// !
 	// Binds a duckdb_timestamp value to the prepared statement at the specified index.
 	duckdb_bind_timestamp func(
 		prepared_statement duckdb_prepared_statement,
 		param_idx uint64,
 		val duckdb_timestamp,
+	) int32
+	// !
+	// Binds a duckdb_timestamp value to the prepared statement at the specified index.
+	duckdb_bind_timestamp_tz func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val duckdb_timestamp,
+	) int32
+	// !
+	// Binds a duckdb_interval value to the prepared statement at the specified index.
+	duckdb_bind_interval func(
+		prepared_statement duckdb_prepared_statement,
+		param_idx uint64,
+		val duckdb_interval,
 	) int32
 	// !
 	// Binds a null-terminated varchar value to the prepared statement at the specified index.
@@ -896,6 +1543,893 @@ var (
 		out_result *duckdb_result,
 	) int32
 	// !
+	// *DEPRECATION NOTICE**: This method is scheduled for removal in a future release.
+	//
+	// Executes the prepared statement with the given bound parameters, and returns an optionally-streaming query result.
+	// To determine if the resulting query was in fact streamed, use `duckdb_result_is_streaming`
+	//
+	// This method can be called multiple times for each prepared statement, and the parameters can be modified
+	// between calls to this function.
+	//
+	// Note that the result must be freed with `duckdb_destroy_result`.
+	//
+	// @param prepared_statement The prepared statement to execute.
+	// @param out_result The query result.
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_execute_prepared_streaming func(
+		prepared_statement duckdb_prepared_statement,
+		out_result *duckdb_result,
+	) int32
+	// !
+	// Extract all statements from a query.
+	// Note that after calling `duckdb_extract_statements`, the extracted statements should always be destroyed using
+	// `duckdb_destroy_extracted`, even if no statements were extracted.
+	//
+	// If the extract fails, `duckdb_extract_statements_error` can be called to obtain the reason why the extract failed.
+	//
+	// @param connection The connection object
+	// @param query The SQL query to extract
+	// @param out_extracted_statements The resulting extracted statements object
+	// @return The number of extracted statements or 0 on failure.
+	duckdb_extract_statements func(
+		connection duckdb_connection,
+		query string,
+		out_extracted_statements *duckdb_extracted_statements,
+	) uint64
+	// !
+	// Prepare an extracted statement.
+	// Note that after calling `duckdb_prepare_extracted_statement`, the prepared statement should always be destroyed using
+	// `duckdb_destroy_prepare`, even if the prepare fails.
+	//
+	// If the prepare fails, `duckdb_prepare_error` can be called to obtain the reason why the prepare failed.
+	//
+	// @param connection The connection object
+	// @param extracted_statements The extracted statements object
+	// @param index The index of the extracted statement to prepare
+	// @param out_prepared_statement The resulting prepared statement object
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_prepare_extracted_statement func(
+		connection duckdb_connection,
+		extracted_statements duckdb_extracted_statements,
+		index uint64,
+		out_prepared_statement *duckdb_prepared_statement,
+	) int32
+	// !
+	// Returns the error message contained within the extracted statements.
+	// The result of this function must not be freed. It will be cleaned up when `duckdb_destroy_extracted` is called.
+	//
+	// @param extracted_statements The extracted statements to fetch the error from.
+	// @return The error of the extracted statements.
+	duckdb_extract_statements_error func(
+		extracted_statements duckdb_extracted_statements,
+	) string
+	// !
+	// De-allocates all memory allocated for the extracted statements.
+	// @param extracted_statements The extracted statements to destroy.
+	duckdb_destroy_extracted func(
+		extracted_statements *duckdb_extracted_statements,
+	)
+	// !
+	// Executes the prepared statement with the given bound parameters, and returns a pending result.
+	// The pending result represents an intermediate structure for a query that is not yet fully executed.
+	// The pending result can be used to incrementally execute a query, returning control to the client between tasks.
+	//
+	// Note that after calling `duckdb_pending_prepared`, the pending result should always be destroyed using
+	// `duckdb_destroy_pending`, even if this function returns DuckDBError.
+	//
+	// @param prepared_statement The prepared statement to execute.
+	// @param out_result The pending query result.
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_pending_prepared func(
+		prepared_statement duckdb_prepared_statement,
+		out_result *duckdb_pending_result,
+	) int32
+	// !
+	// *DEPRECATION NOTICE**: This method is scheduled for removal in a future release.
+	//
+	// Executes the prepared statement with the given bound parameters, and returns a pending result.
+	// This pending result will create a streaming duckdb_result when executed.
+	// The pending result represents an intermediate structure for a query that is not yet fully executed.
+	//
+	// Note that after calling `duckdb_pending_prepared_streaming`, the pending result should always be destroyed using
+	// `duckdb_destroy_pending`, even if this function returns DuckDBError.
+	//
+	// @param prepared_statement The prepared statement to execute.
+	// @param out_result The pending query result.
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_pending_prepared_streaming func(
+		prepared_statement duckdb_prepared_statement,
+		out_result *duckdb_pending_result,
+	) int32
+	// !
+	// Closes the pending result and de-allocates all memory allocated for the result.
+	//
+	// @param pending_result The pending result to destroy.
+	duckdb_destroy_pending func(
+		pending_result *duckdb_pending_result,
+	)
+	// !
+	// Returns the error message contained within the pending result.
+	//
+	// The result of this function must not be freed. It will be cleaned up when `duckdb_destroy_pending` is called.
+	//
+	// @param pending_result The pending result to fetch the error from.
+	// @return The error of the pending result.
+	duckdb_pending_error func(
+		pending_result duckdb_pending_result,
+	) string
+	// !
+	// Executes a single task within the query, returning whether or not the query is ready.
+	//
+	// If this returns DUCKDB_PENDING_RESULT_READY, the duckdb_execute_pending function can be called to obtain the result.
+	// If this returns DUCKDB_PENDING_RESULT_NOT_READY, the duckdb_pending_execute_task function should be called again.
+	// If this returns DUCKDB_PENDING_ERROR, an error occurred during execution.
+	//
+	// The error message can be obtained by calling duckdb_pending_error on the pending_result.
+	//
+	// @param pending_result The pending result to execute a task within.
+	// @return The state of the pending result after the execution.
+	duckdb_pending_execute_task func(
+		pending_result duckdb_pending_result,
+	) int32
+	// !
+	// If this returns DUCKDB_PENDING_RESULT_READY, the duckdb_execute_pending function can be called to obtain the result.
+	// If this returns DUCKDB_PENDING_RESULT_NOT_READY, the duckdb_pending_execute_check_state function should be called again.
+	// If this returns DUCKDB_PENDING_ERROR, an error occurred during execution.
+	//
+	// The error message can be obtained by calling duckdb_pending_error on the pending_result.
+	//
+	// @param pending_result The pending result.
+	// @return The state of the pending result.
+	duckdb_pending_execute_check_state func(
+		pending_result duckdb_pending_result,
+	) int32
+	// !
+	// Fully execute a pending query result, returning the final query result.
+	//
+	// If duckdb_pending_execute_task has been called until DUCKDB_PENDING_RESULT_READY was returned, this will return fast.
+	// Otherwise, all remaining tasks must be executed first.
+	//
+	// Note that the result must be freed with `duckdb_destroy_result`.
+	//
+	// @param pending_result The pending result to execute.
+	// @param out_result The result object.
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_execute_pending func(
+		pending_result duckdb_pending_result,
+		out_result *duckdb_result,
+	) int32
+	// !
+	// Returns whether a duckdb_pending_state is finished executing. For example if `pending_state` is
+	// DUCKDB_PENDING_RESULT_READY, this function will return true.
+	//
+	// @param pending_state The pending state on which to decide whether to finish execution.
+	// @return Boolean indicating pending execution should be considered finished.
+	duckdb_pending_execution_is_finished func(
+		pending_state int32,
+	) bool
+	// !
+	// Destroys the value and de-allocates all memory allocated for that type.
+	//
+	// @param value The value to destroy.
+	duckdb_destroy_value func(
+		value *duckdb_value,
+	)
+	// !
+	// Creates a value from a null-terminated string. Returns nullptr if the string is not valid UTF-8 or other invalid input.
+	//
+	// Superseded by `duckdb_create_varchar_length`.
+	//
+	// @param text The null-terminated string
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_varchar func(
+		text string,
+	) duckdb_value
+	// !
+	// Creates a value from a string. Returns nullptr if the string is not valid UTF-8 or other invalid input.
+	//
+	// @param text The text
+	// @param length The length of the text
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_varchar_length func(
+		text string,
+		length uint64,
+	) duckdb_value
+	// !
+	// Creates a value from a boolean
+	//
+	// @param input The boolean value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_bool func(
+		input bool,
+	) duckdb_value
+	// !
+	// Creates a value from an int8_t (a tinyint)
+	//
+	// @param input The tinyint value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_int8 func(
+		input int8,
+	) duckdb_value
+	// !
+	// Creates a value from a uint8_t (a utinyint)
+	//
+	// @param input The utinyint value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_uint8 func(
+		input uint8,
+	) duckdb_value
+	// !
+	// Creates a value from an int16_t (a smallint)
+	//
+	// @param input The smallint value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_int16 func(
+		input int16,
+	) duckdb_value
+	// !
+	// Creates a value from a uint16_t (a usmallint)
+	//
+	// @param input The usmallint value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_uint16 func(
+		input uint16,
+	) duckdb_value
+	// !
+	// Creates a value from an int32_t (an integer)
+	//
+	// @param input The integer value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_int32 func(
+		input int32,
+	) duckdb_value
+	// !
+	// Creates a value from a uint32_t (a uinteger)
+	//
+	// @param input The uinteger value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_uint32 func(
+		input uint32,
+	) duckdb_value
+	// !
+	// Creates a value from a uint64_t (a ubigint)
+	//
+	// @param input The ubigint value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_uint64 func(
+		input uint64,
+	) duckdb_value
+	// !
+	// Creates a value from an int64
+	//
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_int64 func(
+		val int64,
+	) duckdb_value
+	// !
+	// Creates a value from a hugeint
+	//
+	// @param input The hugeint value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_hugeint func(
+		input duckdb_hugeint,
+	) duckdb_value
+	// !
+	// Creates a value from a uhugeint
+	//
+	// @param input The uhugeint value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_uhugeint func(
+		input duckdb_uhugeint,
+	) duckdb_value
+	// !
+	// Creates a DECIMAL value from a duckdb_decimal
+	//
+	// @param input The duckdb_decimal value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_decimal func(
+		input duckdb_decimal,
+	) duckdb_value
+	// !
+	// Creates a value from a float
+	//
+	// @param input The float value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_float func(
+		input float32,
+	) duckdb_value
+	// !
+	// Creates a value from a double
+	//
+	// @param input The double value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_double func(
+		input float64,
+	) duckdb_value
+	// !
+	// Creates a value from a date
+	//
+	// @param input The date value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_date func(
+		input duckdb_date,
+	) duckdb_value
+	// !
+	// Creates a value from a time
+	//
+	// @param input The time value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_time func(
+		input duckdb_time,
+	) duckdb_value
+	// !
+	// Creates a value from a time_tz.
+	// Not to be confused with `duckdb_create_time_tz`, which creates a duckdb_time_tz_t.
+	//
+	// @param value The time_tz value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_time_tz_value func(
+		value duckdb_time_tz,
+	) duckdb_value
+	// !
+	// Creates a TIMESTAMP value from a duckdb_timestamp
+	//
+	// @param input The duckdb_timestamp value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_timestamp func(
+		input duckdb_timestamp,
+	) duckdb_value
+	// !
+	// Creates a TIMESTAMP_TZ value from a duckdb_timestamp
+	//
+	// @param input The duckdb_timestamp value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_timestamp_tz func(
+		input duckdb_timestamp,
+	) duckdb_value
+	// !
+	// Creates a TIMESTAMP_S value from a duckdb_timestamp_s
+	//
+	// @param input The duckdb_timestamp_s value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_timestamp_s func(
+		input duckdb_timestamp_s,
+	) duckdb_value
+	// !
+	// Creates a TIMESTAMP_MS value from a duckdb_timestamp_ms
+	//
+	// @param input The duckdb_timestamp_ms value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_timestamp_ms func(
+		input duckdb_timestamp_ms,
+	) duckdb_value
+	// !
+	// Creates a TIMESTAMP_NS value from a duckdb_timestamp_ns
+	//
+	// @param input The duckdb_timestamp_ns value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_timestamp_ns func(
+		input duckdb_timestamp_ns,
+	) duckdb_value
+	// !
+	// Creates a value from an interval
+	//
+	// @param input The interval value
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_interval func(
+		input duckdb_interval,
+	) duckdb_value
+	// !
+	// Creates a value from a blob
+	//
+	// @param data The blob data
+	// @param length The length of the blob data
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_blob func(
+		data string,
+		length uint64,
+	) duckdb_value
+	// !
+	// Creates a UUID value from a uhugeint
+	//
+	// @param input The duckdb_uhugeint containing the UUID
+	// @return The value. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_uuid func(
+		input duckdb_uhugeint,
+	) duckdb_value
+	// !
+	// Returns the boolean value of the given value.
+	//
+	// @param val A duckdb_value containing a boolean
+	// @return A boolean, or false if the value cannot be converted
+	duckdb_get_bool func(
+		val duckdb_value,
+	) bool
+	// !
+	// Returns the int8_t value of the given value.
+	//
+	// @param val A duckdb_value containing a tinyint
+	// @return A int8_t, or MinValue<int8> if the value cannot be converted
+	duckdb_get_int8 func(
+		val duckdb_value,
+	) int8
+	// !
+	// Returns the uint8_t value of the given value.
+	//
+	// @param val A duckdb_value containing a utinyint
+	// @return A uint8_t, or MinValue<uint8> if the value cannot be converted
+	duckdb_get_uint8 func(
+		val duckdb_value,
+	) uint8
+	// !
+	// Returns the int16_t value of the given value.
+	//
+	// @param val A duckdb_value containing a smallint
+	// @return A int16_t, or MinValue<int16> if the value cannot be converted
+	duckdb_get_int16 func(
+		val duckdb_value,
+	) int16
+	// !
+	// Returns the uint16_t value of the given value.
+	//
+	// @param val A duckdb_value containing a usmallint
+	// @return A uint16_t, or MinValue<uint16> if the value cannot be converted
+	duckdb_get_uint16 func(
+		val duckdb_value,
+	) uint16
+	// !
+	// Returns the int32_t value of the given value.
+	//
+	// @param val A duckdb_value containing an integer
+	// @return A int32_t, or MinValue<int32> if the value cannot be converted
+	duckdb_get_int32 func(
+		val duckdb_value,
+	) int32
+	// !
+	// Returns the uint32_t value of the given value.
+	//
+	// @param val A duckdb_value containing a uinteger
+	// @return A uint32_t, or MinValue<uint32> if the value cannot be converted
+	duckdb_get_uint32 func(
+		val duckdb_value,
+	) uint32
+	// !
+	// Returns the int64_t value of the given value.
+	//
+	// @param val A duckdb_value containing a bigint
+	// @return A int64_t, or MinValue<int64> if the value cannot be converted
+	duckdb_get_int64 func(
+		val duckdb_value,
+	) int64
+	// !
+	// Returns the uint64_t value of the given value.
+	//
+	// @param val A duckdb_value containing a ubigint
+	// @return A uint64_t, or MinValue<uint64> if the value cannot be converted
+	duckdb_get_uint64 func(
+		val duckdb_value,
+	) uint64
+	// !
+	// Returns the hugeint value of the given value.
+	//
+	// @param val A duckdb_value containing a hugeint
+	// @return A duckdb_hugeint, or MinValue<hugeint> if the value cannot be converted
+	duckdb_get_hugeint func(
+		val duckdb_value,
+	) duckdb_hugeint
+	// !
+	// Returns the uhugeint value of the given value.
+	//
+	// @param val A duckdb_value containing a uhugeint
+	// @return A duckdb_uhugeint, or MinValue<uhugeint> if the value cannot be converted
+	duckdb_get_uhugeint func(
+		val duckdb_value,
+	) duckdb_uhugeint
+	// !
+	// Returns the duckdb_decimal value of the given value.
+	//
+	// @param val A duckdb_value containing a DECIMAL
+	// @return A duckdb_decimal, or MinValue<decimal> if the value cannot be converted
+	duckdb_get_decimal func(
+		val duckdb_value,
+	) duckdb_decimal
+	// !
+	// Returns the float value of the given value.
+	//
+	// @param val A duckdb_value containing a float
+	// @return A float, or NAN if the value cannot be converted
+	duckdb_get_float func(
+		val duckdb_value,
+	) float32
+	// !
+	// Returns the double value of the given value.
+	//
+	// @param val A duckdb_value containing a double
+	// @return A double, or NAN if the value cannot be converted
+	duckdb_get_double func(
+		val duckdb_value,
+	) float64
+	// !
+	// Returns the date value of the given value.
+	//
+	// @param val A duckdb_value containing a date
+	// @return A duckdb_date, or MinValue<date> if the value cannot be converted
+	duckdb_get_date func(
+		val duckdb_value,
+	) duckdb_date
+	// !
+	// Returns the time value of the given value.
+	//
+	// @param val A duckdb_value containing a time
+	// @return A duckdb_time, or MinValue<time> if the value cannot be converted
+	duckdb_get_time func(
+		val duckdb_value,
+	) duckdb_time
+	// !
+	// Returns the time_tz value of the given value.
+	//
+	// @param val A duckdb_value containing a time_tz
+	// @return A duckdb_time_tz, or MinValue<time_tz> if the value cannot be converted
+	duckdb_get_time_tz func(
+		val duckdb_value,
+	) duckdb_time_tz
+	// !
+	// Returns the TIMESTAMP value of the given value.
+	//
+	// @param val A duckdb_value containing a TIMESTAMP
+	// @return A duckdb_timestamp, or MinValue<timestamp> if the value cannot be converted
+	duckdb_get_timestamp func(
+		val duckdb_value,
+	) duckdb_timestamp
+	// !
+	// Returns the TIMESTAMP_TZ value of the given value.
+	//
+	// @param val A duckdb_value containing a TIMESTAMP_TZ
+	// @return A duckdb_timestamp, or MinValue<timestamp_tz> if the value cannot be converted
+	duckdb_get_timestamp_tz func(
+		val duckdb_value,
+	) duckdb_timestamp
+	// !
+	// Returns the duckdb_timestamp_s value of the given value.
+	//
+	// @param val A duckdb_value containing a TIMESTAMP_S
+	// @return A duckdb_timestamp_s, or MinValue<timestamp_s> if the value cannot be converted
+	duckdb_get_timestamp_s func(
+		val duckdb_value,
+	) duckdb_timestamp_s
+	// !
+	// Returns the duckdb_timestamp_ms value of the given value.
+	//
+	// @param val A duckdb_value containing a TIMESTAMP_MS
+	// @return A duckdb_timestamp_ms, or MinValue<timestamp_ms> if the value cannot be converted
+	duckdb_get_timestamp_ms func(
+		val duckdb_value,
+	) duckdb_timestamp_ms
+	// !
+	// Returns the duckdb_timestamp_ns value of the given value.
+	//
+	// @param val A duckdb_value containing a TIMESTAMP_NS
+	// @return A duckdb_timestamp_ns, or MinValue<timestamp_ns> if the value cannot be converted
+	duckdb_get_timestamp_ns func(
+		val duckdb_value,
+	) duckdb_timestamp_ns
+	// !
+	// Returns the interval value of the given value.
+	//
+	// @param val A duckdb_value containing a interval
+	// @return A duckdb_interval, or MinValue<interval> if the value cannot be converted
+	duckdb_get_interval func(
+		val duckdb_value,
+	) duckdb_interval
+	// !
+	// Returns the type of the given value. The type is valid as long as the value is not destroyed.
+	// The type itself must not be destroyed.
+	//
+	// @param val A duckdb_value
+	// @return A duckdb_logical_type.
+	duckdb_get_value_type func(
+		val duckdb_value,
+	) duckdb_logical_type
+	// !
+	// Returns the blob value of the given value.
+	//
+	// @param val A duckdb_value containing a blob
+	// @return A duckdb_blob
+	duckdb_get_blob func(
+		val duckdb_value,
+	) duckdb_blob
+	// !
+	// Returns a duckdb_uhugeint representing the UUID value of the given value.
+	//
+	// @param val A duckdb_value containing a UUID
+	// @return A duckdb_uhugeint representing the UUID value
+	duckdb_get_uuid func(
+		val duckdb_value,
+	) duckdb_uhugeint
+	// !
+	// Obtains a string representation of the given value.
+	// The result must be destroyed with `duckdb_free`.
+	//
+	// @param value The value
+	// @return The string value. This must be destroyed with `duckdb_free`.
+	duckdb_get_varchar func(
+		value duckdb_value,
+		// C: char *
+	) uintptr
+	// !
+	// Creates a struct value from a type and an array of values. Must be destroyed with `duckdb_destroy_value`.
+	//
+	// @param type The type of the struct
+	// @param values The values for the struct fields
+	// @return The struct value, or nullptr, if any child type is `DUCKDB_TYPE_ANY` or `DUCKDB_TYPE_INVALID`.
+	duckdb_create_struct_value func(
+		type_ duckdb_logical_type,
+		values *duckdb_value,
+	) duckdb_value
+	// !
+	// Creates a list value from a child (element) type and an array of values of length `value_count`.
+	// Must be destroyed with `duckdb_destroy_value`.
+	//
+	// @param type The type of the list
+	// @param values The values for the list
+	// @param value_count The number of values in the list
+	// @return The list value, or nullptr, if the child type is `DUCKDB_TYPE_ANY` or `DUCKDB_TYPE_INVALID`.
+	duckdb_create_list_value func(
+		type_ duckdb_logical_type,
+		values *duckdb_value,
+		value_count uint64,
+	) duckdb_value
+	// !
+	// Creates an array value from a child (element) type and an array of values of length `value_count`.
+	// Must be destroyed with `duckdb_destroy_value`.
+	//
+	// @param type The type of the array
+	// @param values The values for the array
+	// @param value_count The number of values in the array
+	// @return The array value, or nullptr, if the child type is `DUCKDB_TYPE_ANY` or `DUCKDB_TYPE_INVALID`.
+	duckdb_create_array_value func(
+		type_ duckdb_logical_type,
+		values *duckdb_value,
+		value_count uint64,
+	) duckdb_value
+	// !
+	// Creates a map value from a map type and two arrays, one for the keys and one for the values, each of length
+	// `entry_count`. Must be destroyed with `duckdb_destroy_value`.
+	//
+	// @param map_type The map type
+	// @param keys The keys of the map
+	// @param values The values of the map
+	// @param entry_count The number of entrys (key-value pairs) in the map
+	// @return The map value, or nullptr, if the parameters are invalid.
+	duckdb_create_map_value func(
+		map_type duckdb_logical_type,
+		keys *duckdb_value,
+		values *duckdb_value,
+		entry_count uint64,
+	) duckdb_value
+	// !
+	// Creates a union value from a union type, a tag index, and a value.
+	// Must be destroyed with `duckdb_destroy_value`.
+	//
+	// @param union_type The union type
+	// @param tag_index The index of the tag of the union
+	// @param value The value of the union for that tag
+	// @return The union value, or nullptr, if the parameters are invalid.
+	duckdb_create_union_value func(
+		union_type duckdb_logical_type,
+		tag_index uint64,
+		value duckdb_value,
+	) duckdb_value
+	// !
+	// Returns the number of elements in a MAP value.
+	//
+	// @param value The MAP value.
+	// @return The number of elements in the map.
+	duckdb_get_map_size func(
+		value duckdb_value,
+	) uint64
+	// !
+	// Returns the MAP key at index as a duckdb_value.
+	//
+	// @param value The MAP value.
+	// @param index The index of the key.
+	// @return The key as a duckdb_value.
+	duckdb_get_map_key func(
+		value duckdb_value,
+		index uint64,
+	) duckdb_value
+	// !
+	// Returns the MAP value at index as a duckdb_value.
+	//
+	// @param value The MAP value.
+	// @param index The index of the value.
+	// @return The value as a duckdb_value.
+	duckdb_get_map_value func(
+		value duckdb_value,
+		index uint64,
+	) duckdb_value
+	// !
+	// Returns whether the value's type is SQLNULL or not.
+	//
+	// @param value The value to check.
+	// @return True, if the value's type is SQLNULL, otherwise false.
+	duckdb_is_null_value func(
+		value duckdb_value,
+	) bool
+	// !
+	// Creates a value of type SQLNULL.
+	//
+	// @return The duckdb_value representing SQLNULL. This must be destroyed with `duckdb_destroy_value`.
+	duckdb_create_null_value func() duckdb_value
+	// !
+	// Returns the number of elements in a LIST value.
+	//
+	// @param value The LIST value.
+	// @return The number of elements in the list.
+	duckdb_get_list_size func(
+		value duckdb_value,
+	) uint64
+	// !
+	// Returns the LIST child at index as a duckdb_value.
+	//
+	// @param value The LIST value.
+	// @param index The index of the child.
+	// @return The child as a duckdb_value.
+	duckdb_get_list_child func(
+		value duckdb_value,
+		index uint64,
+	) duckdb_value
+	// !
+	// Creates an enum value from a type and a value. Must be destroyed with `duckdb_destroy_value`.
+	//
+	// @param type The type of the enum
+	// @param value The value for the enum
+	// @return The enum value, or nullptr.
+	duckdb_create_enum_value func(
+		type_ duckdb_logical_type,
+		value uint64,
+	) duckdb_value
+	// !
+	// Returns the enum value of the given value.
+	//
+	// @param value A duckdb_value containing an enum
+	// @return A uint64_t, or MinValue<uint64> if the value cannot be converted
+	duckdb_get_enum_value func(
+		value duckdb_value,
+	) uint64
+	// !
+	// Returns the STRUCT child at index as a duckdb_value.
+	//
+	// @param value The STRUCT value.
+	// @param index The index of the child.
+	// @return The child as a duckdb_value.
+	duckdb_get_struct_child func(
+		value duckdb_value,
+		index uint64,
+	) duckdb_value
+	// !
+	// Returns the SQL string representation of the given value.
+	//
+	// @param value A duckdb_value.
+	// @return The SQL string representation as a null-terminated string. The result must be freed with `duckdb_free`.
+	duckdb_value_to_string func(
+		value duckdb_value,
+		// C: char *
+	) uintptr
+	// !
+	// Creates a `duckdb_logical_type` from a primitive type.
+	// The resulting logical type must be destroyed with `duckdb_destroy_logical_type`.
+	//
+	// Returns an invalid logical type, if type is: `DUCKDB_TYPE_INVALID`, `DUCKDB_TYPE_DECIMAL`, `DUCKDB_TYPE_ENUM`,
+	// `DUCKDB_TYPE_LIST`, `DUCKDB_TYPE_STRUCT`, `DUCKDB_TYPE_MAP`, `DUCKDB_TYPE_ARRAY`, or `DUCKDB_TYPE_UNION`.
+	//
+	// @param type The primitive type to create.
+	// @return The logical type.
+	duckdb_create_logical_type func(
+		type_ int32,
+	) duckdb_logical_type
+	// !
+	// Returns the alias of a duckdb_logical_type, if set, else `nullptr`.
+	// The result must be destroyed with `duckdb_free`.
+	//
+	// @param type The logical type
+	// @return The alias or `nullptr`
+	duckdb_logical_type_get_alias func(
+		type_ duckdb_logical_type,
+		// C: char *
+	) uintptr
+	// !
+	// Sets the alias of a duckdb_logical_type.
+	//
+	// @param type The logical type
+	// @param alias The alias to set
+	duckdb_logical_type_set_alias func(
+		type_ duckdb_logical_type,
+		alias string,
+	)
+	// !
+	// Creates a LIST type from its child type.
+	// The return type must be destroyed with `duckdb_destroy_logical_type`.
+	//
+	// @param type The child type of the list
+	// @return The logical type.
+	duckdb_create_list_type func(
+		type_ duckdb_logical_type,
+	) duckdb_logical_type
+	// !
+	// Creates an ARRAY type from its child type.
+	// The return type must be destroyed with `duckdb_destroy_logical_type`.
+	//
+	// @param type The child type of the array.
+	// @param array_size The number of elements in the array.
+	// @return The logical type.
+	duckdb_create_array_type func(
+		type_ duckdb_logical_type,
+		array_size uint64,
+	) duckdb_logical_type
+	// !
+	// Creates a MAP type from its key type and value type.
+	// The return type must be destroyed with `duckdb_destroy_logical_type`.
+	//
+	// @param key_type The map's key type.
+	// @param value_type The map's value type.
+	// @return The logical type.
+	duckdb_create_map_type func(
+		key_type duckdb_logical_type,
+		value_type duckdb_logical_type,
+	) duckdb_logical_type
+	// !
+	// Creates a UNION type from the passed arrays.
+	// The return type must be destroyed with `duckdb_destroy_logical_type`.
+	//
+	// @param member_types The array of union member types.
+	// @param member_names The union member names.
+	// @param member_count The number of union members.
+	// @return The logical type.
+	duckdb_create_union_type func(
+		member_types *duckdb_logical_type,
+		// C: const char **
+		member_names uintptr,
+		member_count uint64,
+	) duckdb_logical_type
+	// !
+	// Creates a STRUCT type based on the member types and names.
+	// The resulting type must be destroyed with `duckdb_destroy_logical_type`.
+	//
+	// @param member_types The array of types of the struct members.
+	// @param member_names The array of names of the struct members.
+	// @param member_count The number of members of the struct.
+	// @return The logical type.
+	duckdb_create_struct_type func(
+		member_types *duckdb_logical_type,
+		// C: const char **
+		member_names uintptr,
+		member_count uint64,
+	) duckdb_logical_type
+	// !
+	// Creates an ENUM type from the passed member name array.
+	// The resulting type should be destroyed with `duckdb_destroy_logical_type`.
+	//
+	// @param member_names The array of names that the enum should consist of.
+	// @param member_count The number of elements that were specified in the array.
+	// @return The logical type.
+	duckdb_create_enum_type func(
+		// C: const char **
+		member_names uintptr,
+		member_count uint64,
+	) duckdb_logical_type
+	// !
+	// Creates a DECIMAL type with the specified width and scale.
+	// The resulting type should be destroyed with `duckdb_destroy_logical_type`.
+	//
+	// @param width The width of the decimal type
+	// @param scale The scale of the decimal type
+	// @return The logical type.
+	duckdb_create_decimal_type func(
+		width uint8,
+		scale uint8,
+	) duckdb_logical_type
+	// !
 	// Retrieves the enum `duckdb_type` of a `duckdb_logical_type`.
 	//
 	// @param type The logical type.
@@ -920,6 +2454,156 @@ var (
 		type_ duckdb_logical_type,
 	) uint8
 	// !
+	// Retrieves the internal storage type of a decimal type.
+	//
+	// @param type The logical type object
+	// @return The internal type of the decimal type
+	duckdb_decimal_internal_type func(
+		type_ duckdb_logical_type,
+	) int32
+	// !
+	// Retrieves the internal storage type of an enum type.
+	//
+	// @param type The logical type object
+	// @return The internal type of the enum type
+	duckdb_enum_internal_type func(
+		type_ duckdb_logical_type,
+	) int32
+	// !
+	// Retrieves the dictionary size of the enum type.
+	//
+	// @param type The logical type object
+	// @return The dictionary size of the enum type
+	duckdb_enum_dictionary_size func(
+		type_ duckdb_logical_type,
+	) uint32
+	// !
+	// Retrieves the dictionary value at the specified position from the enum.
+	//
+	// The result must be freed with `duckdb_free`.
+	//
+	// @param type The logical type object
+	// @param index The index in the dictionary
+	// @return The string value of the enum type. Must be freed with `duckdb_free`.
+	duckdb_enum_dictionary_value func(
+		type_ duckdb_logical_type,
+		index uint64,
+		// C: char *
+	) uintptr
+	// !
+	// Retrieves the child type of the given LIST type. Also accepts MAP types.
+	// The result must be freed with `duckdb_destroy_logical_type`.
+	//
+	// @param type The logical type, either LIST or MAP.
+	// @return The child type of the LIST or MAP type.
+	duckdb_list_type_child_type func(
+		type_ duckdb_logical_type,
+	) duckdb_logical_type
+	// !
+	// Retrieves the child type of the given ARRAY type.
+	//
+	// The result must be freed with `duckdb_destroy_logical_type`.
+	//
+	// @param type The logical type. Must be ARRAY.
+	// @return The child type of the ARRAY type.
+	duckdb_array_type_child_type func(
+		type_ duckdb_logical_type,
+	) duckdb_logical_type
+	// !
+	// Retrieves the array size of the given array type.
+	//
+	// @param type The logical type object
+	// @return The fixed number of elements the values of this array type can store.
+	duckdb_array_type_array_size func(
+		type_ duckdb_logical_type,
+	) uint64
+	// !
+	// Retrieves the key type of the given map type.
+	//
+	// The result must be freed with `duckdb_destroy_logical_type`.
+	//
+	// @param type The logical type object
+	// @return The key type of the map type. Must be destroyed with `duckdb_destroy_logical_type`.
+	duckdb_map_type_key_type func(
+		type_ duckdb_logical_type,
+	) duckdb_logical_type
+	// !
+	// Retrieves the value type of the given map type.
+	//
+	// The result must be freed with `duckdb_destroy_logical_type`.
+	//
+	// @param type The logical type object
+	// @return The value type of the map type. Must be destroyed with `duckdb_destroy_logical_type`.
+	duckdb_map_type_value_type func(
+		type_ duckdb_logical_type,
+	) duckdb_logical_type
+	// !
+	// Returns the number of children of a struct type.
+	//
+	// @param type The logical type object
+	// @return The number of children of a struct type.
+	duckdb_struct_type_child_count func(
+		type_ duckdb_logical_type,
+	) uint64
+	// !
+	// Retrieves the name of the struct child.
+	//
+	// The result must be freed with `duckdb_free`.
+	//
+	// @param type The logical type object
+	// @param index The child index
+	// @return The name of the struct type. Must be freed with `duckdb_free`.
+	duckdb_struct_type_child_name func(
+		type_ duckdb_logical_type,
+		index uint64,
+		// C: char *
+	) uintptr
+	// !
+	// Retrieves the child type of the given struct type at the specified index.
+	//
+	// The result must be freed with `duckdb_destroy_logical_type`.
+	//
+	// @param type The logical type object
+	// @param index The child index
+	// @return The child type of the struct type. Must be destroyed with `duckdb_destroy_logical_type`.
+	duckdb_struct_type_child_type func(
+		type_ duckdb_logical_type,
+		index uint64,
+	) duckdb_logical_type
+	// !
+	// Returns the number of members that the union type has.
+	//
+	// @param type The logical type (union) object
+	// @return The number of members of a union type.
+	duckdb_union_type_member_count func(
+		type_ duckdb_logical_type,
+	) uint64
+	// !
+	// Retrieves the name of the union member.
+	//
+	// The result must be freed with `duckdb_free`.
+	//
+	// @param type The logical type object
+	// @param index The child index
+	// @return The name of the union member. Must be freed with `duckdb_free`.
+	duckdb_union_type_member_name func(
+		type_ duckdb_logical_type,
+		index uint64,
+		// C: char *
+	) uintptr
+	// !
+	// Retrieves the child type of the given union member at the specified index.
+	//
+	// The result must be freed with `duckdb_destroy_logical_type`.
+	//
+	// @param type The logical type object
+	// @param index The child index
+	// @return The child type of the union member. Must be destroyed with `duckdb_destroy_logical_type`.
+	duckdb_union_type_member_type func(
+		type_ duckdb_logical_type,
+		index uint64,
+	) duckdb_logical_type
+	// !
 	// Destroys the logical type and de-allocates all memory allocated for that type.
 	//
 	// @param type The logical type to destroy.
@@ -927,11 +2611,31 @@ var (
 		type_ *duckdb_logical_type,
 	)
 	// !
+	// Creates an empty data chunk with the specified column types.
+	// The result must be destroyed with `duckdb_destroy_data_chunk`.
+	//
+	// @param types An array of column types. Column types can not contain ANY and INVALID types.
+	// @param column_count The number of columns.
+	// @return The data chunk.
+	duckdb_create_data_chunk func(
+		types *duckdb_logical_type,
+		column_count uint64,
+	) duckdb_data_chunk
+	// !
 	// Destroys the data chunk and de-allocates all memory allocated for that chunk.
 	//
 	// @param chunk The data chunk to destroy.
 	duckdb_destroy_data_chunk func(
 		chunk *duckdb_data_chunk,
+	)
+	// !
+	// Resets a data chunk, clearing the validity masks and setting the cardinality of the data chunk to 0.
+	// After calling this method, you must call `duckdb_vector_get_validity` and `duckdb_vector_get_data` to obtain current
+	// data and validity pointers
+	//
+	// @param chunk The data chunk to reset.
+	duckdb_data_chunk_reset func(
+		chunk duckdb_data_chunk,
 	)
 	// !
 	// Retrieves the number of columns in a data chunk.
@@ -961,6 +2665,15 @@ var (
 	duckdb_data_chunk_get_size func(
 		chunk duckdb_data_chunk,
 	) uint64
+	// !
+	// Sets the current number of tuples in a data chunk.
+	//
+	// @param chunk The data chunk to set the size in
+	// @param size The number of tuples in the data chunk
+	duckdb_data_chunk_set_size func(
+		chunk duckdb_data_chunk,
+		size uint64,
+	)
 	// !
 	// Retrieves the column type of the specified vector.
 	//
@@ -1006,6 +2719,111 @@ var (
 		vector duckdb_vector,
 	) *uint64
 	// !
+	// Ensures the validity mask is writable by allocating it.
+	//
+	// After this function is called, `duckdb_vector_get_validity` will ALWAYS return non-NULL.
+	// This allows NULL values to be written to the vector, regardless of whether a validity mask was present before.
+	//
+	// @param vector The vector to alter
+	duckdb_vector_ensure_validity_writable func(
+		vector duckdb_vector,
+	)
+	// !
+	// Assigns a string element in the vector at the specified location. For VARCHAR vectors, the input is validated as UTF-8;
+	// if invalid, a NULL value is assigned at that index.
+	//
+	// Superseded by `duckdb_unsafe_vector_assign_string_element_len`, optionally combined with `duckdb_valid_utf8_check`.
+	//
+	// @param vector The vector to alter
+	// @param index The row position in the vector to assign the string to
+	// @param str The null-terminated string
+	duckdb_vector_assign_string_element func(
+		vector duckdb_vector,
+		index uint64,
+		str string,
+	)
+	// !
+	// Assigns a string element in the vector at the specified location. For VARCHAR vectors, the input is validated as UTF-8;
+	// if invalid, a NULL value is assigned at that index. For BLOB vectors, no validation is performed.
+	//
+	// Superseded by `duckdb_unsafe_vector_assign_string_element_len`, optionally combined with `duckdb_valid_utf8_check`.
+	//
+	// @param vector The vector to alter
+	// @param index The row position in the vector to assign the string to
+	// @param str The string
+	// @param str_len The length of the string (in bytes)
+	duckdb_vector_assign_string_element_len func(
+		vector duckdb_vector,
+		index uint64,
+		str string,
+		str_len uint64,
+	)
+	// !
+	// Retrieves the child vector of a list vector.
+	//
+	// The resulting vector is valid as long as the parent vector is valid.
+	//
+	// @param vector The vector
+	// @return The child vector
+	duckdb_list_vector_get_child func(
+		vector duckdb_vector,
+	) duckdb_vector
+	// !
+	// Returns the size of the child vector of the list.
+	//
+	// @param vector The vector
+	// @return The size of the child list
+	duckdb_list_vector_get_size func(
+		vector duckdb_vector,
+	) uint64
+	// !
+	// Sets the size of the underlying child-vector of a list vector.
+	// Note that this does NOT reserve the memory in the child buffer,
+	// and that it is possible to set a size exceeding the capacity.
+	// To set the capacity, use `duckdb_list_vector_reserve`.
+	//
+	// @param vector The list vector.
+	// @param size The size of the child list.
+	// @return The duckdb state. Returns DuckDBError, if the vector is nullptr.
+	duckdb_list_vector_set_size func(
+		vector duckdb_vector,
+		size uint64,
+	) int32
+	// !
+	// Sets the capacity of the underlying child-vector of a list vector.
+	// We increment to the next power of two, based on the required capacity.
+	// Thus, the capacity might not match the size of the list (capacity >= size),
+	// which is set via `duckdb_list_vector_set_size`.
+	//
+	// @param vector The list vector.
+	// @param required_capacity The child buffer capacity to reserve.
+	// @return The duckdb state. Returns DuckDBError, if the vector is nullptr.
+	duckdb_list_vector_reserve func(
+		vector duckdb_vector,
+		required_capacity uint64,
+	) int32
+	// !
+	// Retrieves the child vector of a struct vector.
+	// The resulting vector is valid as long as the parent vector is valid.
+	//
+	// @param vector The vector
+	// @param index The child index
+	// @return The child vector
+	duckdb_struct_vector_get_child func(
+		vector duckdb_vector,
+		index uint64,
+	) duckdb_vector
+	// !
+	// Retrieves the child vector of an array vector.
+	// The resulting vector is valid as long as the parent vector is valid.
+	// The resulting vector has the size of the parent vector multiplied by the array size.
+	//
+	// @param vector The vector
+	// @return The child vector
+	duckdb_array_vector_get_child func(
+		vector duckdb_vector,
+	) duckdb_vector
+	// !
 	// Returns whether or not a row is valid (i.e. not NULL) in the given validity mask.
 	//
 	// @param validity The validity mask, as obtained through `duckdb_vector_get_validity`
@@ -1015,6 +2833,433 @@ var (
 		validity *uint64,
 		row uint64,
 	) bool
+	// !
+	// In a validity mask, sets a specific row to either valid or invalid.
+	//
+	// Note that `duckdb_vector_ensure_validity_writable` should be called before calling `duckdb_vector_get_validity`,
+	// to ensure that there is a validity mask to write to.
+	//
+	// @param validity The validity mask, as obtained through `duckdb_vector_get_validity`.
+	// @param row The row index
+	// @param valid Whether or not to set the row to valid, or invalid
+	duckdb_validity_set_row_validity func(
+		validity *uint64,
+		row uint64,
+		valid bool,
+	)
+	// !
+	// In a validity mask, sets a specific row to invalid.
+	//
+	// Equivalent to `duckdb_validity_set_row_validity` with valid set to false.
+	//
+	// @param validity The validity mask
+	// @param row The row index
+	duckdb_validity_set_row_invalid func(
+		validity *uint64,
+		row uint64,
+	)
+	// !
+	// In a validity mask, sets a specific row to valid.
+	//
+	// Equivalent to `duckdb_validity_set_row_validity` with valid set to true.
+	//
+	// @param validity The validity mask
+	// @param row The row index
+	duckdb_validity_set_row_valid func(
+		validity *uint64,
+		row uint64,
+	)
+	// !
+	// Returns the root node of the profiling information. Returns nullptr, if profiling is not enabled.
+	//
+	// @param connection A connection object.
+	// @return A profiling information object.
+	duckdb_get_profiling_info func(
+		connection duckdb_connection,
+	) duckdb_profiling_info
+	// !
+	// Returns the value of the metric of the current profiling info node. Returns nullptr, if the metric does
+	// not exist or is not enabled. Currently, the value holds a string, and you can retrieve the string
+	// by calling the corresponding function: char *duckdb_get_varchar(duckdb_value value).
+	//
+	// @param info A profiling information object.
+	// @param key The name of the requested metric.
+	// @return The value of the metric. Must be freed with `duckdb_destroy_value`
+	duckdb_profiling_info_get_value func(
+		info duckdb_profiling_info,
+		key string,
+	) duckdb_value
+	// !
+	// Returns the key-value metric map of this profiling node as a MAP duckdb_value.
+	// The individual elements are accessible via the duckdb_value MAP functions.
+	//
+	// @param info A profiling information object.
+	// @return The key-value metric map as a MAP duckdb_value.
+	duckdb_profiling_info_get_metrics func(
+		info duckdb_profiling_info,
+	) duckdb_value
+	// !
+	// Returns the number of children in the current profiling info node.
+	//
+	// @param info A profiling information object.
+	// @return The number of children in the current node.
+	duckdb_profiling_info_get_child_count func(
+		info duckdb_profiling_info,
+	) uint64
+	// !
+	// Returns the child node at the specified index.
+	//
+	// @param info A profiling information object.
+	// @param index The index of the child node.
+	// @return The child node at the specified index.
+	duckdb_profiling_info_get_child func(
+		info duckdb_profiling_info,
+		index uint64,
+	) duckdb_profiling_info
+	// !
+	// Creates an appender object.
+	//
+	// Note that the object must be destroyed with `duckdb_appender_destroy`.
+	//
+	// @param connection The connection context to create the appender in.
+	// @param schema The schema of the table to append to, or `nullptr` for the default schema.
+	// @param table The table name to append to.
+	// @param out_appender The resulting appender object.
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_appender_create func(
+		connection duckdb_connection,
+		schema string,
+		table string,
+		out_appender *duckdb_appender,
+	) int32
+	// !
+	// Returns the number of columns that belong to the appender.
+	// If there is no active column list, then this equals the table's physical columns.
+	//
+	// @param appender The appender to get the column count from.
+	// @return The number of columns in the data chunks.
+	duckdb_appender_column_count func(
+		appender duckdb_appender,
+	) uint64
+	// !
+	// Returns the type of the column at the specified index. This is either a type in the active column list, or the same type
+	// as a column in the receiving table.
+	//
+	// Note: The resulting type must be destroyed with `duckdb_destroy_logical_type`.
+	//
+	// @param appender The appender to get the column type from.
+	// @param col_idx The index of the column to get the type of.
+	// @return The `duckdb_logical_type` of the column.
+	duckdb_appender_column_type func(
+		appender duckdb_appender,
+		col_idx uint64,
+	) duckdb_logical_type
+	// !
+	// *DEPRECATION NOTICE**: This method is scheduled for removal in a future release.
+	// Use duckdb_appender_error_data instead.
+	//
+	// Returns the error message associated with the appender.
+	// If the appender has no error message, this returns `nullptr` instead.
+	//
+	// The error message should not be freed. It will be de-allocated when `duckdb_appender_destroy` is called.
+	//
+	// @param appender The appender to get the error from.
+	// @return The error message, or `nullptr` if there is none.
+	duckdb_appender_error func(
+		appender duckdb_appender,
+	) string
+	// !
+	// Flush the appender to the table, forcing the cache of the appender to be cleared. If flushing the data triggers a
+	// constraint violation or any other error, then all data is invalidated, and this function returns DuckDBError.
+	// It is not possible to append more values. Call duckdb_appender_error_data to obtain the error data followed by
+	// duckdb_appender_destroy to destroy the invalidated appender.
+	//
+	// @param appender The appender to flush.
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_appender_flush func(
+		appender duckdb_appender,
+	) int32
+	// !
+	// Closes the appender by flushing all intermediate states and closing it for further appends. If flushing the data
+	// triggers a constraint violation or any other error, then all data is invalidated, and this function returns DuckDBError.
+	// Call duckdb_appender_error_data to obtain the error data followed by duckdb_appender_destroy to destroy the invalidated
+	// appender.
+	//
+	// @param appender The appender to flush and close.
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_appender_close func(
+		appender duckdb_appender,
+	) int32
+	// !
+	// Closes the appender by flushing all intermediate states to the table and destroying it. By destroying it, this function
+	// de-allocates all memory associated with the appender. If flushing the data triggers a constraint violation,
+	// then all data is invalidated, and this function returns DuckDBError. Due to the destruction of the appender, it is no
+	// longer possible to obtain the specific error message with duckdb_appender_error. Therefore, call duckdb_appender_close
+	// before destroying the appender, if you need insights into the specific error.
+	//
+	// @param appender The appender to flush, close and destroy.
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_appender_destroy func(
+		appender *duckdb_appender,
+	) int32
+	// !
+	// A nop function, provided for backwards compatibility reasons. Does nothing. Only `duckdb_appender_end_row` is required.
+	duckdb_appender_begin_row func(
+		appender duckdb_appender,
+	) int32
+	// !
+	// Finish the current row of appends. After end_row is called, the next row can be appended.
+	//
+	// @param appender The appender.
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_appender_end_row func(
+		appender duckdb_appender,
+	) int32
+	// !
+	// Append a DEFAULT value (NULL if DEFAULT not available for column) to the appender.
+	duckdb_append_default func(
+		appender duckdb_appender,
+	) int32
+	// !
+	// Append a bool value to the appender.
+	duckdb_append_bool func(
+		appender duckdb_appender,
+		value bool,
+	) int32
+	// !
+	// Append an int8_t value to the appender.
+	duckdb_append_int8 func(
+		appender duckdb_appender,
+		value int8,
+	) int32
+	// !
+	// Append an int16_t value to the appender.
+	duckdb_append_int16 func(
+		appender duckdb_appender,
+		value int16,
+	) int32
+	// !
+	// Append an int32_t value to the appender.
+	duckdb_append_int32 func(
+		appender duckdb_appender,
+		value int32,
+	) int32
+	// !
+	// Append an int64_t value to the appender.
+	duckdb_append_int64 func(
+		appender duckdb_appender,
+		value int64,
+	) int32
+	// !
+	// Append a duckdb_hugeint value to the appender.
+	duckdb_append_hugeint func(
+		appender duckdb_appender,
+		value duckdb_hugeint,
+	) int32
+	// !
+	// Append a uint8_t value to the appender.
+	duckdb_append_uint8 func(
+		appender duckdb_appender,
+		value uint8,
+	) int32
+	// !
+	// Append a uint16_t value to the appender.
+	duckdb_append_uint16 func(
+		appender duckdb_appender,
+		value uint16,
+	) int32
+	// !
+	// Append a uint32_t value to the appender.
+	duckdb_append_uint32 func(
+		appender duckdb_appender,
+		value uint32,
+	) int32
+	// !
+	// Append a uint64_t value to the appender.
+	duckdb_append_uint64 func(
+		appender duckdb_appender,
+		value uint64,
+	) int32
+	// !
+	// Append a duckdb_uhugeint value to the appender.
+	duckdb_append_uhugeint func(
+		appender duckdb_appender,
+		value duckdb_uhugeint,
+	) int32
+	// !
+	// Append a float value to the appender.
+	duckdb_append_float func(
+		appender duckdb_appender,
+		value float32,
+	) int32
+	// !
+	// Append a double value to the appender.
+	duckdb_append_double func(
+		appender duckdb_appender,
+		value float64,
+	) int32
+	// !
+	// Append a duckdb_date value to the appender.
+	duckdb_append_date func(
+		appender duckdb_appender,
+		value duckdb_date,
+	) int32
+	// !
+	// Append a duckdb_time value to the appender.
+	duckdb_append_time func(
+		appender duckdb_appender,
+		value duckdb_time,
+	) int32
+	// !
+	// Append a duckdb_timestamp value to the appender.
+	duckdb_append_timestamp func(
+		appender duckdb_appender,
+		value duckdb_timestamp,
+	) int32
+	// !
+	// Append a duckdb_interval value to the appender.
+	duckdb_append_interval func(
+		appender duckdb_appender,
+		value duckdb_interval,
+	) int32
+	// !
+	// Append a varchar value to the appender.
+	duckdb_append_varchar func(
+		appender duckdb_appender,
+		val string,
+	) int32
+	// !
+	// Append a varchar value to the appender.
+	duckdb_append_varchar_length func(
+		appender duckdb_appender,
+		val string,
+		length uint64,
+	) int32
+	// !
+	// Append a blob value to the appender.
+	duckdb_append_blob func(
+		appender duckdb_appender,
+		// C: const void *
+		data uintptr,
+		length uint64,
+	) int32
+	// !
+	// Append a NULL value to the appender (of any type).
+	duckdb_append_null func(
+		appender duckdb_appender,
+	) int32
+	// !
+	// Append a duckdb_value to the appender.
+	duckdb_append_value func(
+		appender duckdb_appender,
+		value duckdb_value,
+	) int32
+	// !
+	// Appends a pre-filled data chunk to the specified appender.
+	// Attempts casting, if the data chunk types do not match the active appender types.
+	//
+	// @param appender The appender to append to.
+	// @param chunk The data chunk to append.
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_append_data_chunk func(
+		appender duckdb_appender,
+		chunk duckdb_data_chunk,
+	) int32
+	// !
+	// Creates a table description object. Note that `duckdb_table_description_destroy` should always be called on the
+	// resulting table_description, even if the function returns `DuckDBError`.
+	//
+	// @param connection The connection context.
+	// @param schema The schema of the table, or `nullptr` for the default schema.
+	// @param table The table name.
+	// @param out The resulting table description object.
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_table_description_create func(
+		connection duckdb_connection,
+		schema string,
+		table string,
+		out *duckdb_table_description,
+	) int32
+	// !
+	// Destroy the TableDescription object.
+	//
+	// @param table_description The table_description to destroy.
+	duckdb_table_description_destroy func(
+		table_description *duckdb_table_description,
+	)
+	// !
+	// Returns the error message associated with the given table_description.
+	// If the table_description has no error message, this returns `nullptr` instead.
+	// The error message should not be freed. It will be de-allocated when `duckdb_table_description_destroy` is called.
+	//
+	// @param table_description The table_description to get the error from.
+	// @return The error message, or `nullptr` if there is none.
+	duckdb_table_description_error func(
+		table_description duckdb_table_description,
+	) string
+	// !
+	// Check if the column at 'index' index of the table has a DEFAULT expression.
+	//
+	// @param table_description The table_description to query.
+	// @param index The index of the column to query.
+	// @param out The out-parameter used to store the result.
+	// @return `DuckDBSuccess` on success or `DuckDBError` on failure.
+	duckdb_column_has_default func(
+		table_description duckdb_table_description,
+		index uint64,
+		out *bool,
+	) int32
+	// !
+	// Return the number of columns of the described table.
+	//
+	// @param table_description The table_description to query.
+	// @return The column count.
+	duckdb_table_description_get_column_count func(
+		table_description duckdb_table_description,
+	) uint64
+	// !
+	// Obtain the column name at 'index'.
+	// The out result must be destroyed with `duckdb_free`.
+	//
+	// @param table_description The table_description to query.
+	// @param index The index of the column to query.
+	// @return The column name.
+	duckdb_table_description_get_column_name func(
+		table_description duckdb_table_description,
+		index uint64,
+		// C: char *
+	) uintptr
+	// !
+	// Obtain the column type at 'index'.
+	// The return value must be destroyed with `duckdb_destroy_logical_type`.
+	//
+	// @param table_description The table_description to query.
+	// @param index The index of the column to query.
+	// @return The column type.
+	duckdb_table_description_get_column_type func(
+		table_description duckdb_table_description,
+		index uint64,
+	) duckdb_logical_type
+	// !
+	// *DEPRECATION NOTICE**: This method is scheduled for removal in a future release.
+	//
+	// Fetches a data chunk from the (streaming) duckdb_result. This function should be called repeatedly until the result is
+	// exhausted.
+	//
+	// The result must be destroyed with `duckdb_destroy_data_chunk`.
+	//
+	// This function can only be used on duckdb_results created with 'duckdb_pending_prepared_streaming'
+	//
+	// If this function is used, none of the other result functions can be used and vice versa (i.e. this function cannot be
+	// mixed with the legacy result functions or the materialized result functions).
+	//
+	// It is not known beforehand how many chunks will be returned by this result.
+	//
+	// @param result The result object to fetch the data chunk from.
+	// @return The resulting data chunk. Returns `NULL` if the result has an error.
+	duckdb_stream_fetch_chunk func(
+		result duckdb_result,
+	) duckdb_data_chunk
 	// !
 	// Fetches a data chunk from a duckdb_result. This function should be called repeatedly until the result is exhausted.
 	//
@@ -1036,6 +3281,20 @@ func duckdb_parameter_name_string(
 	rawPtr := duckdb_parameter_name(
 		prepared_statement,
 		index,
+	)
+	result := gostring(rawPtr)
+	if rawPtr != 0 {
+		duckdb_free(rawPtr)
+	}
+	return result
+}
+func duckdb_prepared_statement_column_name_string(
+	prepared_statement duckdb_prepared_statement,
+	col_idx uint64,
+) string {
+	rawPtr := duckdb_prepared_statement_column_name(
+		prepared_statement,
+		col_idx,
 	)
 	result := gostring(rawPtr)
 	if rawPtr != 0 {
@@ -1082,6 +3341,11 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_interrupt: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_interrupt, duckdb_interrupt_symbol)
+	duckdb_query_progress_symbol, err := purego.Dlsym(handle, "duckdb_query_progress")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_query_progress: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_query_progress, duckdb_query_progress_symbol)
 	duckdb_disconnect_symbol, err := purego.Dlsym(handle, "duckdb_disconnect")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_disconnect: %w", err)
@@ -1092,11 +3356,26 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_library_version: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_library_version, duckdb_library_version_symbol)
+	duckdb_get_table_names_symbol, err := purego.Dlsym(handle, "duckdb_get_table_names")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_table_names: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_table_names, duckdb_get_table_names_symbol)
 	duckdb_create_config_symbol, err := purego.Dlsym(handle, "duckdb_create_config")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_config: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_create_config, duckdb_create_config_symbol)
+	duckdb_config_count_symbol, err := purego.Dlsym(handle, "duckdb_config_count")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_config_count: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_config_count, duckdb_config_count_symbol)
+	duckdb_get_config_flag_symbol, err := purego.Dlsym(handle, "duckdb_get_config_flag")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_config_flag: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_config_flag, duckdb_get_config_flag_symbol)
 	duckdb_set_config_symbol, err := purego.Dlsym(handle, "duckdb_set_config")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_set_config: %w", err)
@@ -1127,6 +3406,11 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_column_type: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_column_type, duckdb_column_type_symbol)
+	duckdb_result_statement_type_symbol, err := purego.Dlsym(handle, "duckdb_result_statement_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_result_statement_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_result_statement_type, duckdb_result_statement_type_symbol)
 	duckdb_column_logical_type_symbol, err := purego.Dlsym(handle, "duckdb_column_logical_type")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_column_logical_type: %w", err)
@@ -1137,6 +3421,11 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_column_count: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_column_count, duckdb_column_count_symbol)
+	duckdb_row_count_symbol, err := purego.Dlsym(handle, "duckdb_row_count")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_row_count: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_row_count, duckdb_row_count_symbol)
 	duckdb_rows_changed_symbol, err := purego.Dlsym(handle, "duckdb_rows_changed")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_rows_changed: %w", err)
@@ -1147,6 +3436,26 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_result_error: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_result_error, duckdb_result_error_symbol)
+	duckdb_result_error_type_symbol, err := purego.Dlsym(handle, "duckdb_result_error_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_result_error_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_result_error_type, duckdb_result_error_type_symbol)
+	duckdb_result_get_chunk_symbol, err := purego.Dlsym(handle, "duckdb_result_get_chunk")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_result_get_chunk: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_result_get_chunk, duckdb_result_get_chunk_symbol)
+	duckdb_result_is_streaming_symbol, err := purego.Dlsym(handle, "duckdb_result_is_streaming")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_result_is_streaming: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_result_is_streaming, duckdb_result_is_streaming_symbol)
+	duckdb_result_chunk_count_symbol, err := purego.Dlsym(handle, "duckdb_result_chunk_count")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_result_chunk_count: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_result_chunk_count, duckdb_result_chunk_count_symbol)
 	duckdb_result_return_type_symbol, err := purego.Dlsym(handle, "duckdb_result_return_type")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_result_return_type: %w", err)
@@ -1172,16 +3481,81 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_from_date: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_from_date, duckdb_from_date_symbol)
+	duckdb_to_date_symbol, err := purego.Dlsym(handle, "duckdb_to_date")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_to_date: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_to_date, duckdb_to_date_symbol)
+	duckdb_is_finite_date_symbol, err := purego.Dlsym(handle, "duckdb_is_finite_date")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_is_finite_date: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_is_finite_date, duckdb_is_finite_date_symbol)
 	duckdb_from_time_symbol, err := purego.Dlsym(handle, "duckdb_from_time")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_from_time: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_from_time, duckdb_from_time_symbol)
+	duckdb_create_time_tz_symbol, err := purego.Dlsym(handle, "duckdb_create_time_tz")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_time_tz: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_time_tz, duckdb_create_time_tz_symbol)
+	duckdb_from_time_tz_symbol, err := purego.Dlsym(handle, "duckdb_from_time_tz")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_from_time_tz: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_from_time_tz, duckdb_from_time_tz_symbol)
+	duckdb_to_time_symbol, err := purego.Dlsym(handle, "duckdb_to_time")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_to_time: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_to_time, duckdb_to_time_symbol)
 	duckdb_from_timestamp_symbol, err := purego.Dlsym(handle, "duckdb_from_timestamp")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_from_timestamp: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_from_timestamp, duckdb_from_timestamp_symbol)
+	duckdb_to_timestamp_symbol, err := purego.Dlsym(handle, "duckdb_to_timestamp")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_to_timestamp: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_to_timestamp, duckdb_to_timestamp_symbol)
+	duckdb_is_finite_timestamp_symbol, err := purego.Dlsym(handle, "duckdb_is_finite_timestamp")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_is_finite_timestamp: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_is_finite_timestamp, duckdb_is_finite_timestamp_symbol)
+	duckdb_hugeint_to_double_symbol, err := purego.Dlsym(handle, "duckdb_hugeint_to_double")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_hugeint_to_double: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_hugeint_to_double, duckdb_hugeint_to_double_symbol)
+	duckdb_double_to_hugeint_symbol, err := purego.Dlsym(handle, "duckdb_double_to_hugeint")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_double_to_hugeint: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_double_to_hugeint, duckdb_double_to_hugeint_symbol)
+	duckdb_uhugeint_to_double_symbol, err := purego.Dlsym(handle, "duckdb_uhugeint_to_double")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_uhugeint_to_double: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_uhugeint_to_double, duckdb_uhugeint_to_double_symbol)
+	duckdb_double_to_uhugeint_symbol, err := purego.Dlsym(handle, "duckdb_double_to_uhugeint")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_double_to_uhugeint: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_double_to_uhugeint, duckdb_double_to_uhugeint_symbol)
+	duckdb_double_to_decimal_symbol, err := purego.Dlsym(handle, "duckdb_double_to_decimal")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_double_to_decimal: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_double_to_decimal, duckdb_double_to_decimal_symbol)
+	duckdb_decimal_to_double_symbol, err := purego.Dlsym(handle, "duckdb_decimal_to_double")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_decimal_to_double: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_decimal_to_double, duckdb_decimal_to_double_symbol)
 	duckdb_prepare_symbol, err := purego.Dlsym(handle, "duckdb_prepare")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_prepare: %w", err)
@@ -1207,6 +3581,16 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_parameter_name: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_parameter_name, duckdb_parameter_name_symbol)
+	duckdb_param_type_symbol, err := purego.Dlsym(handle, "duckdb_param_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_param_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_param_type, duckdb_param_type_symbol)
+	duckdb_param_logical_type_symbol, err := purego.Dlsym(handle, "duckdb_param_logical_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_param_logical_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_param_logical_type, duckdb_param_logical_type_symbol)
 	duckdb_clear_bindings_symbol, err := purego.Dlsym(handle, "duckdb_clear_bindings")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_clear_bindings: %w", err)
@@ -1217,6 +3601,31 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_prepared_statement_type: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_prepared_statement_type, duckdb_prepared_statement_type_symbol)
+	duckdb_prepared_statement_column_count_symbol, err := purego.Dlsym(handle, "duckdb_prepared_statement_column_count")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_prepared_statement_column_count: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_prepared_statement_column_count, duckdb_prepared_statement_column_count_symbol)
+	duckdb_prepared_statement_column_name_symbol, err := purego.Dlsym(handle, "duckdb_prepared_statement_column_name")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_prepared_statement_column_name: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_prepared_statement_column_name, duckdb_prepared_statement_column_name_symbol)
+	duckdb_prepared_statement_column_logical_type_symbol, err := purego.Dlsym(handle, "duckdb_prepared_statement_column_logical_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_prepared_statement_column_logical_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_prepared_statement_column_logical_type, duckdb_prepared_statement_column_logical_type_symbol)
+	duckdb_prepared_statement_column_type_symbol, err := purego.Dlsym(handle, "duckdb_prepared_statement_column_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_prepared_statement_column_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_prepared_statement_column_type, duckdb_prepared_statement_column_type_symbol)
+	duckdb_bind_value_symbol, err := purego.Dlsym(handle, "duckdb_bind_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_value, duckdb_bind_value_symbol)
 	duckdb_bind_parameter_index_symbol, err := purego.Dlsym(handle, "duckdb_bind_parameter_index")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_parameter_index: %w", err)
@@ -1227,6 +3636,16 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_boolean: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_bind_boolean, duckdb_bind_boolean_symbol)
+	duckdb_bind_int8_symbol, err := purego.Dlsym(handle, "duckdb_bind_int8")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_int8: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_int8, duckdb_bind_int8_symbol)
+	duckdb_bind_int16_symbol, err := purego.Dlsym(handle, "duckdb_bind_int16")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_int16: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_int16, duckdb_bind_int16_symbol)
 	duckdb_bind_int32_symbol, err := purego.Dlsym(handle, "duckdb_bind_int32")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_int32: %w", err)
@@ -1237,6 +3656,41 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_int64: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_bind_int64, duckdb_bind_int64_symbol)
+	duckdb_bind_hugeint_symbol, err := purego.Dlsym(handle, "duckdb_bind_hugeint")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_hugeint: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_hugeint, duckdb_bind_hugeint_symbol)
+	duckdb_bind_uhugeint_symbol, err := purego.Dlsym(handle, "duckdb_bind_uhugeint")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_uhugeint: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_uhugeint, duckdb_bind_uhugeint_symbol)
+	duckdb_bind_decimal_symbol, err := purego.Dlsym(handle, "duckdb_bind_decimal")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_decimal: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_decimal, duckdb_bind_decimal_symbol)
+	duckdb_bind_uint8_symbol, err := purego.Dlsym(handle, "duckdb_bind_uint8")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_uint8: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_uint8, duckdb_bind_uint8_symbol)
+	duckdb_bind_uint16_symbol, err := purego.Dlsym(handle, "duckdb_bind_uint16")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_uint16: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_uint16, duckdb_bind_uint16_symbol)
+	duckdb_bind_uint32_symbol, err := purego.Dlsym(handle, "duckdb_bind_uint32")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_uint32: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_uint32, duckdb_bind_uint32_symbol)
+	duckdb_bind_uint64_symbol, err := purego.Dlsym(handle, "duckdb_bind_uint64")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_uint64: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_uint64, duckdb_bind_uint64_symbol)
 	duckdb_bind_float_symbol, err := purego.Dlsym(handle, "duckdb_bind_float")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_float: %w", err)
@@ -1247,11 +3701,31 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_double: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_bind_double, duckdb_bind_double_symbol)
+	duckdb_bind_date_symbol, err := purego.Dlsym(handle, "duckdb_bind_date")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_date: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_date, duckdb_bind_date_symbol)
+	duckdb_bind_time_symbol, err := purego.Dlsym(handle, "duckdb_bind_time")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_time: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_time, duckdb_bind_time_symbol)
 	duckdb_bind_timestamp_symbol, err := purego.Dlsym(handle, "duckdb_bind_timestamp")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_timestamp: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_bind_timestamp, duckdb_bind_timestamp_symbol)
+	duckdb_bind_timestamp_tz_symbol, err := purego.Dlsym(handle, "duckdb_bind_timestamp_tz")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_timestamp_tz: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_timestamp_tz, duckdb_bind_timestamp_tz_symbol)
+	duckdb_bind_interval_symbol, err := purego.Dlsym(handle, "duckdb_bind_interval")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_interval: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_bind_interval, duckdb_bind_interval_symbol)
 	duckdb_bind_varchar_symbol, err := purego.Dlsym(handle, "duckdb_bind_varchar")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_bind_varchar: %w", err)
@@ -1277,6 +3751,476 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_execute_prepared: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_execute_prepared, duckdb_execute_prepared_symbol)
+	duckdb_execute_prepared_streaming_symbol, err := purego.Dlsym(handle, "duckdb_execute_prepared_streaming")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_execute_prepared_streaming: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_execute_prepared_streaming, duckdb_execute_prepared_streaming_symbol)
+	duckdb_extract_statements_symbol, err := purego.Dlsym(handle, "duckdb_extract_statements")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_extract_statements: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_extract_statements, duckdb_extract_statements_symbol)
+	duckdb_prepare_extracted_statement_symbol, err := purego.Dlsym(handle, "duckdb_prepare_extracted_statement")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_prepare_extracted_statement: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_prepare_extracted_statement, duckdb_prepare_extracted_statement_symbol)
+	duckdb_extract_statements_error_symbol, err := purego.Dlsym(handle, "duckdb_extract_statements_error")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_extract_statements_error: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_extract_statements_error, duckdb_extract_statements_error_symbol)
+	duckdb_destroy_extracted_symbol, err := purego.Dlsym(handle, "duckdb_destroy_extracted")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_destroy_extracted: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_destroy_extracted, duckdb_destroy_extracted_symbol)
+	duckdb_pending_prepared_symbol, err := purego.Dlsym(handle, "duckdb_pending_prepared")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_pending_prepared: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_pending_prepared, duckdb_pending_prepared_symbol)
+	duckdb_pending_prepared_streaming_symbol, err := purego.Dlsym(handle, "duckdb_pending_prepared_streaming")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_pending_prepared_streaming: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_pending_prepared_streaming, duckdb_pending_prepared_streaming_symbol)
+	duckdb_destroy_pending_symbol, err := purego.Dlsym(handle, "duckdb_destroy_pending")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_destroy_pending: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_destroy_pending, duckdb_destroy_pending_symbol)
+	duckdb_pending_error_symbol, err := purego.Dlsym(handle, "duckdb_pending_error")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_pending_error: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_pending_error, duckdb_pending_error_symbol)
+	duckdb_pending_execute_task_symbol, err := purego.Dlsym(handle, "duckdb_pending_execute_task")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_pending_execute_task: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_pending_execute_task, duckdb_pending_execute_task_symbol)
+	duckdb_pending_execute_check_state_symbol, err := purego.Dlsym(handle, "duckdb_pending_execute_check_state")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_pending_execute_check_state: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_pending_execute_check_state, duckdb_pending_execute_check_state_symbol)
+	duckdb_execute_pending_symbol, err := purego.Dlsym(handle, "duckdb_execute_pending")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_execute_pending: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_execute_pending, duckdb_execute_pending_symbol)
+	duckdb_pending_execution_is_finished_symbol, err := purego.Dlsym(handle, "duckdb_pending_execution_is_finished")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_pending_execution_is_finished: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_pending_execution_is_finished, duckdb_pending_execution_is_finished_symbol)
+	duckdb_destroy_value_symbol, err := purego.Dlsym(handle, "duckdb_destroy_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_destroy_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_destroy_value, duckdb_destroy_value_symbol)
+	duckdb_create_varchar_symbol, err := purego.Dlsym(handle, "duckdb_create_varchar")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_varchar: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_varchar, duckdb_create_varchar_symbol)
+	duckdb_create_varchar_length_symbol, err := purego.Dlsym(handle, "duckdb_create_varchar_length")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_varchar_length: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_varchar_length, duckdb_create_varchar_length_symbol)
+	duckdb_create_bool_symbol, err := purego.Dlsym(handle, "duckdb_create_bool")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_bool: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_bool, duckdb_create_bool_symbol)
+	duckdb_create_int8_symbol, err := purego.Dlsym(handle, "duckdb_create_int8")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_int8: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_int8, duckdb_create_int8_symbol)
+	duckdb_create_uint8_symbol, err := purego.Dlsym(handle, "duckdb_create_uint8")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_uint8: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_uint8, duckdb_create_uint8_symbol)
+	duckdb_create_int16_symbol, err := purego.Dlsym(handle, "duckdb_create_int16")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_int16: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_int16, duckdb_create_int16_symbol)
+	duckdb_create_uint16_symbol, err := purego.Dlsym(handle, "duckdb_create_uint16")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_uint16: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_uint16, duckdb_create_uint16_symbol)
+	duckdb_create_int32_symbol, err := purego.Dlsym(handle, "duckdb_create_int32")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_int32: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_int32, duckdb_create_int32_symbol)
+	duckdb_create_uint32_symbol, err := purego.Dlsym(handle, "duckdb_create_uint32")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_uint32: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_uint32, duckdb_create_uint32_symbol)
+	duckdb_create_uint64_symbol, err := purego.Dlsym(handle, "duckdb_create_uint64")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_uint64: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_uint64, duckdb_create_uint64_symbol)
+	duckdb_create_int64_symbol, err := purego.Dlsym(handle, "duckdb_create_int64")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_int64: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_int64, duckdb_create_int64_symbol)
+	duckdb_create_hugeint_symbol, err := purego.Dlsym(handle, "duckdb_create_hugeint")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_hugeint: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_hugeint, duckdb_create_hugeint_symbol)
+	duckdb_create_uhugeint_symbol, err := purego.Dlsym(handle, "duckdb_create_uhugeint")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_uhugeint: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_uhugeint, duckdb_create_uhugeint_symbol)
+	duckdb_create_decimal_symbol, err := purego.Dlsym(handle, "duckdb_create_decimal")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_decimal: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_decimal, duckdb_create_decimal_symbol)
+	duckdb_create_float_symbol, err := purego.Dlsym(handle, "duckdb_create_float")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_float: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_float, duckdb_create_float_symbol)
+	duckdb_create_double_symbol, err := purego.Dlsym(handle, "duckdb_create_double")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_double: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_double, duckdb_create_double_symbol)
+	duckdb_create_date_symbol, err := purego.Dlsym(handle, "duckdb_create_date")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_date: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_date, duckdb_create_date_symbol)
+	duckdb_create_time_symbol, err := purego.Dlsym(handle, "duckdb_create_time")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_time: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_time, duckdb_create_time_symbol)
+	duckdb_create_time_tz_value_symbol, err := purego.Dlsym(handle, "duckdb_create_time_tz_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_time_tz_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_time_tz_value, duckdb_create_time_tz_value_symbol)
+	duckdb_create_timestamp_symbol, err := purego.Dlsym(handle, "duckdb_create_timestamp")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_timestamp: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_timestamp, duckdb_create_timestamp_symbol)
+	duckdb_create_timestamp_tz_symbol, err := purego.Dlsym(handle, "duckdb_create_timestamp_tz")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_timestamp_tz: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_timestamp_tz, duckdb_create_timestamp_tz_symbol)
+	duckdb_create_timestamp_s_symbol, err := purego.Dlsym(handle, "duckdb_create_timestamp_s")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_timestamp_s: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_timestamp_s, duckdb_create_timestamp_s_symbol)
+	duckdb_create_timestamp_ms_symbol, err := purego.Dlsym(handle, "duckdb_create_timestamp_ms")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_timestamp_ms: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_timestamp_ms, duckdb_create_timestamp_ms_symbol)
+	duckdb_create_timestamp_ns_symbol, err := purego.Dlsym(handle, "duckdb_create_timestamp_ns")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_timestamp_ns: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_timestamp_ns, duckdb_create_timestamp_ns_symbol)
+	duckdb_create_interval_symbol, err := purego.Dlsym(handle, "duckdb_create_interval")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_interval: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_interval, duckdb_create_interval_symbol)
+	duckdb_create_blob_symbol, err := purego.Dlsym(handle, "duckdb_create_blob")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_blob: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_blob, duckdb_create_blob_symbol)
+	duckdb_create_uuid_symbol, err := purego.Dlsym(handle, "duckdb_create_uuid")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_uuid: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_uuid, duckdb_create_uuid_symbol)
+	duckdb_get_bool_symbol, err := purego.Dlsym(handle, "duckdb_get_bool")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_bool: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_bool, duckdb_get_bool_symbol)
+	duckdb_get_int8_symbol, err := purego.Dlsym(handle, "duckdb_get_int8")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_int8: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_int8, duckdb_get_int8_symbol)
+	duckdb_get_uint8_symbol, err := purego.Dlsym(handle, "duckdb_get_uint8")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_uint8: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_uint8, duckdb_get_uint8_symbol)
+	duckdb_get_int16_symbol, err := purego.Dlsym(handle, "duckdb_get_int16")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_int16: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_int16, duckdb_get_int16_symbol)
+	duckdb_get_uint16_symbol, err := purego.Dlsym(handle, "duckdb_get_uint16")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_uint16: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_uint16, duckdb_get_uint16_symbol)
+	duckdb_get_int32_symbol, err := purego.Dlsym(handle, "duckdb_get_int32")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_int32: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_int32, duckdb_get_int32_symbol)
+	duckdb_get_uint32_symbol, err := purego.Dlsym(handle, "duckdb_get_uint32")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_uint32: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_uint32, duckdb_get_uint32_symbol)
+	duckdb_get_int64_symbol, err := purego.Dlsym(handle, "duckdb_get_int64")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_int64: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_int64, duckdb_get_int64_symbol)
+	duckdb_get_uint64_symbol, err := purego.Dlsym(handle, "duckdb_get_uint64")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_uint64: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_uint64, duckdb_get_uint64_symbol)
+	duckdb_get_hugeint_symbol, err := purego.Dlsym(handle, "duckdb_get_hugeint")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_hugeint: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_hugeint, duckdb_get_hugeint_symbol)
+	duckdb_get_uhugeint_symbol, err := purego.Dlsym(handle, "duckdb_get_uhugeint")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_uhugeint: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_uhugeint, duckdb_get_uhugeint_symbol)
+	duckdb_get_decimal_symbol, err := purego.Dlsym(handle, "duckdb_get_decimal")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_decimal: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_decimal, duckdb_get_decimal_symbol)
+	duckdb_get_float_symbol, err := purego.Dlsym(handle, "duckdb_get_float")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_float: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_float, duckdb_get_float_symbol)
+	duckdb_get_double_symbol, err := purego.Dlsym(handle, "duckdb_get_double")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_double: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_double, duckdb_get_double_symbol)
+	duckdb_get_date_symbol, err := purego.Dlsym(handle, "duckdb_get_date")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_date: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_date, duckdb_get_date_symbol)
+	duckdb_get_time_symbol, err := purego.Dlsym(handle, "duckdb_get_time")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_time: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_time, duckdb_get_time_symbol)
+	duckdb_get_time_tz_symbol, err := purego.Dlsym(handle, "duckdb_get_time_tz")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_time_tz: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_time_tz, duckdb_get_time_tz_symbol)
+	duckdb_get_timestamp_symbol, err := purego.Dlsym(handle, "duckdb_get_timestamp")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_timestamp: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_timestamp, duckdb_get_timestamp_symbol)
+	duckdb_get_timestamp_tz_symbol, err := purego.Dlsym(handle, "duckdb_get_timestamp_tz")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_timestamp_tz: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_timestamp_tz, duckdb_get_timestamp_tz_symbol)
+	duckdb_get_timestamp_s_symbol, err := purego.Dlsym(handle, "duckdb_get_timestamp_s")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_timestamp_s: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_timestamp_s, duckdb_get_timestamp_s_symbol)
+	duckdb_get_timestamp_ms_symbol, err := purego.Dlsym(handle, "duckdb_get_timestamp_ms")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_timestamp_ms: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_timestamp_ms, duckdb_get_timestamp_ms_symbol)
+	duckdb_get_timestamp_ns_symbol, err := purego.Dlsym(handle, "duckdb_get_timestamp_ns")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_timestamp_ns: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_timestamp_ns, duckdb_get_timestamp_ns_symbol)
+	duckdb_get_interval_symbol, err := purego.Dlsym(handle, "duckdb_get_interval")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_interval: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_interval, duckdb_get_interval_symbol)
+	duckdb_get_value_type_symbol, err := purego.Dlsym(handle, "duckdb_get_value_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_value_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_value_type, duckdb_get_value_type_symbol)
+	duckdb_get_blob_symbol, err := purego.Dlsym(handle, "duckdb_get_blob")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_blob: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_blob, duckdb_get_blob_symbol)
+	duckdb_get_uuid_symbol, err := purego.Dlsym(handle, "duckdb_get_uuid")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_uuid: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_uuid, duckdb_get_uuid_symbol)
+	duckdb_get_varchar_symbol, err := purego.Dlsym(handle, "duckdb_get_varchar")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_varchar: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_varchar, duckdb_get_varchar_symbol)
+	duckdb_create_struct_value_symbol, err := purego.Dlsym(handle, "duckdb_create_struct_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_struct_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_struct_value, duckdb_create_struct_value_symbol)
+	duckdb_create_list_value_symbol, err := purego.Dlsym(handle, "duckdb_create_list_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_list_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_list_value, duckdb_create_list_value_symbol)
+	duckdb_create_array_value_symbol, err := purego.Dlsym(handle, "duckdb_create_array_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_array_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_array_value, duckdb_create_array_value_symbol)
+	duckdb_create_map_value_symbol, err := purego.Dlsym(handle, "duckdb_create_map_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_map_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_map_value, duckdb_create_map_value_symbol)
+	duckdb_create_union_value_symbol, err := purego.Dlsym(handle, "duckdb_create_union_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_union_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_union_value, duckdb_create_union_value_symbol)
+	duckdb_get_map_size_symbol, err := purego.Dlsym(handle, "duckdb_get_map_size")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_map_size: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_map_size, duckdb_get_map_size_symbol)
+	duckdb_get_map_key_symbol, err := purego.Dlsym(handle, "duckdb_get_map_key")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_map_key: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_map_key, duckdb_get_map_key_symbol)
+	duckdb_get_map_value_symbol, err := purego.Dlsym(handle, "duckdb_get_map_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_map_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_map_value, duckdb_get_map_value_symbol)
+	duckdb_is_null_value_symbol, err := purego.Dlsym(handle, "duckdb_is_null_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_is_null_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_is_null_value, duckdb_is_null_value_symbol)
+	duckdb_create_null_value_symbol, err := purego.Dlsym(handle, "duckdb_create_null_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_null_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_null_value, duckdb_create_null_value_symbol)
+	duckdb_get_list_size_symbol, err := purego.Dlsym(handle, "duckdb_get_list_size")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_list_size: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_list_size, duckdb_get_list_size_symbol)
+	duckdb_get_list_child_symbol, err := purego.Dlsym(handle, "duckdb_get_list_child")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_list_child: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_list_child, duckdb_get_list_child_symbol)
+	duckdb_create_enum_value_symbol, err := purego.Dlsym(handle, "duckdb_create_enum_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_enum_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_enum_value, duckdb_create_enum_value_symbol)
+	duckdb_get_enum_value_symbol, err := purego.Dlsym(handle, "duckdb_get_enum_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_enum_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_enum_value, duckdb_get_enum_value_symbol)
+	duckdb_get_struct_child_symbol, err := purego.Dlsym(handle, "duckdb_get_struct_child")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_struct_child: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_struct_child, duckdb_get_struct_child_symbol)
+	duckdb_value_to_string_symbol, err := purego.Dlsym(handle, "duckdb_value_to_string")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_value_to_string: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_value_to_string, duckdb_value_to_string_symbol)
+	duckdb_create_logical_type_symbol, err := purego.Dlsym(handle, "duckdb_create_logical_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_logical_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_logical_type, duckdb_create_logical_type_symbol)
+	duckdb_logical_type_get_alias_symbol, err := purego.Dlsym(handle, "duckdb_logical_type_get_alias")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_logical_type_get_alias: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_logical_type_get_alias, duckdb_logical_type_get_alias_symbol)
+	duckdb_logical_type_set_alias_symbol, err := purego.Dlsym(handle, "duckdb_logical_type_set_alias")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_logical_type_set_alias: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_logical_type_set_alias, duckdb_logical_type_set_alias_symbol)
+	duckdb_create_list_type_symbol, err := purego.Dlsym(handle, "duckdb_create_list_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_list_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_list_type, duckdb_create_list_type_symbol)
+	duckdb_create_array_type_symbol, err := purego.Dlsym(handle, "duckdb_create_array_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_array_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_array_type, duckdb_create_array_type_symbol)
+	duckdb_create_map_type_symbol, err := purego.Dlsym(handle, "duckdb_create_map_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_map_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_map_type, duckdb_create_map_type_symbol)
+	duckdb_create_union_type_symbol, err := purego.Dlsym(handle, "duckdb_create_union_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_union_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_union_type, duckdb_create_union_type_symbol)
+	duckdb_create_struct_type_symbol, err := purego.Dlsym(handle, "duckdb_create_struct_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_struct_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_struct_type, duckdb_create_struct_type_symbol)
+	duckdb_create_enum_type_symbol, err := purego.Dlsym(handle, "duckdb_create_enum_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_enum_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_enum_type, duckdb_create_enum_type_symbol)
+	duckdb_create_decimal_type_symbol, err := purego.Dlsym(handle, "duckdb_create_decimal_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_decimal_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_decimal_type, duckdb_create_decimal_type_symbol)
 	duckdb_get_type_id_symbol, err := purego.Dlsym(handle, "duckdb_get_type_id")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_type_id: %w", err)
@@ -1292,16 +4236,101 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_decimal_scale: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_decimal_scale, duckdb_decimal_scale_symbol)
+	duckdb_decimal_internal_type_symbol, err := purego.Dlsym(handle, "duckdb_decimal_internal_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_decimal_internal_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_decimal_internal_type, duckdb_decimal_internal_type_symbol)
+	duckdb_enum_internal_type_symbol, err := purego.Dlsym(handle, "duckdb_enum_internal_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_enum_internal_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_enum_internal_type, duckdb_enum_internal_type_symbol)
+	duckdb_enum_dictionary_size_symbol, err := purego.Dlsym(handle, "duckdb_enum_dictionary_size")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_enum_dictionary_size: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_enum_dictionary_size, duckdb_enum_dictionary_size_symbol)
+	duckdb_enum_dictionary_value_symbol, err := purego.Dlsym(handle, "duckdb_enum_dictionary_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_enum_dictionary_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_enum_dictionary_value, duckdb_enum_dictionary_value_symbol)
+	duckdb_list_type_child_type_symbol, err := purego.Dlsym(handle, "duckdb_list_type_child_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_list_type_child_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_list_type_child_type, duckdb_list_type_child_type_symbol)
+	duckdb_array_type_child_type_symbol, err := purego.Dlsym(handle, "duckdb_array_type_child_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_array_type_child_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_array_type_child_type, duckdb_array_type_child_type_symbol)
+	duckdb_array_type_array_size_symbol, err := purego.Dlsym(handle, "duckdb_array_type_array_size")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_array_type_array_size: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_array_type_array_size, duckdb_array_type_array_size_symbol)
+	duckdb_map_type_key_type_symbol, err := purego.Dlsym(handle, "duckdb_map_type_key_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_map_type_key_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_map_type_key_type, duckdb_map_type_key_type_symbol)
+	duckdb_map_type_value_type_symbol, err := purego.Dlsym(handle, "duckdb_map_type_value_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_map_type_value_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_map_type_value_type, duckdb_map_type_value_type_symbol)
+	duckdb_struct_type_child_count_symbol, err := purego.Dlsym(handle, "duckdb_struct_type_child_count")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_struct_type_child_count: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_struct_type_child_count, duckdb_struct_type_child_count_symbol)
+	duckdb_struct_type_child_name_symbol, err := purego.Dlsym(handle, "duckdb_struct_type_child_name")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_struct_type_child_name: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_struct_type_child_name, duckdb_struct_type_child_name_symbol)
+	duckdb_struct_type_child_type_symbol, err := purego.Dlsym(handle, "duckdb_struct_type_child_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_struct_type_child_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_struct_type_child_type, duckdb_struct_type_child_type_symbol)
+	duckdb_union_type_member_count_symbol, err := purego.Dlsym(handle, "duckdb_union_type_member_count")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_union_type_member_count: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_union_type_member_count, duckdb_union_type_member_count_symbol)
+	duckdb_union_type_member_name_symbol, err := purego.Dlsym(handle, "duckdb_union_type_member_name")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_union_type_member_name: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_union_type_member_name, duckdb_union_type_member_name_symbol)
+	duckdb_union_type_member_type_symbol, err := purego.Dlsym(handle, "duckdb_union_type_member_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_union_type_member_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_union_type_member_type, duckdb_union_type_member_type_symbol)
 	duckdb_destroy_logical_type_symbol, err := purego.Dlsym(handle, "duckdb_destroy_logical_type")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_destroy_logical_type: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_destroy_logical_type, duckdb_destroy_logical_type_symbol)
+	duckdb_create_data_chunk_symbol, err := purego.Dlsym(handle, "duckdb_create_data_chunk")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_create_data_chunk: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_create_data_chunk, duckdb_create_data_chunk_symbol)
 	duckdb_destroy_data_chunk_symbol, err := purego.Dlsym(handle, "duckdb_destroy_data_chunk")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_destroy_data_chunk: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_destroy_data_chunk, duckdb_destroy_data_chunk_symbol)
+	duckdb_data_chunk_reset_symbol, err := purego.Dlsym(handle, "duckdb_data_chunk_reset")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_data_chunk_reset: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_data_chunk_reset, duckdb_data_chunk_reset_symbol)
 	duckdb_data_chunk_get_column_count_symbol, err := purego.Dlsym(handle, "duckdb_data_chunk_get_column_count")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_data_chunk_get_column_count: %w", err)
@@ -1317,6 +4346,11 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_data_chunk_get_size: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_data_chunk_get_size, duckdb_data_chunk_get_size_symbol)
+	duckdb_data_chunk_set_size_symbol, err := purego.Dlsym(handle, "duckdb_data_chunk_set_size")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_data_chunk_set_size: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_data_chunk_set_size, duckdb_data_chunk_set_size_symbol)
 	duckdb_vector_get_column_type_symbol, err := purego.Dlsym(handle, "duckdb_vector_get_column_type")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_vector_get_column_type: %w", err)
@@ -1332,11 +4366,301 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_vector_get_validity: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_vector_get_validity, duckdb_vector_get_validity_symbol)
+	duckdb_vector_ensure_validity_writable_symbol, err := purego.Dlsym(handle, "duckdb_vector_ensure_validity_writable")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_vector_ensure_validity_writable: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_vector_ensure_validity_writable, duckdb_vector_ensure_validity_writable_symbol)
+	duckdb_vector_assign_string_element_symbol, err := purego.Dlsym(handle, "duckdb_vector_assign_string_element")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_vector_assign_string_element: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_vector_assign_string_element, duckdb_vector_assign_string_element_symbol)
+	duckdb_vector_assign_string_element_len_symbol, err := purego.Dlsym(handle, "duckdb_vector_assign_string_element_len")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_vector_assign_string_element_len: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_vector_assign_string_element_len, duckdb_vector_assign_string_element_len_symbol)
+	duckdb_list_vector_get_child_symbol, err := purego.Dlsym(handle, "duckdb_list_vector_get_child")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_list_vector_get_child: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_list_vector_get_child, duckdb_list_vector_get_child_symbol)
+	duckdb_list_vector_get_size_symbol, err := purego.Dlsym(handle, "duckdb_list_vector_get_size")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_list_vector_get_size: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_list_vector_get_size, duckdb_list_vector_get_size_symbol)
+	duckdb_list_vector_set_size_symbol, err := purego.Dlsym(handle, "duckdb_list_vector_set_size")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_list_vector_set_size: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_list_vector_set_size, duckdb_list_vector_set_size_symbol)
+	duckdb_list_vector_reserve_symbol, err := purego.Dlsym(handle, "duckdb_list_vector_reserve")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_list_vector_reserve: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_list_vector_reserve, duckdb_list_vector_reserve_symbol)
+	duckdb_struct_vector_get_child_symbol, err := purego.Dlsym(handle, "duckdb_struct_vector_get_child")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_struct_vector_get_child: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_struct_vector_get_child, duckdb_struct_vector_get_child_symbol)
+	duckdb_array_vector_get_child_symbol, err := purego.Dlsym(handle, "duckdb_array_vector_get_child")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_array_vector_get_child: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_array_vector_get_child, duckdb_array_vector_get_child_symbol)
 	duckdb_validity_row_is_valid_symbol, err := purego.Dlsym(handle, "duckdb_validity_row_is_valid")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_validity_row_is_valid: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_validity_row_is_valid, duckdb_validity_row_is_valid_symbol)
+	duckdb_validity_set_row_validity_symbol, err := purego.Dlsym(handle, "duckdb_validity_set_row_validity")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_validity_set_row_validity: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_validity_set_row_validity, duckdb_validity_set_row_validity_symbol)
+	duckdb_validity_set_row_invalid_symbol, err := purego.Dlsym(handle, "duckdb_validity_set_row_invalid")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_validity_set_row_invalid: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_validity_set_row_invalid, duckdb_validity_set_row_invalid_symbol)
+	duckdb_validity_set_row_valid_symbol, err := purego.Dlsym(handle, "duckdb_validity_set_row_valid")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_validity_set_row_valid: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_validity_set_row_valid, duckdb_validity_set_row_valid_symbol)
+	duckdb_get_profiling_info_symbol, err := purego.Dlsym(handle, "duckdb_get_profiling_info")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_get_profiling_info: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_get_profiling_info, duckdb_get_profiling_info_symbol)
+	duckdb_profiling_info_get_value_symbol, err := purego.Dlsym(handle, "duckdb_profiling_info_get_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_profiling_info_get_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_profiling_info_get_value, duckdb_profiling_info_get_value_symbol)
+	duckdb_profiling_info_get_metrics_symbol, err := purego.Dlsym(handle, "duckdb_profiling_info_get_metrics")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_profiling_info_get_metrics: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_profiling_info_get_metrics, duckdb_profiling_info_get_metrics_symbol)
+	duckdb_profiling_info_get_child_count_symbol, err := purego.Dlsym(handle, "duckdb_profiling_info_get_child_count")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_profiling_info_get_child_count: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_profiling_info_get_child_count, duckdb_profiling_info_get_child_count_symbol)
+	duckdb_profiling_info_get_child_symbol, err := purego.Dlsym(handle, "duckdb_profiling_info_get_child")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_profiling_info_get_child: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_profiling_info_get_child, duckdb_profiling_info_get_child_symbol)
+	duckdb_appender_create_symbol, err := purego.Dlsym(handle, "duckdb_appender_create")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_appender_create: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_appender_create, duckdb_appender_create_symbol)
+	duckdb_appender_column_count_symbol, err := purego.Dlsym(handle, "duckdb_appender_column_count")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_appender_column_count: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_appender_column_count, duckdb_appender_column_count_symbol)
+	duckdb_appender_column_type_symbol, err := purego.Dlsym(handle, "duckdb_appender_column_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_appender_column_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_appender_column_type, duckdb_appender_column_type_symbol)
+	duckdb_appender_error_symbol, err := purego.Dlsym(handle, "duckdb_appender_error")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_appender_error: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_appender_error, duckdb_appender_error_symbol)
+	duckdb_appender_flush_symbol, err := purego.Dlsym(handle, "duckdb_appender_flush")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_appender_flush: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_appender_flush, duckdb_appender_flush_symbol)
+	duckdb_appender_close_symbol, err := purego.Dlsym(handle, "duckdb_appender_close")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_appender_close: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_appender_close, duckdb_appender_close_symbol)
+	duckdb_appender_destroy_symbol, err := purego.Dlsym(handle, "duckdb_appender_destroy")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_appender_destroy: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_appender_destroy, duckdb_appender_destroy_symbol)
+	duckdb_appender_begin_row_symbol, err := purego.Dlsym(handle, "duckdb_appender_begin_row")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_appender_begin_row: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_appender_begin_row, duckdb_appender_begin_row_symbol)
+	duckdb_appender_end_row_symbol, err := purego.Dlsym(handle, "duckdb_appender_end_row")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_appender_end_row: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_appender_end_row, duckdb_appender_end_row_symbol)
+	duckdb_append_default_symbol, err := purego.Dlsym(handle, "duckdb_append_default")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_default: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_default, duckdb_append_default_symbol)
+	duckdb_append_bool_symbol, err := purego.Dlsym(handle, "duckdb_append_bool")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_bool: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_bool, duckdb_append_bool_symbol)
+	duckdb_append_int8_symbol, err := purego.Dlsym(handle, "duckdb_append_int8")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_int8: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_int8, duckdb_append_int8_symbol)
+	duckdb_append_int16_symbol, err := purego.Dlsym(handle, "duckdb_append_int16")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_int16: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_int16, duckdb_append_int16_symbol)
+	duckdb_append_int32_symbol, err := purego.Dlsym(handle, "duckdb_append_int32")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_int32: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_int32, duckdb_append_int32_symbol)
+	duckdb_append_int64_symbol, err := purego.Dlsym(handle, "duckdb_append_int64")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_int64: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_int64, duckdb_append_int64_symbol)
+	duckdb_append_hugeint_symbol, err := purego.Dlsym(handle, "duckdb_append_hugeint")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_hugeint: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_hugeint, duckdb_append_hugeint_symbol)
+	duckdb_append_uint8_symbol, err := purego.Dlsym(handle, "duckdb_append_uint8")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_uint8: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_uint8, duckdb_append_uint8_symbol)
+	duckdb_append_uint16_symbol, err := purego.Dlsym(handle, "duckdb_append_uint16")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_uint16: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_uint16, duckdb_append_uint16_symbol)
+	duckdb_append_uint32_symbol, err := purego.Dlsym(handle, "duckdb_append_uint32")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_uint32: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_uint32, duckdb_append_uint32_symbol)
+	duckdb_append_uint64_symbol, err := purego.Dlsym(handle, "duckdb_append_uint64")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_uint64: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_uint64, duckdb_append_uint64_symbol)
+	duckdb_append_uhugeint_symbol, err := purego.Dlsym(handle, "duckdb_append_uhugeint")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_uhugeint: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_uhugeint, duckdb_append_uhugeint_symbol)
+	duckdb_append_float_symbol, err := purego.Dlsym(handle, "duckdb_append_float")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_float: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_float, duckdb_append_float_symbol)
+	duckdb_append_double_symbol, err := purego.Dlsym(handle, "duckdb_append_double")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_double: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_double, duckdb_append_double_symbol)
+	duckdb_append_date_symbol, err := purego.Dlsym(handle, "duckdb_append_date")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_date: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_date, duckdb_append_date_symbol)
+	duckdb_append_time_symbol, err := purego.Dlsym(handle, "duckdb_append_time")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_time: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_time, duckdb_append_time_symbol)
+	duckdb_append_timestamp_symbol, err := purego.Dlsym(handle, "duckdb_append_timestamp")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_timestamp: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_timestamp, duckdb_append_timestamp_symbol)
+	duckdb_append_interval_symbol, err := purego.Dlsym(handle, "duckdb_append_interval")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_interval: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_interval, duckdb_append_interval_symbol)
+	duckdb_append_varchar_symbol, err := purego.Dlsym(handle, "duckdb_append_varchar")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_varchar: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_varchar, duckdb_append_varchar_symbol)
+	duckdb_append_varchar_length_symbol, err := purego.Dlsym(handle, "duckdb_append_varchar_length")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_varchar_length: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_varchar_length, duckdb_append_varchar_length_symbol)
+	duckdb_append_blob_symbol, err := purego.Dlsym(handle, "duckdb_append_blob")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_blob: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_blob, duckdb_append_blob_symbol)
+	duckdb_append_null_symbol, err := purego.Dlsym(handle, "duckdb_append_null")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_null: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_null, duckdb_append_null_symbol)
+	duckdb_append_value_symbol, err := purego.Dlsym(handle, "duckdb_append_value")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_value: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_value, duckdb_append_value_symbol)
+	duckdb_append_data_chunk_symbol, err := purego.Dlsym(handle, "duckdb_append_data_chunk")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_append_data_chunk: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_append_data_chunk, duckdb_append_data_chunk_symbol)
+	duckdb_table_description_create_symbol, err := purego.Dlsym(handle, "duckdb_table_description_create")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_table_description_create: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_table_description_create, duckdb_table_description_create_symbol)
+	duckdb_table_description_destroy_symbol, err := purego.Dlsym(handle, "duckdb_table_description_destroy")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_table_description_destroy: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_table_description_destroy, duckdb_table_description_destroy_symbol)
+	duckdb_table_description_error_symbol, err := purego.Dlsym(handle, "duckdb_table_description_error")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_table_description_error: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_table_description_error, duckdb_table_description_error_symbol)
+	duckdb_column_has_default_symbol, err := purego.Dlsym(handle, "duckdb_column_has_default")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_column_has_default: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_column_has_default, duckdb_column_has_default_symbol)
+	duckdb_table_description_get_column_count_symbol, err := purego.Dlsym(handle, "duckdb_table_description_get_column_count")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_table_description_get_column_count: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_table_description_get_column_count, duckdb_table_description_get_column_count_symbol)
+	duckdb_table_description_get_column_name_symbol, err := purego.Dlsym(handle, "duckdb_table_description_get_column_name")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_table_description_get_column_name: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_table_description_get_column_name, duckdb_table_description_get_column_name_symbol)
+	duckdb_table_description_get_column_type_symbol, err := purego.Dlsym(handle, "duckdb_table_description_get_column_type")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_table_description_get_column_type: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_table_description_get_column_type, duckdb_table_description_get_column_type_symbol)
+	duckdb_stream_fetch_chunk_symbol, err := purego.Dlsym(handle, "duckdb_stream_fetch_chunk")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_stream_fetch_chunk: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_stream_fetch_chunk, duckdb_stream_fetch_chunk_symbol)
 	duckdb_fetch_chunk_symbol, err := purego.Dlsym(handle, "duckdb_fetch_chunk")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_fetch_chunk: %w", err)
