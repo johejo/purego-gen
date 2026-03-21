@@ -167,12 +167,22 @@ def _collect_generated_names(
         (helper["name"], "owned-string helper", check_func)
         for helper in context["owned_string_helpers"]
     )
+    # Struct accessor methods are scoped to their receiver type in Go,
+    # so we qualify names with the receiver to avoid false cross-type collisions.
     names.extend(
         entry
         for accessor in context["struct_accessors"]
         for entry in (
-            (accessor["getter_name"], "struct accessor getter", check_type),
-            (accessor["setter_name"], "struct accessor setter", check_type),
+            (
+                f"{accessor['receiver_type']}.{accessor['getter_name']}",
+                "struct accessor getter",
+                check_type,
+            ),
+            (
+                f"{accessor['receiver_type']}.{accessor['setter_name']}",
+                "struct accessor setter",
+                check_type,
+            ),
         )
     )
     names.extend(
