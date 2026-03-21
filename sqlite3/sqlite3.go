@@ -22,6 +22,13 @@ import (
 
 const driverName = "sqlite3"
 
+// Hook operation types passed to SetUpdateHook callbacks.
+const (
+	OpInsert = int(raw.SQLITE_INSERT)
+	OpUpdate = int(raw.SQLITE_UPDATE)
+	OpDelete = int(raw.SQLITE_DELETE)
+)
+
 func init() {
 	sql.Register(driverName, &SQLiteDriver{})
 }
@@ -70,6 +77,11 @@ type SQLiteConn struct {
 	nextID     uintptr
 	scalars    map[uintptr]*scalarFunction
 	collations map[uintptr]*collationFunction
+
+	// pinned hook callbacks to prevent GC of closures passed to purego.NewCallback
+	updateHookCb   func(uintptr, int32, uintptr, uintptr, int64)
+	commitHookCb   func(uintptr) int32
+	rollbackHookCb func(uintptr)
 }
 
 type SQLiteStmt struct {
@@ -1179,6 +1191,58 @@ func (c *SQLiteConn) unregisterCollation(id uintptr) {
 	delete(c.collations, id)
 }
 
+// SetUpdateHook registers or clears the update hook for this connection.
+// The callback receives the operation type (SQLITE_INSERT, SQLITE_UPDATE, SQLITE_DELETE),
+// the database name, table name, and the rowid of the affected row.
+// Pass nil to clear a previously set hook.
+func (c *SQLiteConn) SetUpdateHook(callback func(op int, dbName, tableName string, rowID int64)) {
+	if callback == nil {
+		c.updateHookCb = nil
+		raw.UpdateHook(c.db, nil, 0)
+		return
+	}
+	cb := func(_ uintptr, op int32, dbNamePtr uintptr, tableNamePtr uintptr, rowID int64) {
+		dbName := ptrToString(dbNamePtr)
+		tableName := ptrToString(tableNamePtr)
+		callback(int(op), dbName, tableName, rowID)
+	}
+	c.updateHookCb = cb
+	raw.UpdateHook(c.db, cb, 0)
+}
+
+// SetCommitHook registers or clears the commit hook for this connection.
+// The callback is invoked when a transaction is about to be committed.
+// Return non-zero to convert the commit into a rollback.
+// Pass nil to clear a previously set hook.
+func (c *SQLiteConn) SetCommitHook(callback func() int) {
+	if callback == nil {
+		c.commitHookCb = nil
+		raw.CommitHook(c.db, nil, 0)
+		return
+	}
+	cb := func(_ uintptr) int32 {
+		return int32(callback())
+	}
+	c.commitHookCb = cb
+	raw.CommitHook(c.db, cb, 0)
+}
+
+// SetRollbackHook registers or clears the rollback hook for this connection.
+// The callback is invoked when a transaction is rolled back.
+// Pass nil to clear a previously set hook.
+func (c *SQLiteConn) SetRollbackHook(callback func()) {
+	if callback == nil {
+		c.rollbackHookCb = nil
+		raw.RollbackHook(c.db, nil, 0)
+		return
+	}
+	cb := func(_ uintptr) {
+		callback()
+	}
+	c.rollbackHookCb = cb
+	raw.RollbackHook(c.db, cb, 0)
+}
+
 type cancelState struct {
 	done        chan struct{}
 	interrupted atomic.Bool
@@ -1267,6 +1331,21 @@ func sqliteErrorString(code int32) string {
 	default:
 		return fmt.Sprintf("sqlite result code %d", code)
 	}
+}
+
+func ptrToString(ptr uintptr) string {
+	if ptr == 0 {
+		return ""
+	}
+	base := unsafe.Add(unsafe.Pointer(nil), ptr)
+	var length int
+	for {
+		if *(*byte)(unsafe.Add(base, length)) == 0 {
+			break
+		}
+		length++
+	}
+	return string(unsafe.Slice((*byte)(base), length))
 }
 
 func rawBytes(ptr uintptr, length int32) []byte {

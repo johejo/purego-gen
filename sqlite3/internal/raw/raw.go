@@ -246,6 +246,26 @@ func ResultText(ctx *Context, value string, destructor DestructorType) {
 }
 func ResultError(ctx *Context, value string) { sqlite3_result_error(ctx, value, -1) }
 
+func CommitHook(db *DB, callback func(uintptr) int32, userData uintptr) uintptr {
+	return sqlite3_commit_hook_callbacks(db, callback, userData)
+}
+
+func RollbackHook(db *DB, callback func(uintptr), userData uintptr) uintptr {
+	return sqlite3_rollback_hook_callbacks(db, callback, userData)
+}
+
+func UpdateHook(db *DB, callback func(uintptr, int32, uintptr, uintptr, int64), userData uintptr) uintptr {
+	return sqlite3_update_hook_callbacks(db, callback, userData)
+}
+
+func ProgressHandler(db *DB, nOps int32, callback func(uintptr) int32, userData uintptr) {
+	sqlite3_progress_handler_callbacks(db, nOps, callback, userData)
+}
+
+func TraceV2(db *DB, mask uint32, callback func(uint32, uintptr, uintptr, uintptr) int32, userData uintptr) int32 {
+	return sqlite3_trace_v2_callbacks(db, mask, callback, userData)
+}
+
 func copyBytes(ptr uintptr, length int32) []byte {
 	if ptr == 0 || length <= 0 {
 		return nil

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -233,5 +234,203 @@ func TestDriverReturnsSQLiteErrorValues(t *testing.T) {
 	}
 	if sqliteErr.Code == 0 {
 		t.Fatalf("sqlite error code = 0, want non-zero (%v)", sqliteErr)
+	}
+}
+
+func TestUpdateHook(t *testing.T) {
+	var mu sync.Mutex
+	var events []struct {
+		op        int
+		dbName    string
+		tableName string
+		rowID     int64
+	}
+
+	driver := &sqlite3.SQLiteDriver{
+		ConnectHook: func(conn *sqlite3.SQLiteConn) error {
+			conn.SetUpdateHook(func(op int, dbName, tableName string, rowID int64) {
+				mu.Lock()
+				defer mu.Unlock()
+				events = append(events, struct {
+					op        int
+					dbName    string
+					tableName string
+					rowID     int64
+				}{op, dbName, tableName, rowID})
+			})
+			return nil
+		},
+	}
+
+	connector, err := driver.OpenConnector("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("OpenConnector: %v", err)
+	}
+
+	db := sql.OpenDB(connector)
+	defer db.Close()
+
+	ctx := context.Background()
+	if _, err := db.ExecContext(ctx, "CREATE TABLE hook_test(id INTEGER PRIMARY KEY, name TEXT)"); err != nil {
+		t.Fatalf("CREATE TABLE: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, "INSERT INTO hook_test(name) VALUES('alice')"); err != nil {
+		t.Fatalf("INSERT: %v", err)
+	}
+
+	mu.Lock()
+	count := len(events)
+	mu.Unlock()
+	if count == 0 {
+		t.Fatal("update hook was not called after INSERT")
+	}
+
+	mu.Lock()
+	last := events[count-1]
+	mu.Unlock()
+	if last.op != sqlite3.OpInsert {
+		t.Fatalf("update hook op = %d, want OpInsert (%d)", last.op, sqlite3.OpInsert)
+	}
+	if last.tableName != "hook_test" {
+		t.Fatalf("update hook table = %q, want %q", last.tableName, "hook_test")
+	}
+	if last.rowID != 1 {
+		t.Fatalf("update hook rowID = %d, want 1", last.rowID)
+	}
+}
+
+func TestCommitHook(t *testing.T) {
+	var mu sync.Mutex
+	var commitCount int
+
+	driver := &sqlite3.SQLiteDriver{
+		ConnectHook: func(conn *sqlite3.SQLiteConn) error {
+			conn.SetCommitHook(func() int {
+				mu.Lock()
+				defer mu.Unlock()
+				commitCount++
+				return 0
+			})
+			return nil
+		},
+	}
+
+	connector, err := driver.OpenConnector("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("OpenConnector: %v", err)
+	}
+
+	db := sql.OpenDB(connector)
+	defer db.Close()
+
+	ctx := context.Background()
+	if _, err := db.ExecContext(ctx, "CREATE TABLE commit_test(id INTEGER PRIMARY KEY)"); err != nil {
+		t.Fatalf("CREATE TABLE: %v", err)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("BeginTx: %v", err)
+	}
+	if _, err := tx.ExecContext(ctx, "INSERT INTO commit_test(id) VALUES(1)"); err != nil {
+		t.Fatalf("INSERT: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	mu.Lock()
+	got := commitCount
+	mu.Unlock()
+	if got == 0 {
+		t.Fatal("commit hook was not called after COMMIT")
+	}
+}
+
+func TestRollbackHook(t *testing.T) {
+	var mu sync.Mutex
+	var rollbackCount int
+
+	driver := &sqlite3.SQLiteDriver{
+		ConnectHook: func(conn *sqlite3.SQLiteConn) error {
+			conn.SetRollbackHook(func() {
+				mu.Lock()
+				defer mu.Unlock()
+				rollbackCount++
+			})
+			return nil
+		},
+	}
+
+	connector, err := driver.OpenConnector("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("OpenConnector: %v", err)
+	}
+
+	db := sql.OpenDB(connector)
+	defer db.Close()
+
+	ctx := context.Background()
+	if _, err := db.ExecContext(ctx, "CREATE TABLE rollback_test(id INTEGER PRIMARY KEY)"); err != nil {
+		t.Fatalf("CREATE TABLE: %v", err)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("BeginTx: %v", err)
+	}
+	if _, err := tx.ExecContext(ctx, "INSERT INTO rollback_test(id) VALUES(1)"); err != nil {
+		t.Fatalf("INSERT: %v", err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatalf("Rollback: %v", err)
+	}
+
+	mu.Lock()
+	got := rollbackCount
+	mu.Unlock()
+	if got == 0 {
+		t.Fatal("rollback hook was not called after ROLLBACK")
+	}
+}
+
+func TestHookClearWithNil(t *testing.T) {
+	var mu sync.Mutex
+	var called bool
+
+	driver := &sqlite3.SQLiteDriver{
+		ConnectHook: func(conn *sqlite3.SQLiteConn) error {
+			conn.SetUpdateHook(func(op int, dbName, tableName string, rowID int64) {
+				mu.Lock()
+				defer mu.Unlock()
+				called = true
+			})
+			// Immediately clear the hook.
+			conn.SetUpdateHook(nil)
+			return nil
+		},
+	}
+
+	connector, err := driver.OpenConnector("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("OpenConnector: %v", err)
+	}
+
+	db := sql.OpenDB(connector)
+	defer db.Close()
+
+	ctx := context.Background()
+	if _, err := db.ExecContext(ctx, "CREATE TABLE nil_test(id INTEGER PRIMARY KEY)"); err != nil {
+		t.Fatalf("CREATE TABLE: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, "INSERT INTO nil_test(id) VALUES(1)"); err != nil {
+		t.Fatalf("INSERT: %v", err)
+	}
+
+	mu.Lock()
+	wasCalled := called
+	mu.Unlock()
+	if wasCalled {
+		t.Fatal("update hook was called after being cleared with nil")
 	}
 }

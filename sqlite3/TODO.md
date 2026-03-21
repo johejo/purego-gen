@@ -8,3 +8,5 @@ Generic purego-gen issues belong in root [`TODO.md`](../TODO.md).
 - [ ] Add extension-loading support with an explicit security posture.
 - [ ] Add more complete time parsing/formatting compatibility with mattn/go-sqlite3.
 - [ ] Add richer column metadata support when the raw layer grows to include origin/database/table-name APIs.
+- [ ] Add WAL API (`sqlite3_wal_checkpoint_v2`, `sqlite3_wal_hook`) support.
+- [ ] Add Backup API (`sqlite3_backup_*`) support.

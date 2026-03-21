@@ -58,7 +58,12 @@
           "sqlite3_result_double",
           "sqlite3_result_int64",
           "sqlite3_result_text",
-          "sqlite3_result_error"
+          "sqlite3_result_error",
+          "sqlite3_trace_v2",
+          "sqlite3_commit_hook",
+          "sqlite3_rollback_hook",
+          "sqlite3_update_hook",
+          "sqlite3_progress_handler"
         ],
         "type": [
           "sqlite3",
@@ -115,7 +120,12 @@
           "SQLITE_OPEN_NOMUTEX",
           "SQLITE_OPEN_FULLMUTEX",
           "SQLITE_STATIC",
-          "SQLITE_TRANSIENT"
+          "SQLITE_TRANSIENT",
+          "SQLITE_INSERT",
+          "SQLITE_UPDATE",
+          "SQLITE_DELETE",
+          "SQLITE_TRACE_STMT",
+          "SQLITE_TRACE_ROW"
         ]
       }
     },
@@ -159,6 +169,36 @@
             "parameters": [
               "xCompare",
               "xDestroy"
+            ]
+          },
+          {
+            "function": "sqlite3_commit_hook",
+            "parameters": [
+              "arg2"
+            ]
+          },
+          {
+            "function": "sqlite3_rollback_hook",
+            "parameters": [
+              "arg2"
+            ]
+          },
+          {
+            "function": "sqlite3_update_hook",
+            "parameters": [
+              "arg2"
+            ]
+          },
+          {
+            "function": "sqlite3_progress_handler",
+            "parameters": [
+              "arg3"
+            ]
+          },
+          {
+            "function": "sqlite3_trace_v2",
+            "parameters": [
+              "xCallback"
             ]
           }
         ]
