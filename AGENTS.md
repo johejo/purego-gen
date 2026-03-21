@@ -11,3 +11,5 @@ Build a practical C-header-to-purego binding generator.
 - If you are launched from within nix devshell; run commands directly (e.g., `just check`, `just ci`, `uv run pytest`).
 - See Justfile for useful commands for development.
 - For target-library coverage investigation, prefer `purego-gen inspect` over ad-hoc one-off commands.
+- For one-shot python script, use `./scripts/uv-run-python-src.sh`.
+- See also `./DESIGN.md`.
