@@ -46,6 +46,9 @@ _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "owned_string_helpers",
     "struct_accessors",
     "runtime_vars",
+    "has_union_helpers",
+    "union_get_func_name",
+    "union_set_func_name",
     "register_functions_name",
     "load_runtime_vars_name",
     "gostring_func_name",
@@ -194,6 +197,11 @@ def _collect_generated_names(
         (context["load_runtime_vars_name"], "load_runtime_vars helper", check_func),
         (context["gostring_func_name"], "gostring utility", check_func),
     ])
+    if context["has_union_helpers"]:
+        names.extend([
+            (context["union_get_func_name"], "union get helper", check_func),
+            (context["union_set_func_name"], "union set helper", check_func),
+        ])
     return names
 
 

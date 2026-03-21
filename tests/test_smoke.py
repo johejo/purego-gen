@@ -27,7 +27,6 @@ from purego_gen.diagnostics import (
 from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
-    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
 )
 from purego_gen.process_exec import CommandResult, run_command
 
@@ -170,14 +169,11 @@ def test_reports_skipped_typedef_diagnostics_for_unsupported_record_fields(tmp_p
     )
 
     assert result.returncode == 0
-    assert f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_TYPEDEF_COUNT}]: 10" in result.stderr
+    assert f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_TYPEDEF_COUNT}]: 11" in result.stderr
     assert f"[{INVENTORY_DIAGNOSTIC_CODE_EMITTED_CONSTANT_COUNT}]: 2" in result.stderr
-    assert f"[{TYPE_DIAGNOSTIC_CODE_SKIPPED_COUNT}]: 3" in result.stderr
-    assert f"[{TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF}_COUNT]: 1" in result.stderr
+    assert f"[{TYPE_DIAGNOSTIC_CODE_SKIPPED_COUNT}]: 2" in result.stderr
     assert f"[{TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD}_COUNT]: 1" in result.stderr
     assert f"[{TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS}_COUNT]: 1" in result.stderr
-    assert "skipped typedef fixture_union_t" in result.stderr
-    assert f"[{TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF}]" in result.stderr
     assert "skipped typedef fixture_with_bitfield_t" in result.stderr
     assert f"[{TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD}]" in result.stderr
     assert "skipped typedef fixture_with_anonymous_field_t" in result.stderr

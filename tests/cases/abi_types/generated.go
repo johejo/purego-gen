@@ -58,6 +58,10 @@ type (
 	fixture_with_array_t struct {
 		values [4]int32
 	}
+	fixture_union_t struct {
+		_ [0]int32
+		_ [4]byte
+	}
 	// C: struct fixture_opaque
 	fixture_opaque_t struct{}
 	// C: int (*)(int)
@@ -66,6 +70,14 @@ type (
 
 func new_fixture_callback_t(fn fixture_callback_t_func) fixture_callback_t {
 	return fixture_callback_t(purego.NewCallback(fn))
+}
+
+func union_get[T any, U any](u *U) T {
+	return *(*T)(unsafe.Pointer(u))
+}
+
+func union_set[T any, U any](u *U, v T) {
+	*(*T)(unsafe.Pointer(u)) = v
 }
 
 const (

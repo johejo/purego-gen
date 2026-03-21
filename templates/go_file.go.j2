@@ -56,6 +56,16 @@ func {{ helper.name }}(fn {{ helper.param_type }}) {{ helper.return_type }} {
         {% endfor %}
     {% endif %}
 {% endif %}
+{% if has_union_helpers %}
+func {{ union_get_func_name }}[T any, U any](u *U) T {
+    return *(*T)(unsafe.Pointer(u))
+}
+
+func {{ union_set_func_name }}[T any, U any](u *U, v T) {
+    *(*T)(unsafe.Pointer(u)) = v
+}
+
+{% endif %}
 {% if struct_accessors %}
     {% for accessor in struct_accessors %}
 func (s *{{ accessor.receiver_type }}) {{ accessor.getter_name }}() {{ accessor.go_type }} {

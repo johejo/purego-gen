@@ -30,22 +30,10 @@ def test_build_generation_inventory_lines_groups_skipped_typedefs_by_reason() ->
         runtime_vars=(),
         skipped_typedefs=(
             SkippedTypedefDecl(
-                name="fixture_union_t",
-                c_type="union fixture_union",
-                reason_code="PUREGO_GEN_TYPE_UNSUPPORTED_UNION_TYPEDEF",
-                reason="union typedefs are not supported in v1",
-            ),
-            SkippedTypedefDecl(
                 name="fixture_with_bitfield_t",
                 c_type="struct fixture_with_bitfield",
                 reason_code="PUREGO_GEN_TYPE_UNSUPPORTED_BITFIELD",
                 reason="bitfield flags is not supported in v1",
-            ),
-            SkippedTypedefDecl(
-                name="fixture_other_union_t",
-                c_type="union fixture_other_union",
-                reason_code="PUREGO_GEN_TYPE_UNSUPPORTED_UNION_TYPEDEF",
-                reason="union typedefs are not supported in v1",
             ),
         ),
     )
@@ -88,9 +76,8 @@ def test_build_generation_inventory_lines_groups_skipped_typedefs_by_reason() ->
             "purego-gen: excluded constants "
             f"[{INVENTORY_DIAGNOSTIC_CODE_EXCLUDED_CONSTANT_COUNT}]: 0\n"
         ),
-        f"purego-gen: skipped typedefs [{TYPE_DIAGNOSTIC_CODE_SKIPPED_COUNT}]: 3\n",
+        f"purego-gen: skipped typedefs [{TYPE_DIAGNOSTIC_CODE_SKIPPED_COUNT}]: 1\n",
         "purego-gen: skipped typedefs [PUREGO_GEN_TYPE_UNSUPPORTED_BITFIELD_COUNT]: 1\n",
-        "purego-gen: skipped typedefs [PUREGO_GEN_TYPE_UNSUPPORTED_UNION_TYPEDEF_COUNT]: 2\n",
     )
 
 

@@ -197,15 +197,62 @@ def _is_field_usable_for_record_layout(field: RecordFieldDecl) -> bool:
     )
 
 
-def validate_record_layout(record: RecordTypedefDecl) -> tuple[AbiLayoutDiagnostic, ...]:
-    """Validate record layout metadata using clang-provided sizes/alignments.
-
-    For supported records, this utility recomputes expected field offsets, struct
-    alignment, and final struct size from field-level size/alignment metadata and
-    compares the result with clang-reported layout values.
+def _validate_union_layout(record: RecordTypedefDecl) -> tuple[AbiLayoutDiagnostic, ...]:
+    """Validate union layout: all fields at offset 0, each fits within record size.
 
     Returns:
         Layout diagnostics. Empty tuple means no mismatches were found.
+    """
+    if record.size_bytes is None or record.align_bytes is None:
+        return (
+            AbiLayoutDiagnostic(
+                code=ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_RECORD_LAYOUT,
+                message=f"{record.name}: missing record size_bytes/align_bytes metadata",
+            ),
+        )
+    diagnostics: list[AbiLayoutDiagnostic] = []
+    for field in record.fields:
+        if field.offset_bits is None or field.size_bytes is None:
+            diagnostics.append(
+                AbiLayoutDiagnostic(
+                    code=ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_FIELD_LAYOUT,
+                    message=(
+                        f"{record.name}.{field.name}: missing field layout metadata "
+                        "(offset_bits/size_bytes)"
+                    ),
+                )
+            )
+            continue
+        if field.offset_bits != 0:
+            diagnostics.append(
+                AbiLayoutDiagnostic(
+                    code=ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_MISMATCH,
+                    message=(
+                        f"{record.name}.{field.name}: union field expected offset_bits 0, "
+                        f"got {field.offset_bits}"
+                    ),
+                )
+            )
+        if field.size_bytes > record.size_bytes:
+            diagnostics.append(
+                AbiLayoutDiagnostic(
+                    code=ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_SIZE_MISMATCH,
+                    message=(
+                        f"{record.name}.{field.name}: field size_bytes {field.size_bytes} "
+                        f"exceeds union size_bytes {record.size_bytes}"
+                    ),
+                )
+            )
+    return tuple(diagnostics)
+
+
+def _check_record_layout_preconditions(
+    record: RecordTypedefDecl,
+) -> tuple[AbiLayoutDiagnostic, ...] | None:
+    """Check preconditions for record layout validation.
+
+    Returns:
+        Diagnostics tuple if validation should stop early, otherwise `None`.
     """
     if not record.supported:
         reason = record.unsupported_reason or "unsupported record typedef"
@@ -217,6 +264,24 @@ def validate_record_layout(record: RecordTypedefDecl) -> tuple[AbiLayoutDiagnost
                 source_code=record.unsupported_code,
             ),
         )
+    if record.record_kind == "UNION_DECL":
+        return _validate_union_layout(record)
+    return None
+
+
+def validate_record_layout(record: RecordTypedefDecl) -> tuple[AbiLayoutDiagnostic, ...]:
+    """Validate record layout metadata using clang-provided sizes/alignments.
+
+    For supported records, this utility recomputes expected field offsets, struct
+    alignment, and final struct size from field-level size/alignment metadata and
+    compares the result with clang-reported layout values.
+
+    Returns:
+        Layout diagnostics. Empty tuple means no mismatches were found.
+    """
+    early = _check_record_layout_preconditions(record)
+    if early is not None:
+        return early
 
     if record.size_bytes is None or record.align_bytes is None:
         return (

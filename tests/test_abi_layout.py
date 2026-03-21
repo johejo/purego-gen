@@ -176,13 +176,62 @@ def test_validate_record_layout_detects_offset_and_size_mismatch() -> None:
 def test_validate_record_layout_reports_unsupported_record() -> None:
     """Unsupported record typedefs should return a stable unsupported diagnostic."""
     record_map = _record_typedef_map()
-    array_record = record_map["fixture_union_t"]
+    bitfield_record = record_map["fixture_with_bitfield_t"]
 
-    diagnostics = validate_record_layout(array_record)
+    diagnostics = validate_record_layout(bitfield_record)
 
     assert len(diagnostics) == 1
     assert diagnostics[0].code == ABI_LAYOUT_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD
     assert diagnostics[0].source_code is not None
+
+
+def test_validate_union_layout_accepts_supported_union() -> None:
+    """Layout validation should pass on a well-formed union typedef."""
+    record_map = _record_typedef_map()
+    union_record = record_map["fixture_union_t"]
+
+    diagnostics = validate_record_layout(union_record)
+
+    assert diagnostics == ()
+
+
+def test_validate_union_layout_detects_nonzero_offset() -> None:
+    """Union fields must all have offset_bits=0."""
+    record_map = _record_typedef_map()
+    union_record = record_map["fixture_union_t"]
+
+    shifted_field = replace(union_record.fields[0], offset_bits=32)
+    bad_union = replace(union_record, fields=(shifted_field, *union_record.fields[1:]))
+    diagnostics = validate_record_layout(bad_union)
+    diagnostic_codes = {d.code for d in diagnostics}
+
+    assert ABI_LAYOUT_DIAGNOSTIC_CODE_FIELD_OFFSET_MISMATCH in diagnostic_codes
+
+
+def test_validate_union_layout_detects_oversized_field() -> None:
+    """Union field size_bytes must not exceed union size_bytes."""
+    record_map = _record_typedef_map()
+    union_record = record_map["fixture_union_t"]
+
+    oversized_field = replace(union_record.fields[0], size_bytes=999)
+    bad_union = replace(union_record, fields=(oversized_field, *union_record.fields[1:]))
+    diagnostics = validate_record_layout(bad_union)
+    diagnostic_codes = {d.code for d in diagnostics}
+
+    assert ABI_LAYOUT_DIAGNOSTIC_CODE_RECORD_SIZE_MISMATCH in diagnostic_codes
+
+
+def test_validate_union_layout_detects_missing_field_metadata() -> None:
+    """Union fields with missing offset/size should emit missing-layout diagnostics."""
+    record_map = _record_typedef_map()
+    union_record = record_map["fixture_union_t"]
+
+    missing_field = replace(union_record.fields[0], offset_bits=None, size_bytes=None)
+    bad_union = replace(union_record, fields=(missing_field, *union_record.fields[1:]))
+    diagnostics = validate_record_layout(bad_union)
+    diagnostic_codes = {d.code for d in diagnostics}
+
+    assert ABI_LAYOUT_DIAGNOSTIC_CODE_MISSING_FIELD_LAYOUT in diagnostic_codes
 
 
 def test_validate_record_layout_reports_missing_field_metadata() -> None:
@@ -264,7 +313,7 @@ def _record_with_layout_mismatch(record: RecordTypedefDecl) -> RecordTypedefDecl
     ),
     [
         pytest.param(
-            "fixture_union_t",
+            "fixture_with_bitfield_t",
             _identity_record,
             ABI_LAYOUT_RESULT_STATUS_SKIPPED,
             ABI_LAYOUT_FALLBACK_REASON_UNSUPPORTED_PATTERN,

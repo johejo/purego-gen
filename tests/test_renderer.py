@@ -60,6 +60,9 @@ def test_render_template_fails_on_missing_nested_key() -> None:
                 "register_functions_name": "fixture_lib_register_functions",
                 "load_runtime_vars_name": "fixture_lib_load_runtime_vars",
                 "gostring_func_name": "gostring",
+                "has_union_helpers": False,
+                "union_get_func_name": "union_get",
+                "union_set_func_name": "union_set",
             },
         )
 

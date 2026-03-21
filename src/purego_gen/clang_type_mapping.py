@@ -21,7 +21,7 @@ from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD_KIND,
-    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
+    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_SIZE,
     RecordFieldDecl,
     RecordTypedefDecl,
     TypeMappingOptions,
@@ -61,6 +61,8 @@ _CONSTANT_ARRAY_TYPE_KIND_NAME: Final[str] = "CONSTANTARRAY"
 _FIELD_DECL_KIND_NAME: Final[str] = "FIELD_DECL"
 _STRUCT_DECL_KIND_NAME: Final[str] = "STRUCT_DECL"
 _UNION_DECL_KIND_NAME: Final[str] = "UNION_DECL"
+# Alignment >8 (e.g. __int128, SIMD types) falls back to unaligned [S]byte.
+_ALIGN_TYPE_BY_BYTES: Final[dict[int, str]] = {2: "int16", 4: "int32", 8: "int64"}
 
 
 def _map_pointer_type_to_go_name(canonical_type: TypeLike) -> str:
@@ -370,6 +372,20 @@ class _StructPaddingTracker:
         return 0
 
 
+def _build_alignment_wrapper_type(size_bytes: int, align_bytes: int) -> str:
+    """Build a Go type literal for a union represented as an opaque byte array.
+
+    Returns:
+        Go type literal string (either ``[S]byte`` or ``struct { _ [0]<align>; _ [S]byte }``).
+    """
+    if align_bytes <= 1:
+        return f"[{size_bytes}]byte"
+    align_type = _ALIGN_TYPE_BY_BYTES.get(align_bytes)
+    if align_type is None:
+        return f"[{size_bytes}]byte"
+    return f"struct {{\n\t_ [0]{align_type}\n\t_ [{size_bytes}]byte\n}}"
+
+
 def _check_record_declaration_support(
     declaration: CursorLike,
 ) -> UnsupportedTypeDiagnostic | None:
@@ -379,22 +395,37 @@ def _check_record_declaration_support(
         Unsupported diagnostic when the declaration cannot be mapped, otherwise `None`.
     """
     declaration_kind_name = declaration.kind.name
-    if declaration_kind_name == _UNION_DECL_KIND_NAME:
-        return UnsupportedTypeDiagnostic(
-            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
-            message="union typedefs are not supported in v1",
-        )
-    if declaration_kind_name != _STRUCT_DECL_KIND_NAME:
+    if declaration_kind_name not in {_STRUCT_DECL_KIND_NAME, _UNION_DECL_KIND_NAME}:
         return UnsupportedTypeDiagnostic(
             code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD_KIND,
             message=f"record kind {declaration_kind_name} is not supported in v1",
         )
-    if not declaration.is_definition():
+    if declaration_kind_name == _STRUCT_DECL_KIND_NAME and not declaration.is_definition():
         return UnsupportedTypeDiagnostic(
             code=TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
             message="incomplete struct typedef is treated as opaque handle",
         )
     return None
+
+
+def _map_union_type_to_go_name(clang_type: TypeLike) -> RecordTypeMappingResult:
+    """Map a union type to an opaque byte array with alignment wrapper.
+
+    Returns:
+        Mapping result with Go type text or unsupported diagnostic.
+    """
+    size_bytes = _safe_type_size_bytes(clang_type)
+    align_bytes = _safe_type_align_bytes(clang_type)
+    if size_bytes is None or size_bytes <= 0:
+        diagnostic = UnsupportedTypeDiagnostic(
+            code=TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_SIZE,
+            message="union has unknown or zero size",
+        )
+        return RecordTypeMappingResult(go_type=None, unsupported_diagnostic=diagnostic)
+    return RecordTypeMappingResult(
+        go_type=_build_alignment_wrapper_type(size_bytes, align_bytes or 1),
+        unsupported_diagnostic=None,
+    )
 
 
 def map_record_type_to_go_name(clang_type: TypeLike) -> RecordTypeMappingResult:
@@ -407,6 +438,9 @@ def map_record_type_to_go_name(clang_type: TypeLike) -> RecordTypeMappingResult:
     unsupported = _check_record_declaration_support(declaration)
     if unsupported is not None:
         return RecordTypeMappingResult(go_type=None, unsupported_diagnostic=unsupported)
+
+    if declaration.kind.name == _UNION_DECL_KIND_NAME:
+        return _map_union_type_to_go_name(clang_type)
 
     field_lines: list[str] = []
     seen_field_names: set[str] = set()

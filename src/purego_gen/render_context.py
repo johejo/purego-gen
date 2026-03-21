@@ -145,6 +145,9 @@ class TemplateContext(TypedDict):
     owned_string_helpers: tuple[OwnedStringHelperContext, ...]
     struct_accessors: tuple[StructAccessorContext, ...]
     runtime_vars: tuple[RuntimeVarContext, ...]
+    has_union_helpers: bool
+    union_get_func_name: str
+    union_set_func_name: str
     register_functions_name: str
     load_runtime_vars_name: str
     gostring_func_name: str
@@ -554,6 +557,8 @@ def _build_struct_accessor_contexts(
         record_typedef = record_typedef_by_name.get(c_typedef_name)
         if record_typedef is None:
             continue
+        if record_typedef.record_kind == "UNION_DECL":
+            continue
         for field in record_typedef.fields:
             if field.go_name is None or field.go_type is None:
                 continue
@@ -567,6 +572,25 @@ def _build_struct_accessor_contexts(
                 "go_type": field.go_type,
             })
     return tuple(accessors)
+
+
+def _has_emitted_union_typedefs(
+    emit_kinds: tuple[str, ...],
+    declarations: ParsedDeclarations,
+) -> bool:
+    """Check whether any supported union typedefs will be emitted.
+
+    Returns:
+        `True` when at least one supported union typedef is emitted.
+    """
+    if "type" not in emit_kinds:
+        return False
+    emitted_names = {td.name for td in declarations.typedefs}
+    return any(
+        rt.record_kind == "UNION_DECL" and rt.supported
+        for rt in declarations.record_typedefs
+        if rt.name in emitted_names
+    )
 
 
 def build_template_context(
@@ -599,8 +623,6 @@ def build_template_context(
         type_mapping=render.type_mapping,
         naming=render.naming,
     )
-    typedef_alias_type_by_lookup = typedef_helpers.typedef_alias_type_by_lookup
-    typedef_go_type_by_lookup = typedef_helpers.typedef_go_type_by_lookup
     emitted_strict_typedef_names = (
         typedef_helpers.emitted_opaque_struct_typedef_names
         | typedef_helpers.emitted_strict_enum_typedef_names
@@ -613,7 +635,7 @@ def build_template_context(
     }
     type_resolver = HelperTypeResolver(
         type_aliases=typedef_helpers.func_sig_type_aliases,
-        typedef_go_type_by_lookup=typedef_go_type_by_lookup,
+        typedef_go_type_by_lookup=typedef_helpers.typedef_go_type_by_lookup,
         typedef_c_type_by_lookup=build_typedef_c_type_by_lookup(declarations),
     )
 
@@ -643,13 +665,14 @@ def build_template_context(
     func_type_aliases += callback_param_contexts.func_type_aliases
     newcallback_helpers += callback_param_contexts.newcallback_helpers
 
-    owned_string_result = _build_owned_string_contexts(
+    owned_string_function_contexts, owned_string_helpers = _build_owned_string_contexts(
         function_identifier_by_name=function_identifier_by_name,
         declarations=declarations,
         render=render,
         function_identifiers=function_identifiers,
         type_resolver=type_resolver,
     )
+    has_union_helpers = _has_emitted_union_typedefs(emit_kinds, declarations)
 
     return {
         "package": package,
@@ -657,10 +680,11 @@ def build_template_context(
         "has_func_or_var": "func" in emit_kinds or "var" in emit_kinds,
         "has_purego_import": "func" in emit_kinds
         or "var" in emit_kinds
-        or bool(newcallback_helpers),
+        or bool(newcallback_helpers)
+        or has_union_helpers,
         "has_type_block": ("type" in emit_kinds and bool(declarations.typedefs))
         or bool(func_type_aliases),
-        "has_gostring_util": bool(owned_string_result[1]),
+        "has_gostring_util": bool(owned_string_helpers),
         "type_aliases": tuple(
             {
                 "name": render.naming.type_name(identifier),
@@ -683,16 +707,16 @@ def build_template_context(
                         constant_c_type=constant.c_type,
                         value=constant.value,
                         type_mapping=render.type_mapping,
-                        typedef_alias_type_by_lookup=typedef_alias_type_by_lookup,
-                        typedef_go_type_by_lookup=typedef_go_type_by_lookup,
+                        typedef_alias_type_by_lookup=typedef_helpers.typedef_alias_type_by_lookup,
+                        typedef_go_type_by_lookup=typedef_helpers.typedef_go_type_by_lookup,
                     ),
                 ),
                 "const_type": resolve_typed_constant_type(
                     constant_c_type=constant.c_type,
                     value=constant.value,
                     type_mapping=render.type_mapping,
-                    typedef_alias_type_by_lookup=typedef_alias_type_by_lookup,
-                    typedef_go_type_by_lookup=typedef_go_type_by_lookup,
+                    typedef_alias_type_by_lookup=typedef_helpers.typedef_alias_type_by_lookup,
+                    typedef_go_type_by_lookup=typedef_helpers.typedef_go_type_by_lookup,
                 ),
                 "comment_lines": normalize_comment_lines(constant.comment),
             }
@@ -701,7 +725,7 @@ def build_template_context(
             )
         ),
         "functions": _apply_callback_param_reverts(
-            function_contexts=owned_string_result[0],
+            function_contexts=owned_string_function_contexts,
             declarations=declarations,
             helpers=render.helpers,
         ),
@@ -720,7 +744,7 @@ def build_template_context(
             }
             for helper in helper_contexts
         ),
-        "owned_string_helpers": owned_string_result[1],
+        "owned_string_helpers": owned_string_helpers,
         "struct_accessors": (
             _build_struct_accessor_contexts(
                 declarations=declarations,
@@ -740,6 +764,9 @@ def build_template_context(
                 declarations.runtime_vars, runtime_var_identifiers, strict=True
             )
         ),
+        "has_union_helpers": has_union_helpers,
+        "union_get_func_name": render.naming.func_name("union_get"),
+        "union_set_func_name": render.naming.func_name("union_set"),
         "register_functions_name": render.naming.register_functions_name(lib_id),
         "load_runtime_vars_name": render.naming.load_runtime_vars_name(lib_id),
         "gostring_func_name": render.naming.gostring_func_name(),

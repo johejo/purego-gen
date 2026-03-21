@@ -11,7 +11,6 @@ from purego_gen.model import (
     TYPE_DIAGNOSTIC_CODE_NO_SUPPORTED_FIELDS,
     TYPE_DIAGNOSTIC_CODE_OPAQUE_INCOMPLETE_STRUCT,
     TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_BITFIELD,
-    TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF,
     RecordTypedefDecl,
 )
 
@@ -93,9 +92,9 @@ def test_parse_record_typedef_model_unsupported_records() -> None:
 
     union_record = record_typedef_map["fixture_union_t"]
     assert union_record.record_kind == "UNION_DECL"
-    assert not union_record.supported
-    assert union_record.unsupported_code == TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF
-    assert union_record.unsupported_reason == "union typedefs are not supported in v1"
+    assert union_record.supported
+    assert union_record.unsupported_code is None
+    assert union_record.unsupported_reason is None
 
     bitfield_record = record_typedef_map["fixture_with_bitfield_t"]
     assert not bitfield_record.supported

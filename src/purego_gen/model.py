@@ -26,11 +26,11 @@ TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_FIELD_TYPE: Final[str] = build_diagnostic_code(
     "FIELD",
     "TYPE",
 )
-TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF: Final[str] = build_diagnostic_code(
+TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_SIZE: Final[str] = build_diagnostic_code(
     "TYPE",
     "UNSUPPORTED",
     "UNION",
-    "TYPEDEF",
+    "SIZE",
 )
 TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_RECORD_KIND: Final[str] = build_diagnostic_code(
     "TYPE",

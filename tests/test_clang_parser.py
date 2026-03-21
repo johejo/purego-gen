@@ -76,10 +76,10 @@ def test_parse_type_mapping_edge_cases() -> None:
         "fixture_point_alias_t",
         "fixture_nested_point_t",
         "fixture_with_array_t",
+        "fixture_union_t",
         "fixture_opaque_t",
     )
     assert tuple(typedef.name for typedef in declarations.skipped_typedefs) == (
-        "fixture_union_t",
         "fixture_with_bitfield_t",
         "fixture_with_anonymous_field_t",
     )
