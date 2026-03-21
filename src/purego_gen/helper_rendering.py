@@ -256,20 +256,9 @@ class HelperTypeResolver:
         normalized_c_type = normalize_c_type_for_lookup(c_type)
         underlying_typedef_c_type = self.typedef_c_type_by_lookup.get(normalized_c_type)
         if underlying_typedef_c_type is not None:
-            parsed_underlying_callback = parse_function_pointer_c_type(underlying_typedef_c_type)
-            if parsed_underlying_callback is not None:
-                return "uintptr"
-            # Chain-resolve underlying type through primitives
-            normalized_underlying = normalize_c_type_for_lookup(underlying_typedef_c_type)
-            underlying_primitive = _CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE.get(normalized_underlying)
-            if underlying_primitive is not None or normalized_underlying in _CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE:
-                return underlying_primitive
-            # Chain-resolve through declared typedefs
-            underlying_go_type = self.typedef_go_type_by_lookup.get(underlying_typedef_c_type)
-            if underlying_go_type is None:
-                underlying_go_type = self.typedef_go_type_by_lookup.get(normalized_underlying)
-            if underlying_go_type is not None:
-                return underlying_go_type
+            resolved = self._resolve_underlying_typedef_go_type(underlying_typedef_c_type)
+            if resolved is not None:
+                return resolved
 
         primitive_type = _CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE.get(normalized_c_type)
         if primitive_type is not None or normalized_c_type in _CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE:
@@ -280,8 +269,25 @@ class HelperTypeResolver:
             typedef_go_type = self.typedef_go_type_by_lookup.get(normalized_c_type)
         if typedef_go_type is not None:
             return typedef_go_type
-
         return self._resolve_opaque_pointer_type(c_type=c_type, fallback="uintptr")
+
+    def _resolve_underlying_typedef_go_type(self, underlying_c_type: str) -> str | None:
+        """Resolve an underlying typedef C type to its Go type for callbacks.
+
+        Returns:
+            Go type string, or ``None`` when unresolved.
+        """
+        parsed_underlying_callback = parse_function_pointer_c_type(underlying_c_type)
+        if parsed_underlying_callback is not None:
+            return "uintptr"
+        normalized = normalize_c_type_for_lookup(underlying_c_type)
+        primitive = _CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE.get(normalized)
+        if primitive is not None or normalized in _CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE:
+            return primitive
+        go_type = self.typedef_go_type_by_lookup.get(underlying_c_type)
+        if go_type is None:
+            go_type = self.typedef_go_type_by_lookup.get(normalized)
+        return go_type
 
 
 def build_typedef_c_type_by_lookup(declarations: ParsedDeclarations) -> dict[str, str]:
