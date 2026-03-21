@@ -1145,7 +1145,7 @@ func TestGeneratedBindingsRegisterCollation16WithLibsqlite3(t *testing.T) {
 	compareCount := 0
 	compareAppDataMismatch := false
 
-	compareCallback := purego.NewCallback(func(
+	compareFunc := func(
 		userData uintptr,
 		leftLength int32,
 		left uintptr,
@@ -1160,7 +1160,7 @@ func TestGeneratedBindingsRegisterCollation16WithLibsqlite3(t *testing.T) {
 		leftText := sqliteUTF16BytesString(left, leftLength)
 		rightText := sqliteUTF16BytesString(right, rightLength)
 		return sqliteCompareByLengthThenLex(leftText, rightText)
-	})
+	}
 
 	collationName, collationNamePtr := sqliteUTF16CStringPointer("purego_len16")
 	registerResult := sqlite3_create_collation16(
@@ -1168,7 +1168,7 @@ func TestGeneratedBindingsRegisterCollation16WithLibsqlite3(t *testing.T) {
 		collationNamePtr,
 		SQLITE_UTF16,
 		appData,
-		compareCallback,
+		compareFunc,
 	)
 	runtime.KeepAlive(collationName)
 	if registerResult != SQLITE_OK {

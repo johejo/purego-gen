@@ -134,6 +134,14 @@
             ]
           },
           {
+            "function": "sqlite3_create_function16",
+            "parameters": [
+              "xFunc",
+              "xStep",
+              "xFinal"
+            ]
+          },
+          {
             "function": "sqlite3_create_collation",
             "parameters": [
               "xCompare"

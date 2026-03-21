@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": "func",
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "inline_func_pointer.h"
+        ]
+      }
+    }
+  }
+}

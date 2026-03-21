@@ -214,6 +214,79 @@ def _build_function_context(
     }
 
 
+def _revert_callback_targeted_func_params(
+    *,
+    parameters: tuple[FunctionParameterContext, ...],
+    function: FunctionDecl,
+    callback_targeted_params: frozenset[tuple[str, str]],
+) -> tuple[FunctionParameterContext, ...]:
+    """Revert callback-targeted inline function pointer params back to ``uintptr``.
+
+    Purego panics when ``nil`` is passed as a ``func(...)``-typed argument.
+    Parameters targeted by callback helpers are reverted so the helper wrapper
+    can guard nil before calling ``purego.NewCallback``.
+
+    Returns:
+        Parameter contexts with callback-targeted func params reverted to uintptr.
+    """
+    if not callback_targeted_params:
+        return parameters
+    result: list[FunctionParameterContext] = []
+    for param, raw_name, c_type in zip(
+        parameters,
+        function.parameter_names,
+        function.parameter_c_types,
+        strict=True,
+    ):
+        effective_name = raw_name or param["name"]
+        if (
+            param["type"].startswith("func(")
+            # Defensive: confirm the C type is actually a function pointer, not a
+            # Go type that happens to start with ``func(`` for some other reason.
+            and is_function_pointer_c_type(c_type)
+            and (function.name, effective_name) in callback_targeted_params
+        ):
+            result.append({
+                "name": param["name"],
+                "type": "uintptr",
+                "c_type_comment": c_type,
+            })
+        else:
+            result.append(param)
+    return tuple(result)
+
+
+def _apply_callback_param_reverts(
+    *,
+    function_contexts: tuple[FunctionContext, ...],
+    declarations: ParsedDeclarations,
+    helpers: GeneratorHelpers,
+) -> tuple[FunctionContext, ...]:
+    """Revert callback-targeted params in function contexts back to ``uintptr``.
+
+    Returns:
+        Function contexts with callback-targeted func params reverted to uintptr.
+    """
+    callback_targeted: frozenset[tuple[str, str]] = frozenset(
+        (helper.function, param)
+        for helper in helpers.callback_inputs
+        for param in helper.parameters
+    )
+    if not callback_targeted:
+        return function_contexts
+    return tuple(
+        {
+            **ctx,
+            "parameters": _revert_callback_targeted_func_params(
+                parameters=ctx["parameters"],
+                function=function,
+                callback_targeted_params=callback_targeted,
+            ),
+        }
+        for ctx, function in zip(function_contexts, declarations.functions, strict=True)
+    )
+
+
 def _build_func_type_and_newcallback_contexts(
     *,
     declarations: ParsedDeclarations,
@@ -289,7 +362,9 @@ def _collect_callback_param_entries(
             effective_name = raw_name or context["name"]
             if effective_name not in targeted:
                 continue
-            if context["type"] != "uintptr":
+            # Inline function pointers now resolve to ``func(...)`` instead of
+            # ``uintptr``, so also admit params whose C type is a function pointer.
+            if not is_function_pointer_c_type(c_type) and context["type"] != "uintptr":
                 continue
             try:
                 go_func_type = type_resolver.build_callback_func_type(c_type=c_type)
@@ -625,7 +700,11 @@ def build_template_context(
                 declarations.constants, constant_identifiers, strict=True
             )
         ),
-        "functions": owned_string_result[0],
+        "functions": _apply_callback_param_reverts(
+            function_contexts=owned_string_result[0],
+            declarations=declarations,
+            helpers=render.helpers,
+        ),
         "helpers": tuple(
             {
                 "name": render.naming.func_name(helper["identifier"]),

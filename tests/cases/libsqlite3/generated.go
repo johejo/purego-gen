@@ -33,16 +33,22 @@ type (
 	sqlite3_callback_func = func(uintptr, int32, uintptr, uintptr) int32
 	// C: void (*)(void *)
 	sqlite3_destructor_type_func = func(uintptr)
+	// C: int (*)(void *, int, char **, char **)
+	callback_func = func(uintptr, int32, uintptr, uintptr) int32
 	// C: void (*)(sqlite3_context *, int, sqlite3_value **)
 	xFunc_func = func(*sqlite3_context, int32, **sqlite3_value)
 	// C: void (*)(sqlite3_context *, int, sqlite3_value **)
 	xStep_func = func(*sqlite3_context, int32, **sqlite3_value)
 	// C: void (*)(sqlite3_context *)
 	xFinal_func = func(*sqlite3_context)
+	// C: void (*)(void *)
+	xDestroy_func = func(uintptr)
 	// C: int (*)(void *, int, const void *, int, const void *)
 	xCompare_func = func(uintptr, int32, uintptr, int32, uintptr) int32
 	// C: int (*)(void *)
 	sqlite3_commit_hook_arg2_func = func(uintptr) int32
+	// C: void (*)(void *)
+	sqlite3_rollback_hook_arg2_func = func(uintptr)
 	// C: void (*)(void *, int, const char *, const char *, sqlite3_int64)
 	sqlite3_update_hook_arg2_func = func(uintptr, int32, uintptr, uintptr, int64)
 	// C: int (*)(void *)
@@ -59,6 +65,10 @@ func new_sqlite3_destructor_type(fn sqlite3_destructor_type_func) sqlite3_destru
 	return sqlite3_destructor_type(purego.NewCallback(fn))
 }
 
+func new_callback(fn callback_func) uintptr {
+	return uintptr(purego.NewCallback(fn))
+}
+
 func new_xFunc(fn xFunc_func) uintptr {
 	return uintptr(purego.NewCallback(fn))
 }
@@ -71,11 +81,19 @@ func new_xFinal(fn xFinal_func) uintptr {
 	return uintptr(purego.NewCallback(fn))
 }
 
+func new_xDestroy(fn xDestroy_func) uintptr {
+	return uintptr(purego.NewCallback(fn))
+}
+
 func new_xCompare(fn xCompare_func) uintptr {
 	return uintptr(purego.NewCallback(fn))
 }
 
 func new_sqlite3_commit_hook_arg2(fn sqlite3_commit_hook_arg2_func) uintptr {
+	return uintptr(purego.NewCallback(fn))
+}
+
+func new_sqlite3_rollback_hook_arg2(fn sqlite3_rollback_hook_arg2_func) uintptr {
 	return uintptr(purego.NewCallback(fn))
 }
 
@@ -347,8 +365,7 @@ var (
 		eTextRep int32,
 		// C: void *
 		pArg uintptr,
-		// C: int (*)(void *, int, const void *, int, const void *)
-		xCompare uintptr,
+		xCompare func(uintptr, int32, uintptr, int32, uintptr) int32,
 	) int32
 	sqlite3_commit_hook func(
 		arg1 *sqlite3,
@@ -397,7 +414,7 @@ func sqlite3_bind_blob_bytes(
 func sqlite3_exec_callbacks(
 	arg1 *sqlite3,
 	sql string,
-	callback func(uintptr, int32, uintptr, uintptr) int32,
+	callback callback_func,
 	arg4 uintptr,
 	errmsg uintptr,
 ) int32 {
@@ -455,7 +472,7 @@ func sqlite3_create_function_v2_callbacks(
 	xFunc xFunc_func,
 	xStep xStep_func,
 	xFinal xFinal_func,
-	xDestroy func(uintptr),
+	xDestroy xDestroy_func,
 ) int32 {
 	xFunc_callback := uintptr(0)
 	xStep_callback := uintptr(0)
@@ -485,6 +502,39 @@ func sqlite3_create_function_v2_callbacks(
 		xDestroy_callback,
 	)
 }
+func sqlite3_create_function16_callbacks(
+	db *sqlite3,
+	zFunctionName uintptr,
+	nArg int32,
+	eTextRep int32,
+	pApp uintptr,
+	xFunc xFunc_func,
+	xStep xStep_func,
+	xFinal xFinal_func,
+) int32 {
+	xFunc_callback := uintptr(0)
+	xStep_callback := uintptr(0)
+	xFinal_callback := uintptr(0)
+	if xFunc != nil {
+		xFunc_callback = purego.NewCallback(xFunc)
+	}
+	if xStep != nil {
+		xStep_callback = purego.NewCallback(xStep)
+	}
+	if xFinal != nil {
+		xFinal_callback = purego.NewCallback(xFinal)
+	}
+	return sqlite3_create_function16(
+		db,
+		zFunctionName,
+		nArg,
+		eTextRep,
+		pApp,
+		xFunc_callback,
+		xStep_callback,
+		xFinal_callback,
+	)
+}
 func sqlite3_create_collation_callbacks(
 	arg1 *sqlite3,
 	zName string,
@@ -510,7 +560,7 @@ func sqlite3_create_collation_v2_callbacks(
 	eTextRep int32,
 	pArg uintptr,
 	xCompare xCompare_func,
-	xDestroy func(uintptr),
+	xDestroy xDestroy_func,
 ) int32 {
 	xCompare_callback := uintptr(0)
 	xDestroy_callback := uintptr(0)
@@ -546,7 +596,7 @@ func sqlite3_commit_hook_callbacks(
 }
 func sqlite3_rollback_hook_callbacks(
 	arg1 *sqlite3,
-	arg2 func(uintptr),
+	arg2 sqlite3_rollback_hook_arg2_func,
 	arg3 uintptr,
 ) uintptr {
 	arg2_callback := uintptr(0)

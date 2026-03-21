@@ -131,6 +131,27 @@ class HelperTypeResolver:
         Returns:
             Rendered Go type for the parameter or result slot.
         """
+        alias = self._resolve_alias(go_type=go_type, c_type=c_type)
+        if alias is not None:
+            return alias
+
+        if go_type != "uintptr":
+            return go_type
+
+        if is_function_pointer_c_type(c_type):
+            try:
+                return self.build_callback_func_type(c_type=c_type)
+            except HelperRenderingError:
+                return go_type
+
+        return self._resolve_opaque_pointer_type(c_type=c_type, fallback=go_type)
+
+    def _resolve_alias(self, *, go_type: str, c_type: str) -> str | None:
+        """Look up a type alias for the given C type spelling.
+
+        Returns:
+            Matching Go alias or ``None`` when no alias applies.
+        """
         normalized_c_type = normalize_c_type_for_lookup(c_type)
         if go_type == "int32":
             enum_alias = self.type_aliases["enum"].get(normalized_c_type)
@@ -147,14 +168,7 @@ class HelperTypeResolver:
         if function_pointer_alias is not None:
             return function_pointer_alias
 
-        opaque_pointer_alias = self.type_aliases["opaque_pointer"].get(normalized_c_type)
-        if opaque_pointer_alias is not None:
-            return opaque_pointer_alias
-
-        if go_type != "uintptr":
-            return go_type
-
-        return self._resolve_opaque_pointer_type(c_type=c_type, fallback=go_type)
+        return self.type_aliases["opaque_pointer"].get(normalized_c_type)
 
     def _resolve_opaque_pointer_type(self, *, c_type: str, fallback: str) -> str:
         """Resolve a pointer-to-typedef C type to its Go alias with prefix.

@@ -149,6 +149,8 @@
             "function": "sqlite3_create_function_v2",
             "parameters": [
               "xFunc",
+              "xStep",
+              "xFinal",
               "xDestroy"
             ]
           },

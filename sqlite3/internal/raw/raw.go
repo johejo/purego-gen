@@ -201,8 +201,8 @@ func CreateFunctionV2Callbacks(
 		textRep,
 		app,
 		xFunc,
-		0,
-		0,
+		nil,
+		nil,
 		xDestroy,
 	)
 }

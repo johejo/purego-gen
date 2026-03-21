@@ -117,7 +117,7 @@ def test_render_go_source_accepts_generated_names_for_unnamed_buffer_parameters(
     assert "func fixture_bind_blob_bytes(" in source
     assert (
         "func fixture_bind_blob_bytes("
-        " arg1 uintptr, arg2 int32, arg3 []byte, arg5 uintptr, ) int32 {" in normalized_source
+        " arg1 uintptr, arg2 int32, arg3 []byte, arg5 func(uintptr), ) int32 {" in normalized_source
     )
     assert (
         "return fixture_bind_blob( arg1, arg2, arg3_ptr, uint64(len(arg3_len)), arg5, )"
