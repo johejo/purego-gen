@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generator": {
     "lib_id": "sqlite3",
-    "package": "raw",
+    "package": "sqlite3sys",
     "emit": "func,type,const",
     "parse": {
       "headers": {

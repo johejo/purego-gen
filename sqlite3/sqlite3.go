@@ -17,16 +17,16 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/johejo/purego-gen/sqlite3/internal/raw"
+	"github.com/johejo/purego-gen/sqlite3/sqlite3sys"
 )
 
 const driverName = "sqlite3"
 
 // Hook operation types passed to SetUpdateHook callbacks.
 const (
-	OpInsert = int(raw.SQLITE_INSERT)
-	OpUpdate = int(raw.SQLITE_UPDATE)
-	OpDelete = int(raw.SQLITE_DELETE)
+	OpInsert = int(sqlite3sys.SQLITE_INSERT)
+	OpUpdate = int(sqlite3sys.SQLITE_UPDATE)
+	OpDelete = int(sqlite3sys.SQLITE_DELETE)
 )
 
 func init() {
@@ -67,7 +67,7 @@ type connector struct {
 }
 
 type SQLiteConn struct {
-	db     *raw.DB
+	db     *sqlite3sys.DB
 	config connectionConfig
 
 	mu     sync.Mutex
@@ -86,7 +86,7 @@ type SQLiteConn struct {
 
 type SQLiteStmt struct {
 	conn      *SQLiteConn
-	stmt      *raw.Stmt
+	stmt      *sqlite3sys.Stmt
 	ephemeral bool
 	closed    bool
 }
@@ -122,8 +122,8 @@ type connectionConfig struct {
 
 type scalarFunction struct {
 	value      reflect.Value
-	args       []func(*raw.Value) (reflect.Value, error)
-	returnFunc func(*raw.Context, []reflect.Value)
+	args       []func(*sqlite3sys.Value) (reflect.Value, error)
+	returnFunc func(*sqlite3sys.Context, []reflect.Value)
 }
 
 type collationFunction struct {
@@ -167,7 +167,7 @@ func (d *SQLiteDriver) OpenConnector(name string) (driver.Connector, error) {
 }
 
 func (c *connector) Connect(_ context.Context) (driver.Conn, error) {
-	if err := raw.Load(); err != nil {
+	if err := sqlite3sys.Load(); err != nil {
 		return nil, err
 	}
 
@@ -177,14 +177,14 @@ func (c *connector) Connect(_ context.Context) (driver.Conn, error) {
 		collations: make(map[uintptr]*collationFunction),
 	}
 
-	result := raw.OpenV2(c.dsn.filename, c.dsn.flags, "", &conn.db)
-	if result != raw.SQLITE_OK {
+	result := sqlite3sys.OpenV2(c.dsn.filename, c.dsn.flags, "", &conn.db)
+	if result != sqlite3sys.SQLITE_OK {
 		defer conn.forceClose()
 		return nil, conn.errorFromResult(result)
 	}
 
 	if c.dsn.busyTimeout > 0 {
-		if result := raw.BusyTimeout(conn.db, c.dsn.busyTimeout); result != raw.SQLITE_OK {
+		if result := sqlite3sys.BusyTimeout(conn.db, c.dsn.busyTimeout); result != sqlite3sys.SQLITE_OK {
 			defer conn.forceClose()
 			return nil, conn.errorFromResult(result)
 		}
@@ -223,8 +223,8 @@ func (c *SQLiteConn) PrepareContext(ctx context.Context, query string) (driver.S
 	}
 
 	stmt := &SQLiteStmt{conn: c}
-	result := raw.PrepareV2(c.db, query, &stmt.stmt)
-	if result != raw.SQLITE_OK {
+	result := sqlite3sys.PrepareV2(c.db, query, &stmt.stmt)
+	if result != sqlite3sys.SQLITE_OK {
 		return nil, c.errorFromContext(result, ctx)
 	}
 	return stmt, nil
@@ -239,9 +239,9 @@ func (c *SQLiteConn) Close() error {
 	}
 	c.closed = true
 
-	result := raw.CloseV2(c.db)
+	result := sqlite3sys.CloseV2(c.db)
 	c.db = nil
-	if result != raw.SQLITE_OK {
+	if result != sqlite3sys.SQLITE_OK {
 		return c.errorFromResult(result)
 	}
 	return nil
@@ -251,7 +251,7 @@ func (c *SQLiteConn) forceClose() {
 	if c.db == nil {
 		return
 	}
-	_ = raw.CloseV2(c.db)
+	_ = sqlite3sys.CloseV2(c.db)
 	c.db = nil
 	c.closed = true
 }
@@ -357,24 +357,24 @@ func (c *SQLiteConn) RegisterFunc(name string, fn any, pure bool) error {
 	c.scalars[id] = compiled
 	c.registryMu.Unlock()
 
-	flags := int32(raw.SQLITE_UTF8)
+	flags := int32(sqlite3sys.SQLITE_UTF8)
 	if pure {
-		flags |= raw.SQLITE_DETERMINISTIC
+		flags |= sqlite3sys.SQLITE_DETERMINISTIC
 	}
-	result := raw.CreateFunctionV2Callbacks(
+	result := sqlite3sys.CreateFunctionV2Callbacks(
 		c.db,
 		name,
 		int32(len(compiled.args)),
 		flags,
 		id,
-		func(ctx *raw.Context, argc int32, values **raw.Value) {
+		func(ctx *sqlite3sys.Context, argc int32, values **sqlite3sys.Value) {
 			c.invokeScalar(ctx, argc, values)
 		},
 		func(userData uintptr) {
 			c.unregisterScalar(userData)
 		},
 	)
-	if result != raw.SQLITE_OK {
+	if result != sqlite3sys.SQLITE_OK {
 		c.unregisterScalar(id)
 		return c.errorFromResult(result)
 	}
@@ -391,10 +391,10 @@ func (c *SQLiteConn) RegisterCollation(name string, cmp func(string, string) int
 	c.collations[id] = &collationFunction{compare: cmp}
 	c.registryMu.Unlock()
 
-	result := raw.CreateCollationV2Callbacks(
+	result := sqlite3sys.CreateCollationV2Callbacks(
 		c.db,
 		name,
-		raw.SQLITE_UTF8,
+		sqlite3sys.SQLITE_UTF8,
 		id,
 		func(userData uintptr, leftLen int32, left uintptr, rightLen int32, right uintptr) int32 {
 			fn := c.lookupCollation(userData)
@@ -409,7 +409,7 @@ func (c *SQLiteConn) RegisterCollation(name string, cmp func(string, string) int
 			c.unregisterCollation(userData)
 		},
 	)
-	if result != raw.SQLITE_OK {
+	if result != sqlite3sys.SQLITE_OK {
 		c.unregisterCollation(id)
 		return c.errorFromResult(result)
 	}
@@ -432,16 +432,16 @@ func (s *SQLiteStmt) Close() error {
 	}
 	s.closed = true
 
-	result := raw.Finalize(s.stmt)
+	result := sqlite3sys.Finalize(s.stmt)
 	s.stmt = nil
-	if result != raw.SQLITE_OK {
+	if result != sqlite3sys.SQLITE_OK {
 		return s.conn.errorFromResult(result)
 	}
 	return nil
 }
 
 func (s *SQLiteStmt) NumInput() int {
-	return int(raw.BindParameterCount(s.stmt))
+	return int(sqlite3sys.BindParameterCount(s.stmt))
 }
 
 func (s *SQLiteStmt) Exec(args []driver.Value) (driver.Result, error) {
@@ -505,11 +505,11 @@ func (r *SQLiteRows) Next(dest []driver.Value) error {
 	}
 
 	cancel := interruptWatcher(r.ctx, r.stmt.conn.db)
-	result := raw.Step(r.stmt.stmt)
+	result := sqlite3sys.Step(r.stmt.stmt)
 	interrupted := cancel.stop()
 
 	switch result {
-	case raw.SQLITE_ROW:
+	case sqlite3sys.SQLITE_ROW:
 		for index := range dest {
 			value, err := r.columnValue(index)
 			if err != nil {
@@ -518,10 +518,10 @@ func (r *SQLiteRows) Next(dest []driver.Value) error {
 			dest[index] = value
 		}
 		return nil
-	case raw.SQLITE_DONE:
+	case sqlite3sys.SQLITE_DONE:
 		_ = r.Close()
 		return io.EOF
-	case raw.SQLITE_INTERRUPT:
+	case sqlite3sys.SQLITE_INTERRUPT:
 		if interrupted && r.ctx != nil && r.ctx.Err() != nil {
 			_ = r.Close()
 			return r.ctx.Err()
@@ -561,13 +561,13 @@ func (r *SQLiteRows) ColumnTypePrecisionScale(int) (int64, int64, bool) {
 
 func (r *SQLiteRows) columnValue(index int) (driver.Value, error) {
 	column := int32(index)
-	switch raw.ColumnType(r.stmt.stmt, column) {
-	case raw.SQLITE_INTEGER:
-		return raw.ColumnInt64(r.stmt.stmt, column), nil
-	case raw.SQLITE_FLOAT:
-		return raw.ColumnDouble(r.stmt.stmt, column), nil
-	case raw.SQLITE_TEXT:
-		text := raw.ColumnText(r.stmt.stmt, column)
+	switch sqlite3sys.ColumnType(r.stmt.stmt, column) {
+	case sqlite3sys.SQLITE_INTEGER:
+		return sqlite3sys.ColumnInt64(r.stmt.stmt, column), nil
+	case sqlite3sys.SQLITE_FLOAT:
+		return sqlite3sys.ColumnDouble(r.stmt.stmt, column), nil
+	case sqlite3sys.SQLITE_TEXT:
+		text := sqlite3sys.ColumnText(r.stmt.stmt, column)
 		if r.stmt.conn.config.location != nil && looksLikeTimeType(r.declTypes[index]) {
 			parsed, ok := parseSQLiteTime(text, r.stmt.conn.config.location)
 			if ok {
@@ -575,12 +575,12 @@ func (r *SQLiteRows) columnValue(index int) (driver.Value, error) {
 			}
 		}
 		return text, nil
-	case raw.SQLITE_BLOB:
-		return raw.ColumnBlobBytes(r.stmt.stmt, column), nil
-	case raw.SQLITE_NULL:
+	case sqlite3sys.SQLITE_BLOB:
+		return sqlite3sys.ColumnBlobBytes(r.stmt.stmt, column), nil
+	case sqlite3sys.SQLITE_NULL:
 		return nil, nil
 	default:
-		return raw.ColumnText(r.stmt.stmt, column), nil
+		return sqlite3sys.ColumnText(r.stmt.stmt, column), nil
 	}
 }
 
@@ -588,10 +588,10 @@ func (s *SQLiteStmt) bindNamedValues(args []driver.NamedValue) error {
 	if err := s.conn.checkUsable(); err != nil {
 		return err
 	}
-	if result := raw.Reset(s.stmt); result != raw.SQLITE_OK {
+	if result := sqlite3sys.Reset(s.stmt); result != sqlite3sys.SQLITE_OK {
 		return s.conn.errorFromResult(result)
 	}
-	if result := raw.ClearBindings(s.stmt); result != raw.SQLITE_OK {
+	if result := sqlite3sys.ClearBindings(s.stmt); result != sqlite3sys.SQLITE_OK {
 		return s.conn.errorFromResult(result)
 	}
 	for _, arg := range args {
@@ -613,7 +613,7 @@ func (s *SQLiteStmt) resolveIndex(arg driver.NamedValue) (int32, error) {
 
 	candidates := []string{arg.Name, ":" + arg.Name, "@" + arg.Name, "$" + arg.Name}
 	for _, name := range candidates {
-		if index := raw.BindParameterIndex(s.stmt, name); index != 0 {
+		if index := sqlite3sys.BindParameterIndex(s.stmt, name); index != 0 {
 			return index, nil
 		}
 	}
@@ -623,23 +623,23 @@ func (s *SQLiteStmt) resolveIndex(arg driver.NamedValue) (int32, error) {
 func (s *SQLiteStmt) bindValue(index int32, value any) error {
 	switch v := value.(type) {
 	case nil:
-		return s.bindResult(raw.BindNull(s.stmt, index))
+		return s.bindResult(sqlite3sys.BindNull(s.stmt, index))
 	case int64:
-		return s.bindResult(raw.BindInt64(s.stmt, index, v))
+		return s.bindResult(sqlite3sys.BindInt64(s.stmt, index, v))
 	case float64:
-		return s.bindResult(raw.BindDouble(s.stmt, index, v))
+		return s.bindResult(sqlite3sys.BindDouble(s.stmt, index, v))
 	case bool:
 		intValue := int64(0)
 		if v {
 			intValue = 1
 		}
-		return s.bindResult(raw.BindInt64(s.stmt, index, intValue))
+		return s.bindResult(sqlite3sys.BindInt64(s.stmt, index, intValue))
 	case string:
-		return s.bindResult(raw.BindText(s.stmt, index, v, raw.SQLITE_TRANSIENT))
+		return s.bindResult(sqlite3sys.BindText(s.stmt, index, v, sqlite3sys.SQLITE_TRANSIENT))
 	case []byte:
-		return s.bindResult(raw.BindBlobBytes(s.stmt, index, v, raw.SQLITE_TRANSIENT))
+		return s.bindResult(sqlite3sys.BindBlobBytes(s.stmt, index, v, sqlite3sys.SQLITE_TRANSIENT))
 	case time.Time:
-		return s.bindResult(raw.BindText(s.stmt, index, formatSQLiteTime(v), raw.SQLITE_TRANSIENT))
+		return s.bindResult(sqlite3sys.BindText(s.stmt, index, formatSQLiteTime(v), sqlite3sys.SQLITE_TRANSIENT))
 	default:
 		normalized, err := normalizeValue(v)
 		if err != nil {
@@ -653,7 +653,7 @@ func (s *SQLiteStmt) bindValue(index int32, value any) error {
 }
 
 func (s *SQLiteStmt) bindResult(result int32) error {
-	if result != raw.SQLITE_OK {
+	if result != sqlite3sys.SQLITE_OK {
 		return s.conn.errorFromResult(result)
 	}
 	return nil
@@ -662,17 +662,17 @@ func (s *SQLiteStmt) bindResult(result int32) error {
 func (s *SQLiteStmt) execBound(ctx context.Context) (driver.Result, error) {
 	cancel := interruptWatcher(ctx, s.conn.db)
 	for {
-		result := raw.Step(s.stmt)
+		result := sqlite3sys.Step(s.stmt)
 		switch result {
-		case raw.SQLITE_ROW:
+		case sqlite3sys.SQLITE_ROW:
 			continue
-		case raw.SQLITE_DONE:
+		case sqlite3sys.SQLITE_DONE:
 			cancel.stop()
 			return sqliteResult{
-				lastInsertID: raw.LastInsertRowid(s.conn.db),
-				rowsAffected: raw.Changes64(s.conn.db),
+				lastInsertID: sqlite3sys.LastInsertRowid(s.conn.db),
+				rowsAffected: sqlite3sys.Changes64(s.conn.db),
 			}, nil
-		case raw.SQLITE_INTERRUPT:
+		case sqlite3sys.SQLITE_INTERRUPT:
 			if cancel.stop() && ctx != nil && ctx.Err() != nil {
 				return nil, ctx.Err()
 			}
@@ -685,7 +685,7 @@ func (s *SQLiteStmt) execBound(ctx context.Context) (driver.Result, error) {
 }
 
 func (s *SQLiteStmt) newRows(ctx context.Context) (*SQLiteRows, error) {
-	count := int(raw.ColumnCount(s.stmt))
+	count := int(sqlite3sys.ColumnCount(s.stmt))
 	rows := &SQLiteRows{
 		stmt:      s,
 		ctx:       ctx,
@@ -694,8 +694,8 @@ func (s *SQLiteStmt) newRows(ctx context.Context) (*SQLiteRows, error) {
 	}
 	for index := 0; index < count; index++ {
 		column := int32(index)
-		rows.names[index] = raw.ColumnName(s.stmt, column)
-		rows.declTypes[index] = raw.ColumnDeclType(s.stmt, column)
+		rows.names[index] = sqlite3sys.ColumnName(s.stmt, column)
+		rows.declTypes[index] = sqlite3sys.ColumnDeclType(s.stmt, column)
 	}
 	return rows, nil
 }
@@ -704,10 +704,10 @@ func (s *SQLiteStmt) resetForReuse() error {
 	if s.closed || s.stmt == nil {
 		return nil
 	}
-	if result := raw.Reset(s.stmt); result != raw.SQLITE_OK {
+	if result := sqlite3sys.Reset(s.stmt); result != sqlite3sys.SQLITE_OK {
 		return s.conn.errorFromResult(result)
 	}
-	if result := raw.ClearBindings(s.stmt); result != raw.SQLITE_OK {
+	if result := sqlite3sys.ClearBindings(s.stmt); result != sqlite3sys.SQLITE_OK {
 		return s.conn.errorFromResult(result)
 	}
 	if s.ephemeral {
@@ -782,19 +782,19 @@ func (c *SQLiteConn) checkUsable() error {
 }
 
 func (c *SQLiteConn) errorFromContext(result int32, ctx context.Context) error {
-	if result == raw.SQLITE_INTERRUPT && ctx != nil && ctx.Err() != nil {
+	if result == sqlite3sys.SQLITE_INTERRUPT && ctx != nil && ctx.Err() != nil {
 		return ctx.Err()
 	}
 	return c.errorFromResult(result)
 }
 
 func (c *SQLiteConn) errorFromResult(result int32) error {
-	if result == raw.SQLITE_OK {
+	if result == sqlite3sys.SQLITE_OK {
 		return nil
 	}
 	message := sqliteErrorString(result)
 	if c != nil && c.db != nil {
-		if dbMessage := raw.Errmsg(c.db); dbMessage != "" {
+		if dbMessage := sqlite3sys.Errmsg(c.db); dbMessage != "" {
 			message = dbMessage
 		}
 	}
@@ -811,7 +811,7 @@ func (r sqliteResult) RowsAffected() (int64, error) { return r.rowsAffected, nil
 func parseDSN(name string) (connectionConfig, error) {
 	cfg := connectionConfig{
 		filename: name,
-		flags:    raw.SQLITE_OPEN_READWRITE | raw.SQLITE_OPEN_CREATE | raw.SQLITE_OPEN_FULLMUTEX,
+		flags:    sqlite3sys.SQLITE_OPEN_READWRITE | sqlite3sys.SQLITE_OPEN_CREATE | sqlite3sys.SQLITE_OPEN_FULLMUTEX,
 		txLock:   "deferred",
 	}
 	if name == "" {
@@ -856,31 +856,31 @@ func parseDSN(name string) (connectionConfig, error) {
 			mode := strings.ToLower(firstValue(value))
 			switch mode {
 			case "ro":
-				cfg.flags = raw.SQLITE_OPEN_READONLY | raw.SQLITE_OPEN_URI | raw.SQLITE_OPEN_FULLMUTEX
+				cfg.flags = sqlite3sys.SQLITE_OPEN_READONLY | sqlite3sys.SQLITE_OPEN_URI | sqlite3sys.SQLITE_OPEN_FULLMUTEX
 			case "rw":
-				cfg.flags = raw.SQLITE_OPEN_READWRITE | raw.SQLITE_OPEN_URI | raw.SQLITE_OPEN_FULLMUTEX
+				cfg.flags = sqlite3sys.SQLITE_OPEN_READWRITE | sqlite3sys.SQLITE_OPEN_URI | sqlite3sys.SQLITE_OPEN_FULLMUTEX
 			case "rwc":
-				cfg.flags = raw.SQLITE_OPEN_READWRITE | raw.SQLITE_OPEN_CREATE | raw.SQLITE_OPEN_URI | raw.SQLITE_OPEN_FULLMUTEX
+				cfg.flags = sqlite3sys.SQLITE_OPEN_READWRITE | sqlite3sys.SQLITE_OPEN_CREATE | sqlite3sys.SQLITE_OPEN_URI | sqlite3sys.SQLITE_OPEN_FULLMUTEX
 			case "memory":
-				cfg.flags = raw.SQLITE_OPEN_READWRITE | raw.SQLITE_OPEN_CREATE | raw.SQLITE_OPEN_MEMORY | raw.SQLITE_OPEN_URI | raw.SQLITE_OPEN_FULLMUTEX
+				cfg.flags = sqlite3sys.SQLITE_OPEN_READWRITE | sqlite3sys.SQLITE_OPEN_CREATE | sqlite3sys.SQLITE_OPEN_MEMORY | sqlite3sys.SQLITE_OPEN_URI | sqlite3sys.SQLITE_OPEN_FULLMUTEX
 			default:
 				return cfg, fmt.Errorf("sqlite3: unsupported mode %q", mode)
 			}
 			preserved[key] = value
 		case "cache":
 			preserved[key] = value
-			cfg.flags |= raw.SQLITE_OPEN_URI
+			cfg.flags |= sqlite3sys.SQLITE_OPEN_URI
 		default:
 			preserved[key] = value
 			if !strings.HasPrefix(key, "_") {
-				cfg.flags |= raw.SQLITE_OPEN_URI
+				cfg.flags |= sqlite3sys.SQLITE_OPEN_URI
 			}
 		}
 	}
 
 	cfg.filename = rebuildFilename(base, preserved)
 	if strings.HasPrefix(cfg.filename, "file:") {
-		cfg.flags |= raw.SQLITE_OPEN_URI
+		cfg.flags |= sqlite3sys.SQLITE_OPEN_URI
 	}
 	return cfg, nil
 }
@@ -998,7 +998,7 @@ func compileScalarFunction(fn any) (*scalarFunction, error) {
 		return nil, fmt.Errorf("sqlite3: variadic functions are not supported")
 	}
 
-	args := make([]func(*raw.Value) (reflect.Value, error), fnType.NumIn())
+	args := make([]func(*sqlite3sys.Value) (reflect.Value, error), fnType.NumIn())
 	for index := range args {
 		decoder, err := buildValueDecoder(fnType.In(index))
 		if err != nil {
@@ -1019,39 +1019,39 @@ func compileScalarFunction(fn any) (*scalarFunction, error) {
 	}, nil
 }
 
-func buildValueDecoder(target reflect.Type) (func(*raw.Value) (reflect.Value, error), error) {
+func buildValueDecoder(target reflect.Type) (func(*sqlite3sys.Value) (reflect.Value, error), error) {
 	switch {
 	case target.Kind() == reflect.String:
-		return func(value *raw.Value) (reflect.Value, error) {
-			return reflect.ValueOf(raw.ValueText(value)).Convert(target), nil
+		return func(value *sqlite3sys.Value) (reflect.Value, error) {
+			return reflect.ValueOf(sqlite3sys.ValueText(value)).Convert(target), nil
 		}, nil
 	case target.Kind() == reflect.Slice && target.Elem().Kind() == reflect.Uint8:
-		return func(value *raw.Value) (reflect.Value, error) {
-			return reflect.ValueOf(raw.ValueBlobBytes(value)).Convert(target), nil
+		return func(value *sqlite3sys.Value) (reflect.Value, error) {
+			return reflect.ValueOf(sqlite3sys.ValueBlobBytes(value)).Convert(target), nil
 		}, nil
 	case target.Kind() == reflect.Bool:
-		return func(value *raw.Value) (reflect.Value, error) {
-			return reflect.ValueOf(raw.ValueInt64(value) != 0).Convert(target), nil
+		return func(value *sqlite3sys.Value) (reflect.Value, error) {
+			return reflect.ValueOf(sqlite3sys.ValueInt64(value) != 0).Convert(target), nil
 		}, nil
 	case isSignedInt(target.Kind()):
-		return func(value *raw.Value) (reflect.Value, error) {
-			return reflect.ValueOf(raw.ValueInt64(value)).Convert(target), nil
+		return func(value *sqlite3sys.Value) (reflect.Value, error) {
+			return reflect.ValueOf(sqlite3sys.ValueInt64(value)).Convert(target), nil
 		}, nil
 	case isUnsignedInt(target.Kind()):
-		return func(value *raw.Value) (reflect.Value, error) {
-			number := raw.ValueInt64(value)
+		return func(value *sqlite3sys.Value) (reflect.Value, error) {
+			number := sqlite3sys.ValueInt64(value)
 			if number < 0 {
 				return reflect.Value{}, fmt.Errorf("negative value %d for unsigned integer", number)
 			}
 			return reflect.ValueOf(uint64(number)).Convert(target), nil
 		}, nil
 	case target.Kind() == reflect.Float32 || target.Kind() == reflect.Float64:
-		return func(value *raw.Value) (reflect.Value, error) {
-			return reflect.ValueOf(raw.ValueDouble(value)).Convert(target), nil
+		return func(value *sqlite3sys.Value) (reflect.Value, error) {
+			return reflect.ValueOf(sqlite3sys.ValueDouble(value)).Convert(target), nil
 		}, nil
 	case target == reflect.TypeOf(time.Time{}):
-		return func(value *raw.Value) (reflect.Value, error) {
-			text := raw.ValueText(value)
+		return func(value *sqlite3sys.Value) (reflect.Value, error) {
+			text := sqlite3sys.ValueText(value)
 			parsed, ok := parseSQLiteTime(text, time.Local)
 			if !ok {
 				return reflect.Value{}, fmt.Errorf("cannot parse %q as time.Time", text)
@@ -1063,21 +1063,21 @@ func buildValueDecoder(target reflect.Type) (func(*raw.Value) (reflect.Value, er
 	}
 }
 
-func buildReturnEncoder(fnType reflect.Type) (func(*raw.Context, []reflect.Value), error) {
+func buildReturnEncoder(fnType reflect.Type) (func(*sqlite3sys.Context, []reflect.Value), error) {
 	switch fnType.NumOut() {
 	case 0:
-		return func(ctx *raw.Context, _ []reflect.Value) {
-			raw.ResultNull(ctx)
+		return func(ctx *sqlite3sys.Context, _ []reflect.Value) {
+			sqlite3sys.ResultNull(ctx)
 		}, nil
 	case 1:
-		return func(ctx *raw.Context, results []reflect.Value) {
+		return func(ctx *sqlite3sys.Context, results []reflect.Value) {
 			encodeResultValue(ctx, results[0], nil)
 		}, nil
 	case 2:
 		if !fnType.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
 			return nil, fmt.Errorf("sqlite3: second return value must be error")
 		}
-		return func(ctx *raw.Context, results []reflect.Value) {
+		return func(ctx *sqlite3sys.Context, results []reflect.Value) {
 			var err error
 			if !results[1].IsNil() {
 				err = results[1].Interface().(error)
@@ -1089,14 +1089,14 @@ func buildReturnEncoder(fnType reflect.Type) (func(*raw.Context, []reflect.Value
 	}
 }
 
-func encodeResultValue(ctx *raw.Context, value reflect.Value, err error) {
+func encodeResultValue(ctx *sqlite3sys.Context, value reflect.Value, err error) {
 	if err != nil {
-		raw.ResultError(ctx, err.Error())
+		sqlite3sys.ResultError(ctx, err.Error())
 		return
 	}
 
 	if !value.IsValid() {
-		raw.ResultNull(ctx)
+		sqlite3sys.ResultNull(ctx)
 		return
 	}
 	if value.Kind() == reflect.Interface && !value.IsNil() {
@@ -1104,7 +1104,7 @@ func encodeResultValue(ctx *raw.Context, value reflect.Value, err error) {
 	}
 	if value.Kind() == reflect.Pointer {
 		if value.IsNil() {
-			raw.ResultNull(ctx)
+			sqlite3sys.ResultNull(ctx)
 			return
 		}
 		value = value.Elem()
@@ -1112,36 +1112,36 @@ func encodeResultValue(ctx *raw.Context, value reflect.Value, err error) {
 
 	switch {
 	case value.Kind() == reflect.String:
-		raw.ResultText(ctx, value.String(), raw.SQLITE_TRANSIENT)
+		sqlite3sys.ResultText(ctx, value.String(), sqlite3sys.SQLITE_TRANSIENT)
 	case value.Kind() == reflect.Slice && value.Type().Elem().Kind() == reflect.Uint8:
-		raw.ResultBlobBytes(ctx, append([]byte(nil), value.Bytes()...), raw.SQLITE_TRANSIENT)
+		sqlite3sys.ResultBlobBytes(ctx, append([]byte(nil), value.Bytes()...), sqlite3sys.SQLITE_TRANSIENT)
 	case value.Kind() == reflect.Bool:
 		boolValue := int64(0)
 		if value.Bool() {
 			boolValue = 1
 		}
-		raw.ResultInt64(ctx, boolValue)
+		sqlite3sys.ResultInt64(ctx, boolValue)
 	case isSignedInt(value.Kind()):
-		raw.ResultInt64(ctx, value.Int())
+		sqlite3sys.ResultInt64(ctx, value.Int())
 	case isUnsignedInt(value.Kind()):
-		raw.ResultInt64(ctx, int64(value.Uint()))
+		sqlite3sys.ResultInt64(ctx, int64(value.Uint()))
 	case value.Kind() == reflect.Float32 || value.Kind() == reflect.Float64:
-		raw.ResultDouble(ctx, value.Convert(reflect.TypeOf(float64(0))).Float())
+		sqlite3sys.ResultDouble(ctx, value.Convert(reflect.TypeOf(float64(0))).Float())
 	case value.Type() == reflect.TypeOf(time.Time{}):
-		raw.ResultText(ctx, formatSQLiteTime(value.Interface().(time.Time)), raw.SQLITE_TRANSIENT)
+		sqlite3sys.ResultText(ctx, formatSQLiteTime(value.Interface().(time.Time)), sqlite3sys.SQLITE_TRANSIENT)
 	default:
-		raw.ResultError(ctx, "unsupported Go return type")
+		sqlite3sys.ResultError(ctx, "unsupported Go return type")
 	}
 }
 
-func (c *SQLiteConn) invokeScalar(ctx *raw.Context, argc int32, values **raw.Value) {
-	function := c.lookupScalar(raw.UserData(ctx))
+func (c *SQLiteConn) invokeScalar(ctx *sqlite3sys.Context, argc int32, values **sqlite3sys.Value) {
+	function := c.lookupScalar(sqlite3sys.UserData(ctx))
 	if function == nil {
-		raw.ResultError(ctx, "sqlite3: function registry entry not found")
+		sqlite3sys.ResultError(ctx, "sqlite3: function registry entry not found")
 		return
 	}
 	if int(argc) != len(function.args) {
-		raw.ResultError(ctx, "sqlite3: unexpected argument count")
+		sqlite3sys.ResultError(ctx, "sqlite3: unexpected argument count")
 		return
 	}
 
@@ -1150,7 +1150,7 @@ func (c *SQLiteConn) invokeScalar(ctx *raw.Context, argc int32, values **raw.Val
 	for index := range sqliteValues {
 		decoded, err := function.args[index](sqliteValues[index])
 		if err != nil {
-			raw.ResultError(ctx, err.Error())
+			sqlite3sys.ResultError(ctx, err.Error())
 			return
 		}
 		callArgs[index] = decoded
@@ -1198,7 +1198,7 @@ func (c *SQLiteConn) unregisterCollation(id uintptr) {
 func (c *SQLiteConn) SetUpdateHook(callback func(op int, dbName, tableName string, rowID int64)) {
 	if callback == nil {
 		c.updateHookCb = nil
-		raw.UpdateHook(c.db, nil, 0)
+		sqlite3sys.UpdateHook(c.db, nil, 0)
 		return
 	}
 	cb := func(_ uintptr, op int32, dbNamePtr uintptr, tableNamePtr uintptr, rowID int64) {
@@ -1207,7 +1207,7 @@ func (c *SQLiteConn) SetUpdateHook(callback func(op int, dbName, tableName strin
 		callback(int(op), dbName, tableName, rowID)
 	}
 	c.updateHookCb = cb
-	raw.UpdateHook(c.db, cb, 0)
+	sqlite3sys.UpdateHook(c.db, cb, 0)
 }
 
 // SetCommitHook registers or clears the commit hook for this connection.
@@ -1217,14 +1217,14 @@ func (c *SQLiteConn) SetUpdateHook(callback func(op int, dbName, tableName strin
 func (c *SQLiteConn) SetCommitHook(callback func() int) {
 	if callback == nil {
 		c.commitHookCb = nil
-		raw.CommitHook(c.db, nil, 0)
+		sqlite3sys.CommitHook(c.db, nil, 0)
 		return
 	}
 	cb := func(_ uintptr) int32 {
 		return int32(callback())
 	}
 	c.commitHookCb = cb
-	raw.CommitHook(c.db, cb, 0)
+	sqlite3sys.CommitHook(c.db, cb, 0)
 }
 
 // SetRollbackHook registers or clears the rollback hook for this connection.
@@ -1233,14 +1233,14 @@ func (c *SQLiteConn) SetCommitHook(callback func() int) {
 func (c *SQLiteConn) SetRollbackHook(callback func()) {
 	if callback == nil {
 		c.rollbackHookCb = nil
-		raw.RollbackHook(c.db, nil, 0)
+		sqlite3sys.RollbackHook(c.db, nil, 0)
 		return
 	}
 	cb := func(_ uintptr) {
 		callback()
 	}
 	c.rollbackHookCb = cb
-	raw.RollbackHook(c.db, cb, 0)
+	sqlite3sys.RollbackHook(c.db, cb, 0)
 }
 
 type cancelState struct {
@@ -1248,7 +1248,7 @@ type cancelState struct {
 	interrupted atomic.Bool
 }
 
-func interruptWatcher(ctx context.Context, db *raw.DB) *cancelState {
+func interruptWatcher(ctx context.Context, db *sqlite3sys.DB) *cancelState {
 	state := &cancelState{done: make(chan struct{})}
 	if ctx == nil || ctx.Done() == nil || db == nil {
 		close(state.done)
@@ -1258,7 +1258,7 @@ func interruptWatcher(ctx context.Context, db *raw.DB) *cancelState {
 		select {
 		case <-ctx.Done():
 			state.interrupted.Store(true)
-			raw.Interrupt(db)
+			sqlite3sys.Interrupt(db)
 		case <-state.done:
 		}
 	}()
@@ -1276,57 +1276,57 @@ func (c *cancelState) stop() bool {
 
 func sqliteErrorString(code int32) string {
 	switch code & 0xff {
-	case raw.SQLITE_ERROR:
+	case sqlite3sys.SQLITE_ERROR:
 		return "SQL error or missing database"
-	case raw.SQLITE_INTERNAL:
+	case sqlite3sys.SQLITE_INTERNAL:
 		return "internal logic error in SQLite"
-	case raw.SQLITE_PERM:
+	case sqlite3sys.SQLITE_PERM:
 		return "access permission denied"
-	case raw.SQLITE_ABORT:
+	case sqlite3sys.SQLITE_ABORT:
 		return "callback requested abort"
-	case raw.SQLITE_BUSY:
+	case sqlite3sys.SQLITE_BUSY:
 		return "database is locked"
-	case raw.SQLITE_LOCKED:
+	case sqlite3sys.SQLITE_LOCKED:
 		return "table is locked"
-	case raw.SQLITE_NOMEM:
+	case sqlite3sys.SQLITE_NOMEM:
 		return "out of memory"
-	case raw.SQLITE_READONLY:
+	case sqlite3sys.SQLITE_READONLY:
 		return "attempt to write a readonly database"
-	case raw.SQLITE_INTERRUPT:
+	case sqlite3sys.SQLITE_INTERRUPT:
 		return "operation interrupted"
-	case raw.SQLITE_IOERR:
+	case sqlite3sys.SQLITE_IOERR:
 		return "disk I/O error"
-	case raw.SQLITE_CORRUPT:
+	case sqlite3sys.SQLITE_CORRUPT:
 		return "database disk image is malformed"
-	case raw.SQLITE_NOTFOUND:
+	case sqlite3sys.SQLITE_NOTFOUND:
 		return "unknown opcode"
-	case raw.SQLITE_FULL:
+	case sqlite3sys.SQLITE_FULL:
 		return "database or disk is full"
-	case raw.SQLITE_CANTOPEN:
+	case sqlite3sys.SQLITE_CANTOPEN:
 		return "unable to open database file"
-	case raw.SQLITE_PROTOCOL:
+	case sqlite3sys.SQLITE_PROTOCOL:
 		return "locking protocol error"
-	case raw.SQLITE_EMPTY:
+	case sqlite3sys.SQLITE_EMPTY:
 		return "database is empty"
-	case raw.SQLITE_SCHEMA:
+	case sqlite3sys.SQLITE_SCHEMA:
 		return "database schema changed"
-	case raw.SQLITE_TOOBIG:
+	case sqlite3sys.SQLITE_TOOBIG:
 		return "string or blob too big"
-	case raw.SQLITE_CONSTRAINT:
+	case sqlite3sys.SQLITE_CONSTRAINT:
 		return "constraint failed"
-	case raw.SQLITE_MISMATCH:
+	case sqlite3sys.SQLITE_MISMATCH:
 		return "datatype mismatch"
-	case raw.SQLITE_MISUSE:
+	case sqlite3sys.SQLITE_MISUSE:
 		return "library routine called out of sequence"
-	case raw.SQLITE_NOLFS:
+	case sqlite3sys.SQLITE_NOLFS:
 		return "large file support unavailable"
-	case raw.SQLITE_AUTH:
+	case sqlite3sys.SQLITE_AUTH:
 		return "authorization denied"
-	case raw.SQLITE_FORMAT:
+	case sqlite3sys.SQLITE_FORMAT:
 		return "auxiliary database format error"
-	case raw.SQLITE_RANGE:
+	case sqlite3sys.SQLITE_RANGE:
 		return "bind or column index out of range"
-	case raw.SQLITE_NOTADB:
+	case sqlite3sys.SQLITE_NOTADB:
 		return "file is not a database"
 	default:
 		return fmt.Sprintf("sqlite result code %d", code)

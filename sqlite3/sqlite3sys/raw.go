@@ -1,6 +1,6 @@
-//go:generate ../../../scripts/uv-run-python-src.sh -m purego_gen gen --config ./config.json --out ./generated.go
+//go:generate ../../scripts/uv-run-python-src.sh -m purego_gen gen --config ./config.json --out ./generated.go
 
-package raw
+package sqlite3sys
 
 import (
 	"fmt"
