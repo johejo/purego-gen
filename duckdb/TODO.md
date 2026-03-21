@@ -6,9 +6,6 @@ Items that are purego-gen core improvements are tracked in root [`TODO.md`](../T
 ## purego-gen Gaps Found (tracked in root TODO.md)
 
 - **Union typedef support**: `duckdb_string_t` skipped; manual vector string reading needed.
-- **Pointer-typedef handle type distinction**: All DuckDB handles collapse to `uintptr`.
-- **Unexported struct fields**: `duckdb_date_struct` etc. require unsafe accessors.
-- **`const char *` must-free ownership**: `duckdb_parameter_name` return value leaks.
 
 ## DuckDB-Specific Notes
 

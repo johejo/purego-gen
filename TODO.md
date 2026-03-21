@@ -11,12 +11,7 @@ Completed work is intentionally omitted.
 
 ## Future Capabilities
 
-- [x] Detect `typedef struct { void *internal_ptr; } *name` as an opaque handle pattern and generate a distinct named type (like forward-declared opaque structs), instead of collapsing all such handles to bare `uintptr`. Found via DuckDB: all handles (`duckdb_database`, `duckdb_connection`, etc.) lose type distinction in generated code.
 - [ ] Add basic union typedef support, at minimum for tagged unions and single-member-struct-containing-union patterns. Currently all structs with union fields are skipped entirely (`TYPE_DIAGNOSTIC_CODE_UNSUPPORTED_UNION_TYPEDEF`). Found via DuckDB: `duckdb_string_t` (inline/pointer string union) required fully manual handling.
-- [ ] Add an option to generate exported accessor methods for struct fields, so downstream packages can read field values without `unsafe.Pointer` arithmetic. Currently all struct fields are emitted as unexported (lowercase), matching C naming. Found via DuckDB: `duckdb_date_struct`, `duckdb_time_struct` etc. required manual unsafe accessors in the wrapper layer.
-- [ ] Add ownership/lifetime annotation for `const char *` return values so `const_char_as_string` can distinguish "borrowed" returns (no free needed) from "owned" returns (caller must free). Currently the Go string copy is always made but the original C pointer is never freed, causing a memory leak for owned returns. Found via DuckDB: `duckdb_parameter_name` returns a `const char *` that must be freed with `duckdb_free`.
-- [ ] Add support for in-memory overlays via `CXUnsavedFile` so parsing can work without relying on on-disk headers.
-
 ## UX Improvements
 
 - [ ] Add a broad declaration-collection mode so users can start from "generate everything supported" and then narrow with excludes instead of large allowlists.
