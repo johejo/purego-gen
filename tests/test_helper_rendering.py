@@ -640,3 +640,194 @@ def test_render_go_source_emits_owned_string_return_with_custom_prefix() -> None
     assert "func mylib_fixture_get_name_string(" in source
     assert "func mylib_gostring(ptr uintptr) string {" in source
     assert "result := mylib_gostring(rawPtr)" in source
+
+
+def test_render_go_source_callback_resolves_fixed_width_typedef_types() -> None:
+    """Callback helpers should resolve fixed-width C typedefs (uint64_t, int32_t) in signatures."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_set_progress",
+                    result_c_type="void",
+                    parameter_c_types=("void (*)(uint64_t, int32_t)",),
+                    parameter_names=("callback",),
+                    go_result_type=None,
+                    go_parameter_types=("uintptr",),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                callback_inputs=(
+                    CallbackInputHelper(
+                        function="fixture_set_progress",
+                        parameters=("callback",),
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    assert "callback_func = func(uint64, int32)" in source
+
+
+def test_render_go_source_callback_resolves_pointer_width_typedef_types() -> None:
+    """Callback helpers should resolve uintptr_t/intptr_t to uintptr."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_set_visitor",
+                    result_c_type="void",
+                    parameter_c_types=("void (*)(uintptr_t, intptr_t)",),
+                    parameter_names=("callback",),
+                    go_result_type=None,
+                    go_parameter_types=("uintptr",),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                callback_inputs=(
+                    CallbackInputHelper(
+                        function="fixture_set_visitor",
+                        parameters=("callback",),
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    assert "callback_func = func(uintptr, uintptr)" in source
+
+
+def test_render_go_source_callback_resolves_chained_typedef() -> None:
+    """Callback helpers should chain-resolve library typedefs to underlying primitives."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_set_handler",
+                    result_c_type="void",
+                    parameter_c_types=("void (*)(idx_t, count_t)",),
+                    parameter_names=("callback",),
+                    go_result_type=None,
+                    go_parameter_types=("uintptr",),
+                ),
+            ),
+            typedefs=(
+                TypedefDecl(name="idx_t", c_type="uint64_t", go_type="uint64"),
+                TypedefDecl(name="count_t", c_type="int32_t", go_type="int32"),
+            ),
+            constants=(),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                callback_inputs=(
+                    CallbackInputHelper(
+                        function="fixture_set_handler",
+                        parameters=("callback",),
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    assert "callback_func = func(uint64, int32)" in source
+
+
+def test_render_go_source_callback_resolves_chained_typedef_through_go_type_lookup() -> None:
+    """Callback helpers should chain-resolve typedefs through typedef_go_type_by_lookup."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func", "type"),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_set_notifier",
+                    result_c_type="void",
+                    parameter_c_types=("void (*)(my_state_t)",),
+                    parameter_names=("callback",),
+                    go_result_type=None,
+                    go_parameter_types=("uintptr",),
+                ),
+            ),
+            typedefs=(
+                TypedefDecl(name="state_t", c_type="int", go_type="int32"),
+                TypedefDecl(name="my_state_t", c_type="state_t", go_type="int32"),
+            ),
+            constants=(),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                callback_inputs=(
+                    CallbackInputHelper(
+                        function="fixture_set_notifier",
+                        parameters=("callback",),
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    assert "callback_func = func(int32)" in source
+
+
+def test_render_go_source_callback_const_char_pointer_resolves_to_uintptr() -> None:
+    """Callback helpers should resolve `const char *` parameters to uintptr."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_set_logger",
+                    result_c_type="void",
+                    parameter_c_types=("void (*)(const char *, int)",),
+                    parameter_names=("callback",),
+                    go_result_type=None,
+                    go_parameter_types=("uintptr",),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                callback_inputs=(
+                    CallbackInputHelper(
+                        function="fixture_set_logger",
+                        parameters=("callback",),
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    assert "callback_func = func(uintptr, int32)" in source

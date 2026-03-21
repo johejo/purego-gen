@@ -49,6 +49,17 @@ _CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE: Final[dict[str, str | None]] = {
     "unsigned long long": "uint64",
     "float": "float32",
     "double": "float64",
+    "int8_t": "int8",
+    "uint8_t": "uint8",
+    "int16_t": "int16",
+    "uint16_t": "uint16",
+    "int32_t": "int32",
+    "uint32_t": "uint32",
+    "int64_t": "int64",
+    "uint64_t": "uint64",
+    "uintptr_t": "uintptr",
+    # Go has no signed pointer-width integer; uintptr is the only pointer-width type.
+    "intptr_t": "uintptr",
 }
 
 
@@ -248,6 +259,17 @@ class HelperTypeResolver:
             parsed_underlying_callback = parse_function_pointer_c_type(underlying_typedef_c_type)
             if parsed_underlying_callback is not None:
                 return "uintptr"
+            # Chain-resolve underlying type through primitives
+            normalized_underlying = normalize_c_type_for_lookup(underlying_typedef_c_type)
+            underlying_primitive = _CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE.get(normalized_underlying)
+            if underlying_primitive is not None or normalized_underlying in _CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE:
+                return underlying_primitive
+            # Chain-resolve through declared typedefs
+            underlying_go_type = self.typedef_go_type_by_lookup.get(underlying_typedef_c_type)
+            if underlying_go_type is None:
+                underlying_go_type = self.typedef_go_type_by_lookup.get(normalized_underlying)
+            if underlying_go_type is not None:
+                return underlying_go_type
 
         primitive_type = _CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE.get(normalized_c_type)
         if primitive_type is not None or normalized_c_type in _CALLBACK_PRIMITIVE_GO_TYPE_BY_C_TYPE:
