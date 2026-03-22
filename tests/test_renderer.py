@@ -56,6 +56,7 @@ def test_render_template_fails_on_missing_nested_key() -> None:
                 "helpers": (),
                 "owned_string_helpers": (),
                 "struct_accessors": (),
+                "union_accessors": (),
                 "runtime_vars": (),
                 "register_functions_name": "fixture_lib_register_functions",
                 "load_runtime_vars_name": "fixture_lib_load_runtime_vars",
@@ -504,3 +505,92 @@ def test_render_go_source_struct_accessors_skips_nested_struct_fields() -> None:
 
     assert "Get_date()" not in source
     assert "Get_micros()" in source
+
+
+def _make_union_record_typedef(
+    name: str,
+    fields: tuple[RecordFieldDecl, ...],
+) -> RecordTypedefDecl:
+    return RecordTypedefDecl(
+        name=name,
+        c_type=f"union {name}",
+        record_kind="UNION_DECL",
+        size_bytes=4,
+        align_bytes=4,
+        fields=fields,
+        supported=True,
+        unsupported_code=None,
+        unsupported_reason=None,
+    )
+
+
+def test_render_go_source_union_accessors_generated() -> None:
+    """Union accessors should generate unsafe.Pointer-based getters/setters."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("type",),
+        declarations=ParsedDeclarations(
+            functions=(),
+            typedefs=(
+                TypedefDecl(
+                    name="my_union",
+                    c_type="union my_union",
+                    go_type="struct {\n\t_ [0]int32\n\t_ [4]byte\n}",
+                ),
+            ),
+            constants=(),
+            runtime_vars=(),
+            record_typedefs=(
+                _make_union_record_typedef(
+                    "my_union",
+                    fields=(
+                        _make_supported_field("as_int", "int", "as_int", "int32"),
+                        _make_supported_field("as_float", "float", "as_float", "float32"),
+                    ),
+                ),
+            ),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(),
+            type_mapping=TypeMappingOptions(),
+            struct_accessors=True,
+        ),
+    )
+
+    assert "func (u *my_union) Get_as_int() int32" in source
+    assert "return *(*int32)(unsafe.Pointer(u))" in source
+    assert "func (u *my_union) Set_as_int(v int32)" in source
+    assert "*(*int32)(unsafe.Pointer(u)) = v" in source
+    assert "func (u *my_union) Get_as_float() float32" in source
+    assert "func (u *my_union) Set_as_float(v float32)" in source
+
+
+def test_render_go_source_union_accessors_disabled_by_default() -> None:
+    """Union accessors should not be generated when struct_accessors is disabled."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("type",),
+        declarations=ParsedDeclarations(
+            functions=(),
+            typedefs=(
+                TypedefDecl(
+                    name="my_union",
+                    c_type="union my_union",
+                    go_type="struct {\n\t_ [0]int32\n\t_ [4]byte\n}",
+                ),
+            ),
+            constants=(),
+            runtime_vars=(),
+            record_typedefs=(
+                _make_union_record_typedef(
+                    "my_union",
+                    fields=(_make_supported_field("as_int", "int", "as_int", "int32"),),
+                ),
+            ),
+        ),
+    )
+
+    assert "Get_as_int()" not in source
+    assert "Set_as_int(" not in source

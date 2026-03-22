@@ -45,6 +45,7 @@ _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "helpers",
     "owned_string_helpers",
     "struct_accessors",
+    "union_accessors",
     "runtime_vars",
     "has_union_helpers",
     "union_get_func_name",
@@ -184,6 +185,22 @@ def _collect_generated_names(
             (
                 f"{accessor['receiver_type']}.{accessor['setter_name']}",
                 "struct accessor setter",
+                check_type,
+            ),
+        )
+    )
+    names.extend(
+        entry
+        for accessor in context["union_accessors"]
+        for entry in (
+            (
+                f"{accessor['receiver_type']}.{accessor['getter_name']}",
+                "union accessor getter",
+                check_type,
+            ),
+            (
+                f"{accessor['receiver_type']}.{accessor['setter_name']}",
+                "union accessor setter",
                 check_type,
             ),
         )

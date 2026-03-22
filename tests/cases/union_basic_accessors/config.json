@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": "func,type",
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "union_basic_accessors.h"
+        ]
+      }
+    },
+    "render": {
+      "struct_accessors": true
+    }
+  }
+}

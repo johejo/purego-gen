@@ -127,6 +127,15 @@ class StructAccessorContext(TypedDict):
     go_type: str
 
 
+class UnionAccessorContext(TypedDict):
+    """Template context for one union accessor getter/setter pair."""
+
+    receiver_type: str
+    getter_name: str
+    setter_name: str
+    go_type: str
+
+
 class TemplateContext(TypedDict):
     """Full template context for the main Go output template."""
 
@@ -144,6 +153,7 @@ class TemplateContext(TypedDict):
     helpers: tuple[HelperContext, ...]
     owned_string_helpers: tuple[OwnedStringHelperContext, ...]
     struct_accessors: tuple[StructAccessorContext, ...]
+    union_accessors: tuple[UnionAccessorContext, ...]
     runtime_vars: tuple[RuntimeVarContext, ...]
     has_union_helpers: bool
     union_get_func_name: str
@@ -574,6 +584,44 @@ def _build_struct_accessor_contexts(
     return tuple(accessors)
 
 
+def _build_union_accessor_contexts(
+    *,
+    declarations: ParsedDeclarations,
+    type_identifiers: tuple[str, ...],
+    naming: GeneratorNaming,
+) -> tuple[UnionAccessorContext, ...]:
+    """Build union accessor getter/setter contexts for union typedefs.
+
+    Returns:
+        Tuple of union accessor contexts for each supported field.
+    """
+    emitted_typedef_names = {
+        naming.type_name(identifier): typedef.name
+        for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
+    }
+    record_typedef_by_name = {rt.name: rt for rt in declarations.record_typedefs}
+
+    accessors: list[UnionAccessorContext] = []
+    for go_type_name, c_typedef_name in emitted_typedef_names.items():
+        record_typedef = record_typedef_by_name.get(c_typedef_name)
+        if record_typedef is None:
+            continue
+        if record_typedef.record_kind != "UNION_DECL":
+            continue
+        for field in record_typedef.fields:
+            if field.go_name is None or field.go_type is None:
+                continue
+            if "\n" in field.go_type:
+                continue
+            accessors.append({
+                "receiver_type": go_type_name,
+                "getter_name": accessor_getter_name(field.name),
+                "setter_name": accessor_setter_name(field.name),
+                "go_type": field.go_type,
+            })
+    return tuple(accessors)
+
+
 def _has_emitted_union_typedefs(
     emit_kinds: tuple[str, ...],
     declarations: ParsedDeclarations,
@@ -754,6 +802,15 @@ def build_template_context(
             if render.struct_accessors and "type" in emit_kinds
             else ()
         ),
+        "union_accessors": (
+            _build_union_accessor_contexts(
+                declarations=declarations,
+                type_identifiers=type_identifiers,
+                naming=render.naming,
+            )
+            if render.struct_accessors and "type" in emit_kinds
+            else ()
+        ),
         "runtime_vars": tuple(
             {
                 "name": render.naming.runtime_var_name(identifier),
@@ -785,5 +842,6 @@ __all__ = [
     "StructAccessorContext",
     "TemplateContext",
     "TypeAliasContext",
+    "UnionAccessorContext",
     "build_template_context",
 ]
