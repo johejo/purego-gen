@@ -11,17 +11,12 @@ Items that are purego-gen core improvements are tracked in root [`TODO.md`](../T
 
 ## purego-gen Improvements That Would Benefit duckdb
 
-### `duckdb_string_t` union type
+### `duckdb_string_t` union type (partially resolved)
 
-purego-gen renders unions as opaque byte arrays. The 16-byte inline/pointer string union
-(`duckdb_string_t`) requires hand-written `ReadStringFromVector`/`ReadBlobFromVector`.
-Union support improvements would allow generating these helpers.
-
-### `duckdb_string_t` by-value arguments
-
-Functions like `duckdb_string_is_inlined` and `duckdb_string_t_length` take
-`duckdb_string_t` by value. Since the union type is not supported, these functions
-cannot be generated.
+`duckdb_string_t` is now generated as an opaque 16-byte union typedef, and
+`duckdb_string_is_inlined` / `duckdb_string_t_length` are generated with by-value
+arguments. Hand-written `ReadStringFromVector`/`ReadBlobFromVector` helpers remain
+needed for reading strings from vectors (different responsibility).
 
 ### `owned_string_returns` wildcard patterns
 

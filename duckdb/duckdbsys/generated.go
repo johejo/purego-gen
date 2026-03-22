@@ -144,6 +144,16 @@ type (
 		rows_processed        uint64
 		total_rows_to_process uint64
 	}
+	// ! The internal representation of a VARCHAR (string_t). If the VARCHAR does not
+	// ! exceed 12 characters, then we inline it. Otherwise, we inline a four-byte prefix for faster
+	// ! string comparisons and store a pointer to the remaining characters. This is a non-
+	// ! owning structure, i.e., it does not have to be freed.
+	duckdb_string_t struct {
+		value struct {
+			_ [0]int64
+			_ [16]byte
+		}
+	}
 	// ! DuckDB's LISTs are composed of a 'parent' vector holding metadata of each list,
 	// ! and a child vector holding the entries of the lists.
 	// ! The `duckdb_list_entry` struct contains the internal representation of a LIST metadata entry.
@@ -1062,6 +1072,20 @@ var (
 	//
 	// @return The vector size.
 	duckdb_vector_size func() uint64
+	// !
+	// Whether or not the duckdb_string_t value is inlined.
+	// This means that the data of the string does not have a separate allocation.
+	duckdb_string_is_inlined func(
+		string duckdb_string_t,
+	) bool
+	// !
+	// Get the string length of a string_t
+	//
+	// @param string The string to get the length of.
+	// @return The length.
+	duckdb_string_t_length func(
+		string duckdb_string_t,
+	) uint32
 	// !
 	// Decompose a `duckdb_date` object into year, month and date (stored as `duckdb_date_struct`).
 	//
@@ -3476,6 +3500,16 @@ func duckdb_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_vector_size: %w", err)
 	}
 	purego.RegisterFunc(&duckdb_vector_size, duckdb_vector_size_symbol)
+	duckdb_string_is_inlined_symbol, err := purego.Dlsym(handle, "duckdb_string_is_inlined")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_string_is_inlined: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_string_is_inlined, duckdb_string_is_inlined_symbol)
+	duckdb_string_t_length_symbol, err := purego.Dlsym(handle, "duckdb_string_t_length")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_string_t_length: %w", err)
+	}
+	purego.RegisterFunc(&duckdb_string_t_length, duckdb_string_t_length_symbol)
 	duckdb_from_date_symbol, err := purego.Dlsym(handle, "duckdb_from_date")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol duckdb_from_date: %w", err)

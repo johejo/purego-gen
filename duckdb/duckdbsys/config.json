@@ -303,7 +303,10 @@
           "duckdb_stream_fetch_chunk",
           "duckdb_fetch_chunk",
 
-          "duckdb_get_table_names"
+          "duckdb_get_table_names",
+
+          "duckdb_string_is_inlined",
+          "duckdb_string_t_length"
         ],
         "type": [
           "duckdb_database",
@@ -330,6 +333,7 @@
           "duckdb_decimal",
           "duckdb_blob",
           "duckdb_string",
+          "duckdb_string_t",
           "duckdb_list_entry",
           "duckdb_time_tz",
           "duckdb_time_tz_struct",
