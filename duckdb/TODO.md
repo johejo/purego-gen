@@ -18,13 +18,10 @@ Items that are purego-gen core improvements are tracked in root [`TODO.md`](../T
 arguments. Hand-written `ReadStringFromVector`/`ReadBlobFromVector` helpers remain
 needed for reading strings from vectors (different responsibility).
 
-### `owned_string_returns` wildcard patterns
+### ~~`owned_string_returns` wildcard patterns~~ (resolved)
 
-Many `duckdb_get_*` functions return `char*` that must be freed with `duckdb_free`.
-Currently each must be listed individually. A wildcard/regex pattern (e.g. `duckdb_get_varchar`,
-`duckdb_enum_dictionary_value`, `duckdb_struct_type_child_name`, `duckdb_union_type_member_name`,
-`duckdb_logical_type_get_alias`, `duckdb_value_to_string`, `duckdb_table_description_get_column_name`)
-would reduce config verbosity.
+`function_pattern` field now supports regex patterns in `owned_string_returns` config.
+DuckDB config uses `"function_pattern": "^duckdb_"` to match all string-returning functions.
 
 ### `buffer_inputs` pattern
 

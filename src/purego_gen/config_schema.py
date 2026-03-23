@@ -4,10 +4,10 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
 from annotated_types import Len
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 
 from purego_gen.config_shared import NonEmptyStr, NonEmptyStrTuple, StrictModel, TypeMappingInput
 
@@ -38,8 +38,21 @@ class CallbackInputHelperInput(StrictModel):
 class OwnedStringReturnHelperInput(StrictModel):
     """One function-specific helper definition for owned ``const char *`` returns."""
 
-    function: NonEmptyStr
+    function: NonEmptyStr | None = None
+    function_pattern: NonEmptyStr | None = Field(
+        default=None, description="Regex matched via re.search (partial match, not full match)."
+    )
     free_func: NonEmptyStr
+
+    @model_validator(mode="after")
+    def _exactly_one_function_spec(self) -> Self:
+        if self.function is not None and self.function_pattern is not None:
+            message = "exactly one of 'function' or 'function_pattern' must be set, got both"
+            raise ValueError(message)
+        if self.function is None and self.function_pattern is None:
+            message = "exactly one of 'function' or 'function_pattern' must be set, got neither"
+            raise ValueError(message)
+        return self
 
 
 class HelpersInput(StrictModel):

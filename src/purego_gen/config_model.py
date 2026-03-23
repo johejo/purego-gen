@@ -64,13 +64,21 @@ class OwnedStringReturnHelper:
 
 
 @dataclass(frozen=True, slots=True)
+class OwnedStringReturnPatternHelper:
+    """Pattern-based helper definition for owned ``const char *`` returns."""
+
+    function_pattern: str
+    free_func: str
+
+
+@dataclass(frozen=True, slots=True)
 class GeneratorHelpers:
     """Optional helper-generation configuration."""
 
     auto_callback_inputs: bool = False
     buffer_inputs: tuple[BufferInputHelper, ...] = ()
     callback_inputs: tuple[CallbackInputHelper, ...] = ()
-    owned_string_returns: tuple[OwnedStringReturnHelper, ...] = ()
+    owned_string_returns: tuple[OwnedStringReturnHelper | OwnedStringReturnPatternHelper, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,4 +279,5 @@ __all__ = [
     "HeaderOverlay",
     "LocalHeaders",
     "OwnedStringReturnHelper",
+    "OwnedStringReturnPatternHelper",
 ]

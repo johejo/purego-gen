@@ -24,7 +24,11 @@ if TYPE_CHECKING:
     from purego_gen.config_model import GeneratorHelpers
     from purego_gen.model import FunctionDecl, ParsedDeclarations
 
-from purego_gen.config_model import CallbackInputHelper
+from purego_gen.config_model import (
+    CallbackInputHelper,
+    OwnedStringReturnHelper,
+    OwnedStringReturnPatternHelper,
+)
 
 _BUFFER_HELPER_POINTER_C_TYPE: Final[str] = "void *"
 _BUFFER_HELPER_LENGTH_GO_TYPES: Final[frozenset[str]] = frozenset({
@@ -961,6 +965,17 @@ def discover_callback_inputs(
     return (*explicit_callback_inputs, *discovered)
 
 
+@dataclass(slots=True)
+class _OwnedStringBuildState:
+    """Mutable accumulator shared across owned-string-return helper builders."""
+
+    functions_by_name: Mapping[str, FunctionDecl]
+    function_identifier_by_name: Mapping[str, str]
+    type_resolver: HelperTypeResolver
+    override_names: set[str]
+    helper_contexts: list[OwnedStringReturnHelperContext]
+
+
 def build_owned_string_return_helpers(
     *,
     function_identifier_by_name: Mapping[str, str],
@@ -973,62 +988,122 @@ def build_owned_string_return_helpers(
     Returns:
         Tuple of (helper contexts, set of function names whose raw return type
         should be overridden to ``uintptr``).
-
-    Raises:
-        HelperRenderingError: Helper targets or configuration are invalid.
     """
     if not helpers.owned_string_returns:
         return (), frozenset()
 
-    functions_by_name = {function.name: function for function in declarations.functions}
-    helper_contexts: list[OwnedStringReturnHelperContext] = []
-    override_names: set[str] = set()
+    state = _OwnedStringBuildState(
+        functions_by_name={function.name: function for function in declarations.functions},
+        function_identifier_by_name=function_identifier_by_name,
+        type_resolver=type_resolver,
+        override_names=set(),
+        helper_contexts=[],
+    )
+
+    # Collect explicit function names for dedup against patterns.
+    explicit_names: set[str] = set()
+    for helper in helpers.owned_string_returns:
+        if isinstance(helper, OwnedStringReturnHelper):
+            explicit_names.add(helper.function)
 
     for helper in helpers.owned_string_returns:
-        function = functions_by_name.get(helper.function)
-        if function is None:
-            message = f"owned_string_returns helper target function not found: {helper.function}"
-            raise HelperRenderingError(message)
+        if isinstance(helper, OwnedStringReturnPatternHelper):
+            _expand_owned_string_pattern(helper=helper, state=state, explicit_names=explicit_names)
+        else:
+            _build_one_owned_string_context(
+                function_name=helper.function, free_func=helper.free_func, state=state
+            )
 
+    return tuple(state.helper_contexts), frozenset(state.override_names)
+
+
+def _build_one_owned_string_context(
+    *,
+    function_name: str,
+    free_func: str,
+    state: _OwnedStringBuildState,
+) -> None:
+    function = state.functions_by_name.get(function_name)
+    if function is None:
+        message = f"owned_string_returns helper target function not found: {function_name}"
+        raise HelperRenderingError(message)
+
+    if function.go_result_type != "string":
+        message = (
+            f"owned_string_returns helper target function {function_name} "
+            f"must return string, got `{function.go_result_type}`"
+        )
+        raise HelperRenderingError(message)
+
+    free_function = state.functions_by_name.get(free_func)
+    if free_function is None:
+        message = f"owned_string_returns helper free function not found: {free_func}"
+        raise HelperRenderingError(message)
+
+    function_identifier = state.function_identifier_by_name[function.name]
+    free_func_identifier = state.function_identifier_by_name[free_func]
+
+    resolved_parameters = _resolve_function_parameters(
+        parameter_names=function.parameter_names,
+        go_parameter_types=function.go_parameter_types,
+        parameter_c_types=function.parameter_c_types,
+        type_resolver=state.type_resolver,
+    )
+
+    parameters = tuple(
+        FunctionParameterContext(
+            name=param.name,
+            type=param.type,
+            c_type_comment=param.c_type if param.type == "uintptr" else "",
+        )
+        for param in resolved_parameters
+    )
+    call_arguments = tuple(param.name for param in resolved_parameters)
+
+    state.helper_contexts.append({
+        "identifier": f"{function_identifier}_string",
+        "target_identifier": function_identifier,
+        "free_func_identifier": free_func_identifier,
+        "parameters": parameters,
+        "call_arguments": call_arguments,
+    })
+    state.override_names.add(function.name)
+
+
+def _expand_owned_string_pattern(
+    *,
+    helper: OwnedStringReturnPatternHelper,
+    state: _OwnedStringBuildState,
+    explicit_names: set[str],
+) -> None:
+    try:
+        pattern = re.compile(helper.function_pattern)
+    except re.error as exc:
+        message = (
+            f"owned_string_returns function_pattern is not valid regex: "
+            f"{helper.function_pattern!r}: {exc}"
+        )
+        raise HelperRenderingError(message) from exc
+
+    match_count = 0
+    for func_name in sorted(state.functions_by_name):
+        if func_name in explicit_names:
+            continue
+        if func_name in state.override_names:
+            continue
+        if not pattern.search(func_name):
+            continue
+        function = state.functions_by_name[func_name]
         if function.go_result_type != "string":
-            message = (
-                f"owned_string_returns helper target function {helper.function} "
-                f"must return string, got `{function.go_result_type}`"
-            )
-            raise HelperRenderingError(message)
-
-        free_function = functions_by_name.get(helper.free_func)
-        if free_function is None:
-            message = f"owned_string_returns helper free function not found: {helper.free_func}"
-            raise HelperRenderingError(message)
-
-        function_identifier = function_identifier_by_name[function.name]
-        free_func_identifier = function_identifier_by_name[helper.free_func]
-
-        resolved_parameters = _resolve_function_parameters(
-            parameter_names=function.parameter_names,
-            go_parameter_types=function.go_parameter_types,
-            parameter_c_types=function.parameter_c_types,
-            type_resolver=type_resolver,
+            continue
+        _build_one_owned_string_context(
+            function_name=func_name, free_func=helper.free_func, state=state
         )
+        match_count += 1
 
-        parameters = tuple(
-            FunctionParameterContext(
-                name=param.name,
-                type=param.type,
-                c_type_comment=param.c_type if param.type == "uintptr" else "",
-            )
-            for param in resolved_parameters
+    if match_count == 0:
+        message = (
+            f"owned_string_returns function_pattern {helper.function_pattern!r} "
+            f"matched no string-returning functions"
         )
-        call_arguments = tuple(param.name for param in resolved_parameters)
-
-        helper_contexts.append({
-            "identifier": f"{function_identifier}_string",
-            "target_identifier": function_identifier,
-            "free_func_identifier": free_func_identifier,
-            "parameters": parameters,
-            "call_arguments": call_arguments,
-        })
-        override_names.add(function.name)
-
-    return tuple(helper_contexts), frozenset(override_names)
+        raise HelperRenderingError(message)

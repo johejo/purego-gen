@@ -14,6 +14,7 @@ from purego_gen.config_model import (
     GeneratorNaming,
     GeneratorRenderSpec,
     OwnedStringReturnHelper,
+    OwnedStringReturnPatternHelper,
 )
 from purego_gen.helper_rendering import (
     detect_callback_registration_patterns,
@@ -981,3 +982,223 @@ def test_detect_callback_registration_patterns_empty_for_plain_functions() -> No
     )
     patterns = detect_callback_registration_patterns(declarations)
     assert patterns == []
+
+
+def _make_string_return_declarations() -> ParsedDeclarations:
+    """Build declarations with several string-returning and non-string functions.
+
+    Returns:
+        Declarations with string-returning, non-string, and free functions.
+    """
+    return ParsedDeclarations(
+        functions=(
+            FunctionDecl(
+                name="lib_get_name",
+                result_c_type="const char *",
+                parameter_c_types=("int",),
+                parameter_names=("id",),
+                go_result_type="string",
+                go_parameter_types=("int32",),
+            ),
+            FunctionDecl(
+                name="lib_get_label",
+                result_c_type="const char *",
+                parameter_c_types=(),
+                parameter_names=(),
+                go_result_type="string",
+                go_parameter_types=(),
+            ),
+            FunctionDecl(
+                name="lib_get_count",
+                result_c_type="int",
+                parameter_c_types=(),
+                parameter_names=(),
+                go_result_type="int32",
+                go_parameter_types=(),
+            ),
+            FunctionDecl(
+                name="lib_free",
+                result_c_type="void",
+                parameter_c_types=("void *",),
+                parameter_names=("ptr",),
+                go_result_type=None,
+                go_parameter_types=("uintptr",),
+            ),
+            FunctionDecl(
+                name="other_get_value",
+                result_c_type="const char *",
+                parameter_c_types=(),
+                parameter_names=(),
+                go_result_type="string",
+                go_parameter_types=(),
+            ),
+        ),
+        typedefs=(),
+        constants=(),
+        runtime_vars=(),
+    )
+
+
+def test_owned_string_pattern_matches_multiple_functions() -> None:
+    """Pattern-based owned_string_returns should match multiple string-returning functions."""
+    declarations = _make_string_return_declarations()
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=declarations,
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                owned_string_returns=(
+                    OwnedStringReturnPatternHelper(
+                        function_pattern="^lib_get_",
+                        free_func="lib_free",
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    assert "func lib_get_name_string(" in source
+    assert "func lib_get_label_string(" in source
+    # lib_get_count returns int32, not string — should be skipped
+    assert "lib_get_count_string" not in source
+    # other_get_value doesn't match the pattern
+    assert "other_get_value_string" not in source
+
+
+def test_owned_string_pattern_skips_non_string_return_types() -> None:
+    """Pattern should silently skip functions whose return type is not string."""
+    declarations = _make_string_return_declarations()
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=declarations,
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                owned_string_returns=(
+                    OwnedStringReturnPatternHelper(
+                        function_pattern="^lib_",
+                        free_func="lib_free",
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    assert "func lib_get_name_string(" in source
+    assert "func lib_get_label_string(" in source
+    assert "lib_get_count_string" not in source
+
+
+def test_owned_string_pattern_zero_matches_raises_error() -> None:
+    """Pattern that matches no string-returning functions should raise an error."""
+    declarations = _make_string_return_declarations()
+    with pytest.raises(
+        RendererError,
+        match=r"matched no string-returning functions",
+    ):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=declarations,
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(
+                    owned_string_returns=(
+                        OwnedStringReturnPatternHelper(
+                            function_pattern="^nonexistent_",
+                            free_func="lib_free",
+                        ),
+                    )
+                ),
+                type_mapping=TypeMappingOptions(),
+            ),
+        )
+
+
+def test_owned_string_pattern_deduplicates_with_explicit() -> None:
+    """Explicit entries should take priority; patterns should skip those functions."""
+    declarations = _make_string_return_declarations()
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=declarations,
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                owned_string_returns=(
+                    OwnedStringReturnHelper(
+                        function="lib_get_name",
+                        free_func="lib_free",
+                    ),
+                    OwnedStringReturnPatternHelper(
+                        function_pattern="^lib_get_",
+                        free_func="lib_free",
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    assert "func lib_get_name_string(" in source
+    assert "func lib_get_label_string(" in source
+    # lib_get_name should appear only once (from explicit, not duplicated by pattern)
+    assert source.count("func lib_get_name_string(") == 1
+
+
+def test_owned_string_pattern_invalid_regex_raises_error() -> None:
+    """Invalid regex in function_pattern should raise an error."""
+    declarations = _make_string_return_declarations()
+    with pytest.raises(
+        RendererError,
+        match=r"not valid regex",
+    ):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=declarations,
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(
+                    owned_string_returns=(
+                        OwnedStringReturnPatternHelper(
+                            function_pattern="[invalid",
+                            free_func="lib_free",
+                        ),
+                    )
+                ),
+                type_mapping=TypeMappingOptions(),
+            ),
+        )
+
+
+def test_owned_string_pattern_deterministic_output_order() -> None:
+    """Pattern matches should produce helpers in sorted (deterministic) order."""
+    declarations = _make_string_return_declarations()
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=declarations,
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                owned_string_returns=(
+                    OwnedStringReturnPatternHelper(
+                        function_pattern="^lib_get_|^other_get_",
+                        free_func="lib_free",
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    label_pos = source.index("func lib_get_label_string(")
+    name_pos = source.index("func lib_get_name_string(")
+    other_pos = source.index("func other_get_value_string(")
+    assert label_pos < name_pos < other_pos

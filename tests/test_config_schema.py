@@ -721,3 +721,42 @@ def test_config_normalize_passes_struct_accessors_to_render_spec(tmp_path: Path)
         config_path=tmp_path / "config.json",
     )
     assert spec.render.struct_accessors is True
+
+
+def test_owned_string_return_rejects_both_function_and_pattern() -> None:
+    """Setting both function and function_pattern should fail validation."""
+    payload = _config_payload(func_filter="^add$")
+    generator = _payload_generator(payload)
+    render = cast("dict[str, object]", generator.setdefault("render", {}))
+    render["helpers"] = {
+        "owned_string_returns": [
+            {"function": "foo", "function_pattern": "^bar_", "free_func": "free_fn"}
+        ]
+    }
+    with pytest.raises(ValidationError, match=r"got both"):
+        AppConfigInput.model_validate_json(json.dumps(payload))
+
+
+def test_owned_string_return_rejects_neither_function_nor_pattern() -> None:
+    """Setting neither function nor function_pattern should fail validation."""
+    payload = _config_payload(func_filter="^add$")
+    generator = _payload_generator(payload)
+    render = cast("dict[str, object]", generator.setdefault("render", {}))
+    render["helpers"] = {"owned_string_returns": [{"free_func": "free_fn"}]}
+    with pytest.raises(ValidationError, match=r"got neither"):
+        AppConfigInput.model_validate_json(json.dumps(payload))
+
+
+def test_owned_string_return_accepts_function_pattern() -> None:
+    """function_pattern should be accepted as a valid config alternative to function."""
+    payload = _config_payload(func_filter="^add$")
+    generator = _payload_generator(payload)
+    render = cast("dict[str, object]", generator.setdefault("render", {}))
+    render["helpers"] = {
+        "owned_string_returns": [{"function_pattern": "^get_", "free_func": "free_fn"}]
+    }
+    config = AppConfigInput.model_validate_json(json.dumps(payload))
+    helper_input = config.generator.render.helpers.owned_string_returns
+    assert helper_input is not None
+    assert helper_input[0].function_pattern == "^get_"
+    assert helper_input[0].function is None

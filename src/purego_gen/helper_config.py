@@ -13,6 +13,7 @@ from purego_gen.config_model import (
     GeneratorHelpers,
     HeaderOverlay,
     OwnedStringReturnHelper,
+    OwnedStringReturnPatternHelper,
 )
 
 if TYPE_CHECKING:
@@ -77,8 +78,15 @@ def _normalize_callback_input_helper(helper: CallbackInputHelperInput) -> Callba
 
 def _normalize_owned_string_return_helper(
     helper: OwnedStringReturnHelperInput,
-) -> OwnedStringReturnHelper:
-    return OwnedStringReturnHelper(function=helper.function, free_func=helper.free_func)
+) -> OwnedStringReturnHelper | OwnedStringReturnPatternHelper:
+    if helper.function is not None:
+        return OwnedStringReturnHelper(function=helper.function, free_func=helper.free_func)
+    # model_validator guarantees function_pattern is not None here; `or ""` narrows the type.
+    function_pattern: str = helper.function_pattern or ""
+    return OwnedStringReturnPatternHelper(
+        function_pattern=function_pattern,
+        free_func=helper.free_func,
+    )
 
 
 def normalize_header_overlays(
