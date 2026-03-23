@@ -29,16 +29,18 @@ from purego_gen.identifier_utils import (
     accessor_getter_name,
     accessor_setter_name,
     build_unique_identifiers,
+    snake_to_go_camel_case,
 )
 from purego_gen.typedef_lookups import build_typedef_render_helpers
 
 if TYPE_CHECKING:
+    import re
     from collections.abc import Mapping
 
     from purego_gen.config_model import GeneratorNaming, GeneratorRenderSpec
     from purego_gen.model import FunctionDecl, ParsedDeclarations
 
-from purego_gen.config_model import GeneratorHelpers
+from purego_gen.config_model import GeneratorHelpers, PublicApiSpec
 
 
 class TypeAliasContext(TypedDict):
@@ -139,6 +141,29 @@ class UnionAccessorContext(TypedDict):
     go_type: str
 
 
+class PublicTypeAliasContext(TypedDict):
+    """Template context for one public type alias."""
+
+    public_name: str
+    internal_name: str
+
+
+class PublicWrapperParamContext(TypedDict):
+    """Template context for one parameter in a public wrapper function."""
+
+    name: str
+    type: str
+
+
+class PublicWrapperContext(TypedDict):
+    """Template context for one public wrapper function."""
+
+    public_name: str
+    internal_func_name: str
+    parameters: tuple[PublicWrapperParamContext, ...]
+    result_type: str | None
+
+
 class TemplateContext(TypedDict):
     """Full template context for the main Go output template."""
 
@@ -164,34 +189,46 @@ class TemplateContext(TypedDict):
     register_functions_name: str
     load_runtime_vars_name: str
     gostring_func_name: str
+    public_type_aliases: tuple[PublicTypeAliasContext, ...]
+    public_wrappers: tuple[PublicWrapperContext, ...]
 
 
 class ContextBuildError(RuntimeError):
     """Raised when template context construction fails."""
 
 
+@dataclass(frozen=True, slots=True)
+class _RenderIdentifiers:
+    """Deterministic unique identifiers for each rendered declaration category."""
+
+    types: tuple[str, ...]
+    constants: tuple[str, ...]
+    functions: tuple[str, ...]
+    runtime_vars: tuple[str, ...]
+
+
 def _build_render_identifiers(
     declarations: ParsedDeclarations,
-) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+) -> _RenderIdentifiers:
     """Build deterministic identifiers for each rendered declaration category.
 
     Returns:
-        Type, constant, function, and runtime-var identifier tuples.
+        Grouped identifier tuples for all declaration categories.
     """
-    return (
-        build_unique_identifiers(
+    return _RenderIdentifiers(
+        types=build_unique_identifiers(
             tuple(typedef.name for typedef in declarations.typedefs),
             fallback_prefix="type",
         ),
-        build_unique_identifiers(
+        constants=build_unique_identifiers(
             tuple(constant.name for constant in declarations.constants),
             fallback_prefix="const",
         ),
-        build_unique_identifiers(
+        functions=build_unique_identifiers(
             tuple(function.name for function in declarations.functions),
             fallback_prefix="func",
         ),
-        build_unique_identifiers(
+        runtime_vars=build_unique_identifiers(
             tuple(runtime_var.name for runtime_var in declarations.runtime_vars),
             fallback_prefix="var",
         ),
@@ -667,6 +704,208 @@ def _resolve_effective_helpers(
     )
 
 
+def _public_api_name(
+    c_name: str,
+    *,
+    strip_prefix: str,
+    overrides: dict[str, str],
+) -> str:
+    """Derive a Go public name from a C name.
+
+    Returns:
+        Go public API name.
+    """
+    if c_name in overrides:
+        return overrides[c_name]
+    stripped = c_name
+    if strip_prefix and stripped.startswith(strip_prefix):
+        stripped = stripped[len(strip_prefix) :]
+    if not stripped:
+        return c_name
+    return snake_to_go_camel_case(stripped)
+
+
+def _matches_filter(
+    name: str,
+    *,
+    include: re.Pattern[str],
+    exclude: re.Pattern[str] | None,
+) -> bool:
+    """Check if a name matches include but not exclude filter.
+
+    Returns:
+        True if name passes the filter.
+    """
+    if not include.search(name):
+        return False
+    return not (exclude is not None and exclude.search(name))
+
+
+def _build_public_type_alias_contexts(
+    *,
+    declarations: ParsedDeclarations,
+    type_identifiers: tuple[str, ...],
+    naming: GeneratorNaming,
+    public_api: PublicApiSpec | None,
+) -> tuple[PublicTypeAliasContext, ...]:
+    """Build public type alias contexts by matching declarations against filters.
+
+    Returns:
+        Tuple of public type alias contexts.
+
+    Raises:
+        ContextBuildError: Configured filters match no declarations.
+    """
+    if public_api is None or public_api.type_aliases_config is None:
+        return ()
+
+    config = public_api.type_aliases_config
+    result: list[PublicTypeAliasContext] = []
+
+    for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True):
+        c_name = typedef.name
+        if not _matches_filter(
+            c_name,
+            include=config.include,
+            exclude=config.exclude,
+        ):
+            continue
+        internal_name = naming.type_name(identifier)
+        public_name = _public_api_name(
+            c_name,
+            strip_prefix=public_api.strip_prefix,
+            overrides=config.overrides,
+        )
+        result.append({
+            "public_name": public_name,
+            "internal_name": internal_name,
+        })
+
+    if not result:
+        message = "public_api.type_aliases.include matched no emitted typedefs"
+        raise ContextBuildError(message)
+    return tuple(result)
+
+
+def _build_public_wrapper_contexts(
+    *,
+    declarations: ParsedDeclarations,
+    function_identifiers: tuple[str, ...],
+    render: GeneratorRenderSpec,
+    type_resolver: HelperTypeResolver,
+    public_type_alias_map: dict[str, str],
+) -> tuple[PublicWrapperContext, ...]:
+    """Build public wrapper function contexts by matching declarations against filters.
+
+    Returns:
+        Tuple of public wrapper function contexts.
+
+    Raises:
+        ContextBuildError: Configured filters match no declarations.
+    """
+    public_api = render.public_api
+    if public_api is None or public_api.wrappers_config is None:
+        return ()
+
+    config = public_api.wrappers_config
+    result: list[PublicWrapperContext] = []
+
+    for function, identifier in zip(declarations.functions, function_identifiers, strict=True):
+        c_name = function.name
+        if not _matches_filter(
+            c_name,
+            include=config.include,
+            exclude=config.exclude,
+        ):
+            continue
+        internal_func_name = render.naming.func_name(identifier)
+        public_name = _public_api_name(
+            c_name,
+            strip_prefix=public_api.strip_prefix,
+            overrides=config.overrides,
+        )
+
+        # Build parameter list with public type substitution
+        params: list[PublicWrapperParamContext] = []
+        raw_params = build_function_parameters_context(
+            parameter_names=function.parameter_names,
+            go_parameter_types=function.go_parameter_types,
+            parameter_c_types=function.parameter_c_types,
+            type_resolver=type_resolver,
+        )
+        for param in raw_params:
+            param_type = _substitute_public_type(param["type"], public_type_alias_map)
+            params.append({"name": param["name"], "type": param_type})
+
+        # Resolve result type with public type substitution
+        result_type: str | None = None
+        if function.go_result_type is not None:
+            resolved = type_resolver.resolve_parameter_type(
+                go_type=function.go_result_type,
+                c_type=function.result_c_type,
+            )
+            result_type = _substitute_public_type(resolved, public_type_alias_map)
+
+        result.append({
+            "public_name": public_name,
+            "internal_func_name": internal_func_name,
+            "parameters": tuple(params),
+            "result_type": result_type,
+        })
+
+    if not result:
+        message = "public_api.wrappers.include matched no emitted functions"
+        raise ContextBuildError(message)
+    return tuple(result)
+
+
+def _build_public_api_contexts(
+    *,
+    declarations: ParsedDeclarations,
+    type_identifiers: tuple[str, ...],
+    function_identifiers: tuple[str, ...],
+    render: GeneratorRenderSpec,
+    type_resolver: HelperTypeResolver,
+) -> tuple[tuple[PublicTypeAliasContext, ...], tuple[PublicWrapperContext, ...]]:
+    """Build all public API contexts (type aliases and wrappers).
+
+    Returns:
+        Tuple of (public type alias contexts, public wrapper contexts).
+    """
+    public_type_aliases = _build_public_type_alias_contexts(
+        declarations=declarations,
+        type_identifiers=type_identifiers,
+        naming=render.naming,
+        public_api=render.public_api,
+    )
+    public_type_alias_map: dict[str, str] = {
+        pta["internal_name"]: pta["public_name"] for pta in public_type_aliases
+    }
+    public_wrappers = _build_public_wrapper_contexts(
+        declarations=declarations,
+        function_identifiers=function_identifiers,
+        render=render,
+        type_resolver=type_resolver,
+        public_type_alias_map=public_type_alias_map,
+    )
+    return public_type_aliases, public_wrappers
+
+
+def _substitute_public_type(go_type: str, type_map: dict[str, str]) -> str:
+    """Substitute internal type names with public type aliases in a Go type string.
+
+    Returns:
+        Type string with public aliases applied.
+    """
+    for internal, public in type_map.items():
+        if go_type == internal:
+            return public
+        # Handle pointer types like *internal_name
+        if go_type == f"*{internal}":
+            return f"*{public}"
+    return go_type
+
+
 def build_template_context(
     *,
     package: str,
@@ -687,19 +926,17 @@ def build_template_context(
         validate_emit_kinds(emit_kinds, context="renderer")
     except ValueError as error:
         raise ContextBuildError(str(error)) from error
-    type_identifiers, constant_identifiers, function_identifiers, runtime_var_identifiers = (
-        _build_render_identifiers(declarations)
-    )
+    ids = _build_render_identifiers(declarations)
     typedef_helpers = build_typedef_render_helpers(
         emit_kinds=emit_kinds,
         declarations=declarations,
-        type_identifiers=type_identifiers,
+        type_identifiers=ids.types,
         type_mapping=render.type_mapping,
         naming=render.naming,
     )
     function_identifier_by_name = {
         function.name: identifier
-        for function, identifier in zip(declarations.functions, function_identifiers, strict=True)
+        for function, identifier in zip(declarations.functions, ids.functions, strict=True)
     }
     type_resolver = HelperTypeResolver(
         type_aliases=typedef_helpers.func_sig_type_aliases,
@@ -727,7 +964,7 @@ def build_template_context(
         raise ContextBuildError(str(error)) from error
     func_type_aliases, newcallback_helpers = _build_func_type_and_newcallback_contexts(
         declarations=declarations,
-        type_identifiers=type_identifiers,
+        type_identifiers=ids.types,
         emit_kinds=emit_kinds,
         naming=render.naming,
         type_resolver=type_resolver,
@@ -739,10 +976,17 @@ def build_template_context(
         function_identifier_by_name=function_identifier_by_name,
         declarations=declarations,
         render=render,
-        function_identifiers=function_identifiers,
+        function_identifiers=ids.functions,
         type_resolver=type_resolver,
     )
     has_union_helpers = _has_emitted_union_typedefs(emit_kinds, declarations)
+    public_type_aliases, public_wrappers = _build_public_api_contexts(
+        declarations=declarations,
+        type_identifiers=ids.types,
+        function_identifiers=ids.functions,
+        render=render,
+        type_resolver=type_resolver,
+    )
 
     return {
         "package": package,
@@ -763,7 +1007,7 @@ def build_template_context(
                 "comment_lines": normalize_comment_lines(typedef.comment),
                 "c_type_comment": typedef.c_type if "\n" not in typedef.go_type else "",
             }
-            for typedef, identifier in zip(declarations.typedefs, type_identifiers, strict=True)
+            for typedef, identifier in zip(declarations.typedefs, ids.types, strict=True)
         ),
         "func_type_aliases": func_type_aliases,
         "newcallback_helpers": newcallback_helpers,
@@ -790,9 +1034,7 @@ def build_template_context(
                 ),
                 "comment_lines": normalize_comment_lines(constant.comment),
             }
-            for constant, identifier in zip(
-                declarations.constants, constant_identifiers, strict=True
-            )
+            for constant, identifier in zip(declarations.constants, ids.constants, strict=True)
         ),
         "functions": _apply_callback_param_reverts(
             function_contexts=owned_string_function_contexts,
@@ -818,7 +1060,7 @@ def build_template_context(
         "struct_accessors": (
             _build_struct_accessor_contexts(
                 declarations=declarations,
-                type_identifiers=type_identifiers,
+                type_identifiers=ids.types,
                 naming=render.naming,
             )
             if render.struct_accessors and "type" in emit_kinds
@@ -827,7 +1069,7 @@ def build_template_context(
         "union_accessors": (
             _build_union_accessor_contexts(
                 declarations=declarations,
-                type_identifiers=type_identifiers,
+                type_identifiers=ids.types,
                 naming=render.naming,
             )
             if render.struct_accessors and "type" in emit_kinds
@@ -840,7 +1082,7 @@ def build_template_context(
                 "comment_lines": normalize_comment_lines(runtime_var.comment),
             }
             for runtime_var, identifier in zip(
-                declarations.runtime_vars, runtime_var_identifiers, strict=True
+                declarations.runtime_vars, ids.runtime_vars, strict=True
             )
         ),
         "has_union_helpers": has_union_helpers,
@@ -849,6 +1091,8 @@ def build_template_context(
         "register_functions_name": render.naming.register_functions_name(lib_id),
         "load_runtime_vars_name": render.naming.load_runtime_vars_name(lib_id),
         "gostring_func_name": render.naming.gostring_func_name(),
+        "public_type_aliases": public_type_aliases,
+        "public_wrappers": public_wrappers,
     }
 
 
@@ -860,6 +1104,8 @@ __all__ = [
     "HelperContext",
     "NewCallbackHelperContext",
     "OwnedStringHelperContext",
+    "PublicTypeAliasContext",
+    "PublicWrapperContext",
     "RuntimeVarContext",
     "StructAccessorContext",
     "TemplateContext",

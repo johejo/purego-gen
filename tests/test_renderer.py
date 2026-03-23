@@ -64,6 +64,8 @@ def test_render_template_fails_on_missing_nested_key() -> None:
                 "has_union_helpers": False,
                 "union_get_func_name": "union_get",
                 "union_set_func_name": "union_set",
+                "public_type_aliases": (),
+                "public_wrappers": (),
             },
         )
 

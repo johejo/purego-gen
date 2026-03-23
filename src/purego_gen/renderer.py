@@ -53,6 +53,8 @@ _REQUIRED_CONTEXT_KEYS: Final[frozenset[str]] = frozenset({
     "register_functions_name",
     "load_runtime_vars_name",
     "gostring_func_name",
+    "public_type_aliases",
+    "public_wrappers",
 })
 
 
@@ -219,6 +221,13 @@ def _collect_generated_names(
             (context["union_get_func_name"], "union get helper", check_func),
             (context["union_set_func_name"], "union set helper", check_func),
         ])
+    names.extend(
+        (pta["public_name"], "public type alias", True) for pta in context["public_type_aliases"]
+    )
+    names.extend(
+        (wrapper["public_name"], "public wrapper function", True)
+        for wrapper in context["public_wrappers"]
+    )
     return names
 
 

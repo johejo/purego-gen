@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -16,11 +17,15 @@ from purego_gen.config_model import (
     GeneratorSpec,
     HeaderConfig,
     LocalHeaders,
+    PublicApiFilterConfig,
+    PublicApiSpec,
 )
 from purego_gen.config_schema import (
     FiltersInput,
     GeneratorInput,
     LocalHeadersInput,
+    PublicApiInput,
+    PublicApiPatternInput,
     TypeMappingInput,
 )
 from purego_gen.declaration_filters import FilterSpec, exact_names_filter, regex_filter
@@ -119,6 +124,102 @@ def normalize_filters(filters: FiltersInput) -> GeneratorFilters:
     )
 
 
+def _compile_public_api_filter(
+    items: tuple[str | PublicApiPatternInput, ...],
+) -> re.Pattern[str]:
+    """Compile a public API filter list into a single regex pattern.
+
+    Returns:
+        Compiled regex pattern matching any of the filter items.
+    """
+    patterns: list[str] = []
+    for item in items:
+        if isinstance(item, PublicApiPatternInput):
+            patterns.append(item.pattern)
+        else:
+            patterns.append(f"^{re.escape(item)}$")
+    combined = "|".join(f"(?:{p})" for p in patterns)
+    return re.compile(combined)
+
+
+def _validate_public_api_overrides(
+    overrides: dict[str, str] | None,
+    *,
+    context: str,
+) -> None:
+    """Validate that all override values are valid Go identifiers.
+
+    Raises:
+        RuntimeError: An override value is not a valid Go identifier.
+    """
+    if not overrides:
+        return
+    for c_name, go_name in overrides.items():
+        if not is_go_identifier(go_name):
+            message = f"{context}.overrides[{c_name!r}] = {go_name!r} is not a valid Go identifier"
+            raise RuntimeError(message)
+
+
+def _normalize_public_api_filter_config(
+    *,
+    include: tuple[str | PublicApiPatternInput, ...],
+    exclude: tuple[str | PublicApiPatternInput, ...] | None,
+    overrides: dict[str, str] | None,
+    context: str,
+) -> PublicApiFilterConfig:
+    _validate_public_api_overrides(overrides, context=context)
+    include_re = _compile_public_api_filter(include)
+    exclude_re = _compile_public_api_filter(exclude) if exclude is not None else None
+    return PublicApiFilterConfig(
+        include=include_re,
+        exclude=exclude_re,
+        overrides=dict(overrides) if overrides else {},
+    )
+
+
+def normalize_public_api(
+    public_api: PublicApiInput | None,
+    *,
+    lib_id: str,
+) -> PublicApiSpec | None:
+    """Normalize public API config into a resolved spec.
+
+    Returns:
+        Resolved public API spec, or ``None`` when not configured.
+    """
+    if public_api is None:
+        return None
+
+    strip_prefix = public_api.strip_prefix if public_api.strip_prefix is not None else f"{lib_id}_"
+
+    type_aliases_config: PublicApiFilterConfig | None = None
+    wrappers_config: PublicApiFilterConfig | None = None
+
+    if public_api.type_aliases is not None:
+        ta = public_api.type_aliases
+        type_aliases_config = _normalize_public_api_filter_config(
+            include=ta.include,
+            exclude=ta.exclude,
+            overrides=ta.overrides,
+            context="public_api.type_aliases",
+        )
+
+    if public_api.wrappers is not None:
+        w = public_api.wrappers
+        wrappers_config = _normalize_public_api_filter_config(
+            include=w.include,
+            exclude=w.exclude,
+            overrides=w.overrides,
+            context="public_api.wrappers",
+        )
+
+    return PublicApiSpec(
+        strip_prefix=strip_prefix,
+        type_aliases_config=type_aliases_config,
+        wrappers_config=wrappers_config,
+    )
+
+
 def _normalize_headers(generator: GeneratorInput, *, base_dir: Path) -> HeaderConfig:
     if isinstance(generator.parse.headers, LocalHeadersInput):
         return LocalHeaders(
@@ -213,6 +314,7 @@ def build_generator_spec(
             helpers=helpers,
             type_mapping=normalize_type_mapping(generator.render.type_mapping),
             struct_accessors=bool(generator.render.struct_accessors),
+            public_api=normalize_public_api(generator.render.public_api, lib_id=normalized_lib_id),
         ),
     )
 
@@ -221,6 +323,7 @@ __all__ = [
     "build_generator_spec",
     "build_type_mapping_options",
     "normalize_filters",
+    "normalize_public_api",
     "normalize_type_mapping",
     "resolve_config_path",
 ]

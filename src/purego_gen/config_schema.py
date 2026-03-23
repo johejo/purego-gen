@@ -14,6 +14,40 @@ from purego_gen.config_shared import NonEmptyStr, NonEmptyStrTuple, StrictModel,
 FilterValueInput = NonEmptyStr | NonEmptyStrTuple
 
 
+class PublicApiPatternInput(StrictModel):
+    """Regex pattern for public API include/exclude matching."""
+
+    pattern: NonEmptyStr
+
+
+PublicApiFilterItem = NonEmptyStr | PublicApiPatternInput
+PublicApiFilterList = Annotated[tuple[PublicApiFilterItem, ...], Len(min_length=1)]
+
+
+class PublicApiTypeAliasesInput(StrictModel):
+    """Public API type alias generation configuration."""
+
+    include: PublicApiFilterList
+    exclude: PublicApiFilterList | None = None
+    overrides: dict[str, NonEmptyStr] | None = None
+
+
+class PublicApiWrappersInput(StrictModel):
+    """Public API wrapper function generation configuration."""
+
+    include: PublicApiFilterList
+    exclude: PublicApiFilterList | None = None
+    overrides: dict[str, NonEmptyStr] | None = None
+
+
+class PublicApiInput(StrictModel):
+    """Public API glue code generation configuration."""
+
+    strip_prefix: NonEmptyStr | None = None
+    type_aliases: PublicApiTypeAliasesInput | None = None
+    wrappers: PublicApiWrappersInput | None = None
+
+
 class BufferInputPairInput(StrictModel):
     """One pointer/length parameter pair rewritten by a generated helper."""
 
@@ -143,6 +177,7 @@ class RenderInput(StrictModel):
     helpers: HelpersInput = Field(default_factory=HelpersInput)
     type_mapping: TypeMappingInput = Field(default_factory=TypeMappingInput)
     struct_accessors: bool = False
+    public_api: PublicApiInput | None = None
 
 
 class GeneratorInput(StrictModel):
@@ -176,6 +211,10 @@ __all__ = [
     "NonEmptyStr",
     "NonEmptyStrTuple",
     "ParseInput",
+    "PublicApiInput",
+    "PublicApiPatternInput",
+    "PublicApiTypeAliasesInput",
+    "PublicApiWrappersInput",
     "RenderInput",
     "TypeMappingInput",
 ]

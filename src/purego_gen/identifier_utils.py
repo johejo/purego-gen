@@ -282,6 +282,76 @@ def validate_generated_names(
     return errors
 
 
+# Go abbreviation table — words that should be all-uppercase in Go identifiers.
+_GO_ABBREVIATIONS: Final[frozenset[str]] = frozenset({
+    "acl",
+    "api",
+    "ascii",
+    "cpu",
+    "css",
+    "db",
+    "dns",
+    "eof",
+    "grpc",
+    "guid",
+    "html",
+    "http",
+    "https",
+    "id",
+    "io",
+    "ip",
+    "json",
+    "lhs",
+    "qps",
+    "ram",
+    "rhs",
+    "rpc",
+    "sla",
+    "smtp",
+    "sql",
+    "ssh",
+    "tcp",
+    "tls",
+    "ttl",
+    "udp",
+    "uid",
+    "uri",
+    "url",
+    "utf",
+    "uuid",
+    "vm",
+    "xml",
+    "xmpp",
+    "xsrf",
+    "xss",
+    "tz",
+})
+
+
+def snake_to_go_camel_case(snake: str) -> str:
+    """Convert a snake_case identifier to Go CamelCase with abbreviation handling.
+
+    Returns:
+        Go-style CamelCase identifier.
+
+    Examples:
+        >>> snake_to_go_camel_case("db_release_memory")
+        'DBReleaseMemory'
+        >>> snake_to_go_camel_case("open_v2")
+        'OpenV2'
+    """
+    parts = snake.split("_")
+    result: list[str] = []
+    for part in parts:
+        if not part:
+            continue
+        if part.lower() in _GO_ABBREVIATIONS:
+            result.append(part.upper())
+        else:
+            result.append(part[0].upper() + part[1:])
+    return "".join(result)
+
+
 def accessor_getter_name(c_field_name: str) -> str:
     """Build an exported getter method name preserving the original C field name.
 
@@ -315,5 +385,6 @@ __all__ = [
     "sanitize_identifier",
     "sanitize_struct_field_identifier",
     "sanitize_symbol_suffix",
+    "snake_to_go_camel_case",
     "validate_generated_names",
 ]

@@ -7,8 +7,43 @@ from __future__ import annotations
 from purego_gen.identifier_utils import (
     accessor_getter_name,
     accessor_setter_name,
+    snake_to_go_camel_case,
     validate_generated_names,
 )
+
+
+def test_snake_to_go_camel_case_basic() -> None:
+    """Basic snake_case should convert to CamelCase."""
+    assert snake_to_go_camel_case("open") == "Open"
+    assert snake_to_go_camel_case("release_memory") == "ReleaseMemory"
+    assert snake_to_go_camel_case("open_v2") == "OpenV2"
+
+
+def test_snake_to_go_camel_case_go_abbreviations() -> None:
+    """Go abbreviations should be all-uppercase."""
+    assert snake_to_go_camel_case("db_release_memory") == "DBReleaseMemory"
+    assert snake_to_go_camel_case("get_sql") == "GetSQL"
+    assert snake_to_go_camel_case("http_url") == "HTTPURL"
+    assert snake_to_go_camel_case("id") == "ID"
+    assert snake_to_go_camel_case("json_api") == "JSONAPI"
+
+
+def test_snake_to_go_camel_case_empty_parts() -> None:
+    """Leading/trailing/double underscores should be handled gracefully."""
+    assert snake_to_go_camel_case("_open") == "Open"
+    assert snake_to_go_camel_case("open_") == "Open"
+    assert snake_to_go_camel_case("__open__close__") == "OpenClose"
+
+
+def test_snake_to_go_camel_case_single_word() -> None:
+    """Single words without underscores should capitalize first letter."""
+    assert snake_to_go_camel_case("malloc") == "Malloc"
+    assert snake_to_go_camel_case("free") == "Free"
+
+
+def test_snake_to_go_camel_case_preserves_non_first_casing() -> None:
+    """Characters after the first should preserve their casing."""
+    assert snake_to_go_camel_case("openV2") == "OpenV2"
 
 
 def test_accessor_getter_name_preserves_c_name() -> None:

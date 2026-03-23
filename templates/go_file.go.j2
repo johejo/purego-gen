@@ -90,6 +90,45 @@ func (u *{{ accessor.receiver_type }}) {{ accessor.setter_name }}(v {{ accessor.
 
     {% endfor %}
 {% endif %}
+{% if public_type_aliases %}
+type (
+    {% for pta in public_type_aliases %}
+    {{ pta.public_name }} = {{ pta.internal_name }}
+    {% endfor %}
+)
+{% endif %}
+{% if public_wrappers %}
+    {% for wrapper in public_wrappers %}
+        {% if wrapper.parameters %}
+func {{ wrapper.public_name }}(
+            {% for parameter in wrapper.parameters %}
+    {{ parameter.name }} {{ parameter.type }},
+            {% endfor %}
+            {% if wrapper.result_type is not none %}
+) {{ wrapper.result_type }} {
+    return {{ wrapper.internal_func_name }}(
+            {% else %}
+) {
+    {{ wrapper.internal_func_name }}(
+            {% endif %}
+            {% for parameter in wrapper.parameters %}
+        {{ parameter.name }},
+            {% endfor %}
+    )
+}
+        {% else %}
+            {% if wrapper.result_type is not none %}
+func {{ wrapper.public_name }}() {{ wrapper.result_type }} {
+    return {{ wrapper.internal_func_name }}()
+}
+            {% else %}
+func {{ wrapper.public_name }}() {
+    {{ wrapper.internal_func_name }}()
+}
+            {% endif %}
+        {% endif %}
+    {% endfor %}
+{% endif %}
 {% if "const" in emit_kinds and constants %}
 const (
     {% for constant in constants %}

@@ -2,8 +2,14 @@
 
 """Resolved shared config models for generator execution."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import re
 
 from purego_gen.declaration_filters import FilterSpec
 from purego_gen.model import TypeMappingOptions
@@ -86,6 +92,24 @@ class GeneratorHelpers:
     buffer_inputs: tuple[BufferInputHelper | BufferInputPatternHelper, ...] = ()
     callback_inputs: tuple[CallbackInputHelper, ...] = ()
     owned_string_returns: tuple[OwnedStringReturnHelper | OwnedStringReturnPatternHelper, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class PublicApiFilterConfig:
+    """Compiled include/exclude filters and overrides for public API matching."""
+
+    include: re.Pattern[str]
+    exclude: re.Pattern[str] | None = None
+    overrides: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class PublicApiSpec:
+    """Resolved public API glue code specification."""
+
+    strip_prefix: str
+    type_aliases_config: PublicApiFilterConfig | None = None
+    wrappers_config: PublicApiFilterConfig | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -248,6 +272,7 @@ class GeneratorRenderSpec:
     helpers: GeneratorHelpers = field(default_factory=GeneratorHelpers)
     type_mapping: TypeMappingOptionsType = field(default_factory=TypeMappingOptions)
     struct_accessors: bool = False
+    public_api: PublicApiSpec | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -288,4 +313,6 @@ __all__ = [
     "LocalHeaders",
     "OwnedStringReturnHelper",
     "OwnedStringReturnPatternHelper",
+    "PublicApiFilterConfig",
+    "PublicApiSpec",
 ]
