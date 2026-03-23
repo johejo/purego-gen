@@ -32,11 +32,12 @@ Functions like `duckdb_append_blob(appender, const void*, idx_t)` take a
 `(pointer, length)` pair. A `buffer_inputs` config pattern would generate safe Go
 `[]byte` wrappers automatically, reducing per-function manual config.
 
-### Callback typedef resolution
+### Callback typedef resolution (partially resolved)
 
-duckdb defines ~29 callback typedefs (`duckdb_scalar_function_t`, `duckdb_table_function_bind_t`,
-etc.). Each requires `callback_inputs` config. Improved callback autodiscovery could reduce
-boilerplate.
+`auto_callback_inputs: true` is implemented. DuckDB callbacks use a struct-wrapped pattern
+(callbacks are set via setter functions), so enabling auto-discovery requires adding the
+setter functions (`duckdb_scalar_function_set_function`, etc.) to the func filter first.
+`inspect --emit-callback-config` can list candidates as JSON.
 
 ### Array pointer parameters
 
