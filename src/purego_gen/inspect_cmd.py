@@ -186,7 +186,35 @@ def _load_patterns(
         type_=compile_filter(options.type_filter, option_name="--type-filter"),
         const=compile_filter(options.const_filter, option_name="--const-filter"),
         var=compile_filter(options.var_filter, option_name="--var-filter"),
+        func_exclude=compile_filter(options.func_exclude, option_name="--func-exclude"),
+        type_exclude=compile_filter(options.type_exclude, option_name="--type-exclude"),
+        const_exclude=compile_filter(options.const_exclude, option_name="--const-exclude"),
+        var_exclude=compile_filter(options.var_exclude, option_name="--var-exclude"),
     )
+
+
+def _list_declaration_names(
+    declarations: ParsedDeclarations,
+    emit_kinds: tuple[str, ...],
+) -> None:
+    """Write sorted declaration names by category to stdout."""
+    kind_entries: list[tuple[str, list[str]]] = []
+    if "func" in emit_kinds:
+        kind_entries.append(("functions", sorted(f.name for f in declarations.functions)))
+    if "type" in emit_kinds:
+        names = sorted(
+            {td.name for td in declarations.typedefs}
+            | {rt.name for rt in declarations.record_typedefs}
+        )
+        kind_entries.append(("types", names))
+    if "const" in emit_kinds:
+        kind_entries.append(("constants", sorted(c.name for c in declarations.constants)))
+    if "var" in emit_kinds:
+        kind_entries.append(("variables", sorted(v.name for v in declarations.runtime_vars)))
+    for label, names in kind_entries:
+        _write_line(f"{label}:")
+        for name in names:
+            _write_line(f"  {name}")
 
 
 def run_inspect(options: InspectOptions) -> int:
@@ -216,6 +244,9 @@ def run_inspect(options: InspectOptions) -> int:
     )
     filtered = _filter_declarations(declarations, filters=filters)
     _report_declarations(target, filtered, options.sample_size)
+
+    if options.list_names:
+        _list_declaration_names(filtered, emit_kinds)
 
     if options.emit_callback_config:
         _emit_callback_config(filtered)

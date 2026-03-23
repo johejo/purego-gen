@@ -35,7 +35,12 @@ class InspectOptions:
     type_filter: str | None
     const_filter: str | None
     var_filter: str | None
+    func_exclude: str | None
+    type_exclude: str | None
+    const_exclude: str | None
+    var_exclude: str | None
     emit_callback_config: bool
+    list_names: bool
 
 
 class _TopLevelArgs(argparse.Namespace):
@@ -66,7 +71,12 @@ class _InspectArgs(argparse.Namespace):
     type_filter: str | None
     const_filter: str | None
     var_filter: str | None
+    func_exclude: str | None
+    type_exclude: str | None
+    const_exclude: str | None
+    var_exclude: str | None
     emit_callback_config: bool
+    list_names: bool
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -147,10 +157,28 @@ def _build_parser() -> argparse.ArgumentParser:
         "--var-filter", help="Optional regex filter for runtime variable names."
     )
     inspect_parser.add_argument(
+        "--func-exclude", help="Optional regex exclude filter for function names."
+    )
+    inspect_parser.add_argument(
+        "--type-exclude", help="Optional regex exclude filter for type names."
+    )
+    inspect_parser.add_argument(
+        "--const-exclude", help="Optional regex exclude filter for constant names."
+    )
+    inspect_parser.add_argument(
+        "--var-exclude", help="Optional regex exclude filter for runtime variable names."
+    )
+    inspect_parser.add_argument(
         "--emit-callback-config",
         action="store_true",
         default=False,
         help="Emit callback_inputs config JSON snippet for discovered callback candidates.",
+    )
+    inspect_parser.add_argument(
+        "--list-names",
+        action="store_true",
+        default=False,
+        help="Output sorted declaration names by category after filtering.",
     )
 
     return parser
@@ -190,7 +218,12 @@ def parse_options(argv: list[str]) -> GenOptions | InspectOptions:
             type_filter=inspect_ns.type_filter,
             const_filter=inspect_ns.const_filter,
             var_filter=inspect_ns.var_filter,
+            func_exclude=inspect_ns.func_exclude,
+            type_exclude=inspect_ns.type_exclude,
+            const_exclude=inspect_ns.const_exclude,
+            var_exclude=inspect_ns.var_exclude,
             emit_callback_config=inspect_ns.emit_callback_config,
+            list_names=inspect_ns.list_names,
         )
 
     parser.print_help()

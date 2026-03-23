@@ -126,3 +126,81 @@ def test_inspect_reports_callback_registration_patterns() -> None:
             "sample_callback_registration_patterns:",
         ),
     )
+
+
+def test_inspect_exclude_filters() -> None:
+    """--func-exclude should remove matching functions from output."""
+    header_path = _REPO_ROOT / "tests" / "fixtures" / "basic.h"
+    result = _run_inspect(
+        "--header-path",
+        str(header_path),
+        "--func-exclude",
+        "add",
+        "--list-names",
+    )
+    assert result.returncode == 0, result.stderr
+    # The exclude filter should remove functions matching "add"
+    lines = result.stdout.splitlines()
+    func_start = next(i for i, line in enumerate(lines) if line == "functions:")
+    func_names = []
+    for line in lines[func_start + 1 :]:
+        if line.startswith("  "):
+            func_names.append(line.strip())
+        else:
+            break
+    assert len(func_names) > 0, "should have at least one function remaining"
+    for name in func_names:
+        assert "add" not in name.lower(), f"excluded function found: {name}"
+
+
+def test_inspect_list_names() -> None:
+    """--list-names should output sorted declaration names by category."""
+    header_path = _REPO_ROOT / "tests" / "fixtures" / "basic.h"
+    result = _run_inspect(
+        "--header-path",
+        str(header_path),
+        "--list-names",
+    )
+    assert result.returncode == 0, result.stderr
+    assert_text_contains_fragments(
+        result.stdout,
+        ("functions:",),
+    )
+    # Names should be sorted within each category
+    lines = result.stdout.splitlines()
+    func_start = next(i for i, line in enumerate(lines) if line == "functions:")
+    func_names = []
+    for line in lines[func_start + 1 :]:
+        if line.startswith("  "):
+            func_names.append(line.strip())
+        else:
+            break
+    assert func_names == sorted(func_names), "function names should be sorted"
+    assert len(func_names) > 0, "should have at least one function"
+
+
+def test_inspect_include_and_exclude_combined() -> None:
+    """Include and exclude filters should work together."""
+    header_path = _REPO_ROOT / "tests" / "fixtures" / "basic.h"
+    # Include all functions, then exclude those matching "add"
+    result = _run_inspect(
+        "--header-path",
+        str(header_path),
+        "--func-filter",
+        ".*",
+        "--func-exclude",
+        "add",
+        "--list-names",
+    )
+    assert result.returncode == 0, result.stderr
+    lines = result.stdout.splitlines()
+    func_start = next(i for i, line in enumerate(lines) if line == "functions:")
+    func_names = []
+    for line in lines[func_start + 1 :]:
+        if line.startswith("  "):
+            func_names.append(line.strip())
+        else:
+            break
+    assert len(func_names) > 0, "should have at least one function remaining"
+    for name in func_names:
+        assert "add" not in name.lower(), f"excluded function found: {name}"
