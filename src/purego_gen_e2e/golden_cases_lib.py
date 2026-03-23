@@ -43,6 +43,9 @@ _GENERATED_FILE_NAME = "generated.go"
 _RUNTIME_TEST_FILE_NAME = "runtime_test.go"
 _CONFIG_FILE_NAME = "config.json"
 _GO_TEST_SUPPORT_DIR = Path("tests") / "testruntime"
+_GO_INTERNAL_PACKAGES: list[Path] = [
+    Path("libload"),
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,6 +211,11 @@ def _copy_go_test_support_package(*, repo_root: Path, module_dir: Path) -> None:
         raise RuntimeError(message)
     destination_dir = module_dir / _GO_TEST_SUPPORT_DIR
     shutil.copytree(source_dir, destination_dir)
+
+    for pkg_path in _GO_INTERNAL_PACKAGES:
+        src = repo_root / pkg_path
+        if src.is_dir():
+            shutil.copytree(src, module_dir / pkg_path)
 
 
 def resolve_env_libdir_runtime_library(runtime: EnvLibdirRuntime) -> Path:

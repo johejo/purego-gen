@@ -3,15 +3,11 @@
 package sqlite3sys
 
 import (
-	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
-	"sort"
 	"sync"
 	"unsafe"
 
-	"github.com/ebitengine/purego"
+	"github.com/johejo/purego-gen/libload"
 )
 
 type (
@@ -49,71 +45,19 @@ func Load() error {
 }
 
 func openLibrary() (uintptr, error) {
-	candidates := libraryCandidates()
-	var errs []error
-	for _, candidate := range candidates {
-		handle, err := purego.Dlopen(candidate, purego.RTLD_NOW|purego.RTLD_LOCAL)
-		if err == nil {
-			return handle, nil
-		}
-		errs = append(errs, fmt.Errorf("%s: %w", candidate, err))
-	}
-	return 0, fmt.Errorf("open libsqlite3: %v", errs)
+	return libload.Open("libsqlite3", libraryCandidates())
 }
 
 func libraryCandidates() []string {
-	var candidates []string
-
-	if envPath := os.Getenv("PUREGO_GEN_TEST_LIBSQLITE3_PATH"); envPath != "" {
-		candidates = append(candidates, envPath)
+	var extraPaths []string
+	if p := os.Getenv("PUREGO_GEN_TEST_LIBSQLITE3_PATH"); p != "" {
+		extraPaths = append(extraPaths, p)
 	}
-	if envDir := os.Getenv("PUREGO_GEN_TEST_LIBSQLITE3_LIB_DIR"); envDir != "" {
-		candidates = append(candidates, sharedLibraryCandidates(envDir, "sqlite3")...)
+	var libDirs []string
+	if d := os.Getenv("PUREGO_GEN_TEST_LIBSQLITE3_LIB_DIR"); d != "" {
+		libDirs = append(libDirs, d)
 	}
-
-	switch runtime.GOOS {
-	case "darwin":
-		candidates = append(candidates, "libsqlite3.dylib")
-	default:
-		candidates = append(candidates, "libsqlite3.so", "libsqlite3.so.0")
-	}
-
-	return dedupeStrings(candidates)
-}
-
-func sharedLibraryCandidates(libDir string, libraryName string) []string {
-	stem := libraryName
-	if len(stem) < 3 || stem[:3] != "lib" {
-		stem = "lib" + stem
-	}
-
-	if runtime.GOOS == "darwin" {
-		return []string{filepath.Join(libDir, stem+".dylib")}
-	}
-
-	candidates := []string{filepath.Join(libDir, stem+".so")}
-	matches, err := filepath.Glob(filepath.Join(libDir, stem+".so.*"))
-	if err == nil {
-		sort.Strings(matches)
-		candidates = append(candidates, matches...)
-	}
-	return candidates
-}
-
-func dedupeStrings(values []string) []string {
-	seen := make(map[string]struct{}, len(values))
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		out = append(out, value)
-	}
-	return out
+	return libload.Candidates("sqlite3", extraPaths, libDirs)
 }
 
 // --- Helpers ---
