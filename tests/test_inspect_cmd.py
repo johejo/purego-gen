@@ -142,7 +142,7 @@ def test_inspect_exclude_filters() -> None:
     # The exclude filter should remove functions matching "add"
     lines = result.stdout.splitlines()
     func_start = next(i for i, line in enumerate(lines) if line == "functions:")
-    func_names = []
+    func_names: list[str] = []
     for line in lines[func_start + 1 :]:
         if line.startswith("  "):
             func_names.append(line.strip())
@@ -169,7 +169,7 @@ def test_inspect_list_names() -> None:
     # Names should be sorted within each category
     lines = result.stdout.splitlines()
     func_start = next(i for i, line in enumerate(lines) if line == "functions:")
-    func_names = []
+    func_names: list[str] = []
     for line in lines[func_start + 1 :]:
         if line.startswith("  "):
             func_names.append(line.strip())
@@ -195,7 +195,7 @@ def test_inspect_include_and_exclude_combined() -> None:
     assert result.returncode == 0, result.stderr
     lines = result.stdout.splitlines()
     func_start = next(i for i, line in enumerate(lines) if line == "functions:")
-    func_names = []
+    func_names: list[str] = []
     for line in lines[func_start + 1 :]:
         if line.startswith("  "):
             func_names.append(line.strip())
