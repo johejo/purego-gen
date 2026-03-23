@@ -141,7 +141,7 @@ def test_inspect_exclude_filters() -> None:
     assert result.returncode == 0, result.stderr
     # The exclude filter should remove functions matching "add"
     lines = result.stdout.splitlines()
-    func_start = next(i for i, line in enumerate(lines) if line == "functions:")
+    func_start = next(i for i, line in enumerate(lines) if line.startswith("functions:"))
     func_names: list[str] = []
     for line in lines[func_start + 1 :]:
         if line.startswith("  "):
@@ -154,7 +154,7 @@ def test_inspect_exclude_filters() -> None:
 
 
 def test_inspect_list_names() -> None:
-    """--list-names should output sorted declaration names by category."""
+    """--list-names should output sorted declaration names by category with counts."""
     header_path = _REPO_ROOT / "tests" / "fixtures" / "basic.h"
     result = _run_inspect(
         "--header-path",
@@ -164,11 +164,13 @@ def test_inspect_list_names() -> None:
     assert result.returncode == 0, result.stderr
     assert_text_contains_fragments(
         result.stdout,
-        ("functions:",),
+        ("functions: (",),
     )
     # Names should be sorted within each category
     lines = result.stdout.splitlines()
-    func_start = next(i for i, line in enumerate(lines) if line == "functions:")
+    func_start = next(i for i, line in enumerate(lines) if line.startswith("functions:"))
+    # Verify count is present in the header
+    assert "(" in lines[func_start], "function header should include count"
     func_names: list[str] = []
     for line in lines[func_start + 1 :]:
         if line.startswith("  "):
@@ -177,6 +179,32 @@ def test_inspect_list_names() -> None:
             break
     assert func_names == sorted(func_names), "function names should be sorted"
     assert len(func_names) > 0, "should have at least one function"
+    # Verify count matches actual number of names
+    count_str = lines[func_start].split("(")[1].split(")")[0]
+    assert int(count_str) == len(func_names), "count should match number of names"
+
+
+def test_inspect_emit_exclude_config_outputs_json() -> None:
+    """--emit-exclude-config should output an exclude JSON snippet."""
+    header_path = _REPO_ROOT / "tests" / "fixtures" / "basic.h"
+    result = _run_inspect(
+        "--header-path",
+        str(header_path),
+        "--sample-size",
+        "0",
+        "--emit-exclude-config",
+    )
+    assert result.returncode == 0, result.stderr
+    assert_text_contains_fragments(
+        result.stdout,
+        (
+            "exclude:",
+            '"func"',
+            '"type"',
+            '"add"',
+            '"reset"',
+        ),
+    )
 
 
 def test_inspect_include_and_exclude_combined() -> None:
@@ -194,7 +222,7 @@ def test_inspect_include_and_exclude_combined() -> None:
     )
     assert result.returncode == 0, result.stderr
     lines = result.stdout.splitlines()
-    func_start = next(i for i, line in enumerate(lines) if line == "functions:")
+    func_start = next(i for i, line in enumerate(lines) if line.startswith("functions:"))
     func_names: list[str] = []
     for line in lines[func_start + 1 :]:
         if line.startswith("  "):

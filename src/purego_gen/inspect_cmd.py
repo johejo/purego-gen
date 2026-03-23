@@ -191,6 +191,38 @@ def _emit_buffer_config(declarations: ParsedDeclarations) -> None:
     _write_line(json.dumps(buffer_inputs, indent=2))
 
 
+def _emit_exclude_config(
+    declarations: ParsedDeclarations,
+    emit_kinds: tuple[str, ...],
+) -> None:
+    """Emit an exclude config snippet as JSON to stdout."""
+    exclude: dict[str, list[str]] = {}
+    if "func" in emit_kinds:
+        names = sorted(f.name for f in declarations.functions)
+        if names:
+            exclude["func"] = names
+    if "type" in emit_kinds:
+        names = sorted(
+            {td.name for td in declarations.typedefs}
+            | {rt.name for rt in declarations.record_typedefs}
+        )
+        if names:
+            exclude["type"] = names
+    if "const" in emit_kinds:
+        names = sorted(c.name for c in declarations.constants)
+        if names:
+            exclude["const"] = names
+    if "var" in emit_kinds:
+        names = sorted(v.name for v in declarations.runtime_vars)
+        if names:
+            exclude["var"] = names
+    if not exclude:
+        _write_line("exclude: (none)")
+        return
+    _write_line("exclude:")
+    _write_line(json.dumps(exclude, indent=2))
+
+
 def _load_patterns(
     options: InspectOptions,
 ) -> CompiledDeclarationFilters:
@@ -230,7 +262,7 @@ def _list_declaration_names(
     if "var" in emit_kinds:
         kind_entries.append(("variables", sorted(v.name for v in declarations.runtime_vars)))
     for label, names in kind_entries:
-        _write_line(f"{label}:")
+        _write_line(f"{label}: ({len(names)})")
         for name in names:
             _write_line(f"  {name}")
 
@@ -271,6 +303,9 @@ def run_inspect(options: InspectOptions) -> int:
 
     if options.emit_buffer_config:
         _emit_buffer_config(filtered)
+
+    if options.emit_exclude_config:
+        _emit_exclude_config(filtered, emit_kinds)
 
     render_out = options.render_out
     if render_out is not None:

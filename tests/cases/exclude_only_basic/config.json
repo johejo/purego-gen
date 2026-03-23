@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": "func,type,const,var",
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "basic.h",
+          "categories.h"
+        ]
+      },
+      "exclude": {
+        "func": "^reset$",
+        "const": "^FIXTURE_STATUS_NG$"
+      }
+    }
+  }
+}
