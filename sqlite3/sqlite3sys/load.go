@@ -30,20 +30,6 @@ type (
 var (
 	loadOnce sync.Once
 	loadErr  error
-	openV2Fn func(filename string, ppDB **sqlite3, flags int32, zVfs uintptr) int32
-
-	// Manually registered functions that need special signatures.
-	expandedSqlFn         func(pStmt *sqlite3_stmt) uintptr
-	loadExtensionFn       func(db *sqlite3, zFile string, zProc uintptr, pzErrMsg uintptr) int32
-	tableColumnMetadataFn func(
-		db *sqlite3, zDbName string, zTableName string, zColumnName string,
-		pzDataType *uintptr, pzCollSeq *uintptr,
-		pNotNull *int32, pPrimaryKey *int32, pAutoinc *int32,
-	) int32
-	walCheckpointV2Fn func(
-		db *sqlite3, zDb uintptr, eMode int32, pnLog *int32, pnCkpt *int32,
-	) int32
-	walCheckpointFn func(db *sqlite3, zDb uintptr) int32
 )
 
 // Load resolves libsqlite3 and registers all required symbols once per process.
@@ -58,12 +44,6 @@ func Load() error {
 			loadErr = err
 			return
 		}
-		purego.RegisterLibFunc(&openV2Fn, handle, "sqlite3_open_v2")
-		purego.RegisterLibFunc(&expandedSqlFn, handle, "sqlite3_expanded_sql")
-		purego.RegisterLibFunc(&loadExtensionFn, handle, "sqlite3_load_extension")
-		purego.RegisterLibFunc(&tableColumnMetadataFn, handle, "sqlite3_table_column_metadata")
-		purego.RegisterLibFunc(&walCheckpointV2Fn, handle, "sqlite3_wal_checkpoint_v2")
-		purego.RegisterLibFunc(&walCheckpointFn, handle, "sqlite3_wal_checkpoint")
 	})
 	return loadErr
 }
@@ -137,6 +117,13 @@ func dedupeStrings(values []string) []string {
 }
 
 // --- Helpers ---
+
+// cStringPtr returns a uintptr to a null-terminated copy of s.
+// Callers must use runtime.KeepAlive(returned-slice) after the C call.
+func cStringPtr(s string) (uintptr, []byte) {
+	buf := append([]byte(s), 0)
+	return uintptr(unsafe.Pointer(&buf[0])), buf
+}
 
 func copyBytes(ptr uintptr, length int32) []byte {
 	return copyBytesN(ptr, int(length))

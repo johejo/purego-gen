@@ -44,6 +44,7 @@
           "sqlite3_db_readonly",
           "sqlite3_txn_state",
           "sqlite3_context_db_handle",
+          "sqlite3_expanded_sql",
           "sqlite3_sql",
           "sqlite3_stmt_readonly",
           "sqlite3_stmt_isexplain",
@@ -444,6 +445,21 @@
               }
             ]
           }
+        ],
+        "owned_string_returns": [
+          {
+            "function": "sqlite3_expanded_sql",
+            "free_func": "sqlite3_free"
+          }
+        ],
+        "nullable_string_inputs": [
+          {"function": "sqlite3_open_v2", "parameters": ["zVfs"]},
+          {"function": "sqlite3_wal_checkpoint", "parameters": ["zDb"]},
+          {"function": "sqlite3_wal_checkpoint_v2", "parameters": ["zDb"]},
+          {"function": "sqlite3_load_extension", "parameters": ["zProc"]}
+        ],
+        "output_string_params": [
+          {"function": "sqlite3_table_column_metadata", "parameters": ["pzDataType", "pzCollSeq"]}
         ],
         "callback_inputs": [
           {

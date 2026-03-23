@@ -97,6 +97,20 @@ class OwnedStringReturnHelperInput(StrictModel):
         return self
 
 
+class NullableStringInputHelperInput(StrictModel):
+    """Override ``string`` params to ``uintptr`` for nullable C strings."""
+
+    function: NonEmptyStr
+    parameters: Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
+
+
+class OutputStringParamHelperInput(StrictModel):
+    """One function-specific helper that overrides ``uintptr`` output params to ``*uintptr``."""
+
+    function: NonEmptyStr
+    parameters: Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
+
+
 class HelpersInput(StrictModel):
     """Optional helper-generation configuration."""
 
@@ -112,6 +126,12 @@ class HelpersInput(StrictModel):
     )
     owned_string_returns: (
         Annotated[tuple[OwnedStringReturnHelperInput, ...], Len(min_length=1)] | None
+    ) = None
+    nullable_string_inputs: (
+        Annotated[tuple[NullableStringInputHelperInput, ...], Len(min_length=1)] | None
+    ) = None
+    output_string_params: (
+        Annotated[tuple[OutputStringParamHelperInput, ...], Len(min_length=1)] | None
     ) = None
 
 

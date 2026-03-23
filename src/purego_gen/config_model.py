@@ -85,6 +85,22 @@ class OwnedStringReturnPatternHelper:
 
 
 @dataclass(frozen=True, slots=True)
+class NullableStringInputHelper:
+    """Override ``string`` params to ``uintptr`` for nullable C strings."""
+
+    function: str
+    parameters: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class OutputStringParamHelper:
+    """One function-specific helper that overrides ``uintptr`` output params to ``*uintptr``."""
+
+    function: str
+    parameters: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class GeneratorHelpers:
     """Optional helper-generation configuration."""
 
@@ -92,6 +108,8 @@ class GeneratorHelpers:
     buffer_inputs: tuple[BufferInputHelper | BufferInputPatternHelper, ...] = ()
     callback_inputs: tuple[CallbackInputHelper, ...] = ()
     owned_string_returns: tuple[OwnedStringReturnHelper | OwnedStringReturnPatternHelper, ...] = ()
+    nullable_string_inputs: tuple[NullableStringInputHelper, ...] = ()
+    output_string_params: tuple[OutputStringParamHelper, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -311,6 +329,8 @@ __all__ = [
     "HeaderConfig",
     "HeaderOverlay",
     "LocalHeaders",
+    "NullableStringInputHelper",
+    "OutputStringParamHelper",
     "OwnedStringReturnHelper",
     "OwnedStringReturnPatternHelper",
     "PublicApiFilterConfig",

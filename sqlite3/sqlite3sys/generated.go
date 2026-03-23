@@ -4,6 +4,7 @@ package sqlite3sys
 
 import (
 	"fmt"
+	"strings"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -450,7 +451,8 @@ var (
 		filename string,
 		ppDb **sqlite3,
 		flags int32,
-		zVfs string,
+		// C: const char *
+		zVfs uintptr,
 	) int32
 	sqlite3_errcode func(
 		db *sqlite3,
@@ -483,6 +485,10 @@ var (
 	sqlite3_sql func(
 		pStmt *sqlite3_stmt,
 	) string
+	sqlite3_expanded_sql func(
+		pStmt *sqlite3_stmt,
+		// C: char *
+	) uintptr
 	sqlite3_stmt_readonly func(
 		pStmt *sqlite3_stmt,
 	) int32
@@ -849,10 +855,8 @@ var (
 		zDbName string,
 		zTableName string,
 		zColumnName string,
-		// C: const char **
-		pzDataType uintptr,
-		// C: const char **
-		pzCollSeq uintptr,
+		pzDataType *uintptr,
+		pzCollSeq *uintptr,
 		pNotNull *int32,
 		pPrimaryKey *int32,
 		pAutoinc *int32,
@@ -860,7 +864,8 @@ var (
 	sqlite3_load_extension func(
 		db *sqlite3,
 		zFile string,
-		zProc string,
+		// C: const char *
+		zProc uintptr,
 		// C: char **
 		pzErrMsg uintptr,
 	) int32
@@ -969,11 +974,13 @@ var (
 	) int32
 	sqlite3_wal_checkpoint func(
 		db *sqlite3,
-		zDb string,
+		// C: const char *
+		zDb uintptr,
 	) int32
 	sqlite3_wal_checkpoint_v2 func(
 		db *sqlite3,
-		zDb string,
+		// C: const char *
+		zDb uintptr,
 		eMode int32,
 		pnLog *int32,
 		pnCkpt *int32,
@@ -1305,6 +1312,30 @@ func sqlite3_create_window_function_callbacks(
 		xDestroy_callback,
 	)
 }
+func sqlite3_expanded_sql_string(
+	pStmt *sqlite3_stmt,
+) string {
+	rawPtr := sqlite3_expanded_sql(
+		pStmt,
+	)
+	result := gostring(rawPtr)
+	if rawPtr != 0 {
+		sqlite3_free(rawPtr)
+	}
+	return result
+}
+
+func gostring(ptr uintptr) string {
+	if ptr == 0 {
+		return ""
+	}
+	p := *(*unsafe.Pointer)(unsafe.Pointer(&ptr))
+	var n int
+	for *(*byte)(unsafe.Add(p, n)) != 0 {
+		n++
+	}
+	return strings.Clone(unsafe.String((*byte)(p), n))
+}
 
 func sqlite3_register_functions(handle uintptr) error {
 	sqlite3_libversion_symbol, err := purego.Dlsym(handle, "sqlite3_libversion")
@@ -1487,6 +1518,11 @@ func sqlite3_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_sql: %w", err)
 	}
 	purego.RegisterFunc(&sqlite3_sql, sqlite3_sql_symbol)
+	sqlite3_expanded_sql_symbol, err := purego.Dlsym(handle, "sqlite3_expanded_sql")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_expanded_sql: %w", err)
+	}
+	purego.RegisterFunc(&sqlite3_expanded_sql, sqlite3_expanded_sql_symbol)
 	sqlite3_stmt_readonly_symbol, err := purego.Dlsym(handle, "sqlite3_stmt_readonly")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol sqlite3_stmt_readonly: %w", err)

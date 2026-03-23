@@ -1,6 +1,9 @@
 package sqlite3sys
 
-import "unsafe"
+import (
+	"runtime"
+	"unsafe"
+)
 
 // --- Memory ---
 
@@ -83,9 +86,12 @@ func BlobWriteBytes(blob *Blob, data []byte, offset int32) int32 {
 // database, which passes NULL to C (distinct from the string "main").
 func WalCheckpointV2(db *DB, dbName string, mode int32, nLog *int32, nCkpt *int32) int32 {
 	if dbName == "" {
-		return walCheckpointV2Fn(db, 0, mode, nLog, nCkpt)
+		return sqlite3_wal_checkpoint_v2(db, 0, mode, nLog, nCkpt)
 	}
-	return sqlite3_wal_checkpoint_v2(db, dbName, mode, nLog, nCkpt)
+	ptr, buf := cStringPtr(dbName)
+	rc := sqlite3_wal_checkpoint_v2(db, ptr, mode, nLog, nCkpt)
+	runtime.KeepAlive(buf)
+	return rc
 }
 func WalAutocheckpoint(db *DB, n int32) int32 { return sqlite3_wal_autocheckpoint(db, n) }
 
@@ -93,9 +99,12 @@ func WalAutocheckpoint(db *DB, n int32) int32 { return sqlite3_wal_autocheckpoin
 // (main) database.
 func WalCheckpoint(db *DB, dbName string) int32 {
 	if dbName == "" {
-		return walCheckpointFn(db, 0)
+		return sqlite3_wal_checkpoint(db, 0)
 	}
-	return sqlite3_wal_checkpoint(db, dbName)
+	ptr, buf := cStringPtr(dbName)
+	rc := sqlite3_wal_checkpoint(db, ptr)
+	runtime.KeepAlive(buf)
+	return rc
 }
 
 // --- Table Column Metadata ---
@@ -105,7 +114,7 @@ func TableColumnMetadata(
 	db *DB, dbName, tableName, columnName string,
 ) (dataType, collSeq string, notNull, primaryKey, autoinc, rc int32) {
 	var pzDataType, pzCollSeq uintptr
-	rc = tableColumnMetadataFn(
+	rc = sqlite3_table_column_metadata(
 		db, dbName, tableName, columnName,
 		&pzDataType, &pzCollSeq,
 		&notNull, &primaryKey, &autoinc,
@@ -123,9 +132,12 @@ func TableColumnMetadata(
 // default entry point.
 func LoadExtension(db *DB, file string, proc string) int32 {
 	if proc == "" {
-		return loadExtensionFn(db, file, 0, 0)
+		return sqlite3_load_extension(db, file, 0, 0)
 	}
-	return sqlite3_load_extension(db, file, proc, 0)
+	ptr, buf := cStringPtr(proc)
+	rc := sqlite3_load_extension(db, file, ptr, 0)
+	runtime.KeepAlive(buf)
+	return rc
 }
 
 func EnableLoadExtension(db *DB, onoff int32) int32 {

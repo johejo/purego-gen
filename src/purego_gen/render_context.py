@@ -241,6 +241,7 @@ def _build_function_context(
     identifier: str,
     render: GeneratorRenderSpec,
     type_resolver: HelperTypeResolver,
+    param_type_overrides: Mapping[tuple[str, str], str] | None = None,
 ) -> FunctionContext:
     resolved_result_type = (
         type_resolver.resolve_parameter_type(
@@ -250,12 +251,20 @@ def _build_function_context(
         if function.go_result_type is not None
         else None
     )
+    go_parameter_types = function.go_parameter_types
+    if param_type_overrides:
+        go_parameter_types = tuple(
+            param_type_overrides.get((function.name, name), go_type)
+            for name, go_type in zip(
+                function.parameter_names, function.go_parameter_types, strict=True
+            )
+        )
     return {
         "name": render.naming.func_name(identifier),
         "symbol": function.name,
         "parameters": build_function_parameters_context(
             parameter_names=function.parameter_names,
-            go_parameter_types=function.go_parameter_types,
+            go_parameter_types=go_parameter_types,
             parameter_c_types=function.parameter_c_types,
             type_resolver=type_resolver,
         ),
@@ -530,6 +539,49 @@ def _build_callback_param_func_type_contexts(
     )
 
 
+def _build_param_type_overrides(
+    *,
+    helpers: GeneratorHelpers,
+    declarations: ParsedDeclarations,
+) -> dict[tuple[str, str], str]:
+    """Build parameter type overrides from nullable_string_inputs and output_string_params.
+
+    Returns:
+        Mapping from (function_name, param_name) to overridden Go type.
+
+    Raises:
+        ContextBuildError: Helper targets or parameter names/types are invalid.
+    """
+    overrides: dict[tuple[str, str], str] = {}
+    functions_by_name = {f.name: f for f in declarations.functions}
+    specs = (
+        (helpers.nullable_string_inputs, "uintptr", "string", "nullable_string_inputs"),
+        (helpers.output_string_params, "*uintptr", "uintptr", "output_string_params"),
+    )
+    for helper_list, override_type, expected_source, config_key in specs:
+        for helper in helper_list:
+            func = functions_by_name.get(helper.function)
+            if func is None:
+                message = f"{config_key} helper target function not found: {helper.function}"
+                raise ContextBuildError(message)
+            param_types = dict(zip(func.parameter_names, func.go_parameter_types, strict=True))
+            for param_name in helper.parameters:
+                if param_name not in param_types:
+                    message = (
+                        f"{config_key} helper parameter not found: {helper.function}.{param_name}"
+                    )
+                    raise ContextBuildError(message)
+                actual = param_types[param_name]
+                if actual != expected_source:
+                    message = (
+                        f"{config_key} helper parameter {helper.function}.{param_name} "
+                        f"must have Go type `{expected_source}`, got `{actual}`"
+                    )
+                    raise ContextBuildError(message)
+                overrides[helper.function, param_name] = override_type
+    return overrides
+
+
 def _build_owned_string_contexts(
     *,
     function_identifier_by_name: Mapping[str, str],
@@ -558,6 +610,10 @@ def _build_owned_string_contexts(
     except HelperRenderingError as error:
         raise ContextBuildError(str(error)) from error
 
+    param_type_overrides = _build_param_type_overrides(
+        helpers=render.helpers, declarations=declarations
+    )
+
     function_contexts: list[FunctionContext] = []
     for function, identifier in zip(declarations.functions, function_identifiers, strict=True):
         ctx = _build_function_context(
@@ -565,6 +621,7 @@ def _build_owned_string_contexts(
             identifier=identifier,
             render=render,
             type_resolver=type_resolver,
+            param_type_overrides=param_type_overrides or None,
         )
         if function.name in owned_string_override_names:
             ctx["result_type"] = "uintptr"

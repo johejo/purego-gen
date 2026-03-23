@@ -1,5 +1,7 @@
 package sqlite3sys
 
+import "runtime"
+
 // --- Library info ---
 
 func Libversion() string        { return sqlite3_libversion() }
@@ -12,10 +14,13 @@ func Sleep(ms int32) int32      { return sqlite3_sleep(ms) }
 // --- Database lifecycle ---
 
 func OpenV2(filename string, flags int32, vfs string, db **DB) int32 {
-	if vfs != "" {
-		return sqlite3_open_v2(filename, db, flags, vfs)
+	if vfs == "" {
+		return sqlite3_open_v2(filename, db, flags, 0)
 	}
-	return openV2Fn(filename, db, flags, 0)
+	ptr, buf := cStringPtr(vfs)
+	rc := sqlite3_open_v2(filename, db, flags, ptr)
+	runtime.KeepAlive(buf)
+	return rc
 }
 
 func CloseV2(db *DB) int32               { return sqlite3_close_v2(db) }
@@ -73,11 +78,5 @@ func StmtStatus(stmt *Stmt, op int32, resetFlg int32) int32 {
 // parameters expanded. The returned string is a copy; the caller does not
 // need to free anything.
 func ExpandedSQL(stmt *Stmt) string {
-	ptr := expandedSqlFn(stmt)
-	if ptr == 0 {
-		return ""
-	}
-	s := goString(ptr)
-	sqlite3_free(ptr)
-	return s
+	return sqlite3_expanded_sql_string(stmt)
 }

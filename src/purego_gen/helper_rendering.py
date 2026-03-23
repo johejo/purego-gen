@@ -1154,10 +1154,10 @@ def _build_one_owned_string_context(
         message = f"owned_string_returns helper target function not found: {function_name}"
         raise HelperRenderingError(message)
 
-    if function.go_result_type != "string":
+    if function.go_result_type not in {"string", "uintptr"}:
         message = (
             f"owned_string_returns helper target function {function_name} "
-            f"must return string, got `{function.go_result_type}`"
+            f"must return string or uintptr, got `{function.go_result_type}`"
         )
         raise HelperRenderingError(message)
 
@@ -1193,7 +1193,10 @@ def _build_one_owned_string_context(
         "parameters": parameters,
         "call_arguments": call_arguments,
     })
-    state.override_names.add(function.name)
+    # Only need to override return type for functions that return string;
+    # functions already returning uintptr don't need an override.
+    if function.go_result_type == "string":
+        state.override_names.add(function.name)
 
 
 def _expand_owned_string_pattern(
@@ -1220,7 +1223,7 @@ def _expand_owned_string_pattern(
         if not pattern.search(func_name):
             continue
         function = state.functions_by_name[func_name]
-        if function.go_result_type != "string":
+        if function.go_result_type not in {"string", "uintptr"}:
             continue
         _build_one_owned_string_context(
             function_name=func_name, free_func=helper.free_func, state=state
@@ -1230,6 +1233,6 @@ def _expand_owned_string_pattern(
     if match_count == 0:
         message = (
             f"owned_string_returns function_pattern {helper.function_pattern!r} "
-            f"matched no string-returning functions"
+            f"matched no string/uintptr-returning functions"
         )
         raise HelperRenderingError(message)

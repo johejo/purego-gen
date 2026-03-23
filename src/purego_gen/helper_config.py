@@ -13,6 +13,8 @@ from purego_gen.config_model import (
     CallbackInputHelper,
     GeneratorHelpers,
     HeaderOverlay,
+    NullableStringInputHelper,
+    OutputStringParamHelper,
     OwnedStringReturnHelper,
     OwnedStringReturnPatternHelper,
 )
@@ -29,6 +31,8 @@ if TYPE_CHECKING:
         CallbackInputHelperInput,
         HeaderOverlayInput,
         HelpersInput,
+        NullableStringInputHelperInput,
+        OutputStringParamHelperInput,
         OwnedStringReturnHelperInput,
     )
 
@@ -49,6 +53,14 @@ def normalize_generator_helpers(helpers: HelpersInput) -> GeneratorHelpers:
         owned_string_returns=_normalize_optional_items(
             helpers.owned_string_returns,
             _normalize_owned_string_return_helper,
+        ),
+        nullable_string_inputs=_normalize_optional_items(
+            helpers.nullable_string_inputs,
+            _normalize_nullable_string_input_helper,
+        ),
+        output_string_params=_normalize_optional_items(
+            helpers.output_string_params,
+            _normalize_output_string_param_helper,
         ),
     )
 
@@ -129,6 +141,18 @@ def normalize_header_overlays(
             raise RuntimeError(message)
         seen_paths.add(overlay.path)
     return overlays
+
+
+def _normalize_nullable_string_input_helper(
+    helper: NullableStringInputHelperInput,
+) -> NullableStringInputHelper:
+    return NullableStringInputHelper(function=helper.function, parameters=helper.parameters)
+
+
+def _normalize_output_string_param_helper(
+    helper: OutputStringParamHelperInput,
+) -> OutputStringParamHelper:
+    return OutputStringParamHelper(function=helper.function, parameters=helper.parameters)
 
 
 def _normalize_header_overlay(overlay: HeaderOverlayInput) -> HeaderOverlay:

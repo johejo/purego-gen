@@ -13,6 +13,8 @@ from purego_gen.config_model import (
     GeneratorHelpers,
     GeneratorNaming,
     GeneratorRenderSpec,
+    NullableStringInputHelper,
+    OutputStringParamHelper,
     OwnedStringReturnHelper,
     OwnedStringReturnPatternHelper,
 )
@@ -513,7 +515,7 @@ def test_render_go_source_rejects_non_string_owned_string_return() -> None:
     """Owned-string-return helpers should reject functions that do not return string."""
     with pytest.raises(
         RendererError,
-        match=r"must return string, got `int32`",
+        match=r"must return string or uintptr, got `int32`",
     ):
         render_go_source(
             package=_FIXTURE_PACKAGE,
@@ -646,6 +648,55 @@ def test_render_go_source_emits_owned_string_return_with_custom_prefix() -> None
     assert "func mylib_fixture_get_name_string(" in source
     assert "func mylib_gostring(ptr uintptr) string {" in source
     assert "result := mylib_gostring(rawPtr)" in source
+
+
+def test_render_go_source_emits_owned_string_return_for_uintptr_result() -> None:
+    """Owned-string-return helpers should work for functions returning uintptr (char *)."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_expanded_sql",
+                    result_c_type="char *",
+                    parameter_c_types=("int",),
+                    parameter_names=("id",),
+                    go_result_type="uintptr",
+                    go_parameter_types=("int32",),
+                ),
+                FunctionDecl(
+                    name="fixture_free",
+                    result_c_type="void",
+                    parameter_c_types=("void *",),
+                    parameter_names=("ptr",),
+                    go_result_type=None,
+                    go_parameter_types=("uintptr",),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                owned_string_returns=(
+                    OwnedStringReturnHelper(
+                        function="fixture_expanded_sql",
+                        free_func="fixture_free",
+                    ),
+                )
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+
+    # The _string helper should be generated
+    assert "func fixture_expanded_sql_string(" in source
+    assert "fixture_free(rawPtr)" in source
+    # The raw function should keep its uintptr return (no override needed)
+    assert ") uintptr" in source
 
 
 def test_render_go_source_callback_resolves_fixed_width_typedef_types() -> None:
@@ -1099,7 +1150,7 @@ def test_owned_string_pattern_zero_matches_raises_error() -> None:
     declarations = _make_string_return_declarations()
     with pytest.raises(
         RendererError,
-        match=r"matched no string-returning functions",
+        match=r"matched no string/uintptr-returning functions",
     ):
         render_go_source(
             package=_FIXTURE_PACKAGE,
@@ -1202,3 +1253,298 @@ def test_owned_string_pattern_deterministic_output_order() -> None:
     name_pos = source.index("func lib_get_name_string(")
     other_pos = source.index("func other_get_value_string(")
     assert label_pos < name_pos < other_pos
+
+
+def test_nullable_string_inputs_overrides_parameter_to_uintptr() -> None:
+    """nullable_string_inputs should change targeted string parameters to uintptr."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_open",
+                    result_c_type="int",
+                    parameter_c_types=("const char *", "int", "const char *"),
+                    parameter_names=("filename", "flags", "vfs"),
+                    go_result_type="int32",
+                    go_parameter_types=("string", "int32", "string"),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                nullable_string_inputs=(
+                    NullableStringInputHelper(
+                        function="fixture_open",
+                        parameters=("vfs",),
+                    ),
+                ),
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+    # filename should remain string, vfs should become uintptr
+    assert "filename string," in source
+    assert "vfs uintptr," in source
+
+
+def test_nullable_string_inputs_rejects_missing_function() -> None:
+    """nullable_string_inputs should reject missing target function."""
+    with pytest.raises(
+        RendererError,
+        match=r"nullable_string_inputs helper target function not found: fixture_missing",
+    ):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=ParsedDeclarations(
+                functions=(),
+                typedefs=(),
+                constants=(),
+                runtime_vars=(),
+            ),
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(
+                    nullable_string_inputs=(
+                        NullableStringInputHelper(
+                            function="fixture_missing",
+                            parameters=("vfs",),
+                        ),
+                    ),
+                ),
+                type_mapping=TypeMappingOptions(),
+            ),
+        )
+
+
+def test_nullable_string_inputs_rejects_missing_parameter() -> None:
+    """nullable_string_inputs should reject missing parameter name."""
+    with pytest.raises(
+        RendererError,
+        match=r"nullable_string_inputs helper parameter not found: fixture_open\.bad_param",
+    ):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=ParsedDeclarations(
+                functions=(
+                    FunctionDecl(
+                        name="fixture_open",
+                        result_c_type="int",
+                        parameter_c_types=("const char *",),
+                        parameter_names=("filename",),
+                        go_result_type="int32",
+                        go_parameter_types=("string",),
+                    ),
+                ),
+                typedefs=(),
+                constants=(),
+                runtime_vars=(),
+            ),
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(
+                    nullable_string_inputs=(
+                        NullableStringInputHelper(
+                            function="fixture_open",
+                            parameters=("bad_param",),
+                        ),
+                    ),
+                ),
+                type_mapping=TypeMappingOptions(),
+            ),
+        )
+
+
+def test_output_string_params_overrides_parameter_to_pointer_uintptr() -> None:
+    """output_string_params should change targeted uintptr parameters to *uintptr."""
+    source = render_go_source(
+        package=_FIXTURE_PACKAGE,
+        lib_id=_FIXTURE_LIB_ID,
+        emit_kinds=("func",),
+        declarations=ParsedDeclarations(
+            functions=(
+                FunctionDecl(
+                    name="fixture_metadata",
+                    result_c_type="int",
+                    parameter_c_types=("const char *", "const char **", "const char **"),
+                    parameter_names=("name", "pzType", "pzColl"),
+                    go_result_type="int32",
+                    go_parameter_types=("string", "uintptr", "uintptr"),
+                ),
+            ),
+            typedefs=(),
+            constants=(),
+            runtime_vars=(),
+        ),
+        render=GeneratorRenderSpec(
+            helpers=GeneratorHelpers(
+                output_string_params=(
+                    OutputStringParamHelper(
+                        function="fixture_metadata",
+                        parameters=("pzType", "pzColl"),
+                    ),
+                ),
+            ),
+            type_mapping=TypeMappingOptions(),
+        ),
+    )
+    # name stays string, pzType and pzColl should become *uintptr
+    assert "name string," in source
+    assert "pzType *uintptr," in source
+    assert "pzColl *uintptr," in source
+
+
+def test_output_string_params_rejects_missing_function() -> None:
+    """output_string_params should reject missing target function."""
+    with pytest.raises(
+        RendererError,
+        match=r"output_string_params helper target function not found: fixture_missing",
+    ):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=ParsedDeclarations(
+                functions=(),
+                typedefs=(),
+                constants=(),
+                runtime_vars=(),
+            ),
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(
+                    output_string_params=(
+                        OutputStringParamHelper(
+                            function="fixture_missing",
+                            parameters=("pzType",),
+                        ),
+                    ),
+                ),
+                type_mapping=TypeMappingOptions(),
+            ),
+        )
+
+
+def test_output_string_params_rejects_missing_parameter() -> None:
+    """output_string_params should reject missing parameter name."""
+    with pytest.raises(
+        RendererError,
+        match=r"output_string_params helper parameter not found: fixture_metadata\.bad_param",
+    ):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=ParsedDeclarations(
+                functions=(
+                    FunctionDecl(
+                        name="fixture_metadata",
+                        result_c_type="int",
+                        parameter_c_types=("const char **",),
+                        parameter_names=("pzType",),
+                        go_result_type="int32",
+                        go_parameter_types=("uintptr",),
+                    ),
+                ),
+                typedefs=(),
+                constants=(),
+                runtime_vars=(),
+            ),
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(
+                    output_string_params=(
+                        OutputStringParamHelper(
+                            function="fixture_metadata",
+                            parameters=("bad_param",),
+                        ),
+                    ),
+                ),
+                type_mapping=TypeMappingOptions(),
+            ),
+        )
+
+
+def test_nullable_string_inputs_rejects_wrong_source_type() -> None:
+    """nullable_string_inputs should reject parameters that are not string."""
+    with pytest.raises(
+        RendererError,
+        match=r"nullable_string_inputs helper parameter fixture_func\.count "
+        r"must have Go type `string`, got `int32`",
+    ):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=ParsedDeclarations(
+                functions=(
+                    FunctionDecl(
+                        name="fixture_func",
+                        result_c_type="void",
+                        parameter_c_types=("int",),
+                        parameter_names=("count",),
+                        go_result_type=None,
+                        go_parameter_types=("int32",),
+                    ),
+                ),
+                typedefs=(),
+                constants=(),
+                runtime_vars=(),
+            ),
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(
+                    nullable_string_inputs=(
+                        NullableStringInputHelper(
+                            function="fixture_func",
+                            parameters=("count",),
+                        ),
+                    ),
+                ),
+                type_mapping=TypeMappingOptions(),
+            ),
+        )
+
+
+def test_output_string_params_rejects_wrong_source_type() -> None:
+    """output_string_params should reject parameters that are not uintptr."""
+    with pytest.raises(
+        RendererError,
+        match=r"output_string_params helper parameter fixture_func\.name "
+        r"must have Go type `uintptr`, got `string`",
+    ):
+        render_go_source(
+            package=_FIXTURE_PACKAGE,
+            lib_id=_FIXTURE_LIB_ID,
+            emit_kinds=("func",),
+            declarations=ParsedDeclarations(
+                functions=(
+                    FunctionDecl(
+                        name="fixture_func",
+                        result_c_type="void",
+                        parameter_c_types=("const char *",),
+                        parameter_names=("name",),
+                        go_result_type=None,
+                        go_parameter_types=("string",),
+                    ),
+                ),
+                typedefs=(),
+                constants=(),
+                runtime_vars=(),
+            ),
+            render=GeneratorRenderSpec(
+                helpers=GeneratorHelpers(
+                    output_string_params=(
+                        OutputStringParamHelper(
+                            function="fixture_func",
+                            parameters=("name",),
+                        ),
+                    ),
+                ),
+                type_mapping=TypeMappingOptions(),
+            ),
+        )
