@@ -166,8 +166,6 @@ func {{ helper.name }}(){{ helper.result_suffix }} {
     }
             {% endfor %}
             {% for parameter_name in helper.callback_parameters %}
-    // NOTE: purego.NewCallback prevents {{ parameter_name }} from being garbage collected.
-    // The caller must ensure the callback remains referenced for its entire lifetime.
     if {{ parameter_name }} != nil {
         {{ parameter_name }}_callback = purego.NewCallback({{ parameter_name }})
     }

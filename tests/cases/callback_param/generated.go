@@ -34,8 +34,6 @@ func fixture_register_callbacks(
 	on_event on_event_func,
 ) int32 {
 	on_event_callback := uintptr(0)
-	// NOTE: purego.NewCallback prevents on_event from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if on_event != nil {
 		on_event_callback = purego.NewCallback(on_event)
 	}

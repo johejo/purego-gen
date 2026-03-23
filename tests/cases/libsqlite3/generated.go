@@ -419,8 +419,6 @@ func sqlite3_exec_callbacks(
 	errmsg uintptr,
 ) int32 {
 	callback_callback := uintptr(0)
-	// NOTE: purego.NewCallback prevents callback from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if callback != nil {
 		callback_callback = purego.NewCallback(callback)
 	}
@@ -445,18 +443,12 @@ func sqlite3_create_function_callbacks(
 	xFunc_callback := uintptr(0)
 	xStep_callback := uintptr(0)
 	xFinal_callback := uintptr(0)
-	// NOTE: purego.NewCallback prevents xFunc from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xFunc != nil {
 		xFunc_callback = purego.NewCallback(xFunc)
 	}
-	// NOTE: purego.NewCallback prevents xStep from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xStep != nil {
 		xStep_callback = purego.NewCallback(xStep)
 	}
-	// NOTE: purego.NewCallback prevents xFinal from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xFinal != nil {
 		xFinal_callback = purego.NewCallback(xFinal)
 	}
@@ -486,23 +478,15 @@ func sqlite3_create_function_v2_callbacks(
 	xStep_callback := uintptr(0)
 	xFinal_callback := uintptr(0)
 	xDestroy_callback := uintptr(0)
-	// NOTE: purego.NewCallback prevents xFunc from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xFunc != nil {
 		xFunc_callback = purego.NewCallback(xFunc)
 	}
-	// NOTE: purego.NewCallback prevents xStep from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xStep != nil {
 		xStep_callback = purego.NewCallback(xStep)
 	}
-	// NOTE: purego.NewCallback prevents xFinal from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xFinal != nil {
 		xFinal_callback = purego.NewCallback(xFinal)
 	}
-	// NOTE: purego.NewCallback prevents xDestroy from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xDestroy != nil {
 		xDestroy_callback = purego.NewCallback(xDestroy)
 	}
@@ -531,18 +515,12 @@ func sqlite3_create_function16_callbacks(
 	xFunc_callback := uintptr(0)
 	xStep_callback := uintptr(0)
 	xFinal_callback := uintptr(0)
-	// NOTE: purego.NewCallback prevents xFunc from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xFunc != nil {
 		xFunc_callback = purego.NewCallback(xFunc)
 	}
-	// NOTE: purego.NewCallback prevents xStep from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xStep != nil {
 		xStep_callback = purego.NewCallback(xStep)
 	}
-	// NOTE: purego.NewCallback prevents xFinal from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xFinal != nil {
 		xFinal_callback = purego.NewCallback(xFinal)
 	}
@@ -565,8 +543,6 @@ func sqlite3_create_collation_callbacks(
 	xCompare xCompare_func,
 ) int32 {
 	xCompare_callback := uintptr(0)
-	// NOTE: purego.NewCallback prevents xCompare from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xCompare != nil {
 		xCompare_callback = purego.NewCallback(xCompare)
 	}
@@ -588,13 +564,9 @@ func sqlite3_create_collation_v2_callbacks(
 ) int32 {
 	xCompare_callback := uintptr(0)
 	xDestroy_callback := uintptr(0)
-	// NOTE: purego.NewCallback prevents xCompare from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xCompare != nil {
 		xCompare_callback = purego.NewCallback(xCompare)
 	}
-	// NOTE: purego.NewCallback prevents xDestroy from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xDestroy != nil {
 		xDestroy_callback = purego.NewCallback(xDestroy)
 	}
@@ -613,8 +585,6 @@ func sqlite3_commit_hook_callbacks(
 	arg3 uintptr,
 ) uintptr {
 	arg2_callback := uintptr(0)
-	// NOTE: purego.NewCallback prevents arg2 from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if arg2 != nil {
 		arg2_callback = purego.NewCallback(arg2)
 	}
@@ -630,8 +600,6 @@ func sqlite3_rollback_hook_callbacks(
 	arg3 uintptr,
 ) uintptr {
 	arg2_callback := uintptr(0)
-	// NOTE: purego.NewCallback prevents arg2 from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if arg2 != nil {
 		arg2_callback = purego.NewCallback(arg2)
 	}
@@ -647,8 +615,6 @@ func sqlite3_update_hook_callbacks(
 	arg3 uintptr,
 ) uintptr {
 	arg2_callback := uintptr(0)
-	// NOTE: purego.NewCallback prevents arg2 from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if arg2 != nil {
 		arg2_callback = purego.NewCallback(arg2)
 	}
@@ -665,8 +631,6 @@ func sqlite3_progress_handler_callbacks(
 	arg4 uintptr,
 ) {
 	arg3_callback := uintptr(0)
-	// NOTE: purego.NewCallback prevents arg3 from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if arg3 != nil {
 		arg3_callback = purego.NewCallback(arg3)
 	}
@@ -684,8 +648,6 @@ func sqlite3_trace_v2_callbacks(
 	pCtx uintptr,
 ) int32 {
 	xCallback_callback := uintptr(0)
-	// NOTE: purego.NewCallback prevents xCallback from being garbage collected.
-	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if xCallback != nil {
 		xCallback_callback = purego.NewCallback(xCallback)
 	}
