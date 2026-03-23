@@ -28,6 +28,14 @@ class BufferInputHelperInput(StrictModel):
     pairs: Annotated[tuple[BufferInputPairInput, ...], Len(min_length=1)]
 
 
+class BufferInputPatternHelperInput(StrictModel):
+    """Pattern-based buffer input helper that auto-detects (pointer, length) pairs."""
+
+    function_pattern: NonEmptyStr = Field(
+        description="Regex matched via re.search (partial match, not full match)."
+    )
+
+
 class CallbackInputHelperInput(StrictModel):
     """One function-specific helper definition for callback parameters."""
 
@@ -59,7 +67,12 @@ class HelpersInput(StrictModel):
     """Optional helper-generation configuration."""
 
     auto_callback_inputs: bool = False
-    buffer_inputs: Annotated[tuple[BufferInputHelperInput, ...], Len(min_length=1)] | None = None
+    buffer_inputs: (
+        Annotated[
+            tuple[BufferInputHelperInput | BufferInputPatternHelperInput, ...], Len(min_length=1)
+        ]
+        | None
+    ) = None
     callback_inputs: Annotated[tuple[CallbackInputHelperInput, ...], Len(min_length=1)] | None = (
         None
     )

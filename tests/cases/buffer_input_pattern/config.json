@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": "func",
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "buffer_input_pattern.h"
+        ]
+      },
+      "filters": {
+        "func": [
+          "lib_send_data",
+          "lib_write_blob",
+          "lib_get_count",
+          "lib_read_str"
+        ]
+      }
+    },
+    "render": {
+      "helpers": {
+        "buffer_inputs": [
+          {
+            "function_pattern": "^lib_"
+          }
+        ]
+      }
+    }
+  }
+}

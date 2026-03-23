@@ -10,4 +10,4 @@ Generic purego-gen issues belong in root [`TODO.md`](../TODO.md).
 - [x] Add richer column metadata support when the raw layer grows to include origin/database/table-name APIs.
 - [x] Add WAL API (`sqlite3_wal_checkpoint_v2`, `sqlite3_wal_hook`) support.
 - [x] Add Backup API (`sqlite3_backup_*`) support.
-- [ ] Add tests for new sqlite3sys wrappers (ExpandedSQL, Serialize/Deserialize, Backup, Blob I/O, TableColumnMetadata, Status).
+- [x] Add tests for new sqlite3sys wrappers (ExpandedSQL, Serialize/Deserialize, Backup, Blob I/O, TableColumnMetadata, Status).

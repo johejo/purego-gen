@@ -20,6 +20,7 @@ from purego_gen.declaration_filters import (
 from purego_gen.emit_kinds import parse_emit_kinds
 from purego_gen.helper_rendering import (
     detect_callback_registration_patterns,
+    find_buffer_candidates,
     find_callback_candidates,
 )
 from purego_gen.renderer import render_go_source
@@ -173,6 +174,23 @@ def _emit_callback_config(declarations: ParsedDeclarations) -> None:
     _write_line(json.dumps(callback_inputs, indent=2))
 
 
+def _emit_buffer_config(declarations: ParsedDeclarations) -> None:
+    """Emit a buffer_inputs config snippet as JSON to stdout."""
+    candidates = find_buffer_candidates(declarations)
+    if not candidates:
+        _write_line("buffer_inputs: (none)")
+        return
+    buffer_inputs = [
+        {
+            "function": func_name,
+            "pairs": [{"pointer": ptr, "length": length} for ptr, length in pairs],
+        }
+        for func_name, pairs in candidates
+    ]
+    _write_line("buffer_inputs:")
+    _write_line(json.dumps(buffer_inputs, indent=2))
+
+
 def _load_patterns(
     options: InspectOptions,
 ) -> CompiledDeclarationFilters:
@@ -250,6 +268,9 @@ def run_inspect(options: InspectOptions) -> int:
 
     if options.emit_callback_config:
         _emit_callback_config(filtered)
+
+    if options.emit_buffer_config:
+        _emit_buffer_config(filtered)
 
     render_out = options.render_out
     if render_out is not None:

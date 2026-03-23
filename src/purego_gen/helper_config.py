@@ -9,18 +9,22 @@ from typing import TYPE_CHECKING
 from purego_gen.config_model import (
     BufferInputHelper,
     BufferInputPair,
+    BufferInputPatternHelper,
     CallbackInputHelper,
     GeneratorHelpers,
     HeaderOverlay,
     OwnedStringReturnHelper,
     OwnedStringReturnPatternHelper,
 )
+from purego_gen.config_schema import (
+    BufferInputHelperInput,
+    BufferInputPatternHelperInput,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from purego_gen.config_schema import (
-        BufferInputHelperInput,
         BufferInputPairInput,
         CallbackInputHelperInput,
         HeaderOverlayInput,
@@ -37,10 +41,7 @@ def normalize_generator_helpers(helpers: HelpersInput) -> GeneratorHelpers:
     """
     return GeneratorHelpers(
         auto_callback_inputs=bool(helpers.auto_callback_inputs),
-        buffer_inputs=_normalize_optional_items(
-            helpers.buffer_inputs,
-            _normalize_buffer_input_helper,
-        ),
+        buffer_inputs=_normalize_buffer_inputs(helpers.buffer_inputs),
         callback_inputs=_normalize_optional_items(
             helpers.callback_inputs,
             _normalize_callback_input_helper,
@@ -61,6 +62,20 @@ def _normalize_optional_items[InputT, OutputT](
     return tuple(normalize_item(item) for item in raw_items)
 
 
+def _normalize_buffer_inputs(
+    raw_items: tuple[BufferInputHelperInput | BufferInputPatternHelperInput, ...] | None,
+) -> tuple[BufferInputHelper | BufferInputPatternHelper, ...]:
+    if raw_items is None:
+        return ()
+    results: list[BufferInputHelper | BufferInputPatternHelper] = []
+    for item in raw_items:
+        if isinstance(item, BufferInputPatternHelperInput):
+            results.append(_normalize_buffer_input_pattern_helper(item))
+        else:
+            results.append(_normalize_buffer_input_helper(item))
+    return tuple(results)
+
+
 def _normalize_buffer_input_pair(pair: BufferInputPairInput) -> BufferInputPair:
     return BufferInputPair(pointer=pair.pointer, length=pair.length)
 
@@ -70,6 +85,12 @@ def _normalize_buffer_input_helper(helper: BufferInputHelperInput) -> BufferInpu
         function=helper.function,
         pairs=tuple(_normalize_buffer_input_pair(pair) for pair in helper.pairs),
     )
+
+
+def _normalize_buffer_input_pattern_helper(
+    helper: BufferInputPatternHelperInput,
+) -> BufferInputPatternHelper:
+    return BufferInputPatternHelper(function_pattern=helper.function_pattern)
 
 
 def _normalize_callback_input_helper(helper: CallbackInputHelperInput) -> CallbackInputHelper:

@@ -12,6 +12,7 @@ import pytest
 from pydantic import ValidationError
 
 from purego_gen.config_load import load_app_config, resolve_generator_config
+from purego_gen.config_model import BufferInputHelper
 from purego_gen.config_normalize import build_generator_spec, build_type_mapping_options
 from purego_gen.config_schema import AppConfigInput
 from purego_gen.config_shared import TypeMappingInput, type_mapping_input_to_dict
@@ -265,6 +266,7 @@ def test_build_generator_spec_accepts_buffer_input_helpers(tmp_path: Path) -> No
 
     assert len(spec.render.helpers.buffer_inputs) == 1
     helper = spec.render.helpers.buffer_inputs[0]
+    assert isinstance(helper, BufferInputHelper)
     assert helper.function == "fixture_consume_bytes"
     assert helper.pairs[0].pointer == "data"
     assert helper.pairs[0].length == "data_len"

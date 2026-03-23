@@ -590,3 +590,99 @@ def test_fails_when_buffer_input_helper_targets_missing_function(tmp_path: Path)
 
     assert result.returncode == 1
     assert "buffer helper target function not found: fixture_consume_bytes" in result.stderr
+
+
+def test_emits_buffer_input_pattern_from_config(tmp_path: Path) -> None:
+    """Pattern-based buffer_inputs should auto-detect (pointer, length) pairs."""
+    header_path = _FIXTURES_DIR / "buffer_input_helper.h"
+
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(header_path)]},
+                    "emit": "func",
+                    "filters": {"func": ["fixture_consume_bytes"]},
+                    "helpers": {"buffer_inputs": [{"function_pattern": "^fixture_consume"}]},
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "func fixture_consume_bytes_bytes(" in result.stdout
+    assert "data []byte" in result.stdout
+
+
+def test_buffer_input_pattern_dedup_with_explicit(tmp_path: Path) -> None:
+    """Explicit buffer_inputs entries should take priority over pattern matches."""
+    header_path = _FIXTURES_DIR / "buffer_input_helper.h"
+
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(header_path)]},
+                    "emit": "func",
+                    "filters": {"func": ["fixture_consume_bytes"]},
+                    "helpers": {
+                        "buffer_inputs": [
+                            {
+                                "function": "fixture_consume_bytes",
+                                "pairs": [{"pointer": "data", "length": "data_len"}],
+                            },
+                            {"function_pattern": "^fixture_consume"},
+                        ]
+                    },
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 1
+    assert "matched no functions" in result.stderr
+
+
+def test_fails_when_buffer_input_pattern_matches_no_functions(tmp_path: Path) -> None:
+    """Pattern that matches no functions with buffer pairs should fail."""
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
+                    "emit": "func",
+                    "filters": {"func": ["add"]},
+                    "helpers": {"buffer_inputs": [{"function_pattern": "^add$"}]},
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 1
+    assert "matched no functions with (pointer, length) pairs" in result.stderr
+
+
+def test_fails_when_buffer_input_pattern_is_invalid_regex(tmp_path: Path) -> None:
+    """Invalid regex in function_pattern should fail with a clear error."""
+    result = _run_cli(
+        "--config",
+        str(
+            _write_config(
+                tmp_path,
+                generator_overrides=_json_object({
+                    "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
+                    "emit": "func",
+                    "helpers": {"buffer_inputs": [{"function_pattern": "[invalid"}]},
+                }),
+            )
+        ),
+    )
+
+    assert result.returncode == 1
+    assert "not valid regex" in result.stderr

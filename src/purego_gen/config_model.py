@@ -48,6 +48,13 @@ class BufferInputHelper:
 
 
 @dataclass(frozen=True, slots=True)
+class BufferInputPatternHelper:
+    """Pattern-based buffer input helper that auto-detects (pointer, length) pairs."""
+
+    function_pattern: str
+
+
+@dataclass(frozen=True, slots=True)
 class CallbackInputHelper:
     """One function-specific helper definition for callback parameters."""
 
@@ -76,7 +83,7 @@ class GeneratorHelpers:
     """Optional helper-generation configuration."""
 
     auto_callback_inputs: bool = False
-    buffer_inputs: tuple[BufferInputHelper, ...] = ()
+    buffer_inputs: tuple[BufferInputHelper | BufferInputPatternHelper, ...] = ()
     callback_inputs: tuple[CallbackInputHelper, ...] = ()
     owned_string_returns: tuple[OwnedStringReturnHelper | OwnedStringReturnPatternHelper, ...] = ()
 
@@ -267,6 +274,7 @@ __all__ = [
     "AppConfig",
     "BufferInputHelper",
     "BufferInputPair",
+    "BufferInputPatternHelper",
     "CallbackInputHelper",
     "EnvIncludeHeaders",
     "GeneratorFilters",

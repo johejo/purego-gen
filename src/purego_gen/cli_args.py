@@ -40,6 +40,7 @@ class InspectOptions:
     const_exclude: str | None
     var_exclude: str | None
     emit_callback_config: bool
+    emit_buffer_config: bool
     list_names: bool
 
 
@@ -76,6 +77,7 @@ class _InspectArgs(argparse.Namespace):
     const_exclude: str | None
     var_exclude: str | None
     emit_callback_config: bool
+    emit_buffer_config: bool
     list_names: bool
 
 
@@ -175,6 +177,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Emit callback_inputs config JSON snippet for discovered callback candidates.",
     )
     inspect_parser.add_argument(
+        "--emit-buffer-config",
+        action="store_true",
+        default=False,
+        help="Emit buffer_inputs config JSON snippet for detected (pointer, length) pairs.",
+    )
+    inspect_parser.add_argument(
         "--list-names",
         action="store_true",
         default=False,
@@ -223,6 +231,7 @@ def parse_options(argv: list[str]) -> GenOptions | InspectOptions:
             const_exclude=inspect_ns.const_exclude,
             var_exclude=inspect_ns.var_exclude,
             emit_callback_config=inspect_ns.emit_callback_config,
+            emit_buffer_config=inspect_ns.emit_buffer_config,
             list_names=inspect_ns.list_names,
         )
 

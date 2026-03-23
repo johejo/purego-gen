@@ -25,6 +25,8 @@ if TYPE_CHECKING:
     from purego_gen.model import FunctionDecl, ParsedDeclarations
 
 from purego_gen.config_model import (
+    BufferInputHelper,
+    BufferInputPatternHelper,
     CallbackInputHelper,
     OwnedStringReturnHelper,
     OwnedStringReturnPatternHelper,
@@ -391,19 +393,39 @@ def build_function_helpers(
     functions_by_name = {function.name: function for function in declarations.functions}
     helper_contexts: list[FunctionHelperContext] = []
 
+    # Collect explicit function names for dedup against patterns.
+    explicit_buffer_names: set[str] = set()
     for helper in helpers.buffer_inputs:
-        function = functions_by_name.get(helper.function)
-        if function is None:
-            message = f"buffer helper target function not found: {helper.function}"
-            raise HelperRenderingError(message)
-        helper_contexts.append(
-            _build_buffer_helper_context(
-                function_identifier=function_identifier_by_name[function.name],
-                function=function,
-                pointer_length_pairs=tuple((pair.pointer, pair.length) for pair in helper.pairs),
-                type_resolver=type_resolver,
+        if isinstance(helper, BufferInputHelper):
+            explicit_buffer_names.add(helper.function)
+
+    buffer_state = _BufferInputBuildState(
+        functions_by_name=functions_by_name,
+        function_identifier_by_name=function_identifier_by_name,
+        type_resolver=type_resolver,
+        explicit_names=explicit_buffer_names,
+        emitted_names=set(),
+        helper_contexts=helper_contexts,
+    )
+
+    for helper in helpers.buffer_inputs:
+        if isinstance(helper, BufferInputPatternHelper):
+            _expand_buffer_input_pattern(helper=helper, state=buffer_state)
+        else:
+            function = functions_by_name.get(helper.function)
+            if function is None:
+                message = f"buffer helper target function not found: {helper.function}"
+                raise HelperRenderingError(message)
+            helper_contexts.append(
+                _build_buffer_helper_context(
+                    function_identifier=function_identifier_by_name[function.name],
+                    function=function,
+                    pointer_length_pairs=tuple(
+                        (pair.pointer, pair.length) for pair in helper.pairs
+                    ),
+                    type_resolver=type_resolver,
+                )
             )
-        )
 
     effective_overrides: Mapping[tuple[str, str], str] = callback_param_type_overrides or {}
     for helper in helpers.callback_inputs:
@@ -772,6 +794,110 @@ def _build_callback_helper_context(
         "callback_parameters": callback_parameters,
         "call_arguments": tuple(call_arguments),
     }
+
+
+def _detect_buffer_pairs(function: FunctionDecl) -> tuple[tuple[str, str], ...]:
+    """Detect (pointer, length) pairs from consecutive parameter types.
+
+    Returns:
+        Tuple of (pointer_name, length_name) pairs found.
+    """
+    params = list(
+        zip(
+            function.parameter_names,
+            function.parameter_c_types,
+            function.go_parameter_types,
+            strict=True,
+        )
+    )
+    pairs: list[tuple[str, str]] = []
+    i = 0
+    while i < len(params) - 1:
+        name, c_type, go_type = params[i]
+        next_name, _, next_go_type = params[i + 1]
+        if (
+            _is_buffer_helper_pointer_type(c_type)
+            and go_type == "uintptr"
+            and next_go_type in _BUFFER_HELPER_LENGTH_GO_TYPES
+        ):
+            pairs.append((name, next_name))
+            i += 2  # skip both
+        else:
+            i += 1
+    return tuple(pairs)
+
+
+@dataclass(slots=True)
+class _BufferInputBuildState:
+    """Mutable accumulator shared across buffer-input helper builders."""
+
+    functions_by_name: Mapping[str, FunctionDecl]
+    function_identifier_by_name: Mapping[str, str]
+    type_resolver: HelperTypeResolver
+    explicit_names: set[str]
+    emitted_names: set[str]
+    helper_contexts: list[FunctionHelperContext]
+
+
+def _expand_buffer_input_pattern(
+    *,
+    helper: BufferInputPatternHelper,
+    state: _BufferInputBuildState,
+) -> None:
+    try:
+        pattern = re.compile(helper.function_pattern)
+    except re.error as exc:
+        message = (
+            f"buffer_inputs function_pattern is not valid regex: {helper.function_pattern!r}: {exc}"
+        )
+        raise HelperRenderingError(message) from exc
+
+    match_count = 0
+    for func_name in sorted(state.functions_by_name):
+        if func_name in state.explicit_names:
+            continue
+        if func_name in state.emitted_names:
+            continue
+        if not pattern.search(func_name):
+            continue
+        function = state.functions_by_name[func_name]
+        pairs = _detect_buffer_pairs(function)
+        if not pairs:
+            continue
+        state.helper_contexts.append(
+            _build_buffer_helper_context(
+                function_identifier=state.function_identifier_by_name[function.name],
+                function=function,
+                pointer_length_pairs=pairs,
+                type_resolver=state.type_resolver,
+            )
+        )
+        state.emitted_names.add(func_name)
+        match_count += 1
+
+    if match_count == 0:
+        message = (
+            f"buffer_inputs function_pattern {helper.function_pattern!r} "
+            f"matched no functions with (pointer, length) pairs"
+        )
+        raise HelperRenderingError(message)
+
+
+def find_buffer_candidates(
+    declarations: ParsedDeclarations,
+) -> list[tuple[str, list[tuple[str, str]]]]:
+    """Find functions with (const void *, length) parameter pairs.
+
+    Returns:
+        List of (func_name, [(pointer_name, length_name), ...]) for functions
+        that have at least one detected buffer pair.
+    """
+    candidates: list[tuple[str, list[tuple[str, str]]]] = []
+    for func in declarations.functions:
+        pairs = _detect_buffer_pairs(func)
+        if pairs:
+            candidates.append((func.name, list(pairs)))
+    return candidates
 
 
 def find_callback_candidates(
