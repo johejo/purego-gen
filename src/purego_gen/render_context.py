@@ -23,6 +23,7 @@ from purego_gen.helper_rendering import (
     build_function_parameters_context,
     build_owned_string_return_helpers,
     build_typedef_c_type_by_lookup,
+    discover_callback_inputs,
 )
 from purego_gen.identifier_utils import (
     accessor_getter_name,
@@ -34,8 +35,10 @@ from purego_gen.typedef_lookups import build_typedef_render_helpers
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from purego_gen.config_model import GeneratorHelpers, GeneratorNaming, GeneratorRenderSpec
+    from purego_gen.config_model import GeneratorNaming, GeneratorRenderSpec
     from purego_gen.model import FunctionDecl, ParsedDeclarations
+
+from purego_gen.config_model import GeneratorHelpers
 
 
 class TypeAliasContext(TypedDict):
@@ -641,6 +644,29 @@ def _has_emitted_union_typedefs(
     )
 
 
+def _resolve_effective_helpers(
+    helpers: GeneratorHelpers,
+    declarations: ParsedDeclarations,
+) -> GeneratorHelpers:
+    """Resolve effective helpers with auto-discovered callbacks merged in.
+
+    Returns:
+        Helpers with auto-discovered callback inputs when enabled.
+    """
+    if not helpers.auto_callback_inputs:
+        return helpers
+    merged_callback_inputs = discover_callback_inputs(
+        declarations,
+        explicit_callback_inputs=helpers.callback_inputs,
+    )
+    return GeneratorHelpers(
+        auto_callback_inputs=helpers.auto_callback_inputs,
+        buffer_inputs=helpers.buffer_inputs,
+        callback_inputs=merged_callback_inputs,
+        owned_string_returns=helpers.owned_string_returns,
+    )
+
+
 def build_template_context(
     *,
     package: str,
@@ -671,12 +697,6 @@ def build_template_context(
         type_mapping=render.type_mapping,
         naming=render.naming,
     )
-    emitted_strict_typedef_names = (
-        typedef_helpers.emitted_opaque_struct_typedef_names
-        | typedef_helpers.emitted_strict_enum_typedef_names
-        | typedef_helpers.emitted_opaque_pointer_typedef_names
-        | typedef_helpers.emitted_record_typedef_names
-    )
     function_identifier_by_name = {
         function.name: identifier
         for function, identifier in zip(declarations.functions, function_identifiers, strict=True)
@@ -687,9 +707,11 @@ def build_template_context(
         typedef_c_type_by_lookup=build_typedef_c_type_by_lookup(declarations),
     )
 
+    effective_helpers = _resolve_effective_helpers(render.helpers, declarations)
+
     callback_param_contexts = _build_callback_param_func_type_contexts(
         declarations=declarations,
-        helpers=render.helpers,
+        helpers=effective_helpers,
         type_resolver=type_resolver,
         naming=render.naming,
     )
@@ -697,7 +719,7 @@ def build_template_context(
         helper_contexts = build_function_helpers(
             function_identifier_by_name=function_identifier_by_name,
             declarations=declarations,
-            helpers=render.helpers,
+            helpers=effective_helpers,
             type_resolver=type_resolver,
             callback_param_type_overrides=callback_param_contexts.overrides,
         )
@@ -737,7 +759,7 @@ def build_template_context(
             {
                 "name": render.naming.type_name(identifier),
                 "go_type": typedef.go_type,
-                "is_strict": typedef.name in emitted_strict_typedef_names,
+                "is_strict": typedef.name in typedef_helpers.emitted_strict_typedef_names,
                 "comment_lines": normalize_comment_lines(typedef.comment),
                 "c_type_comment": typedef.c_type if "\n" not in typedef.go_type else "",
             }
@@ -775,7 +797,7 @@ def build_template_context(
         "functions": _apply_callback_param_reverts(
             function_contexts=owned_string_function_contexts,
             declarations=declarations,
-            helpers=render.helpers,
+            helpers=effective_helpers,
         ),
         "helpers": tuple(
             {

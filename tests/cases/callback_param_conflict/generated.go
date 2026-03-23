@@ -44,6 +44,8 @@ func fixture_fn_a_callbacks(
 	handler fixture_fn_a_handler_func,
 ) {
 	handler_callback := uintptr(0)
+	// NOTE: purego.NewCallback prevents handler from being garbage collected.
+	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if handler != nil {
 		handler_callback = purego.NewCallback(handler)
 	}
@@ -55,6 +57,8 @@ func fixture_fn_b_callbacks(
 	handler fixture_fn_b_handler_func,
 ) {
 	handler_callback := uintptr(0)
+	// NOTE: purego.NewCallback prevents handler from being garbage collected.
+	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if handler != nil {
 		handler_callback = purego.NewCallback(handler)
 	}

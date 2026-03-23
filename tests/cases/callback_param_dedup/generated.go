@@ -38,6 +38,8 @@ func fixture_fn_a_callbacks(
 	on_done on_done_func,
 ) {
 	on_done_callback := uintptr(0)
+	// NOTE: purego.NewCallback prevents on_done from being garbage collected.
+	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if on_done != nil {
 		on_done_callback = purego.NewCallback(on_done)
 	}
@@ -49,6 +51,8 @@ func fixture_fn_b_callbacks(
 	on_done on_done_func,
 ) {
 	on_done_callback := uintptr(0)
+	// NOTE: purego.NewCallback prevents on_done from being garbage collected.
+	// The caller must ensure the callback remains referenced for its entire lifetime.
 	if on_done != nil {
 		on_done_callback = purego.NewCallback(on_done)
 	}

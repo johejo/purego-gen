@@ -67,6 +67,7 @@ class OwnedStringReturnHelper:
 class GeneratorHelpers:
     """Optional helper-generation configuration."""
 
+    auto_callback_inputs: bool = False
     buffer_inputs: tuple[BufferInputHelper, ...] = ()
     callback_inputs: tuple[CallbackInputHelper, ...] = ()
     owned_string_returns: tuple[OwnedStringReturnHelper, ...] = ()

@@ -24,6 +24,8 @@ if TYPE_CHECKING:
     from purego_gen.config_model import GeneratorHelpers
     from purego_gen.model import FunctionDecl, ParsedDeclarations
 
+from purego_gen.config_model import CallbackInputHelper
+
 _BUFFER_HELPER_POINTER_C_TYPE: Final[str] = "void *"
 _BUFFER_HELPER_LENGTH_GO_TYPES: Final[frozenset[str]] = frozenset({
     "int32",
@@ -766,6 +768,197 @@ def _build_callback_helper_context(
         "callback_parameters": callback_parameters,
         "call_arguments": tuple(call_arguments),
     }
+
+
+def find_callback_candidates(
+    declarations: ParsedDeclarations,
+) -> list[tuple[str, list[tuple[str, str]]]]:
+    """Find functions with function-pointer parameters.
+
+    Returns:
+        List of (func_name, [(param_name, param_c_type), ...]) for functions
+        that have at least one function-pointer parameter.
+    """
+    typedef_lookup = build_typedef_c_type_by_lookup(declarations)
+    candidates: list[tuple[str, list[tuple[str, str]]]] = []
+    for func in declarations.functions:
+        matching_params: list[tuple[str, str]] = []
+        for param_name, param_c_type in zip(
+            func.parameter_names, func.parameter_c_types, strict=True
+        ):
+            if is_function_pointer_c_type(param_c_type):
+                matching_params.append((param_name, param_c_type))
+            else:
+                resolved = typedef_lookup.get(normalize_c_type_for_lookup(param_c_type))
+                if resolved is not None and is_function_pointer_c_type(resolved):
+                    matching_params.append((param_name, param_c_type))
+        if matching_params:
+            candidates.append((func.name, matching_params))
+    return candidates
+
+
+@dataclass(frozen=True, slots=True)
+class CallbackRegistrationPattern:
+    """Detected (callback, userdata, destructor) triple in a function signature."""
+
+    function: str
+    callback_param: str
+    userdata_param: str | None
+    destructor_param: str | None
+
+
+_USERDATA_NAMES: frozenset[str] = frozenset({
+    "user_data",
+    "userdata",
+    "userData",
+    "data",
+    "ctx",
+    "context",
+    "arg",
+    "closure",
+    "extra",
+    "info",
+    "pCtx",
+    "pArg",
+})
+_DESTRUCTOR_NAMES: frozenset[str] = frozenset({
+    "destroy",
+    "destructor",
+    "free",
+    "release",
+    "cleanup",
+    "dtor",
+    "dispose",
+    "finalize",
+    "xDestroy",
+    "xDelete",
+})
+
+
+def detect_callback_registration_patterns(
+    declarations: ParsedDeclarations,
+) -> list[CallbackRegistrationPattern]:
+    """Detect (callback, userdata, destructor) triples in function signatures.
+
+    Returns:
+        List of detected registration patterns.
+    """
+    candidates = find_callback_candidates(declarations)
+    functions_by_name = {func.name: func for func in declarations.functions}
+    typedef_lookup = build_typedef_c_type_by_lookup(declarations)
+    patterns: list[CallbackRegistrationPattern] = []
+
+    for func_name, matching_params in candidates:
+        func = functions_by_name[func_name]
+        callback_param_names = {name for name, _ in matching_params}
+        all_param_names = list(func.parameter_names)
+        all_param_c_types = list(func.parameter_c_types)
+        param_c_type_by_name = dict(zip(all_param_names, all_param_c_types, strict=True))
+
+        for cb_name in callback_param_names:
+            userdata = _find_userdata_neighbor(cb_name, all_param_names, param_c_type_by_name)
+            destructor = _find_destructor_neighbor(
+                cb_name,
+                all_param_names,
+                param_c_type_by_name,
+                callback_param_names,
+                typedef_lookup,
+            )
+            if userdata is not None or destructor is not None:
+                patterns.append(
+                    CallbackRegistrationPattern(
+                        function=func_name,
+                        callback_param=cb_name,
+                        userdata_param=userdata,
+                        destructor_param=destructor,
+                    )
+                )
+
+    return patterns
+
+
+def _find_userdata_neighbor(
+    callback_name: str,
+    all_param_names: list[str],
+    param_c_type_by_name: dict[str, str],
+) -> str | None:
+    """Find a likely userdata parameter near the callback parameter.
+
+    Returns:
+        Parameter name of the userdata candidate, or ``None``.
+    """
+    for name in all_param_names:
+        if name == callback_name:
+            continue
+        normalized = normalize_c_type_for_lookup(param_c_type_by_name[name])
+        if normalized in {"void *", "void*"} and name in _USERDATA_NAMES:
+            return name
+    return None
+
+
+def _is_destructor_name(name: str) -> bool:
+    """Check if a parameter name looks like a destructor.
+
+    Returns:
+        ``True`` when the name matches a known destructor pattern.
+    """
+    lower = name.lower()
+    return any(d in lower for d in _DESTRUCTOR_NAMES)
+
+
+def _find_destructor_neighbor(
+    callback_name: str,
+    all_param_names: list[str],
+    param_c_type_by_name: dict[str, str],
+    callback_param_names: set[str],
+    typedef_lookup: dict[str, str],
+) -> str | None:
+    """Find a likely destructor parameter near the callback parameter.
+
+    Returns:
+        Parameter name of the destructor candidate, or ``None``.
+    """
+    for name in all_param_names:
+        if name == callback_name or name not in callback_param_names:
+            continue
+        if _is_destructor_name(name):
+            return name
+    for name in all_param_names:
+        if name == callback_name or name in callback_param_names:
+            continue
+        if not _is_destructor_name(name):
+            continue
+        c_type = param_c_type_by_name[name]
+        if is_function_pointer_c_type(c_type):
+            return name
+        resolved = typedef_lookup.get(normalize_c_type_for_lookup(c_type))
+        if resolved is not None and is_function_pointer_c_type(resolved):
+            return name
+    return None
+
+
+def discover_callback_inputs(
+    declarations: ParsedDeclarations,
+    *,
+    explicit_callback_inputs: tuple[CallbackInputHelper, ...],
+) -> tuple[CallbackInputHelper, ...]:
+    """Auto-discover callback input helpers for functions with function-pointer params.
+
+    Merges with explicit ``callback_inputs``: explicit entries take priority
+    for the same function name.
+
+    Returns:
+        Merged tuple of callback input helpers.
+    """
+    explicit_functions = {h.function for h in explicit_callback_inputs}
+    candidates = find_callback_candidates(declarations)
+    discovered: list[CallbackInputHelper] = []
+    for func_name, matching_params in candidates:
+        if func_name in explicit_functions:
+            continue
+        param_names = tuple(name for name, _ in matching_params)
+        discovered.append(CallbackInputHelper(function=func_name, parameters=param_names))
+    return (*explicit_callback_inputs, *discovered)
 
 
 def build_owned_string_return_helpers(

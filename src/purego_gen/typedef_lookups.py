@@ -297,6 +297,7 @@ class TypedefRenderHelpers:
     emitted_strict_enum_typedef_names: set[str]
     emitted_opaque_pointer_typedef_names: set[str]
     emitted_record_typedef_names: set[str]
+    emitted_strict_typedef_names: frozenset[str]
 
 
 def build_typedef_render_helpers(
@@ -373,4 +374,10 @@ def build_typedef_render_helpers(
         emitted_strict_enum_typedef_names=emitted_strict_enum_typedef_names,
         emitted_opaque_pointer_typedef_names=emitted_opaque_pointer_typedef_names,
         emitted_record_typedef_names=emitted_record_typedef_names,
+        emitted_strict_typedef_names=frozenset(
+            emitted_opaque_struct_typedef_names
+            | emitted_strict_enum_typedef_names
+            | emitted_opaque_pointer_typedef_names
+            | emitted_record_typedef_names
+        ),
     )

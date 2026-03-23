@@ -45,6 +45,7 @@ class OwnedStringReturnHelperInput(StrictModel):
 class HelpersInput(StrictModel):
     """Optional helper-generation configuration."""
 
+    auto_callback_inputs: bool = False
     buffer_inputs: Annotated[tuple[BufferInputHelperInput, ...], Len(min_length=1)] | None = None
     callback_inputs: Annotated[tuple[CallbackInputHelperInput, ...], Len(min_length=1)] | None = (
         None

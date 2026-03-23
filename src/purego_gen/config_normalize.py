@@ -185,10 +185,13 @@ def build_generator_spec(
         raise RuntimeError(message) from error
 
     helpers = normalize_generator_helpers(generator.render.helpers)
-    if (helpers.buffer_inputs or helpers.callback_inputs) and "func" not in emit_kinds:
+    if (
+        helpers.buffer_inputs or helpers.callback_inputs or helpers.auto_callback_inputs
+    ) and "func" not in emit_kinds:
         message = (
-            f"config `{config_path}` generator.render.helpers.buffer_inputs or "
-            "generator.render.helpers.callback_inputs requires "
+            f"config `{config_path}` generator.render.helpers.buffer_inputs, "
+            "generator.render.helpers.callback_inputs, or "
+            "generator.render.helpers.auto_callback_inputs requires "
             "`func` in generator.emit."
         )
         raise RuntimeError(message)

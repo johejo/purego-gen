@@ -35,6 +35,7 @@ def normalize_generator_helpers(helpers: HelpersInput) -> GeneratorHelpers:
         Normalized helper config ready for rendering.
     """
     return GeneratorHelpers(
+        auto_callback_inputs=bool(helpers.auto_callback_inputs),
         buffer_inputs=_normalize_optional_items(
             helpers.buffer_inputs,
             _normalize_buffer_input_helper,

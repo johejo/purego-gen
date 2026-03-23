@@ -35,6 +35,7 @@ class InspectOptions:
     type_filter: str | None
     const_filter: str | None
     var_filter: str | None
+    emit_callback_config: bool
 
 
 class _TopLevelArgs(argparse.Namespace):
@@ -65,6 +66,7 @@ class _InspectArgs(argparse.Namespace):
     type_filter: str | None
     const_filter: str | None
     var_filter: str | None
+    emit_callback_config: bool
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -144,6 +146,12 @@ def _build_parser() -> argparse.ArgumentParser:
     inspect_parser.add_argument(
         "--var-filter", help="Optional regex filter for runtime variable names."
     )
+    inspect_parser.add_argument(
+        "--emit-callback-config",
+        action="store_true",
+        default=False,
+        help="Emit callback_inputs config JSON snippet for discovered callback candidates.",
+    )
 
     return parser
 
@@ -182,6 +190,7 @@ def parse_options(argv: list[str]) -> GenOptions | InspectOptions:
             type_filter=inspect_ns.type_filter,
             const_filter=inspect_ns.const_filter,
             var_filter=inspect_ns.var_filter,
+            emit_callback_config=inspect_ns.emit_callback_config,
         )
 
     parser.print_help()

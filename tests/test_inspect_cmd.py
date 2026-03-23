@@ -83,3 +83,46 @@ def test_inspect_reports_callback_candidates() -> None:
     candidate_lines = [line for i, line in enumerate(lines) if i > start and line.startswith("  ")]
     candidate_func_names = [line.split(":")[0].strip() for line in candidate_lines]
     assert "plain_add" not in candidate_func_names
+
+
+def test_inspect_emit_callback_config_outputs_json() -> None:
+    """--emit-callback-config should output a callback_inputs JSON snippet."""
+    header_path = _REPO_ROOT / "tests" / "fixtures" / "callback_candidates.h"
+    result = _run_inspect(
+        "--header-path",
+        str(header_path),
+        "--sample-size",
+        "0",
+        "--emit-callback-config",
+    )
+    assert result.returncode == 0, result.stderr
+    assert_text_contains_fragments(
+        result.stdout,
+        (
+            "callback_inputs:",
+            '"function"',
+            '"parameters"',
+            '"register_handler"',
+            '"set_callback"',
+            '"multi_callback"',
+        ),
+    )
+
+
+def test_inspect_reports_callback_registration_patterns() -> None:
+    """Inspect should report detected callback registration patterns."""
+    header_path = _REPO_ROOT / "tests" / "fixtures" / "callback_candidates.h"
+    result = _run_inspect(
+        "--header-path",
+        str(header_path),
+        "--sample-size",
+        "10",
+    )
+    assert result.returncode == 0, result.stderr
+    assert_text_contains_fragments(
+        result.stdout,
+        (
+            "callback_registration_patterns=",
+            "sample_callback_registration_patterns:",
+        ),
+    )

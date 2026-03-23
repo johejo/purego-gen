@@ -381,8 +381,9 @@ def test_build_generator_spec_rejects_helpers_without_func_emit(tmp_path: Path) 
     with pytest.raises(
         RuntimeError,
         match=(
-            r"generator\.render\.helpers\.buffer_inputs or "
-            r"generator\.render\.helpers\.callback_inputs "
+            r"generator\.render\.helpers\.buffer_inputs, "
+            r"generator\.render\.helpers\.callback_inputs, or "
+            r"generator\.render\.helpers\.auto_callback_inputs "
             r"requires `func` in generator\.emit"
         ),
     ):

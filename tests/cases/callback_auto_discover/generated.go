@@ -17,9 +17,15 @@ var (
 type (
 	// C: void (*)(int)
 	on_event_func = func(int32)
+	// C: void (*)(void)
+	on_done_func = func()
 )
 
 func new_on_event(fn on_event_func) uintptr {
+	return uintptr(purego.NewCallback(fn))
+}
+
+func new_on_done(fn on_done_func) uintptr {
 	return uintptr(purego.NewCallback(fn))
 }
 
@@ -28,6 +34,10 @@ var (
 		// C: void (*)(int)
 		on_event uintptr,
 	) int32
+	fixture_notify func(
+		// C: void (*)(void)
+		on_done uintptr,
+	)
 )
 
 func fixture_register_callbacks(
@@ -43,6 +53,19 @@ func fixture_register_callbacks(
 		on_event_callback,
 	)
 }
+func fixture_notify_callbacks(
+	on_done on_done_func,
+) {
+	on_done_callback := uintptr(0)
+	// NOTE: purego.NewCallback prevents on_done from being garbage collected.
+	// The caller must ensure the callback remains referenced for its entire lifetime.
+	if on_done != nil {
+		on_done_callback = purego.NewCallback(on_done)
+	}
+	fixture_notify(
+		on_done_callback,
+	)
+}
 
 func fixture_lib_register_functions(handle uintptr) error {
 	fixture_register_symbol, err := purego.Dlsym(handle, "fixture_register")
@@ -50,5 +73,10 @@ func fixture_lib_register_functions(handle uintptr) error {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol fixture_register: %w", err)
 	}
 	purego.RegisterFunc(&fixture_register, fixture_register_symbol)
+	fixture_notify_symbol, err := purego.Dlsym(handle, "fixture_notify")
+	if err != nil {
+		return fmt.Errorf("purego-gen: failed to resolve function symbol fixture_notify: %w", err)
+	}
+	purego.RegisterFunc(&fixture_notify, fixture_notify_symbol)
 	return nil
 }
