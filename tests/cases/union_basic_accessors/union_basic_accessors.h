@@ -12,8 +12,8 @@ typedef union my_wide_union {
 
 /* align=1: char-only union, no alignment wrapper needed */
 typedef union my_byte_union {
-  char a;
-  char b;
+  signed char a;
+  signed char b;
 } my_byte_union_t;
 
 typedef struct with_union_field {
