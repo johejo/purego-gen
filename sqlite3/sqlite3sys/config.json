@@ -1,9 +1,13 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "generator": {
     "lib_id": "sqlite3",
     "package": "sqlite3sys",
-    "emit": "func,type,const",
+    "emit": [
+      "func",
+      "type",
+      "const"
+    ],
     "parse": {
       "headers": {
         "kind": "env_include",
@@ -12,7 +16,7 @@
           "sqlite3.h"
         ]
       },
-      "filters": {
+      "include": {
         "func": [
           "sqlite3_open_v2",
           "sqlite3_close_v2",
@@ -208,7 +212,6 @@
           "SQLITE_WARNING",
           "SQLITE_ROW",
           "SQLITE_DONE",
-
           "SQLITE_ERROR_MISSING_COLLSEQ",
           "SQLITE_ERROR_RETRY",
           "SQLITE_ERROR_SNAPSHOT",
@@ -279,16 +282,13 @@
           "SQLITE_NOTICE_RECOVER_ROLLBACK",
           "SQLITE_WARNING_AUTOINDEX",
           "SQLITE_AUTH_USER",
-
           "SQLITE_INTEGER",
           "SQLITE_FLOAT",
           "SQLITE_TEXT",
           "SQLITE_BLOB",
           "SQLITE_NULL",
-
           "SQLITE_UTF8",
           "SQLITE_DETERMINISTIC",
-
           "SQLITE_OPEN_READONLY",
           "SQLITE_OPEN_READWRITE",
           "SQLITE_OPEN_CREATE",
@@ -296,19 +296,15 @@
           "SQLITE_OPEN_MEMORY",
           "SQLITE_OPEN_NOMUTEX",
           "SQLITE_OPEN_FULLMUTEX",
-
           "SQLITE_STATIC",
           "SQLITE_TRANSIENT",
-
           "SQLITE_INSERT",
           "SQLITE_UPDATE",
           "SQLITE_DELETE",
-
           "SQLITE_TRACE_STMT",
           "SQLITE_TRACE_ROW",
           "SQLITE_TRACE_PROFILE",
           "SQLITE_TRACE_CLOSE",
-
           "SQLITE_LIMIT_LENGTH",
           "SQLITE_LIMIT_SQL_LENGTH",
           "SQLITE_LIMIT_COLUMN",
@@ -321,7 +317,6 @@
           "SQLITE_LIMIT_VARIABLE_NUMBER",
           "SQLITE_LIMIT_TRIGGER_DEPTH",
           "SQLITE_LIMIT_WORKER_THREADS",
-
           "SQLITE_STATUS_MEMORY_USED",
           "SQLITE_STATUS_PAGECACHE_USED",
           "SQLITE_STATUS_PAGECACHE_OVERFLOW",
@@ -329,7 +324,6 @@
           "SQLITE_STATUS_PARSER_STACK",
           "SQLITE_STATUS_PAGECACHE_SIZE",
           "SQLITE_STATUS_MALLOC_COUNT",
-
           "SQLITE_DBSTATUS_LOOKASIDE_USED",
           "SQLITE_DBSTATUS_CACHE_USED",
           "SQLITE_DBSTATUS_SCHEMA_USED",
@@ -343,7 +337,6 @@
           "SQLITE_DBSTATUS_DEFERRED_FKS",
           "SQLITE_DBSTATUS_CACHE_USED_SHARED",
           "SQLITE_DBSTATUS_CACHE_SPILL",
-
           "SQLITE_STMTSTATUS_FULLSCAN_STEP",
           "SQLITE_STMTSTATUS_SORT",
           "SQLITE_STMTSTATUS_AUTOINDEX",
@@ -353,12 +346,10 @@
           "SQLITE_STMTSTATUS_FILTER_MISS",
           "SQLITE_STMTSTATUS_FILTER_HIT",
           "SQLITE_STMTSTATUS_MEMUSED",
-
           "SQLITE_CHECKPOINT_PASSIVE",
           "SQLITE_CHECKPOINT_FULL",
           "SQLITE_CHECKPOINT_RESTART",
           "SQLITE_CHECKPOINT_TRUNCATE",
-
           "SQLITE_DENY",
           "SQLITE_IGNORE",
           "SQLITE_CREATE_INDEX",
@@ -391,12 +382,10 @@
           "SQLITE_FUNCTION",
           "SQLITE_SAVEPOINT",
           "SQLITE_RECURSIVE",
-
           "SQLITE_SERIALIZE_NOCOPY",
           "SQLITE_DESERIALIZE_FREEONCLOSE",
           "SQLITE_DESERIALIZE_RESIZEABLE",
           "SQLITE_DESERIALIZE_READONLY",
-
           "SQLITE_TXN_NONE",
           "SQLITE_TXN_READ",
           "SQLITE_TXN_WRITE"
@@ -408,7 +397,22 @@
         "const_prefix": ""
       },
       "helpers": {
-        "buffer_inputs": [
+        "owned_string_returns": [
+          {
+            "function": "sqlite3_expanded_sql",
+            "free_func": "sqlite3_free"
+          }
+        ],
+        "output_string_params": [
+          {
+            "function": "sqlite3_table_column_metadata",
+            "params": [
+              "pzDataType",
+              "pzCollSeq"
+            ]
+          }
+        ],
+        "buffer_params": [
           {
             "function": "sqlite3_bind_blob",
             "pairs": [
@@ -446,25 +450,10 @@
             ]
           }
         ],
-        "owned_string_returns": [
-          {
-            "function": "sqlite3_expanded_sql",
-            "free_func": "sqlite3_free"
-          }
-        ],
-        "nullable_string_inputs": [
-          {"function": "sqlite3_open_v2", "parameters": ["zVfs"]},
-          {"function": "sqlite3_wal_checkpoint", "parameters": ["zDb"]},
-          {"function": "sqlite3_wal_checkpoint_v2", "parameters": ["zDb"]},
-          {"function": "sqlite3_load_extension", "parameters": ["zProc"]}
-        ],
-        "output_string_params": [
-          {"function": "sqlite3_table_column_metadata", "parameters": ["pzDataType", "pzCollSeq"]}
-        ],
-        "callback_inputs": [
+        "callback_params": [
           {
             "function": "sqlite3_create_function_v2",
-            "parameters": [
+            "params": [
               "xFunc",
               "xStep",
               "xFinal",
@@ -473,67 +462,93 @@
           },
           {
             "function": "sqlite3_create_collation_v2",
-            "parameters": [
+            "params": [
               "xCompare",
               "xDestroy"
             ]
           },
           {
             "function": "sqlite3_commit_hook",
-            "parameters": [
+            "params": [
               "arg2"
             ]
           },
           {
             "function": "sqlite3_rollback_hook",
-            "parameters": [
+            "params": [
               "arg2"
             ]
           },
           {
             "function": "sqlite3_update_hook",
-            "parameters": [
+            "params": [
               "arg2"
             ]
           },
           {
             "function": "sqlite3_progress_handler",
-            "parameters": [
+            "params": [
               "arg3"
             ]
           },
           {
             "function": "sqlite3_trace_v2",
-            "parameters": [
+            "params": [
               "xCallback"
             ]
           },
           {
             "function": "sqlite3_busy_handler",
-            "parameters": [
+            "params": [
               "arg2"
             ]
           },
           {
             "function": "sqlite3_wal_hook",
-            "parameters": [
+            "params": [
               "arg2"
             ]
           },
           {
             "function": "sqlite3_set_authorizer",
-            "parameters": [
+            "params": [
               "xAuth"
             ]
           },
           {
             "function": "sqlite3_create_window_function",
-            "parameters": [
+            "params": [
               "xStep",
               "xFinal",
               "xValue",
               "xInverse",
               "xDestroy"
+            ]
+          }
+        ],
+        "nullable_string_params": [
+          {
+            "function": "sqlite3_open_v2",
+            "params": [
+              "zVfs"
+            ]
+          },
+          {
+            "function": "sqlite3_wal_checkpoint",
+            "params": [
+              "zDb"
+            ]
+          },
+          {
+            "function": "sqlite3_wal_checkpoint_v2",
+            "params": [
+              "zDb"
+            ]
+          },
+          {
+            "function": "sqlite3_load_extension",
+            "params": [
+              "zProc"
             ]
           }
         ]

@@ -46,26 +46,26 @@ class BufferInputPair:
 
 
 @dataclass(frozen=True, slots=True)
-class BufferInputHelper:
-    """One function-specific helper definition for `[]byte` inputs."""
+class BufferParamHelper:
+    """One helper definition for `[]byte` input parameters with explicit pairs."""
 
     function: str
     pairs: tuple[BufferInputPair, ...]
 
 
 @dataclass(frozen=True, slots=True)
-class BufferInputPatternHelper:
-    """Pattern-based buffer input helper that auto-detects (pointer, length) pairs."""
+class BufferParamPatternHelper:
+    """Pattern-based buffer param helper that auto-detects (pointer, length) pairs."""
 
     function_pattern: str
 
 
 @dataclass(frozen=True, slots=True)
-class CallbackInputHelper:
+class CallbackParamHelper:
     """One function-specific helper definition for callback parameters."""
 
     function: str
-    parameters: tuple[str, ...]
+    params: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,11 +85,11 @@ class OwnedStringReturnPatternHelper:
 
 
 @dataclass(frozen=True, slots=True)
-class NullableStringInputHelper:
+class NullableStringParamHelper:
     """Override ``string`` params to ``uintptr`` for nullable C strings."""
 
     function: str
-    parameters: tuple[str, ...]
+    params: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,18 +97,18 @@ class OutputStringParamHelper:
     """One function-specific helper that overrides ``uintptr`` output params to ``*uintptr``."""
 
     function: str
-    parameters: tuple[str, ...]
+    params: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
 class GeneratorHelpers:
     """Optional helper-generation configuration."""
 
-    auto_callback_inputs: bool = False
-    buffer_inputs: tuple[BufferInputHelper | BufferInputPatternHelper, ...] = ()
-    callback_inputs: tuple[CallbackInputHelper, ...] = ()
+    auto_callbacks: bool = False
+    buffer_params: tuple[BufferParamHelper | BufferParamPatternHelper, ...] = ()
+    callback_params: tuple[CallbackParamHelper, ...] = ()
     owned_string_returns: tuple[OwnedStringReturnHelper | OwnedStringReturnPatternHelper, ...] = ()
-    nullable_string_inputs: tuple[NullableStringInputHelper, ...] = ()
+    nullable_string_params: tuple[NullableStringParamHelper, ...] = ()
     output_string_params: tuple[OutputStringParamHelper, ...] = ()
 
 
@@ -315,10 +315,10 @@ class AppConfig:
 
 __all__ = [
     "AppConfig",
-    "BufferInputHelper",
     "BufferInputPair",
-    "BufferInputPatternHelper",
-    "CallbackInputHelper",
+    "BufferParamHelper",
+    "BufferParamPatternHelper",
+    "CallbackParamHelper",
     "EnvIncludeHeaders",
     "GeneratorFilters",
     "GeneratorHelpers",
@@ -329,7 +329,7 @@ __all__ = [
     "HeaderConfig",
     "HeaderOverlay",
     "LocalHeaders",
-    "NullableStringInputHelper",
+    "NullableStringParamHelper",
     "OutputStringParamHelper",
     "OwnedStringReturnHelper",
     "OwnedStringReturnPatternHelper",

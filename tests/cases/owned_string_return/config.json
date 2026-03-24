@@ -1,9 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "generator": {
     "lib_id": "fixture_lib",
     "package": "fixture",
-    "emit": "func",
+    "emit": [
+      "func"
+    ],
     "parse": {
       "headers": {
         "kind": "local",
@@ -11,7 +13,7 @@
           "owned_string.h"
         ]
       },
-      "filters": {
+      "include": {
         "func": [
           "fixture_get_name",
           "fixture_free"

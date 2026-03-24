@@ -39,7 +39,7 @@ def _build_profile_signature(profile: JsonObject) -> str:
             "emit": generator.get("emit"),
             "parse": {
                 "headers": parse.get("headers"),
-                "filters": parse.get("filters"),
+                "include": parse.get("include"),
                 "exclude": parse.get("exclude"),
                 "clang_args": parse.get("clang_args"),
             },

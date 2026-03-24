@@ -24,12 +24,11 @@ from purego_gen.config_schema import (
     FiltersInput,
     GeneratorInput,
     LocalHeadersInput,
+    PatternInput,
     PublicApiInput,
-    PublicApiPatternInput,
     TypeMappingInput,
 )
 from purego_gen.declaration_filters import FilterSpec, exact_names_filter, regex_filter
-from purego_gen.emit_kinds import parse_emit_kinds
 from purego_gen.helper_config import normalize_generator_helpers, normalize_header_overlays
 from purego_gen.identifier_utils import (
     is_go_identifier,
@@ -102,12 +101,42 @@ def build_type_mapping_options(
     )
 
 
-def _normalize_filter(filter_value: str | tuple[str, ...] | None) -> FilterSpec | None:
+def _normalize_filter(
+    filter_value: str | PatternInput | tuple[str | PatternInput, ...] | None,
+) -> FilterSpec | None:
+    """Normalize one filter value into a FilterSpec.
+
+    - A single string = exact match for one name
+    - A PatternInput = regex
+    - A tuple = each element is either exact name (str) or regex (PatternInput)
+
+    Returns:
+        Compiled filter spec, or ``None`` when unset.
+    """
     if filter_value is None:
         return None
     if isinstance(filter_value, str):
-        return regex_filter(filter_value)
-    return exact_names_filter(filter_value)
+        return exact_names_filter((filter_value,))
+    if isinstance(filter_value, PatternInput):
+        return regex_filter(filter_value.pattern)
+    # tuple of items
+    exact_names: list[str] = []
+    regex_parts: list[str] = []
+    for item in filter_value:
+        if isinstance(item, PatternInput):
+            regex_parts.append(item.pattern)
+        else:
+            exact_names.append(item)
+    if regex_parts and exact_names:
+        # Combine: exact names as anchored patterns + regex patterns
+        combined_parts = [f"^{re.escape(name)}$" for name in exact_names]
+        combined_parts.extend(regex_parts)
+        combined = "|".join(f"(?:{p})" for p in combined_parts)
+        return regex_filter(combined)
+    if regex_parts:
+        combined = "|".join(f"(?:{p})" for p in regex_parts)
+        return regex_filter(combined)
+    return exact_names_filter(tuple(exact_names))
 
 
 def normalize_filters(filters: FiltersInput) -> GeneratorFilters:
@@ -125,7 +154,7 @@ def normalize_filters(filters: FiltersInput) -> GeneratorFilters:
 
 
 def _compile_public_api_filter(
-    items: tuple[str | PublicApiPatternInput, ...],
+    items: tuple[str | PatternInput, ...],
 ) -> re.Pattern[str]:
     """Compile a public API filter list into a single regex pattern.
 
@@ -134,7 +163,7 @@ def _compile_public_api_filter(
     """
     patterns: list[str] = []
     for item in items:
-        if isinstance(item, PublicApiPatternInput):
+        if isinstance(item, PatternInput):
             patterns.append(item.pattern)
         else:
             patterns.append(f"^{re.escape(item)}$")
@@ -162,8 +191,8 @@ def _validate_public_api_overrides(
 
 def _normalize_public_api_filter_config(
     *,
-    include: tuple[str | PublicApiPatternInput, ...],
-    exclude: tuple[str | PublicApiPatternInput, ...] | None,
+    include: tuple[str | PatternInput, ...],
+    exclude: tuple[str | PatternInput, ...] | None,
     overrides: dict[str, str] | None,
     context: str,
 ) -> PublicApiFilterConfig:
@@ -279,20 +308,19 @@ def build_generator_spec(
         message = f"config `{config_path}` generator.package is invalid: {error}"
         raise RuntimeError(message) from error
 
-    try:
-        emit_kinds = parse_emit_kinds(generator.emit, option_name="generator.emit")
-    except ValueError as error:
-        message = f"config `{config_path}` generator.emit is invalid: {error}"
-        raise RuntimeError(message) from error
+    emit_kinds = tuple(generator.emit)
 
-    helpers = normalize_generator_helpers(generator.render.helpers)
+    helpers = normalize_generator_helpers(
+        generator.render.helpers,
+        auto_callbacks=generator.render.auto_callbacks,
+    )
     if (
-        helpers.buffer_inputs or helpers.callback_inputs or helpers.auto_callback_inputs
+        helpers.buffer_params or helpers.callback_params or helpers.auto_callbacks
     ) and "func" not in emit_kinds:
         message = (
-            f"config `{config_path}` generator.render.helpers.buffer_inputs, "
-            "generator.render.helpers.callback_inputs, or "
-            "generator.render.helpers.auto_callback_inputs requires "
+            f"config `{config_path}` generator.render.helpers.buffer_params, "
+            "generator.render.helpers.callback_params, or "
+            "generator.render.auto_callbacks requires "
             "`func` in generator.emit."
         )
         raise RuntimeError(message)
@@ -305,7 +333,7 @@ def build_generator_spec(
         parse=GeneratorParseSpec(
             headers=_normalize_headers(generator, base_dir=base_dir),
             overlays=normalize_header_overlays(generator.parse.overlays),
-            filters=normalize_filters(generator.parse.filters),
+            filters=normalize_filters(generator.parse.include),
             exclude_filters=normalize_filters(generator.parse.exclude),
             clang_args=tuple(generator.parse.clang_args),
         ),

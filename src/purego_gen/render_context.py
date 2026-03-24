@@ -23,7 +23,7 @@ from purego_gen.helper_rendering import (
     build_function_parameters_context,
     build_owned_string_return_helpers,
     build_typedef_c_type_by_lookup,
-    discover_callback_inputs,
+    discover_callback_params,
 )
 from purego_gen.identifier_utils import (
     accessor_getter_name,
@@ -37,10 +37,20 @@ if TYPE_CHECKING:
     import re
     from collections.abc import Mapping
 
-    from purego_gen.config_model import GeneratorNaming, GeneratorRenderSpec
+    from purego_gen.config_model import (
+        GeneratorNaming,
+        GeneratorRenderSpec,
+        NullableStringParamHelper,
+        OutputStringParamHelper,
+    )
     from purego_gen.model import FunctionDecl, ParsedDeclarations
 
-from purego_gen.config_model import GeneratorHelpers, PublicApiSpec
+    _ParamHelperLike = NullableStringParamHelper | OutputStringParamHelper
+
+from purego_gen.config_model import (
+    GeneratorHelpers,
+    PublicApiSpec,
+)
 
 
 class TypeAliasContext(TypedDict):
@@ -330,9 +340,7 @@ def _apply_callback_param_reverts(
         Function contexts with callback-targeted func params reverted to uintptr.
     """
     callback_targeted: frozenset[tuple[str, str]] = frozenset(
-        (helper.function, param)
-        for helper in helpers.callback_inputs
-        for param in helper.parameters
+        (helper.function, param) for helper in helpers.callback_params for param in helper.params
     )
     if not callback_targeted:
         return function_contexts
@@ -404,11 +412,11 @@ def _collect_callback_param_entries(
     functions_by_name = {function.name: function for function in declarations.functions}
     param_entries: dict[str, list[tuple[str, str, str]]] = {}
 
-    for helper in helpers.callback_inputs:
+    for helper in helpers.callback_params:
         function = functions_by_name.get(helper.function)
         if function is None:
             continue
-        targeted = set(helper.parameters)
+        targeted = set(helper.params)
         resolved_params = build_function_parameters_context(
             parameter_names=function.parameter_names,
             go_parameter_types=function.go_parameter_types,
@@ -485,7 +493,7 @@ def _build_callback_param_func_type_contexts(
     Returns:
         Callback parameter contexts with func-type aliases, helpers, and overrides.
     """
-    if not helpers.callback_inputs:
+    if not helpers.callback_params:
         return _EMPTY_CALLBACK_PARAM_CONTEXTS
 
     param_entries = _collect_callback_param_entries(
@@ -544,7 +552,7 @@ def _build_param_type_overrides(
     helpers: GeneratorHelpers,
     declarations: ParsedDeclarations,
 ) -> dict[tuple[str, str], str]:
-    """Build parameter type overrides from nullable_string_inputs and output_string_params.
+    """Build parameter type overrides from nullable_string_params and output_string_params.
 
     Returns:
         Mapping from (function_name, param_name) to overridden Go type.
@@ -554,8 +562,8 @@ def _build_param_type_overrides(
     """
     overrides: dict[tuple[str, str], str] = {}
     functions_by_name = {f.name: f for f in declarations.functions}
-    specs = (
-        (helpers.nullable_string_inputs, "uintptr", "string", "nullable_string_inputs"),
+    specs: tuple[tuple[tuple[_ParamHelperLike, ...], str, str, str], ...] = (
+        (helpers.nullable_string_params, "uintptr", "string", "nullable_string_params"),
         (helpers.output_string_params, "*uintptr", "uintptr", "output_string_params"),
     )
     for helper_list, override_type, expected_source, config_key in specs:
@@ -565,7 +573,7 @@ def _build_param_type_overrides(
                 message = f"{config_key} helper target function not found: {helper.function}"
                 raise ContextBuildError(message)
             param_types = dict(zip(func.parameter_names, func.go_parameter_types, strict=True))
-            for param_name in helper.parameters:
+            for param_name in helper.params:
                 if param_name not in param_types:
                     message = (
                         f"{config_key} helper parameter not found: {helper.function}.{param_name}"
@@ -747,17 +755,19 @@ def _resolve_effective_helpers(
     Returns:
         Helpers with auto-discovered callback inputs when enabled.
     """
-    if not helpers.auto_callback_inputs:
+    if not helpers.auto_callbacks:
         return helpers
-    merged_callback_inputs = discover_callback_inputs(
+    merged_callback_params = discover_callback_params(
         declarations,
-        explicit_callback_inputs=helpers.callback_inputs,
+        explicit_callback_params=helpers.callback_params,
     )
     return GeneratorHelpers(
-        auto_callback_inputs=helpers.auto_callback_inputs,
-        buffer_inputs=helpers.buffer_inputs,
-        callback_inputs=merged_callback_inputs,
+        auto_callbacks=helpers.auto_callbacks,
+        buffer_params=helpers.buffer_params,
+        callback_params=merged_callback_params,
         owned_string_returns=helpers.owned_string_returns,
+        nullable_string_params=helpers.nullable_string_params,
+        output_string_params=helpers.output_string_params,
     )
 
 

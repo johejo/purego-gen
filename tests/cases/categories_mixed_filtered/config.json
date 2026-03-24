@@ -1,9 +1,13 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "generator": {
     "lib_id": "fixture_lib",
     "package": "fixture",
-    "emit": "func,const,var",
+    "emit": [
+      "func",
+      "const",
+      "var"
+    ],
     "parse": {
       "headers": {
         "kind": "local",
@@ -11,10 +15,10 @@
           "categories.h"
         ]
       },
-      "filters": {
-        "func": "^add$",
-        "const": "^FIXTURE_STATUS_OK$",
-        "var": "^build_id$"
+      "include": {
+        "func": "add",
+        "const": "FIXTURE_STATUS_OK",
+        "var": "build_id"
       }
     }
   }

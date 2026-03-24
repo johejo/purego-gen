@@ -7,20 +7,20 @@ from __future__ import annotations
 import pytest
 
 from purego_gen.config_model import (
-    BufferInputHelper,
     BufferInputPair,
-    CallbackInputHelper,
+    BufferParamHelper,
+    CallbackParamHelper,
     GeneratorHelpers,
     GeneratorNaming,
     GeneratorRenderSpec,
-    NullableStringInputHelper,
+    NullableStringParamHelper,
     OutputStringParamHelper,
     OwnedStringReturnHelper,
     OwnedStringReturnPatternHelper,
 )
 from purego_gen.helper_rendering import (
     detect_callback_registration_patterns,
-    discover_callback_inputs,
+    discover_callback_params,
     find_callback_candidates,
 )
 from purego_gen.model import (
@@ -60,8 +60,8 @@ def test_render_go_source_emits_helpers_with_custom_identifier_prefix() -> None:
         ),
         render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
-                buffer_inputs=(
-                    BufferInputHelper(
+                buffer_params=(
+                    BufferParamHelper(
                         function="fixture_consume_bytes",
                         pairs=(BufferInputPair(pointer="data", length="data_len"),),
                     ),
@@ -110,8 +110,8 @@ def test_render_go_source_accepts_generated_names_for_unnamed_buffer_parameters(
         ),
         render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
-                buffer_inputs=(
-                    BufferInputHelper(
+                buffer_params=(
+                    BufferParamHelper(
                         function="fixture_bind_blob",
                         pairs=(BufferInputPair(pointer="arg3", length="n"),),
                     ),
@@ -151,8 +151,8 @@ def test_render_go_source_rejects_missing_buffer_helper_function() -> None:
             ),
             render=GeneratorRenderSpec(
                 helpers=GeneratorHelpers(
-                    buffer_inputs=(
-                        BufferInputHelper(
+                    buffer_params=(
+                        BufferParamHelper(
                             function="fixture_consume_bytes",
                             pairs=(BufferInputPair(pointer="data", length="data_len"),),
                         ),
@@ -190,8 +190,8 @@ def test_render_go_source_rejects_non_void_pointer_buffer_helper() -> None:
             ),
             render=GeneratorRenderSpec(
                 helpers=GeneratorHelpers(
-                    buffer_inputs=(
-                        BufferInputHelper(
+                    buffer_params=(
+                        BufferParamHelper(
                             function="fixture_consume_bytes",
                             pairs=(BufferInputPair(pointer="data", length="data_len"),),
                         ),
@@ -242,10 +242,10 @@ def test_render_go_source_emits_callback_input_helper_functions() -> None:
         ),
         render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
-                callback_inputs=(
-                    CallbackInputHelper(
+                callback_params=(
+                    CallbackParamHelper(
                         function="fixture_register_hook",
-                        parameters=("callback",),
+                        params=("callback",),
                     ),
                 )
             ),
@@ -345,10 +345,10 @@ def test_render_go_source_emits_callback_input_helper_for_opaque_and_pointer_arg
         ),
         render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
-                callback_inputs=(
-                    CallbackInputHelper(
+                callback_params=(
+                    CallbackParamHelper(
                         function="fixture_create_function",
-                        parameters=("callback",),
+                        params=("callback",),
                     ),
                 )
             ),
@@ -379,10 +379,10 @@ def test_render_go_source_rejects_missing_callback_helper_function() -> None:
             ),
             render=GeneratorRenderSpec(
                 helpers=GeneratorHelpers(
-                    callback_inputs=(
-                        CallbackInputHelper(
+                    callback_params=(
+                        CallbackParamHelper(
                             function="fixture_register_hook",
-                            parameters=("callback",),
+                            params=("callback",),
                         ),
                     )
                 ),
@@ -421,10 +421,10 @@ def test_render_go_source_rejects_non_callback_callback_helper_parameter() -> No
             ),
             render=GeneratorRenderSpec(
                 helpers=GeneratorHelpers(
-                    callback_inputs=(
-                        CallbackInputHelper(
+                    callback_params=(
+                        CallbackParamHelper(
                             function="fixture_register_hook",
-                            parameters=("callback",),
+                            params=("callback",),
                         ),
                     )
                 ),
@@ -460,10 +460,10 @@ def test_render_go_source_rejects_missing_callback_helper_parameter() -> None:
             ),
             render=GeneratorRenderSpec(
                 helpers=GeneratorHelpers(
-                    callback_inputs=(
-                        CallbackInputHelper(
+                    callback_params=(
+                        CallbackParamHelper(
                             function="fixture_register_hook",
-                            parameters=("callback",),
+                            params=("callback",),
                         ),
                     )
                 ),
@@ -722,10 +722,10 @@ def test_render_go_source_callback_resolves_fixed_width_typedef_types() -> None:
         ),
         render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
-                callback_inputs=(
-                    CallbackInputHelper(
+                callback_params=(
+                    CallbackParamHelper(
                         function="fixture_set_progress",
-                        parameters=("callback",),
+                        params=("callback",),
                     ),
                 )
             ),
@@ -759,10 +759,10 @@ def test_render_go_source_callback_resolves_pointer_width_typedef_types() -> Non
         ),
         render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
-                callback_inputs=(
-                    CallbackInputHelper(
+                callback_params=(
+                    CallbackParamHelper(
                         function="fixture_set_visitor",
-                        parameters=("callback",),
+                        params=("callback",),
                     ),
                 )
             ),
@@ -799,10 +799,10 @@ def test_render_go_source_callback_resolves_chained_typedef() -> None:
         ),
         render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
-                callback_inputs=(
-                    CallbackInputHelper(
+                callback_params=(
+                    CallbackParamHelper(
                         function="fixture_set_handler",
-                        parameters=("callback",),
+                        params=("callback",),
                     ),
                 )
             ),
@@ -839,10 +839,10 @@ def test_render_go_source_callback_resolves_chained_typedef_through_go_type_look
         ),
         render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
-                callback_inputs=(
-                    CallbackInputHelper(
+                callback_params=(
+                    CallbackParamHelper(
                         function="fixture_set_notifier",
-                        parameters=("callback",),
+                        params=("callback",),
                     ),
                 )
             ),
@@ -876,10 +876,10 @@ def test_render_go_source_callback_const_char_pointer_resolves_to_uintptr() -> N
         ),
         render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
-                callback_inputs=(
-                    CallbackInputHelper(
+                callback_params=(
+                    CallbackParamHelper(
                         function="fixture_set_logger",
-                        parameters=("callback",),
+                        params=("callback",),
                     ),
                 )
             ),
@@ -940,32 +940,32 @@ def test_find_callback_candidates_discovers_function_pointer_params() -> None:
     assert "plain_add" not in func_names
 
 
-def test_discover_callback_inputs_merges_with_explicit() -> None:
-    """Explicit callback_inputs should take priority over auto-discovered ones."""
+def test_discover_callback_params_merges_with_explicit() -> None:
+    """Explicit callback_params should take priority over auto-discovered ones."""
     declarations = _make_declarations_with_callbacks()
-    explicit = (CallbackInputHelper(function="fixture_register", parameters=("on_event",)),)
-    result = discover_callback_inputs(declarations, explicit_callback_inputs=explicit)
+    explicit = (CallbackParamHelper(function="fixture_register", params=("on_event",)),)
+    result = discover_callback_params(declarations, explicit_callback_params=explicit)
 
     func_names = [h.function for h in result]
     assert func_names == ["fixture_register", "fixture_notify"]
     # Explicit entry should be first (preserved), auto-discovered appended
-    assert result[0].parameters == ("on_event",)
+    assert result[0].params == ("on_event",)
 
 
-def test_discover_callback_inputs_skips_explicit_functions() -> None:
+def test_discover_callback_params_skips_explicit_functions() -> None:
     """Auto-discovery should not duplicate functions already in explicit config."""
     declarations = _make_declarations_with_callbacks()
     explicit = (
-        CallbackInputHelper(function="fixture_register", parameters=("on_event",)),
-        CallbackInputHelper(function="fixture_notify", parameters=("on_done",)),
+        CallbackParamHelper(function="fixture_register", params=("on_event",)),
+        CallbackParamHelper(function="fixture_notify", params=("on_done",)),
     )
-    result = discover_callback_inputs(declarations, explicit_callback_inputs=explicit)
+    result = discover_callback_params(declarations, explicit_callback_params=explicit)
 
     assert result == explicit
 
 
-def test_render_go_source_auto_callback_inputs_generates_helpers() -> None:
-    """auto_callback_inputs=True should generate callback helpers for all candidates."""
+def test_render_go_source_auto_callbacks_generates_helpers() -> None:
+    """auto_callbacks=True should generate callback helpers for all candidates."""
     declarations = _make_declarations_with_callbacks()
     source = render_go_source(
         package=_FIXTURE_PACKAGE,
@@ -973,7 +973,7 @@ def test_render_go_source_auto_callback_inputs_generates_helpers() -> None:
         emit_kinds=("func",),
         declarations=declarations,
         render=GeneratorRenderSpec(
-            helpers=GeneratorHelpers(auto_callback_inputs=True),
+            helpers=GeneratorHelpers(auto_callbacks=True),
             type_mapping=TypeMappingOptions(),
         ),
     )
@@ -1255,8 +1255,8 @@ def test_owned_string_pattern_deterministic_output_order() -> None:
     assert label_pos < name_pos < other_pos
 
 
-def test_nullable_string_inputs_overrides_parameter_to_uintptr() -> None:
-    """nullable_string_inputs should change targeted string parameters to uintptr."""
+def test_nullable_string_params_overrides_parameter_to_uintptr() -> None:
+    """nullable_string_params should change targeted string parameters to uintptr."""
     source = render_go_source(
         package=_FIXTURE_PACKAGE,
         lib_id=_FIXTURE_LIB_ID,
@@ -1278,10 +1278,10 @@ def test_nullable_string_inputs_overrides_parameter_to_uintptr() -> None:
         ),
         render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
-                nullable_string_inputs=(
-                    NullableStringInputHelper(
+                nullable_string_params=(
+                    NullableStringParamHelper(
                         function="fixture_open",
-                        parameters=("vfs",),
+                        params=("vfs",),
                     ),
                 ),
             ),
@@ -1293,11 +1293,11 @@ def test_nullable_string_inputs_overrides_parameter_to_uintptr() -> None:
     assert "vfs uintptr," in source
 
 
-def test_nullable_string_inputs_rejects_missing_function() -> None:
-    """nullable_string_inputs should reject missing target function."""
+def test_nullable_string_params_rejects_missing_function() -> None:
+    """nullable_string_params should reject missing target function."""
     with pytest.raises(
         RendererError,
-        match=r"nullable_string_inputs helper target function not found: fixture_missing",
+        match=r"nullable_string_params helper target function not found: fixture_missing",
     ):
         render_go_source(
             package=_FIXTURE_PACKAGE,
@@ -1311,10 +1311,10 @@ def test_nullable_string_inputs_rejects_missing_function() -> None:
             ),
             render=GeneratorRenderSpec(
                 helpers=GeneratorHelpers(
-                    nullable_string_inputs=(
-                        NullableStringInputHelper(
+                    nullable_string_params=(
+                        NullableStringParamHelper(
                             function="fixture_missing",
-                            parameters=("vfs",),
+                            params=("vfs",),
                         ),
                     ),
                 ),
@@ -1323,11 +1323,11 @@ def test_nullable_string_inputs_rejects_missing_function() -> None:
         )
 
 
-def test_nullable_string_inputs_rejects_missing_parameter() -> None:
-    """nullable_string_inputs should reject missing parameter name."""
+def test_nullable_string_params_rejects_missing_parameter() -> None:
+    """nullable_string_params should reject missing parameter name."""
     with pytest.raises(
         RendererError,
-        match=r"nullable_string_inputs helper parameter not found: fixture_open\.bad_param",
+        match=r"nullable_string_params helper parameter not found: fixture_open\.bad_param",
     ):
         render_go_source(
             package=_FIXTURE_PACKAGE,
@@ -1350,10 +1350,10 @@ def test_nullable_string_inputs_rejects_missing_parameter() -> None:
             ),
             render=GeneratorRenderSpec(
                 helpers=GeneratorHelpers(
-                    nullable_string_inputs=(
-                        NullableStringInputHelper(
+                    nullable_string_params=(
+                        NullableStringParamHelper(
                             function="fixture_open",
-                            parameters=("bad_param",),
+                            params=("bad_param",),
                         ),
                     ),
                 ),
@@ -1388,7 +1388,7 @@ def test_output_string_params_overrides_parameter_to_pointer_uintptr() -> None:
                 output_string_params=(
                     OutputStringParamHelper(
                         function="fixture_metadata",
-                        parameters=("pzType", "pzColl"),
+                        params=("pzType", "pzColl"),
                     ),
                 ),
             ),
@@ -1422,7 +1422,7 @@ def test_output_string_params_rejects_missing_function() -> None:
                     output_string_params=(
                         OutputStringParamHelper(
                             function="fixture_missing",
-                            parameters=("pzType",),
+                            params=("pzType",),
                         ),
                     ),
                 ),
@@ -1461,7 +1461,7 @@ def test_output_string_params_rejects_missing_parameter() -> None:
                     output_string_params=(
                         OutputStringParamHelper(
                             function="fixture_metadata",
-                            parameters=("bad_param",),
+                            params=("bad_param",),
                         ),
                     ),
                 ),
@@ -1470,11 +1470,11 @@ def test_output_string_params_rejects_missing_parameter() -> None:
         )
 
 
-def test_nullable_string_inputs_rejects_wrong_source_type() -> None:
-    """nullable_string_inputs should reject parameters that are not string."""
+def test_nullable_string_params_rejects_wrong_source_type() -> None:
+    """nullable_string_params should reject parameters that are not string."""
     with pytest.raises(
         RendererError,
-        match=r"nullable_string_inputs helper parameter fixture_func\.count "
+        match=r"nullable_string_params helper parameter fixture_func\.count "
         r"must have Go type `string`, got `int32`",
     ):
         render_go_source(
@@ -1498,10 +1498,10 @@ def test_nullable_string_inputs_rejects_wrong_source_type() -> None:
             ),
             render=GeneratorRenderSpec(
                 helpers=GeneratorHelpers(
-                    nullable_string_inputs=(
-                        NullableStringInputHelper(
+                    nullable_string_params=(
+                        NullableStringParamHelper(
                             function="fixture_func",
-                            parameters=("count",),
+                            params=("count",),
                         ),
                     ),
                 ),
@@ -1541,7 +1541,7 @@ def test_output_string_params_rejects_wrong_source_type() -> None:
                     output_string_params=(
                         OutputStringParamHelper(
                             function="fixture_func",
-                            parameters=("name",),
+                            params=("name",),
                         ),
                     ),
                 ),

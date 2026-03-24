@@ -4,39 +4,44 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Self
+from typing import Annotated, Literal
 
 from annotated_types import Len
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field
 
 from purego_gen.config_shared import NonEmptyStr, NonEmptyStrTuple, StrictModel, TypeMappingInput
 
-FilterValueInput = NonEmptyStr | NonEmptyStrTuple
+EmitKind = Literal["func", "type", "const", "var"]
+EmitKindsTuple = Annotated[tuple[EmitKind, ...], Len(min_length=1)]
 
 
-class PublicApiPatternInput(StrictModel):
-    """Regex pattern for public API include/exclude matching."""
+class PatternInput(StrictModel):
+    """Regex pattern for filter/match specifications."""
 
     pattern: NonEmptyStr
 
 
-PublicApiFilterItem = NonEmptyStr | PublicApiPatternInput
-PublicApiFilterList = Annotated[tuple[PublicApiFilterItem, ...], Len(min_length=1)]
+FilterItem = NonEmptyStr | PatternInput
+FilterList = Annotated[tuple[FilterItem, ...], Len(min_length=1)]
+
+FunctionMatch = NonEmptyStr | PatternInput
+
+FilterValueInput = FilterItem | FilterList
 
 
 class PublicApiTypeAliasesInput(StrictModel):
     """Public API type alias generation configuration."""
 
-    include: PublicApiFilterList
-    exclude: PublicApiFilterList | None = None
+    include: FilterList
+    exclude: FilterList | None = None
     overrides: dict[str, NonEmptyStr] | None = None
 
 
 class PublicApiWrappersInput(StrictModel):
     """Public API wrapper function generation configuration."""
 
-    include: PublicApiFilterList
-    exclude: PublicApiFilterList | None = None
+    include: FilterList
+    exclude: FilterList | None = None
     overrides: dict[str, NonEmptyStr] | None = None
 
 
@@ -55,80 +60,64 @@ class BufferInputPairInput(StrictModel):
     length: NonEmptyStr
 
 
-class BufferInputHelperInput(StrictModel):
-    """One function-specific helper definition for `[]byte` inputs."""
+class BufferParamHelperInput(StrictModel):
+    """One helper definition for `[]byte` input parameters with explicit pairs."""
 
     function: NonEmptyStr
     pairs: Annotated[tuple[BufferInputPairInput, ...], Len(min_length=1)]
 
 
-class BufferInputPatternHelperInput(StrictModel):
-    """Pattern-based buffer input helper that auto-detects (pointer, length) pairs."""
+class BufferParamPatternHelperInput(StrictModel):
+    """Pattern-based helper definition for `[]byte` input parameters (always auto-detect)."""
 
-    function_pattern: NonEmptyStr = Field(
-        description="Regex matched via re.search (partial match, not full match)."
-    )
+    function: PatternInput
 
 
-class CallbackInputHelperInput(StrictModel):
+class CallbackParamHelperInput(StrictModel):
     """One function-specific helper definition for callback parameters."""
 
     function: NonEmptyStr
-    parameters: Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
+    params: Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
 
 
 class OwnedStringReturnHelperInput(StrictModel):
     """One function-specific helper definition for owned ``const char *`` returns."""
 
-    function: NonEmptyStr | None = None
-    function_pattern: NonEmptyStr | None = Field(
-        default=None, description="Regex matched via re.search (partial match, not full match)."
-    )
+    function: FunctionMatch
     free_func: NonEmptyStr
 
-    @model_validator(mode="after")
-    def _exactly_one_function_spec(self) -> Self:
-        if self.function is not None and self.function_pattern is not None:
-            message = "exactly one of 'function' or 'function_pattern' must be set, got both"
-            raise ValueError(message)
-        if self.function is None and self.function_pattern is None:
-            message = "exactly one of 'function' or 'function_pattern' must be set, got neither"
-            raise ValueError(message)
-        return self
 
-
-class NullableStringInputHelperInput(StrictModel):
+class NullableStringParamHelperInput(StrictModel):
     """Override ``string`` params to ``uintptr`` for nullable C strings."""
 
     function: NonEmptyStr
-    parameters: Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
+    params: Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
 
 
 class OutputStringParamHelperInput(StrictModel):
     """One function-specific helper that overrides ``uintptr`` output params to ``*uintptr``."""
 
     function: NonEmptyStr
-    parameters: Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
+    params: Annotated[tuple[NonEmptyStr, ...], Len(min_length=1)]
 
 
 class HelpersInput(StrictModel):
     """Optional helper-generation configuration."""
 
-    auto_callback_inputs: bool = False
-    buffer_inputs: (
+    buffer_params: (
         Annotated[
-            tuple[BufferInputHelperInput | BufferInputPatternHelperInput, ...], Len(min_length=1)
+            tuple[BufferParamHelperInput | BufferParamPatternHelperInput, ...], Len(min_length=1)
         ]
         | None
     ) = None
-    callback_inputs: Annotated[tuple[CallbackInputHelperInput, ...], Len(min_length=1)] | None = (
+    callback_params: Annotated[tuple[CallbackParamHelperInput, ...], Len(min_length=1)] | None = (
         None
     )
     owned_string_returns: (
         Annotated[tuple[OwnedStringReturnHelperInput, ...], Len(min_length=1)] | None
     ) = None
-    nullable_string_inputs: (
-        Annotated[tuple[NullableStringInputHelperInput, ...], Len(min_length=1)] | None
+    nullable_string_params: (
+        Annotated[tuple[NullableStringParamHelperInput, ...], Len(min_length=1)] | None
     ) = None
     output_string_params: (
         Annotated[tuple[OutputStringParamHelperInput, ...], Len(min_length=1)] | None
@@ -176,7 +165,7 @@ class ParseInput(StrictModel):
 
     headers: HeaderInput
     overlays: Annotated[tuple[HeaderOverlayInput, ...], Len(min_length=1)] | None = None
-    filters: FiltersInput = Field(default_factory=FiltersInput)
+    include: FiltersInput = Field(default_factory=FiltersInput)
     exclude: FiltersInput = Field(default_factory=FiltersInput)
     clang_args: tuple[NonEmptyStr, ...] = ()
 
@@ -197,6 +186,7 @@ class RenderInput(StrictModel):
     helpers: HelpersInput = Field(default_factory=HelpersInput)
     type_mapping: TypeMappingInput = Field(default_factory=TypeMappingInput)
     struct_accessors: bool = False
+    auto_callbacks: bool = False
     public_api: PublicApiInput | None = None
 
 
@@ -205,7 +195,7 @@ class GeneratorInput(StrictModel):
 
     lib_id: NonEmptyStr
     package: NonEmptyStr
-    emit: NonEmptyStr
+    emit: EmitKindsTuple
     parse: ParseInput
     render: RenderInput = Field(default_factory=RenderInput)
 
@@ -213,15 +203,23 @@ class GeneratorInput(StrictModel):
 class AppConfigInput(StrictModel):
     """Top-level shared config file."""
 
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     generator: GeneratorInput
 
 
 __all__ = [
     "AppConfigInput",
+    "BufferParamHelperInput",
+    "BufferParamPatternHelperInput",
+    "CallbackParamHelperInput",
+    "EmitKind",
+    "EmitKindsTuple",
     "EnvIncludeHeadersInput",
+    "FilterItem",
+    "FilterList",
     "FilterValueInput",
     "FiltersInput",
+    "FunctionMatch",
     "GeneratorInput",
     "HeaderInput",
     "HeaderOverlayInput",
@@ -230,9 +228,12 @@ __all__ = [
     "NamingInput",
     "NonEmptyStr",
     "NonEmptyStrTuple",
+    "NullableStringParamHelperInput",
+    "OutputStringParamHelperInput",
+    "OwnedStringReturnHelperInput",
     "ParseInput",
+    "PatternInput",
     "PublicApiInput",
-    "PublicApiPatternInput",
     "PublicApiTypeAliasesInput",
     "PublicApiWrappersInput",
     "RenderInput",

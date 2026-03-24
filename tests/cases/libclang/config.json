@@ -1,9 +1,13 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "generator": {
     "lib_id": "clang",
     "package": "fixture",
-    "emit": "func,type,const",
+    "emit": [
+      "func",
+      "type",
+      "const"
+    ],
     "parse": {
       "headers": {
         "kind": "env_include",
@@ -15,7 +19,7 @@
           "clang-c/CXFile.h"
         ]
       },
-      "filters": {
+      "include": {
         "func": [
           "clang_createIndex",
           "clang_disposeIndex",

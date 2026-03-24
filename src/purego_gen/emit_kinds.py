@@ -1,6 +1,6 @@
 # Copyright (c) 2026 purego-gen contributors.
 
-"""Shared emit-kind parsing and validation helpers."""
+"""Shared emit-kind validation helpers."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ ALLOWED_EMIT_KINDS: Final[frozenset[str]] = frozenset({"func", "type", "const", 
 
 
 def parse_emit_kinds(value: str, *, option_name: str) -> tuple[str, ...]:
-    """Parse and validate comma-separated emit kinds.
+    """Parse and validate comma-separated emit kinds (for CLI use).
 
     Returns:
         Parsed emit-kind tuple.

@@ -1,9 +1,13 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "generator": {
     "lib_id": "duckdb",
     "package": "duckdbsys",
-    "emit": "func,type,const",
+    "emit": [
+      "func",
+      "type",
+      "const"
+    ],
     "parse": {
       "headers": {
         "kind": "env_include",
@@ -12,7 +16,7 @@
           "duckdb.h"
         ]
       },
-      "filters": {
+      "include": {
         "func": [
           "duckdb_open",
           "duckdb_open_ext",
@@ -21,13 +25,11 @@
           "duckdb_disconnect",
           "duckdb_interrupt",
           "duckdb_library_version",
-
           "duckdb_create_config",
           "duckdb_config_count",
           "duckdb_get_config_flag",
           "duckdb_set_config",
           "duckdb_destroy_config",
-
           "duckdb_query",
           "duckdb_destroy_result",
           "duckdb_result_error",
@@ -43,7 +45,6 @@
           "duckdb_result_chunk_count",
           "duckdb_result_get_chunk",
           "duckdb_result_is_streaming",
-
           "duckdb_prepare",
           "duckdb_destroy_prepare",
           "duckdb_prepare_error",
@@ -58,10 +59,8 @@
           "duckdb_prepared_statement_column_name",
           "duckdb_prepared_statement_column_type",
           "duckdb_prepared_statement_column_logical_type",
-
           "duckdb_execute_prepared",
           "duckdb_execute_prepared_streaming",
-
           "duckdb_bind_value",
           "duckdb_bind_boolean",
           "duckdb_bind_int8",
@@ -86,12 +85,10 @@
           "duckdb_bind_varchar_length",
           "duckdb_bind_blob",
           "duckdb_bind_null",
-
           "duckdb_extract_statements",
           "duckdb_prepare_extracted_statement",
           "duckdb_extract_statements_error",
           "duckdb_destroy_extracted",
-
           "duckdb_pending_prepared",
           "duckdb_pending_prepared_streaming",
           "duckdb_destroy_pending",
@@ -100,7 +97,6 @@
           "duckdb_pending_execute_check_state",
           "duckdb_execute_pending",
           "duckdb_pending_execution_is_finished",
-
           "duckdb_destroy_value",
           "duckdb_create_varchar",
           "duckdb_create_varchar_length",
@@ -136,7 +132,6 @@
           "duckdb_create_array_value",
           "duckdb_create_map_value",
           "duckdb_create_union_value",
-
           "duckdb_get_bool",
           "duckdb_get_int8",
           "duckdb_get_uint8",
@@ -173,7 +168,6 @@
           "duckdb_get_enum_value",
           "duckdb_get_struct_child",
           "duckdb_value_to_string",
-
           "duckdb_create_logical_type",
           "duckdb_logical_type_get_alias",
           "duckdb_logical_type_set_alias",
@@ -203,7 +197,6 @@
           "duckdb_union_type_member_name",
           "duckdb_union_type_member_type",
           "duckdb_destroy_logical_type",
-
           "duckdb_create_data_chunk",
           "duckdb_destroy_data_chunk",
           "duckdb_data_chunk_reset",
@@ -211,7 +204,6 @@
           "duckdb_data_chunk_get_vector",
           "duckdb_data_chunk_get_size",
           "duckdb_data_chunk_set_size",
-
           "duckdb_vector_get_column_type",
           "duckdb_vector_get_data",
           "duckdb_vector_get_validity",
@@ -224,16 +216,13 @@
           "duckdb_list_vector_reserve",
           "duckdb_struct_vector_get_child",
           "duckdb_array_vector_get_child",
-
           "duckdb_validity_row_is_valid",
           "duckdb_validity_set_row_validity",
           "duckdb_validity_set_row_invalid",
           "duckdb_validity_set_row_valid",
-
           "duckdb_vector_size",
           "duckdb_free",
           "duckdb_malloc",
-
           "duckdb_from_date",
           "duckdb_to_date",
           "duckdb_is_finite_date",
@@ -250,7 +239,6 @@
           "duckdb_double_to_uhugeint",
           "duckdb_double_to_decimal",
           "duckdb_decimal_to_double",
-
           "duckdb_appender_create",
           "duckdb_appender_column_count",
           "duckdb_appender_column_type",
@@ -284,7 +272,6 @@
           "duckdb_append_null",
           "duckdb_append_value",
           "duckdb_append_data_chunk",
-
           "duckdb_table_description_create",
           "duckdb_table_description_destroy",
           "duckdb_table_description_error",
@@ -292,19 +279,15 @@
           "duckdb_table_description_get_column_name",
           "duckdb_table_description_get_column_type",
           "duckdb_column_has_default",
-
           "duckdb_query_progress",
           "duckdb_get_profiling_info",
           "duckdb_profiling_info_get_value",
           "duckdb_profiling_info_get_metrics",
           "duckdb_profiling_info_get_child_count",
           "duckdb_profiling_info_get_child",
-
           "duckdb_stream_fetch_chunk",
           "duckdb_fetch_chunk",
-
           "duckdb_get_table_names",
-
           "duckdb_string_is_inlined",
           "duckdb_string_t_length"
         ],

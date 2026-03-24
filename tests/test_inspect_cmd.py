@@ -86,7 +86,7 @@ def test_inspect_reports_callback_candidates() -> None:
 
 
 def test_inspect_emit_callback_config_outputs_json() -> None:
-    """--emit-callback-config should output a callback_inputs JSON snippet."""
+    """--emit-callback-config should output a callback_params JSON snippet."""
     header_path = _REPO_ROOT / "tests" / "fixtures" / "callback_candidates.h"
     result = _run_inspect(
         "--header-path",
@@ -99,9 +99,9 @@ def test_inspect_emit_callback_config_outputs_json() -> None:
     assert_text_contains_fragments(
         result.stdout,
         (
-            "callback_inputs:",
+            "callback_params:",
             '"function"',
-            '"parameters"',
+            '"params"',
             '"register_handler"',
             '"set_callback"',
             '"multi_callback"',

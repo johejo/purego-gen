@@ -58,16 +58,16 @@ def _write_config(
     generator: JsonObject = {
         "lib_id": _FIXTURE_LIB_ID,
         "package": _FIXTURE_PACKAGE,
-        "emit": "func",
+        "emit": ["func"],
         "parse": {
             "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
-            "filters": {},
+            "include": {},
             "exclude": {},
             "clang_args": [],
         },
         "render": {"type_mapping": {}},
     }
-    parse_overrides = {"headers", "overlays", "filters", "exclude", "clang_args"}
+    parse_overrides = {"headers", "overlays", "include", "exclude", "clang_args"}
     render_overrides = {"helpers", "type_mapping"}
     for key, value in generator_overrides.items():
         if key in parse_overrides:
@@ -87,7 +87,7 @@ def _write_config(
     config_path.write_text(
         dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "generator": generator,
             },
             indent=2,
@@ -136,7 +136,7 @@ def test_reports_inventory_summary_for_enabled_emit_categories(tmp_path: Path) -
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
-                    "emit": "func",
+                    "emit": ["func"],
                 }),
             )
         ),
@@ -162,7 +162,7 @@ def test_reports_skipped_typedef_diagnostics_for_unsupported_record_fields(tmp_p
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(_ABI_TYPES_HEADER)]},
-                    "emit": "type,const",
+                    "emit": ["type", "const"],
                 }),
             )
         ),
@@ -226,15 +226,16 @@ def test_fails_when_filter_matches_no_emitted_declarations(
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(header_path)]},
-                    "emit": emit_kind,
-                    "filters": cast("JsonObject", filters),
+                    "emit": [emit_kind],
+                    "include": cast("JsonObject", filters),
                 }),
             )
         ),
     )
     assert result.returncode == 1
     filter_name = next(iter(filters))
-    assert f"no declarations matched --{filter_name}-filter: ^does_not_exist$" in result.stderr
+    assert f"no declarations matched --{filter_name}-filter:" in result.stderr
+    assert "does_not_exist" in result.stderr
 
 
 def test_accepts_exact_name_array_filters_in_config(tmp_path: Path) -> None:
@@ -246,8 +247,8 @@ def test_accepts_exact_name_array_filters_in_config(tmp_path: Path) -> None:
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
-                    "emit": "func",
-                    "filters": {"func": ["add"]},
+                    "emit": ["func"],
+                    "include": {"func": ["add"]},
                 }),
             )
         ),
@@ -269,8 +270,8 @@ def test_exact_name_array_filter_no_match_reports_original_value(tmp_path: Path)
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
-                    "emit": "func",
-                    "filters": {"func": ["does_not_exist"]},
+                    "emit": ["func"],
+                    "include": {"func": ["does_not_exist"]},
                 }),
             )
         ),
@@ -289,7 +290,7 @@ def test_does_not_fail_when_filter_targets_non_emitted_category(tmp_path: Path) 
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(_CATEGORY_HEADER)]},
-                    "filters": {"const": "^does_not_exist$"},
+                    "include": {"const": "^does_not_exist$"},
                 }),
             )
         ),
@@ -307,8 +308,8 @@ def test_exclude_filter_supports_broad_collection(tmp_path: Path) -> None:
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
-                    "emit": "func",
-                    "exclude": {"func": "^reset$"},
+                    "emit": ["func"],
+                    "exclude": {"func": {"pattern": "^reset$"}},
                 }),
             )
         ),
@@ -331,8 +332,8 @@ def test_include_and_exclude_filters_compose_as_difference(tmp_path: Path) -> No
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
-                    "emit": "func",
-                    "filters": {"func": ["add", "reset"]},
+                    "emit": ["func"],
+                    "include": {"func": ["add", "reset"]},
                     "exclude": {"func": ["reset"]},
                 }),
             )
@@ -356,7 +357,7 @@ def test_exclude_filter_no_match_does_not_fail(tmp_path: Path) -> None:
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
-                    "emit": "func",
+                    "emit": ["func"],
                     "exclude": {"func": "^does_not_exist$"},
                 }),
             )
@@ -431,8 +432,8 @@ def test_local_overlays_support_virtual_entry_headers(tmp_path: Path) -> None:
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": ["virtual.h"]},
-                    "emit": "func",
-                    "filters": {"func": ["add"]},
+                    "emit": ["func"],
+                    "include": {"func": ["add"]},
                     "overlays": [
                         {
                             "path": "virtual.h",
@@ -473,8 +474,8 @@ def test_env_include_overlays_can_shadow_included_headers(
                         "include_dir_env": "PUREGO_GEN_TEST_INCLUDE_DIR",
                         "headers": ["main.h"],
                     },
-                    "emit": "func",
-                    "filters": {"func": ["add"]},
+                    "emit": ["func"],
+                    "include": {"func": ["add"]},
                     "overlays": [
                         {
                             "path": "shadow.h",
@@ -490,7 +491,7 @@ def test_env_include_overlays_can_shadow_included_headers(
     assert "add func(" in result.stdout
 
 
-def test_emits_buffer_input_helper_from_config(tmp_path: Path) -> None:
+def test_emits_buffer_param_helper_from_config(tmp_path: Path) -> None:
     """Config helpers should generate `[]byte` wrapper functions."""
     header_path = _FIXTURES_DIR / "buffer_input_helper.h"
 
@@ -501,10 +502,10 @@ def test_emits_buffer_input_helper_from_config(tmp_path: Path) -> None:
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(header_path)]},
-                    "emit": "func",
-                    "filters": {"func": ["fixture_consume_bytes"]},
+                    "emit": ["func"],
+                    "include": {"func": ["fixture_consume_bytes"]},
                     "helpers": {
-                        "buffer_inputs": [
+                        "buffer_params": [
                             {
                                 "function": "fixture_consume_bytes",
                                 "pairs": [{"pointer": "data", "length": "data_len"}],
@@ -531,8 +532,8 @@ def test_emits_custom_func_prefix_from_config(tmp_path: Path) -> None:
                 generator_overrides=_json_object({
                     "func_prefix": "purego_gen_",
                     "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
-                    "emit": "func",
-                    "filters": {"func": ["add"]},
+                    "emit": ["func"],
+                    "include": {"func": ["add"]},
                 }),
             )
         ),
@@ -552,8 +553,8 @@ def test_emits_unprefixed_constants_from_config(tmp_path: Path) -> None:
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(_CATEGORY_HEADER)]},
-                    "emit": "const",
-                    "filters": {"const": ["FIXTURE_STATUS_OK", "FIXTURE_STATUS_NG"]},
+                    "emit": ["const"],
+                    "include": {"const": ["FIXTURE_STATUS_OK", "FIXTURE_STATUS_NG"]},
                     "const_prefix": "",
                 }),
             )
@@ -565,7 +566,7 @@ def test_emits_unprefixed_constants_from_config(tmp_path: Path) -> None:
     assert "FIXTURE_STATUS_NG = 2" in result.stdout
 
 
-def test_fails_when_buffer_input_helper_targets_missing_function(tmp_path: Path) -> None:
+def test_fails_when_buffer_param_helper_targets_missing_function(tmp_path: Path) -> None:
     """Helper config should fail fast when the target function is absent."""
     result = _run_cli(
         "--config",
@@ -574,9 +575,9 @@ def test_fails_when_buffer_input_helper_targets_missing_function(tmp_path: Path)
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
-                    "emit": "func",
+                    "emit": ["func"],
                     "helpers": {
-                        "buffer_inputs": [
+                        "buffer_params": [
                             {
                                 "function": "fixture_consume_bytes",
                                 "pairs": [{"pointer": "data", "length": "data_len"}],
@@ -592,8 +593,8 @@ def test_fails_when_buffer_input_helper_targets_missing_function(tmp_path: Path)
     assert "buffer helper target function not found: fixture_consume_bytes" in result.stderr
 
 
-def test_emits_buffer_input_pattern_from_config(tmp_path: Path) -> None:
-    """Pattern-based buffer_inputs should auto-detect (pointer, length) pairs."""
+def test_emits_buffer_param_pattern_from_config(tmp_path: Path) -> None:
+    """Pattern-based buffer_params should auto-detect (pointer, length) pairs."""
     header_path = _FIXTURES_DIR / "buffer_input_helper.h"
 
     result = _run_cli(
@@ -603,9 +604,9 @@ def test_emits_buffer_input_pattern_from_config(tmp_path: Path) -> None:
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(header_path)]},
-                    "emit": "func",
-                    "filters": {"func": ["fixture_consume_bytes"]},
-                    "helpers": {"buffer_inputs": [{"function_pattern": "^fixture_consume"}]},
+                    "emit": ["func"],
+                    "include": {"func": ["fixture_consume_bytes"]},
+                    "helpers": {"buffer_params": [{"function": {"pattern": "^fixture_consume"}}]},
                 }),
             )
         ),
@@ -616,8 +617,8 @@ def test_emits_buffer_input_pattern_from_config(tmp_path: Path) -> None:
     assert "data []byte" in result.stdout
 
 
-def test_buffer_input_pattern_dedup_with_explicit(tmp_path: Path) -> None:
-    """Explicit buffer_inputs entries should take priority over pattern matches."""
+def test_buffer_param_pattern_dedup_with_explicit(tmp_path: Path) -> None:
+    """Explicit buffer_params entries should take priority over pattern matches."""
     header_path = _FIXTURES_DIR / "buffer_input_helper.h"
 
     result = _run_cli(
@@ -627,15 +628,15 @@ def test_buffer_input_pattern_dedup_with_explicit(tmp_path: Path) -> None:
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(header_path)]},
-                    "emit": "func",
-                    "filters": {"func": ["fixture_consume_bytes"]},
+                    "emit": ["func"],
+                    "include": {"func": ["fixture_consume_bytes"]},
                     "helpers": {
-                        "buffer_inputs": [
+                        "buffer_params": [
                             {
                                 "function": "fixture_consume_bytes",
                                 "pairs": [{"pointer": "data", "length": "data_len"}],
                             },
-                            {"function_pattern": "^fixture_consume"},
+                            {"function": {"pattern": "^fixture_consume"}},
                         ]
                     },
                 }),
@@ -647,7 +648,7 @@ def test_buffer_input_pattern_dedup_with_explicit(tmp_path: Path) -> None:
     assert "matched no functions" in result.stderr
 
 
-def test_fails_when_buffer_input_pattern_matches_no_functions(tmp_path: Path) -> None:
+def test_fails_when_buffer_param_pattern_matches_no_functions(tmp_path: Path) -> None:
     """Pattern that matches no functions with buffer pairs should fail."""
     result = _run_cli(
         "--config",
@@ -656,9 +657,9 @@ def test_fails_when_buffer_input_pattern_matches_no_functions(tmp_path: Path) ->
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
-                    "emit": "func",
-                    "filters": {"func": ["add"]},
-                    "helpers": {"buffer_inputs": [{"function_pattern": "^add$"}]},
+                    "emit": ["func"],
+                    "include": {"func": ["add"]},
+                    "helpers": {"buffer_params": [{"function": {"pattern": "^add$"}}]},
                 }),
             )
         ),
@@ -668,7 +669,7 @@ def test_fails_when_buffer_input_pattern_matches_no_functions(tmp_path: Path) ->
     assert "matched no functions with (pointer, length) pairs" in result.stderr
 
 
-def test_fails_when_buffer_input_pattern_is_invalid_regex(tmp_path: Path) -> None:
+def test_fails_when_buffer_param_pattern_is_invalid_regex(tmp_path: Path) -> None:
     """Invalid regex in function_pattern should fail with a clear error."""
     result = _run_cli(
         "--config",
@@ -677,8 +678,8 @@ def test_fails_when_buffer_input_pattern_is_invalid_regex(tmp_path: Path) -> Non
                 tmp_path,
                 generator_overrides=_json_object({
                     "headers": {"kind": "local", "headers": [str(_PRIMARY_HEADER)]},
-                    "emit": "func",
-                    "helpers": {"buffer_inputs": [{"function_pattern": "[invalid"}]},
+                    "emit": ["func"],
+                    "helpers": {"buffer_params": [{"function": {"pattern": "[invalid"}}]},
                 }),
             )
         ),

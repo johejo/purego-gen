@@ -66,11 +66,11 @@ def test_discover_cases_loads_local_profile(tmp_path: Path) -> None:
         repo_root,
         "one",
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "generator": {
                 "lib_id": "fixture_lib",
                 "package": "fixture",
-                "emit": "func",
+                "emit": ["func"],
                 "parse": {
                     "headers": {
                         "kind": "local",
@@ -105,11 +105,11 @@ def test_discover_cases_loads_env_include_profile(
         repo_root,
         "env_include",
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "generator": {
                 "lib_id": "fixture_lib",
                 "package": "fixture",
-                "emit": "func",
+                "emit": ["func"],
                 "parse": {
                     "headers": {
                         "kind": "env_include",
@@ -141,11 +141,11 @@ def test_discover_cases_defaults_runtime_to_compile_c(tmp_path: Path) -> None:
         repo_root,
         "runtime",
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "generator": {
                 "lib_id": "fixture_lib",
                 "package": "fixture",
-                "emit": "func",
+                "emit": ["func"],
                 "parse": {
                     "headers": {
                         "kind": "local",
@@ -195,11 +195,11 @@ def test_load_case_config_formats_validation_errors_with_config_context(tmp_path
     _write_json(
         config_path,
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "generator": {
                 "lib_id": "fixture_lib",
                 "package": "fixture",
-                "emit": "func",
+                "emit": ["func"],
                 "parse": {
                     "headers": {
                         "kind": "local",
@@ -227,11 +227,11 @@ def test_load_case_config_resolves_config_path(
     _write_json(
         config_path,
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "generator": {
                 "lib_id": "fixture_lib",
                 "package": "fixture",
-                "emit": "func",
+                "emit": ["func"],
                 "parse": {
                     "headers": {
                         "kind": "local",

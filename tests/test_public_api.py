@@ -10,7 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from purego_gen.config_normalize import normalize_public_api
-from purego_gen.config_schema import PublicApiInput, PublicApiPatternInput
+from purego_gen.config_schema import PatternInput, PublicApiInput
 
 
 def _parse(raw: object) -> PublicApiInput:
@@ -33,7 +33,7 @@ def test_public_api_schema_with_pattern() -> None:
     })
     assert config.wrappers is not None
     assert config.wrappers.include[0] == "sqlite3_malloc"
-    assert isinstance(config.wrappers.include[1], PublicApiPatternInput)
+    assert isinstance(config.wrappers.include[1], PatternInput)
     assert config.wrappers.include[1].pattern == "sqlite3_bind_.*"
 
 

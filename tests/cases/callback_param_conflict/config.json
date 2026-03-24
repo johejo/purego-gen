@@ -1,9 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "generator": {
     "lib_id": "fixture_lib",
     "package": "fixture",
-    "emit": "func",
+    "emit": [
+      "func"
+    ],
     "parse": {
       "headers": {
         "kind": "local",
@@ -14,14 +16,18 @@
     },
     "render": {
       "helpers": {
-        "callback_inputs": [
+        "callback_params": [
           {
             "function": "fixture_fn_a",
-            "parameters": ["handler"]
+            "params": [
+              "handler"
+            ]
           },
           {
             "function": "fixture_fn_b",
-            "parameters": ["handler"]
+            "params": [
+              "handler"
+            ]
           }
         ]
       }

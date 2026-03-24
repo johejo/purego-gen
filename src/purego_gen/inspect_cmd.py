@@ -161,34 +161,34 @@ def _report_declarations(
 
 
 def _emit_callback_config(declarations: ParsedDeclarations) -> None:
-    """Emit a callback_inputs config snippet as JSON to stdout."""
+    """Emit a callback_params config snippet as JSON to stdout."""
     candidates = find_callback_candidates(declarations)
     if not candidates:
-        _write_line("callback_inputs: (none)")
+        _write_line("callback_params: (none)")
         return
-    callback_inputs = [
-        {"function": func_name, "parameters": [name for name, _ in params]}
+    callback_params = [
+        {"function": func_name, "params": [name for name, _ in params]}
         for func_name, params in candidates
     ]
-    _write_line("callback_inputs:")
-    _write_line(json.dumps(callback_inputs, indent=2))
+    _write_line("callback_params:")
+    _write_line(json.dumps(callback_params, indent=2))
 
 
 def _emit_buffer_config(declarations: ParsedDeclarations) -> None:
-    """Emit a buffer_inputs config snippet as JSON to stdout."""
+    """Emit a buffer_params config snippet as JSON to stdout."""
     candidates = find_buffer_candidates(declarations)
     if not candidates:
-        _write_line("buffer_inputs: (none)")
+        _write_line("buffer_params: (none)")
         return
-    buffer_inputs = [
+    buffer_params = [
         {
             "function": func_name,
             "pairs": [{"pointer": ptr, "length": length} for ptr, length in pairs],
         }
         for func_name, pairs in candidates
     ]
-    _write_line("buffer_inputs:")
-    _write_line(json.dumps(buffer_inputs, indent=2))
+    _write_line("buffer_params:")
+    _write_line(json.dumps(buffer_params, indent=2))
 
 
 def _emit_exclude_config(

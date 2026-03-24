@@ -176,13 +176,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--emit-callback-config",
         action="store_true",
         default=False,
-        help="Emit callback_inputs config JSON snippet for discovered callback candidates.",
+        help="Emit callback_params config JSON snippet for discovered callback candidates.",
     )
     inspect_parser.add_argument(
         "--emit-buffer-config",
         action="store_true",
         default=False,
-        help="Emit buffer_inputs config JSON snippet for detected (pointer, length) pairs.",
+        help="Emit buffer_params config JSON snippet for detected (pointer, length) pairs.",
     )
     inspect_parser.add_argument(
         "--emit-exclude-config",

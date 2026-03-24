@@ -53,7 +53,7 @@ class GoldenInput(StrictModel):
 class AppConfigInput(StrictModel):
     """Top-level golden-case config file."""
 
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     generator: GeneratorInputType
     golden: GoldenInput | None = None
 

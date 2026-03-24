@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 
 from purego_gen.config_model import (
-    CallbackInputHelper,
+    CallbackParamHelper,
     GeneratorHelpers,
     GeneratorNaming,
     GeneratorRenderSpec,
@@ -164,10 +164,10 @@ def test_render_go_source_skips_named_func_type_for_typedef_backed_callback_para
         ),
         render=GeneratorRenderSpec(
             helpers=GeneratorHelpers(
-                callback_inputs=(
-                    CallbackInputHelper(
+                callback_params=(
+                    CallbackParamHelper(
                         function="fixture_set_hook",
-                        parameters=("hook",),
+                        params=("hook",),
                     ),
                 )
             ),

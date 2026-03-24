@@ -25,9 +25,9 @@ if TYPE_CHECKING:
     from purego_gen.model import FunctionDecl, ParsedDeclarations
 
 from purego_gen.config_model import (
-    BufferInputHelper,
-    BufferInputPatternHelper,
-    CallbackInputHelper,
+    BufferParamHelper,
+    BufferParamPatternHelper,
+    CallbackParamHelper,
     OwnedStringReturnHelper,
     OwnedStringReturnPatternHelper,
 )
@@ -387,7 +387,7 @@ def build_function_helpers(
     Raises:
         HelperRenderingError: Helper targets or parameter mappings are invalid.
     """
-    if not helpers.buffer_inputs and not helpers.callback_inputs:
+    if not helpers.buffer_params and not helpers.callback_params:
         return ()
 
     functions_by_name = {function.name: function for function in declarations.functions}
@@ -395,8 +395,8 @@ def build_function_helpers(
 
     # Collect explicit function names for dedup against patterns.
     explicit_buffer_names: set[str] = set()
-    for helper in helpers.buffer_inputs:
-        if isinstance(helper, BufferInputHelper):
+    for helper in helpers.buffer_params:
+        if isinstance(helper, BufferParamHelper):
             explicit_buffer_names.add(helper.function)
 
     buffer_state = _BufferInputBuildState(
@@ -408,8 +408,8 @@ def build_function_helpers(
         helper_contexts=helper_contexts,
     )
 
-    for helper in helpers.buffer_inputs:
-        if isinstance(helper, BufferInputPatternHelper):
+    for helper in helpers.buffer_params:
+        if isinstance(helper, BufferParamPatternHelper):
             _expand_buffer_input_pattern(helper=helper, state=buffer_state)
         else:
             function = functions_by_name.get(helper.function)
@@ -428,7 +428,7 @@ def build_function_helpers(
             )
 
     effective_overrides: Mapping[tuple[str, str], str] = callback_param_type_overrides or {}
-    for helper in helpers.callback_inputs:
+    for helper in helpers.callback_params:
         function = functions_by_name.get(helper.function)
         if function is None:
             message = f"callback helper target function not found: {helper.function}"
@@ -437,7 +437,7 @@ def build_function_helpers(
             _build_callback_helper_context(
                 function_identifier=function_identifier_by_name[function.name],
                 function=function,
-                callback_parameters=helper.parameters,
+                callback_parameters=helper.params,
                 type_resolver=type_resolver,
                 callback_param_type_overrides=effective_overrides,
             )
@@ -841,14 +841,14 @@ class _BufferInputBuildState:
 
 def _expand_buffer_input_pattern(
     *,
-    helper: BufferInputPatternHelper,
+    helper: BufferParamPatternHelper,
     state: _BufferInputBuildState,
 ) -> None:
     try:
         pattern = re.compile(helper.function_pattern)
     except re.error as exc:
         message = (
-            f"buffer_inputs function_pattern is not valid regex: {helper.function_pattern!r}: {exc}"
+            f"buffer_params function pattern is not valid regex: {helper.function_pattern!r}: {exc}"
         )
         raise HelperRenderingError(message) from exc
 
@@ -877,7 +877,7 @@ def _expand_buffer_input_pattern(
 
     if match_count == 0:
         message = (
-            f"buffer_inputs function_pattern {helper.function_pattern!r} "
+            f"buffer_params function pattern {helper.function_pattern!r} "
             f"matched no functions with (pointer, length) pairs"
         )
         raise HelperRenderingError(message)
@@ -1067,28 +1067,28 @@ def _find_destructor_neighbor(
     return None
 
 
-def discover_callback_inputs(
+def discover_callback_params(
     declarations: ParsedDeclarations,
     *,
-    explicit_callback_inputs: tuple[CallbackInputHelper, ...],
-) -> tuple[CallbackInputHelper, ...]:
-    """Auto-discover callback input helpers for functions with function-pointer params.
+    explicit_callback_params: tuple[CallbackParamHelper, ...],
+) -> tuple[CallbackParamHelper, ...]:
+    """Auto-discover callback param helpers for functions with function-pointer params.
 
-    Merges with explicit ``callback_inputs``: explicit entries take priority
+    Merges with explicit ``callback_params``: explicit entries take priority
     for the same function name.
 
     Returns:
-        Merged tuple of callback input helpers.
+        Merged tuple of callback param helpers.
     """
-    explicit_functions = {h.function for h in explicit_callback_inputs}
+    explicit_functions = {h.function for h in explicit_callback_params}
     candidates = find_callback_candidates(declarations)
-    discovered: list[CallbackInputHelper] = []
+    discovered: list[CallbackParamHelper] = []
     for func_name, matching_params in candidates:
         if func_name in explicit_functions:
             continue
         param_names = tuple(name for name, _ in matching_params)
-        discovered.append(CallbackInputHelper(function=func_name, parameters=param_names))
-    return (*explicit_callback_inputs, *discovered)
+        discovered.append(CallbackParamHelper(function=func_name, params=param_names))
+    return (*explicit_callback_params, *discovered)
 
 
 @dataclass(slots=True)
@@ -1209,7 +1209,7 @@ def _expand_owned_string_pattern(
         pattern = re.compile(helper.function_pattern)
     except re.error as exc:
         message = (
-            f"owned_string_returns function_pattern is not valid regex: "
+            f"owned_string_returns function pattern is not valid regex: "
             f"{helper.function_pattern!r}: {exc}"
         )
         raise HelperRenderingError(message) from exc
@@ -1232,7 +1232,7 @@ def _expand_owned_string_pattern(
 
     if match_count == 0:
         message = (
-            f"owned_string_returns function_pattern {helper.function_pattern!r} "
+            f"owned_string_returns function pattern {helper.function_pattern!r} "
             f"matched no string/uintptr-returning functions"
         )
         raise HelperRenderingError(message)

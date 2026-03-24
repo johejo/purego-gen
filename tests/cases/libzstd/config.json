@@ -1,9 +1,13 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "generator": {
     "lib_id": "zstd",
     "package": "fixture",
-    "emit": "func,type,const",
+    "emit": [
+      "func",
+      "type",
+      "const"
+    ],
     "parse": {
       "headers": {
         "kind": "env_include",
@@ -13,7 +17,7 @@
           "zstd_errors.h"
         ]
       },
-      "filters": {
+      "include": {
         "func": [
           "ZSTD_versionNumber",
           "ZSTD_minCLevel",
@@ -50,7 +54,7 @@
     },
     "render": {
       "helpers": {
-        "buffer_inputs": [
+        "buffer_params": [
           {
             "function": "ZSTD_compress",
             "pairs": [

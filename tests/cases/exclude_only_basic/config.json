@@ -1,9 +1,14 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "generator": {
     "lib_id": "fixture_lib",
     "package": "fixture",
-    "emit": "func,type,const,var",
+    "emit": [
+      "func",
+      "type",
+      "const",
+      "var"
+    ],
     "parse": {
       "headers": {
         "kind": "local",
@@ -13,8 +18,8 @@
         ]
       },
       "exclude": {
-        "func": "^reset$",
-        "const": "^FIXTURE_STATUS_NG$"
+        "func": "reset",
+        "const": "FIXTURE_STATUS_NG"
       }
     }
   }
