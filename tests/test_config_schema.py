@@ -12,9 +12,9 @@ import pytest
 from pydantic import ValidationError
 
 from purego_gen.config_load import load_app_config, resolve_generator_config
-from purego_gen.config_model import BufferInputHelper
+from purego_gen.config_model import BufferParamHelper, CallbackParamHelper
 from purego_gen.config_normalize import build_generator_spec, build_type_mapping_options
-from purego_gen.config_schema import AppConfigInput
+from purego_gen.config_schema import AppConfigInput, PatternInput
 from purego_gen.config_shared import TypeMappingInput, type_mapping_input_to_dict
 from purego_gen.declaration_filters import exact_names_filter, regex_filter
 
@@ -24,14 +24,14 @@ if TYPE_CHECKING:
 
 def _config_payload(*, func_filter: object) -> dict[str, object]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "generator": {
             "lib_id": "fixture_lib",
             "package": "fixture",
-            "emit": "func",
+            "emit": ["func"],
             "parse": {
                 "headers": {"kind": "local", "headers": ["basic.h"]},
-                "filters": {"func": func_filter},
+                "include": {"func": func_filter},
                 "clang_args": [],
             },
             "render": {"type_mapping": {}},
@@ -40,10 +40,10 @@ def _config_payload(*, func_filter: object) -> dict[str, object]:
 
 
 def _config_payload_with_exclude(*, func_exclude: object) -> dict[str, object]:
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     parse = _generator_parse(generator)
-    parse["filters"] = {}
+    parse["include"] = {}
     parse["exclude"] = {"func": func_exclude}
     return payload
 
@@ -66,9 +66,11 @@ def _generator_render(generator: dict[str, object]) -> dict[str, object]:
     return cast("dict[str, object]", render)
 
 
-def test_build_generator_spec_accepts_regex_string_filter(tmp_path: Path) -> None:
-    """String filters should remain regex-backed after normalization."""
-    parsed = AppConfigInput.model_validate_json(json.dumps(_config_payload(func_filter="^add$")))
+def test_build_generator_spec_accepts_pattern_filter(tmp_path: Path) -> None:
+    """Pattern filters should normalize to regex-backed filter specs."""
+    parsed = AppConfigInput.model_validate_json(
+        json.dumps(_config_payload(func_filter={"pattern": "^add$"}))
+    )
 
     spec = build_generator_spec(
         parsed.generator,
@@ -79,9 +81,22 @@ def test_build_generator_spec_accepts_regex_string_filter(tmp_path: Path) -> Non
     assert spec.parse.filters.func == regex_filter("^add$")
 
 
+def test_build_generator_spec_accepts_string_exact_name_filter(tmp_path: Path) -> None:
+    """Single string filters should normalize to exact-name filter specs."""
+    parsed = AppConfigInput.model_validate_json(json.dumps(_config_payload(func_filter="add")))
+
+    spec = build_generator_spec(
+        parsed.generator,
+        base_dir=tmp_path,
+        config_path=tmp_path / "config.json",
+    )
+
+    assert spec.parse.filters.func == exact_names_filter(("add",))
+
+
 def test_build_generator_spec_defaults_empty_prefixes(tmp_path: Path) -> None:
     """Generator spec should default all naming prefixes to empty string."""
-    parsed = AppConfigInput.model_validate_json(json.dumps(_config_payload(func_filter="^add$")))
+    parsed = AppConfigInput.model_validate_json(json.dumps(_config_payload(func_filter="add")))
 
     spec = build_generator_spec(
         parsed.generator,
@@ -97,7 +112,7 @@ def test_build_generator_spec_defaults_empty_prefixes(tmp_path: Path) -> None:
 
 def test_build_generator_spec_accepts_custom_per_kind_prefix(tmp_path: Path) -> None:
     """Generator spec should preserve valid custom per-kind prefixes."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     render = _generator_render(generator)
     render["naming"] = {
@@ -122,7 +137,7 @@ def test_build_generator_spec_accepts_custom_per_kind_prefix(tmp_path: Path) -> 
 
 def test_config_schema_accepts_empty_const_prefix() -> None:
     """Constant prefixes should allow an empty string."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     render = _generator_render(generator)
     render["naming"] = {"const_prefix": ""}
@@ -153,7 +168,7 @@ def test_build_generator_spec_rejects_invalid_identifier_prefix(
     prefix_value: str,
 ) -> None:
     """Generator spec should reject invalid generated identifier prefixes."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     render = _generator_render(generator)
     render["naming"] = {field_name: prefix_value}
@@ -198,9 +213,9 @@ def test_config_schema_rejects_empty_filter_name() -> None:
 
 
 def test_build_generator_spec_accepts_regex_string_exclude_filter(tmp_path: Path) -> None:
-    """String exclude filters should remain regex-backed after normalization."""
+    """Pattern exclude filters should normalize to regex-backed filter specs."""
     parsed = AppConfigInput.model_validate_json(
-        json.dumps(_config_payload_with_exclude(func_exclude="^reset$"))
+        json.dumps(_config_payload_with_exclude(func_exclude={"pattern": "^reset$"}))
     )
 
     spec = build_generator_spec(
@@ -243,13 +258,13 @@ def test_config_schema_rejects_empty_exclude_filter_name() -> None:
         )
 
 
-def test_build_generator_spec_accepts_buffer_input_helpers(tmp_path: Path) -> None:
+def test_build_generator_spec_accepts_buffer_param_helpers(tmp_path: Path) -> None:
     """Buffer-input helper config should normalize into helper models."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     render = _generator_render(generator)
     render["helpers"] = {
-        "buffer_inputs": [
+        "buffer_params": [
             {
                 "function": "fixture_consume_bytes",
                 "pairs": [{"pointer": "data", "length": "data_len"}],
@@ -264,35 +279,35 @@ def test_build_generator_spec_accepts_buffer_input_helpers(tmp_path: Path) -> No
         config_path=tmp_path / "config.json",
     )
 
-    assert len(spec.render.helpers.buffer_inputs) == 1
-    helper = spec.render.helpers.buffer_inputs[0]
-    assert isinstance(helper, BufferInputHelper)
+    assert len(spec.render.helpers.buffer_params) == 1
+    helper = spec.render.helpers.buffer_params[0]
+    assert isinstance(helper, BufferParamHelper)
     assert helper.function == "fixture_consume_bytes"
     assert helper.pairs[0].pointer == "data"
     assert helper.pairs[0].length == "data_len"
 
 
-def test_config_schema_rejects_empty_buffer_input_helper_array() -> None:
+def test_config_schema_rejects_empty_buffer_param_helper_array() -> None:
     """Helper arrays must contain at least one item when present."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     render = _generator_render(generator)
-    render["helpers"] = {"buffer_inputs": []}
+    render["helpers"] = {"buffer_params": []}
 
     with pytest.raises(ValidationError):
         AppConfigInput.model_validate_json(json.dumps(payload))
 
 
-def test_build_generator_spec_accepts_callback_input_helpers(tmp_path: Path) -> None:
+def test_build_generator_spec_accepts_callback_param_helpers(tmp_path: Path) -> None:
     """Callback helper config should normalize into helper models."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     render = _generator_render(generator)
     render["helpers"] = {
-        "callback_inputs": [
+        "callback_params": [
             {
                 "function": "fixture_register_hook",
-                "parameters": ["callback", "destroy"],
+                "params": ["callback", "destroy"],
             }
         ]
     }
@@ -304,15 +319,16 @@ def test_build_generator_spec_accepts_callback_input_helpers(tmp_path: Path) -> 
         config_path=tmp_path / "config.json",
     )
 
-    assert len(spec.render.helpers.callback_inputs) == 1
-    helper = spec.render.helpers.callback_inputs[0]
+    assert len(spec.render.helpers.callback_params) == 1
+    helper = spec.render.helpers.callback_params[0]
+    assert isinstance(helper, CallbackParamHelper)
     assert helper.function == "fixture_register_hook"
-    assert helper.parameters == ("callback", "destroy")
+    assert helper.params == ("callback", "destroy")
 
 
 def test_build_generator_spec_accepts_header_overlays(tmp_path: Path) -> None:
     """Overlay config should normalize into execution-ready overlay models."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     parse = _generator_parse(generator)
     parse["overlays"] = [
@@ -336,7 +352,7 @@ def test_build_generator_spec_accepts_header_overlays(tmp_path: Path) -> None:
 
 def test_build_generator_spec_rejects_duplicate_overlay_paths(tmp_path: Path) -> None:
     """Overlay paths must remain unique within one config."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     parse = _generator_parse(generator)
     parse["overlays"] = [
@@ -353,12 +369,12 @@ def test_build_generator_spec_rejects_duplicate_overlay_paths(tmp_path: Path) ->
         )
 
 
-def test_config_schema_rejects_empty_callback_input_helper_array() -> None:
+def test_config_schema_rejects_empty_callback_param_helper_array() -> None:
     """Callback helper arrays must contain at least one item when present."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     render = _generator_render(generator)
-    render["helpers"] = {"callback_inputs": []}
+    render["helpers"] = {"callback_params": []}
 
     with pytest.raises(ValidationError):
         AppConfigInput.model_validate_json(json.dumps(payload))
@@ -366,15 +382,15 @@ def test_config_schema_rejects_empty_callback_input_helper_array() -> None:
 
 def test_build_generator_spec_rejects_helpers_without_func_emit(tmp_path: Path) -> None:
     """Generated helpers require function emission."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
-    generator["emit"] = "const"
+    generator["emit"] = ["const"]
     render = _generator_render(generator)
     render["helpers"] = {
-        "callback_inputs": [
+        "callback_params": [
             {
                 "function": "fixture_register_hook",
-                "parameters": ["callback"],
+                "params": ["callback"],
             }
         ]
     }
@@ -383,9 +399,9 @@ def test_build_generator_spec_rejects_helpers_without_func_emit(tmp_path: Path) 
     with pytest.raises(
         RuntimeError,
         match=(
-            r"generator\.render\.helpers\.buffer_inputs, "
-            r"generator\.render\.helpers\.callback_inputs, or "
-            r"generator\.render\.helpers\.auto_callback_inputs "
+            r"generator\.render\.helpers\.buffer_params, "
+            r"generator\.render\.helpers\.callback_params, or "
+            r"generator\.render\.auto_callbacks "
             r"requires `func` in generator\.emit"
         ),
     ):
@@ -419,11 +435,11 @@ def test_load_app_config_formats_validation_errors_with_config_context(tmp_path:
     config_path = tmp_path / "config.json"
     config_path.write_text(
         json.dumps({
-            "schema_version": 1,
+            "schema_version": 2,
             "generator": {
                 "lib_id": "fixture_lib",
                 "package": "fixture",
-                "emit": "func",
+                "emit": ["func"],
                 "parse": {
                     "headers": {
                         "kind": "local",
@@ -447,7 +463,7 @@ def test_load_app_config_resolves_config_path(tmp_path: Path, monkeypatch: Monke
     """Config loader should record the resolved absolute config path."""
     config_path = tmp_path / "config.json"
     config_path.write_text(
-        json.dumps(_config_payload(func_filter="^add$")),
+        json.dumps(_config_payload(func_filter="add")),
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)
@@ -459,7 +475,7 @@ def test_load_app_config_resolves_config_path(tmp_path: Path, monkeypatch: Monke
 
 def test_build_generator_spec_preserves_per_category_empty_prefix(tmp_path: Path) -> None:
     """Per-category empty prefix should be preserved."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     render = _generator_render(generator)
     render["naming"] = {
@@ -489,21 +505,21 @@ def test_resolve_generator_config_preserves_shared_fields_for_local_headers(
     header_path = tmp_path / "basic.h"
     header_path.write_text("int add(int a, int b);\n", encoding="utf-8")
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "generator": {
             "lib_id": "fixture_lib",
             "package": "fixture",
-            "emit": "func,type",
+            "emit": ["func", "type"],
             "parse": {
                 "headers": {"kind": "local", "headers": ["basic.h"]},
-                "filters": {"func": ["add"]},
-                "exclude": {"type": "^internal_"},
+                "include": {"func": ["add"]},
+                "exclude": {"type": {"pattern": "^internal_"}},
                 "clang_args": ["-DTESTING=1"],
             },
             "render": {
                 "helpers": {
-                    "callback_inputs": [
-                        {"function": "fixture_register_hook", "parameters": ["callback"]}
+                    "callback_params": [
+                        {"function": "fixture_register_hook", "params": ["callback"]}
                     ]
                 },
                 "type_mapping": {"strict_enum_typedefs": True},
@@ -522,7 +538,9 @@ def test_resolve_generator_config_preserves_shared_fields_for_local_headers(
     assert resolved.parse.headers == (str(header_path.resolve()),)
     assert resolved.parse.func_filter == exact_names_filter(("add",))
     assert resolved.parse.type_exclude_filter == regex_filter("^internal_")
-    assert resolved.render.helpers.callback_inputs[0].parameters == ("callback",)
+    callback_helper = resolved.render.helpers.callback_params[0]
+    assert isinstance(callback_helper, CallbackParamHelper)
+    assert callback_helper.params == ("callback",)
     assert not resolved.render.naming.type_prefix
     assert not resolved.render.naming.const_prefix
     assert not resolved.render.naming.func_prefix
@@ -536,14 +554,14 @@ def test_resolve_generator_config_preserves_custom_per_kind_prefix(tmp_path: Pat
     header_path = tmp_path / "basic.h"
     header_path.write_text("int add(int a, int b);\n", encoding="utf-8")
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "generator": {
             "lib_id": "fixture_lib",
             "package": "fixture",
-            "emit": "func",
+            "emit": ["func"],
             "parse": {
                 "headers": {"kind": "local", "headers": ["basic.h"]},
-                "filters": {"func": ["add"]},
+                "include": {"func": ["add"]},
             },
             "render": {
                 "naming": {
@@ -575,11 +593,11 @@ def test_resolve_generator_config_resolves_local_overlay_paths_from_config_dir(
 ) -> None:
     """Local overlay paths should resolve relative to the config base dir."""
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "generator": {
             "lib_id": "fixture_lib",
             "package": "fixture",
-            "emit": "func",
+            "emit": ["func"],
             "parse": {
                 "headers": {"kind": "local", "headers": ["virtual.h"]},
                 "overlays": [
@@ -588,7 +606,7 @@ def test_resolve_generator_config_resolves_local_overlay_paths_from_config_dir(
                         "content": "int add(int a, int b);\n",
                     }
                 ],
-                "filters": {"func": ["add"]},
+                "include": {"func": ["add"]},
             },
         },
     }
@@ -617,18 +635,18 @@ def test_resolve_generator_config_preserves_shared_fields_for_env_include_header
     header_path.write_text("int add(int a, int b);\n", encoding="utf-8")
     monkeypatch.setenv("PUREGO_GEN_INCLUDE_DIR", str(include_dir))
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "generator": {
             "lib_id": "fixture_lib",
             "package": "fixture",
-            "emit": "func,const",
+            "emit": ["func", "const"],
             "parse": {
                 "headers": {
                     "kind": "env_include",
                     "include_dir_env": "PUREGO_GEN_INCLUDE_DIR",
                     "headers": ["env_basic.h"],
                 },
-                "filters": {"const": "^VALUE_"},
+                "include": {"const": {"pattern": "^VALUE_"}},
                 "clang_args": ["-DUSE_ENV=1"],
             },
             "render": {"type_mapping": {"typed_sentinel_constants": True}},
@@ -658,11 +676,11 @@ def test_resolve_generator_config_resolves_env_include_overlay_paths_from_includ
     include_dir.mkdir()
     monkeypatch.setenv("PUREGO_GEN_INCLUDE_DIR", str(include_dir))
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "generator": {
             "lib_id": "fixture_lib",
             "package": "fixture",
-            "emit": "func",
+            "emit": ["func"],
             "parse": {
                 "headers": {
                     "kind": "env_include",
@@ -675,7 +693,7 @@ def test_resolve_generator_config_resolves_env_include_overlay_paths_from_includ
                         "content": "int add(int a, int b);\n",
                     }
                 ],
-                "filters": {"func": ["add"]},
+                "include": {"func": ["add"]},
             },
         },
     }
@@ -695,7 +713,7 @@ def test_resolve_generator_config_resolves_env_include_overlay_paths_from_includ
 
 def test_config_schema_accepts_struct_accessors_true() -> None:
     """struct_accessors=true should be accepted in render config."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     render = cast("dict[str, object]", generator.setdefault("render", {}))
     render["struct_accessors"] = True
@@ -705,14 +723,14 @@ def test_config_schema_accepts_struct_accessors_true() -> None:
 
 def test_config_schema_struct_accessors_defaults_false() -> None:
     """struct_accessors should default to False when not specified."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     config = AppConfigInput.model_validate_json(json.dumps(payload))
     assert config.generator.render.struct_accessors is False
 
 
 def test_config_normalize_passes_struct_accessors_to_render_spec(tmp_path: Path) -> None:
     """struct_accessors=true should propagate through normalization."""
-    payload = _config_payload(func_filter="^add$")
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     render = cast("dict[str, object]", generator.setdefault("render", {}))
     render["struct_accessors"] = True
@@ -725,40 +743,106 @@ def test_config_normalize_passes_struct_accessors_to_render_spec(tmp_path: Path)
     assert spec.render.struct_accessors is True
 
 
-def test_owned_string_return_rejects_both_function_and_pattern() -> None:
-    """Setting both function and function_pattern should fail validation."""
-    payload = _config_payload(func_filter="^add$")
+def test_owned_string_return_rejects_extra_fields() -> None:
+    """Extra fields in owned_string_returns should fail validation."""
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     render = cast("dict[str, object]", generator.setdefault("render", {}))
     render["helpers"] = {
-        "owned_string_returns": [
-            {"function": "foo", "function_pattern": "^bar_", "free_func": "free_fn"}
-        ]
+        "owned_string_returns": [{"function": "foo", "extra_field": "bar", "free_func": "free_fn"}]
     }
-    with pytest.raises(ValidationError, match=r"got both"):
+    with pytest.raises(ValidationError):
         AppConfigInput.model_validate_json(json.dumps(payload))
 
 
-def test_owned_string_return_rejects_neither_function_nor_pattern() -> None:
-    """Setting neither function nor function_pattern should fail validation."""
-    payload = _config_payload(func_filter="^add$")
+def test_owned_string_return_rejects_missing_function() -> None:
+    """Missing function field in owned_string_returns should fail validation."""
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     render = cast("dict[str, object]", generator.setdefault("render", {}))
     render["helpers"] = {"owned_string_returns": [{"free_func": "free_fn"}]}
-    with pytest.raises(ValidationError, match=r"got neither"):
+    with pytest.raises(ValidationError):
         AppConfigInput.model_validate_json(json.dumps(payload))
 
 
 def test_owned_string_return_accepts_function_pattern() -> None:
-    """function_pattern should be accepted as a valid config alternative to function."""
-    payload = _config_payload(func_filter="^add$")
+    """Pattern object should be accepted for function field."""
+    payload = _config_payload(func_filter="add")
     generator = _payload_generator(payload)
     render = cast("dict[str, object]", generator.setdefault("render", {}))
     render["helpers"] = {
-        "owned_string_returns": [{"function_pattern": "^get_", "free_func": "free_fn"}]
+        "owned_string_returns": [{"function": {"pattern": "^get_"}, "free_func": "free_fn"}]
     }
     config = AppConfigInput.model_validate_json(json.dumps(payload))
     helper_input = config.generator.render.helpers.owned_string_returns
     assert helper_input is not None
-    assert helper_input[0].function_pattern == "^get_"
-    assert helper_input[0].function is None
+    assert isinstance(helper_input[0].function, PatternInput)
+    assert helper_input[0].function.pattern == "^get_"
+
+
+@pytest.mark.parametrize(
+    "helper_key",
+    ["callback_params", "nullable_string_params", "output_string_params"],
+)
+def test_config_schema_rejects_pattern_for_non_pattern_helpers(helper_key: str) -> None:
+    """Pattern objects must be rejected for helpers without pattern rendering support."""
+    payload = _config_payload(func_filter="add")
+    generator = _payload_generator(payload)
+    render = _generator_render(generator)
+    render["helpers"] = {helper_key: [{"function": {"pattern": "^foo_"}, "params": ["p"]}]}
+
+    with pytest.raises(ValidationError):
+        AppConfigInput.model_validate_json(json.dumps(payload))
+
+
+def test_config_schema_rejects_buffer_param_helper_auto_pairs() -> None:
+    """Explicit buffer_params helpers must specify pairs, not 'auto'."""
+    payload = _config_payload(func_filter="add")
+    generator = _payload_generator(payload)
+    render = _generator_render(generator)
+    render["helpers"] = {"buffer_params": [{"function": "consume_bytes", "pairs": "auto"}]}
+
+    with pytest.raises(ValidationError):
+        AppConfigInput.model_validate_json(json.dumps(payload))
+
+
+def test_config_schema_rejects_buffer_param_pattern_helper_with_pairs() -> None:
+    """Pattern-based buffer_params helpers must not specify explicit pairs."""
+    payload = _config_payload(func_filter="add")
+    generator = _payload_generator(payload)
+    render = _generator_render(generator)
+    render["helpers"] = {
+        "buffer_params": [
+            {
+                "function": {"pattern": "^consume_"},
+                "pairs": [{"pointer": "data", "length": "data_len"}],
+            }
+        ]
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfigInput.model_validate_json(json.dumps(payload))
+
+
+def test_config_schema_rejects_buffer_param_helper_without_pairs() -> None:
+    """Explicit buffer_params helpers must specify pairs."""
+    payload = _config_payload(func_filter="add")
+    generator = _payload_generator(payload)
+    render = _generator_render(generator)
+    render["helpers"] = {"buffer_params": [{"function": "consume_bytes"}]}
+
+    with pytest.raises(ValidationError):
+        AppConfigInput.model_validate_json(json.dumps(payload))
+
+
+def test_config_schema_accepts_buffer_param_pattern_helper() -> None:
+    """Pattern-based buffer_params helpers should be accepted without pairs."""
+    payload = _config_payload(func_filter="add")
+    generator = _payload_generator(payload)
+    render = _generator_render(generator)
+    render["helpers"] = {"buffer_params": [{"function": {"pattern": "^consume_"}}]}
+
+    config = AppConfigInput.model_validate_json(json.dumps(payload))
+    helper_input = config.generator.render.helpers.buffer_params
+    assert helper_input is not None
+    assert isinstance(helper_input[0].function, PatternInput)
