@@ -194,30 +194,39 @@
               default = puregoGenApp;
             };
 
-          devShells = {
-            default = pkgs.mkShell (
-              {
-                packages = commonPackages;
-                LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-                LIBCLANG_INCLUDE_PATH = "${pkgs.libclang.dev}/include";
-                shellHook = ''
-                  if [ "''${PUREGO_GEN_DEVSHELL:-}" = "1" ]; then
-                    echo "purego-gen: already inside devshell; do not nest nix develop." >&2
-                    exit 1
-                  fi
-                  export PUREGO_GEN_DEVSHELL=1
-                  export XDG_CACHE_HOME="$PWD/.cache"
-                  export GOMODCACHE="$PWD/.cache/gomod"
-                  export GOCACHE="$PWD/.cache/go-build"
-                  export CCACHE_DIR="$PWD/.cache/ccache"
-                  export CCACHE_BASEDIR="$PWD"
-                  export CCACHE_NOHASHDIR=1
-                  export UV_PROJECT_ENVIRONMENT=.venv
-                '';
-              }
-              // testLibEnvVars
-            );
-          };
+          devShells =
+            let
+              libclangStatic = pkgs.llvmPackages.libclang.overrideAttrs (old: {
+                cmakeFlags = (old.cmakeFlags or [ ]) ++ [ "-DLIBCLANG_BUILD_STATIC=ON" ];
+              });
+            in
+            {
+              default = pkgs.mkShell (
+                {
+                  packages = commonPackages;
+                  LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+                  LIBCLANG_INCLUDE_PATH = "${pkgs.libclang.dev}/include";
+                  LLVM_LIB_PATH = "${pkgs.llvmPackages.llvm.lib}/lib";
+                  ZLIB_STATIC_PATH = "${pkgs.zlib.static}/lib";
+                  LIBCLANG_STATIC_PATH = "${libclangStatic.lib}/lib";
+                  shellHook = ''
+                    if [ "''${PUREGO_GEN_DEVSHELL:-}" = "1" ]; then
+                      echo "purego-gen: already inside devshell; do not nest nix develop." >&2
+                      exit 1
+                    fi
+                    export PUREGO_GEN_DEVSHELL=1
+                    export XDG_CACHE_HOME="$PWD/.cache"
+                    export GOMODCACHE="$PWD/.cache/gomod"
+                    export GOCACHE="$PWD/.cache/go-build"
+                    export CCACHE_DIR="$PWD/.cache/ccache"
+                    export CCACHE_BASEDIR="$PWD"
+                    export CCACHE_NOHASHDIR=1
+                    export UV_PROJECT_ENVIRONMENT=.venv
+                  '';
+                }
+                // testLibEnvVars
+              );
+            };
         }
       );
     in
