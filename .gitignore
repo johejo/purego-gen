@@ -7,3 +7,6 @@ __pycache__/
 *.pyc
 result*
 pytest-*
+.zig-cache/
+zig-cache/
+zig-out/

@@ -5,6 +5,12 @@ in
 {
   projectRootFile = "flake.nix";
 
+  programs = {
+    zig = {
+      enable = true;
+    };
+  };
+
   settings.global.excludes = [
     ".direnv/**"
     ".git/**"

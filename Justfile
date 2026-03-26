@@ -66,8 +66,17 @@ golden-check-ci-nix:
   golden_cases_runner="$(nix build .#golden-cases --print-out-paths --no-link)/bin/golden-cases"; \
   "$golden_cases_runner" --mode check --strict-head
 
-check: nix-flake-check lint typecheck golden-check test go-vet go-staticcheck go-test
+zig-build:
+  zig build
 
-ci: nix-flake-check lint typecheck golden-check golden-check-nix test go-vet go-staticcheck go-test
+zig-test:
+  zig build test
 
-ci-strict: nix-flake-check lint typecheck golden-check-ci golden-check-ci-nix test go-vet go-staticcheck go-test
+zig-inspect *ARGS:
+  zig build && ./zig-out/bin/purego-gen-zig {{ARGS}}
+
+check: nix-flake-check lint typecheck golden-check test go-vet go-staticcheck go-test zig-build
+
+ci: nix-flake-check lint typecheck golden-check golden-check-nix test go-vet go-staticcheck go-test zig-build
+
+ci-strict: nix-flake-check lint typecheck golden-check-ci golden-check-ci-nix test go-vet go-staticcheck go-test zig-build

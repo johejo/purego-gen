@@ -7,6 +7,10 @@
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    zig-overlay = {
+      url = "github:mitchellh/zig-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -14,6 +18,7 @@
       self,
       nixpkgs,
       treefmt-nix,
+      zig-overlay,
       ...
     }:
     let
@@ -128,28 +133,30 @@
                   ${envSetArgs}
               '';
           };
-          commonPackages = with pkgs; [
-            actionlint
-            bash
-            ccache
-            clang
-            clang-tools
-            duckdb
-            go
-            gnugrep
-            jq
-            just
-            nixfmt
-            pkg-config
-            python314
-            shellcheck
-            shfmt
-            go-tools
-            uv
-            sqlite
-            zstd
-            treefmt
-          ];
+          commonPackages =
+            (with pkgs; [
+              actionlint
+              bash
+              ccache
+              clang
+              clang-tools
+              duckdb
+              go
+              gnugrep
+              jq
+              just
+              nixfmt
+              pkg-config
+              python314
+              shellcheck
+              shfmt
+              go-tools
+              uv
+              sqlite
+              zstd
+              treefmt
+            ])
+            ++ [ zig-overlay.packages.${system}."0.15.2" ];
           sources = pkgs.callPackage ./_sources/generated.nix { };
         in
         {
@@ -192,6 +199,7 @@
               {
                 packages = commonPackages;
                 LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+                LIBCLANG_INCLUDE_PATH = "${pkgs.libclang.dev}/include";
                 shellHook = ''
                   if [ "''${PUREGO_GEN_DEVSHELL:-}" = "1" ]; then
                     echo "purego-gen: already inside devshell; do not nest nix develop." >&2
