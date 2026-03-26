@@ -196,17 +196,56 @@
 
           devShells =
             let
-              libclangStatic = pkgs.llvmPackages.libclang.overrideAttrs (old: {
-                cmakeFlags = (old.cmakeFlags or [ ]) ++ [ "-DLIBCLANG_BUILD_STATIC=ON" ];
-              });
+              llvmTarget =
+                let
+                  cpu = pkgs.stdenv.hostPlatform.parsed.cpu.name;
+                in
+                {
+                  aarch64 = "AArch64";
+                  x86_64 = "X86";
+                }
+                .${cpu} or (throw "unsupported cpu: ${cpu}");
+
+              llvmPackagesSlim = pkgs.llvmPackages.overrideScope (
+                final: prev: {
+                  llvm =
+                    (prev.llvm.override {
+                      devExtraCmakeFlags = [
+                        "-DLLVM_TARGETS_TO_BUILD=${llvmTarget}"
+                        "-DLLVM_INCLUDE_BENCHMARKS=OFF"
+                        "-DLLVM_INCLUDE_EXAMPLES=OFF"
+                        "-DLLVM_BUILD_DOCS=OFF"
+                      ];
+                      enablePolly = false;
+                      enableTerminfo = false;
+                      enablePFM = false;
+                      enableSharedLibraries = false;
+                    }).overrideAttrs
+                      { doCheck = false; };
+                }
+              );
+
+              libclangStatic =
+                (llvmPackagesSlim.libclang.override {
+                  # Explicit: overrideScope alone does not propagate to libclang's libllvm arg.
+                  libllvm = llvmPackagesSlim.llvm;
+                  devExtraCmakeFlags = [
+                    "-DLLVM_TARGETS_TO_BUILD=${llvmTarget}"
+                    "-DLIBCLANG_BUILD_STATIC=ON"
+                    "-DCLANG_INCLUDE_TESTS=OFF"
+                  ];
+                  enableClangToolsExtra = false;
+                }).overrideAttrs
+                  { doCheck = false; };
+
             in
             {
               default = pkgs.mkShell (
                 {
                   packages = commonPackages;
                   LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-                  LIBCLANG_INCLUDE_PATH = "${pkgs.libclang.dev}/include";
-                  LLVM_LIB_PATH = "${pkgs.llvmPackages.llvm.lib}/lib";
+                  LIBCLANG_INCLUDE_PATH = "${libclangStatic.dev}/include";
+                  LLVM_LIB_PATH = "${llvmPackagesSlim.llvm.lib}/lib";
                   ZLIB_STATIC_PATH = "${pkgs.zlib.static}/lib";
                   LIBCLANG_STATIC_PATH = "${libclangStatic.lib}/lib";
                   shellHook = ''
