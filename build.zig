@@ -12,8 +12,7 @@ fn addAllStaticLibs(mod: *std.Build.Module, dir_path: []const u8) void {
     var iter = dir.iterate();
     while (iter.next() catch @panic("dir iteration failed")) |entry| {
         if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".a")) {
-            const path = std.fmt.allocPrint(mod.owner.allocator, "{s}/{s}", .{ dir_path, entry.name }) catch @panic("OOM");
-            mod.addObjectFile(.{ .cwd_relative = path });
+            addSingleStaticLib(mod, dir_path, entry.name);
         }
     }
 }
@@ -34,6 +33,9 @@ fn configureStaticClang(mod: *std.Build.Module, env: EnvPaths) void {
 
     // Link zlib static.
     addSingleStaticLib(mod, env.zlib_static_dir, "libz.a");
+
+    // Link libc++ static.
+    addSingleStaticLib(mod, env.libcxx_lib_dir, "libc++.a");
 }
 
 const EnvPaths = struct {
@@ -41,6 +43,7 @@ const EnvPaths = struct {
     clang_static_dir: []const u8,
     llvm_lib_dir: []const u8,
     zlib_static_dir: []const u8,
+    libcxx_lib_dir: []const u8,
 };
 
 pub fn build(b: *std.Build) void {
@@ -52,6 +55,7 @@ pub fn build(b: *std.Build) void {
         .clang_static_dir = getEnvVar(b.allocator, "LIBCLANG_STATIC_PATH"),
         .llvm_lib_dir = getEnvVar(b.allocator, "LLVM_LIB_PATH"),
         .zlib_static_dir = getEnvVar(b.allocator, "ZLIB_STATIC_PATH"),
+        .libcxx_lib_dir = getEnvVar(b.allocator, "LIBCXX_LIB_PATH"),
     };
 
     const mod = b.createModule(.{

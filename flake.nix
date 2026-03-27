@@ -196,18 +196,33 @@
 
           devShells =
             let
-              llvmPackagesSlim = pkgs.llvmPackages.overrideScope (
+              cmakeFlags = [
+                "-DCLANG_BUILD_TOOLS=OFF"
+                "-DCLANG_ENABLE_ARCMT=OFF"
+                "-DCLANG_ENABLE_HLSL=OFF"
+                "-DCLANG_ENABLE_OBJC_REWRITER=OFF"
+                "-DCLANG_ENABLE_STATIC_ANALYZER=OFF"
+                "-DCLANG_INCLUDE_DOCS=OFF"
+                "-DCLANG_INCLUDE_EXAMPLES=OFF"
+                "-DCLANG_INCLUDE_TESTS=OFF"
+                "-DLIBCLANG_BUILD_STATIC=ON"
+                "-DLLVM_BUILD_BENCHMARKS=OFF"
+                "-DLLVM_BUILD_DOCS=OFF"
+                "-DLLVM_BUILD_EXAMPLES=OFF"
+                "-DLLVM_BUILD_TESTS=OFF"
+                "-DLLVM_ENABLE_FFI=OFF"
+                "-DLLVM_INCLUDE_BENCHMARKS=OFF"
+                "-DLLVM_INCLUDE_EXAMPLES=OFF"
+                "-DLLVM_INCLUDE_TESTS=OFF"
+                "-DLLVM_INCLUDE_UTILS=OFF"
+                "-DLLVM_TARGETS_TO_BUILD="
+              ];
+              llvmPkgsSlim = pkgs.llvmPackages.overrideScope (
                 final: prev: {
                   llvm =
                     (prev.llvm.override {
-                      devExtraCmakeFlags = [
-                        "-DLLVM_TARGETS_TO_BUILD="
-                        "-DLLVM_INCLUDE_BENCHMARKS=OFF"
-                        "-DLLVM_INCLUDE_EXAMPLES=OFF"
-                        "-DLLVM_INCLUDE_TESTS=OFF"
-                        "-DLLVM_BUILD_DOCS=OFF"
-                        "-DLLVM_ENABLE_FFI=OFF"
-                      ];
+                      stdenv = prev.libcxxStdenv;
+                      devExtraCmakeFlags = cmakeFlags;
                       enablePolly = false;
                       enableTerminfo = false;
                       enablePFM = false;
@@ -218,22 +233,15 @@
               );
 
               libclangStatic =
-                (llvmPackagesSlim.libclang.override {
-                  # Explicit: overrideScope alone does not propagate to libclang's libllvm arg.
-                  libllvm = llvmPackagesSlim.llvm;
-                  devExtraCmakeFlags = [
-                    "-DLLVM_TARGETS_TO_BUILD="
-                    "-DLIBCLANG_BUILD_STATIC=ON"
-                    "-DCLANG_INCLUDE_TESTS=OFF"
-                    "-DCLANG_INCLUDE_DOCS=OFF"
-                    "-DCLANG_ENABLE_STATIC_ANALYZER=OFF"
-                    "-DCLANG_ENABLE_HLSL=OFF"
-                    "-DCLANG_BUILD_TOOLS=OFF"
-                  ];
+                (llvmPkgsSlim.libclang.override (prev: {
+                  stdenv = llvmPkgsSlim.libcxxStdenv;
+                  libllvm = llvmPkgsSlim.llvm;
+                  devExtraCmakeFlags = cmakeFlags;
                   enableClangToolsExtra = false;
-                }).overrideAttrs
+                })).overrideAttrs
                   {
                     doCheck = false;
+                    # remove python from outputs and simplity postInstall for CLANG_BUILD_TOOLS=OFF
                     outputs = [
                       "out"
                       "lib"
@@ -243,7 +251,6 @@
                       moveToOutput "lib/libclang.*" "$lib"
                     '';
                   };
-
             in
             {
               default = pkgs.mkShell (
@@ -251,9 +258,10 @@
                   packages = commonPackages;
                   LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
                   LIBCLANG_INCLUDE_PATH = "${libclangStatic.dev}/include";
-                  LLVM_LIB_PATH = "${llvmPackagesSlim.llvm.lib}/lib";
+                  LLVM_LIB_PATH = "${llvmPkgsSlim.llvm.lib}/lib";
                   ZLIB_STATIC_PATH = "${pkgs.zlib.static}/lib";
                   LIBCLANG_STATIC_PATH = "${libclangStatic.lib}/lib";
+                  LIBCXX_LIB_PATH = "${llvmPkgsSlim.libcxx}/lib";
                   shellHook = ''
                     if [ "''${PUREGO_GEN_DEVSHELL:-}" = "1" ]; then
                       echo "purego-gen: already inside devshell; do not nest nix develop." >&2
