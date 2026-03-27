@@ -204,7 +204,9 @@
                         "-DLLVM_TARGETS_TO_BUILD="
                         "-DLLVM_INCLUDE_BENCHMARKS=OFF"
                         "-DLLVM_INCLUDE_EXAMPLES=OFF"
+                        "-DLLVM_INCLUDE_TESTS=OFF"
                         "-DLLVM_BUILD_DOCS=OFF"
+                        "-DLLVM_ENABLE_FFI=OFF"
                       ];
                       enablePolly = false;
                       enableTerminfo = false;
@@ -223,10 +225,24 @@
                     "-DLLVM_TARGETS_TO_BUILD="
                     "-DLIBCLANG_BUILD_STATIC=ON"
                     "-DCLANG_INCLUDE_TESTS=OFF"
+                    "-DCLANG_INCLUDE_DOCS=OFF"
+                    "-DCLANG_ENABLE_STATIC_ANALYZER=OFF"
+                    "-DCLANG_ENABLE_HLSL=OFF"
+                    "-DCLANG_BUILD_TOOLS=OFF"
                   ];
                   enableClangToolsExtra = false;
                 }).overrideAttrs
-                  { doCheck = false; };
+                  {
+                    doCheck = false;
+                    outputs = [
+                      "out"
+                      "lib"
+                      "dev"
+                    ];
+                    postInstall = ''
+                      moveToOutput "lib/libclang.*" "$lib"
+                    '';
+                  };
 
             in
             {
