@@ -256,12 +256,12 @@
               default = pkgs.mkShell (
                 {
                   packages = commonPackages;
-                  LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
-                  LIBCLANG_INCLUDE_PATH = "${libclangStatic.dev}/include";
-                  LLVM_LIB_PATH = "${llvmPkgsSlim.llvm.lib}/lib";
-                  ZLIB_STATIC_PATH = "${pkgs.zlib.static}/lib";
-                  LIBCLANG_STATIC_PATH = "${libclangStatic.lib}/lib";
-                  LIBCXX_LIB_PATH = "${llvmPkgsSlim.libcxx}/lib";
+                  PUREGO_GEN_LIBCLANG_INCLUDE_DIR = "${libclangStatic.dev}/include";
+                  PUREGO_GEN_LIBCLANG_LINK_DIR = "${libclangStatic.lib}/lib";
+                  PUREGO_GEN_LIBCLANG_LINK_MODE = "static";
+                  PUREGO_GEN_LLVM_LINK_DIR = "${llvmPkgsSlim.llvm.lib}/lib";
+                  PUREGO_GEN_ZLIB_LINK_DIR = "${pkgs.zlib.static}/lib";
+                  PUREGO_GEN_LIBCXX_LINK_DIR = "${llvmPkgsSlim.libcxx}/lib";
                   shellHook = ''
                     if [ "''${PUREGO_GEN_DEVSHELL:-}" = "1" ]; then
                       echo "purego-gen: already inside devshell; do not nest nix develop." >&2

@@ -66,14 +66,21 @@ golden-check-ci-nix:
   golden_cases_runner="$(nix build .#golden-cases --print-out-paths --no-link)/bin/golden-cases"; \
   "$golden_cases_runner" --mode check --strict-head
 
+zig_build_opts := "-Dlibclang-include-dir=\"${PUREGO_GEN_LIBCLANG_INCLUDE_DIR}\" \
+  -Dlibclang-link-dir=\"${PUREGO_GEN_LIBCLANG_LINK_DIR}\" \
+  -Dlibclang-link-mode=\"${PUREGO_GEN_LIBCLANG_LINK_MODE}\" \
+  -Dllvm-link-dir=\"${PUREGO_GEN_LLVM_LINK_DIR}\" \
+  -Dzlib-link-dir=\"${PUREGO_GEN_ZLIB_LINK_DIR}\" \
+  -Dlibcxx-link-dir=\"${PUREGO_GEN_LIBCXX_LINK_DIR}\""
+
 zig-build:
-  zig build
+  zig build {{zig_build_opts}}
 
 zig-test:
-  zig build test
+  zig build test {{zig_build_opts}}
 
 zig-inspect *ARGS:
-  zig build && ./zig-out/bin/purego-gen-zig {{ARGS}}
+  zig build {{zig_build_opts}} && ./zig-out/bin/purego-gen-zig {{ARGS}}
 
 check: nix-flake-check lint typecheck golden-check test go-vet go-staticcheck go-test zig-build
 

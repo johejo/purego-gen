@@ -1,8 +1,31 @@
 const std = @import("std");
 
-fn getEnvVar(allocator: std.mem.Allocator, comptime key: []const u8) []const u8 {
-    return std.process.getEnvVarOwned(allocator, key) catch
-        @panic(key ++ " not set");
+const LinkMode = enum {
+    static,
+    shared,
+};
+
+const BuildOptions = struct {
+    libclang_include_dir: []const u8,
+    libclang_link_dir: []const u8,
+    libclang_link_mode: LinkMode,
+    llvm_link_dir: []const u8,
+    zlib_link_dir: []const u8,
+    libcxx_link_dir: []const u8,
+};
+
+fn getRequiredOption(
+    b: *std.Build,
+    comptime T: type,
+    name: []const u8,
+    description: []const u8,
+) T {
+    return b.option(T, name, description) orelse
+        @panic(std.fmt.allocPrint(
+            b.allocator,
+            "missing required zig build option -D{s}",
+            .{name},
+        ) catch "missing required zig build option");
 }
 
 fn addAllStaticLibs(mod: *std.Build.Module, dir_path: []const u8) void {
@@ -22,40 +45,67 @@ fn addSingleStaticLib(mod: *std.Build.Module, dir_path: []const u8, name: []cons
     mod.addObjectFile(.{ .cwd_relative = path });
 }
 
-fn configureStaticClang(mod: *std.Build.Module, env: EnvPaths) void {
-    mod.addIncludePath(.{ .cwd_relative = env.include_dir });
+fn configureLibclang(mod: *std.Build.Module, opts: BuildOptions) void {
+    mod.addIncludePath(.{ .cwd_relative = opts.libclang_include_dir });
 
-    // Link all clang static archives (includes libclang.a with C API + internal libs).
-    addAllStaticLibs(mod, env.clang_static_dir);
+    switch (opts.libclang_link_mode) {
+        .static => {
+            // Link all clang static archives (includes libclang.a with C API + internal libs).
+            addAllStaticLibs(mod, opts.libclang_link_dir);
 
-    // Link all LLVM static archives.
-    addAllStaticLibs(mod, env.llvm_lib_dir);
+            // Link all LLVM static archives.
+            addAllStaticLibs(mod, opts.llvm_link_dir);
 
-    // Link zlib static.
-    addSingleStaticLib(mod, env.zlib_static_dir, "libz.a");
+            // Link zlib static.
+            addSingleStaticLib(mod, opts.zlib_link_dir, "libz.a");
 
-    // Link libc++ static.
-    addSingleStaticLib(mod, env.libcxx_lib_dir, "libc++.a");
+            // Link libc++ static.
+            addSingleStaticLib(mod, opts.libcxx_link_dir, "libc++.a");
+        },
+        .shared => @panic("libclang shared linking is not implemented yet"),
+    }
 }
-
-const EnvPaths = struct {
-    include_dir: []const u8,
-    clang_static_dir: []const u8,
-    llvm_lib_dir: []const u8,
-    zlib_static_dir: []const u8,
-    libcxx_lib_dir: []const u8,
-};
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const env = EnvPaths{
-        .include_dir = getEnvVar(b.allocator, "LIBCLANG_INCLUDE_PATH"),
-        .clang_static_dir = getEnvVar(b.allocator, "LIBCLANG_STATIC_PATH"),
-        .llvm_lib_dir = getEnvVar(b.allocator, "LLVM_LIB_PATH"),
-        .zlib_static_dir = getEnvVar(b.allocator, "ZLIB_STATIC_PATH"),
-        .libcxx_lib_dir = getEnvVar(b.allocator, "LIBCXX_LIB_PATH"),
+    const opts = BuildOptions{
+        .libclang_include_dir = getRequiredOption(
+            b,
+            []const u8,
+            "libclang-include-dir",
+            "Path to the libclang headers",
+        ),
+        .libclang_link_dir = getRequiredOption(
+            b,
+            []const u8,
+            "libclang-link-dir",
+            "Path to the libclang link-time libraries",
+        ),
+        .libclang_link_mode = b.option(
+            LinkMode,
+            "libclang-link-mode",
+            "Link mode for libclang: static or shared",
+        ) orelse .static,
+        .llvm_link_dir = getRequiredOption(
+            b,
+            []const u8,
+            "llvm-link-dir",
+            "Path to the LLVM link-time libraries",
+        ),
+        .zlib_link_dir = getRequiredOption(
+            b,
+            []const u8,
+            "zlib-link-dir",
+            "Path to the zlib link-time libraries",
+        ),
+        .libcxx_link_dir = getRequiredOption(
+            b,
+            []const u8,
+            "libcxx-link-dir",
+            "Path to the libc++ link-time libraries",
+        ),
     };
 
     const mod = b.createModule(.{
@@ -65,7 +115,7 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
         .link_libcpp = true,
     });
-    configureStaticClang(mod, env);
+    configureLibclang(mod, opts);
 
     const exe = b.addExecutable(.{
         .name = "purego-gen-zig",
@@ -80,7 +130,7 @@ pub fn build(b: *std.Build) void {
         .link_libc = true,
         .link_libcpp = true,
     });
-    configureStaticClang(test_mod, env);
+    configureLibclang(test_mod, opts);
 
     const unit_tests = b.addTest(.{
         .root_module = test_mod,
