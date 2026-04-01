@@ -14,6 +14,13 @@ When using purego, you often need to write a lot of boilerplate code to call C f
 nix run github:johejo/purego-gen -- gen --config /path/to/config.json --out /path/to/generated.go
 ```
 
+## Development
+
+For Zig-based `libclang` integration work, the default `nix develop` shell keeps
+the existing static-link setup. CI uses `nix develop .#dynamic`, which links
+against the shared `libclang` package to avoid rebuilding the slim static
+toolchain on every run.
+
 Config filters can now work in two directions:
 
 - `generator.parse.filters`: include only matching declarations

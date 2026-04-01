@@ -2,16 +2,16 @@ const std = @import("std");
 
 const LinkMode = enum {
     static,
-    shared,
+    dynamic,
 };
 
 const BuildOptions = struct {
     libclang_include_dir: []const u8,
     libclang_link_dir: []const u8,
     libclang_link_mode: LinkMode,
-    llvm_link_dir: []const u8,
-    zlib_link_dir: []const u8,
-    libcxx_link_dir: []const u8,
+    llvm_link_dir: ?[]const u8,
+    zlib_link_dir: ?[]const u8,
+    libcxx_link_dir: ?[]const u8,
 };
 
 fn getRequiredOption(
@@ -45,24 +45,44 @@ fn addSingleStaticLib(mod: *std.Build.Module, dir_path: []const u8, name: []cons
     mod.addObjectFile(.{ .cwd_relative = path });
 }
 
+fn requireNonEmptyPath(path: ?[]const u8, name: []const u8) []const u8 {
+    const value = path orelse std.debug.panic("missing required zig build option -D{s}", .{name});
+    if (value.len == 0) {
+        std.debug.panic("empty zig build option -D{s}", .{name});
+    }
+    return value;
+}
+
 fn configureLibclang(mod: *std.Build.Module, opts: BuildOptions) void {
     mod.addIncludePath(.{ .cwd_relative = opts.libclang_include_dir });
 
     switch (opts.libclang_link_mode) {
         .static => {
+            const llvm_link_dir = requireNonEmptyPath(opts.llvm_link_dir, "llvm-link-dir");
+            const zlib_link_dir = requireNonEmptyPath(opts.zlib_link_dir, "zlib-link-dir");
+            const libcxx_link_dir = requireNonEmptyPath(opts.libcxx_link_dir, "libcxx-link-dir");
+
             // Link all clang static archives (includes libclang.a with C API + internal libs).
             addAllStaticLibs(mod, opts.libclang_link_dir);
 
             // Link all LLVM static archives.
-            addAllStaticLibs(mod, opts.llvm_link_dir);
+            addAllStaticLibs(mod, llvm_link_dir);
 
             // Link zlib static.
-            addSingleStaticLib(mod, opts.zlib_link_dir, "libz.a");
+            addSingleStaticLib(mod, zlib_link_dir, "libz.a");
 
             // Link libc++ static.
-            addSingleStaticLib(mod, opts.libcxx_link_dir, "libc++.a");
+            addSingleStaticLib(mod, libcxx_link_dir, "libc++.a");
         },
-        .shared => @panic("libclang shared linking is not implemented yet"),
+        .dynamic => {
+            mod.addLibraryPath(.{ .cwd_relative = opts.libclang_link_dir });
+            mod.addRPath(.{ .cwd_relative = opts.libclang_link_dir });
+            mod.linkSystemLibrary("clang", .{
+                .preferred_link_mode = .dynamic,
+                .search_strategy = .mode_first,
+                .use_pkg_config = .no,
+            });
+        },
     }
 }
 
@@ -86,22 +106,19 @@ pub fn build(b: *std.Build) void {
         .libclang_link_mode = b.option(
             LinkMode,
             "libclang-link-mode",
-            "Link mode for libclang: static or shared",
+            "Link mode for libclang: static or dynamic",
         ) orelse .static,
-        .llvm_link_dir = getRequiredOption(
-            b,
+        .llvm_link_dir = b.option(
             []const u8,
             "llvm-link-dir",
             "Path to the LLVM link-time libraries",
         ),
-        .zlib_link_dir = getRequiredOption(
-            b,
+        .zlib_link_dir = b.option(
             []const u8,
             "zlib-link-dir",
             "Path to the zlib link-time libraries",
         ),
-        .libcxx_link_dir = getRequiredOption(
-            b,
+        .libcxx_link_dir = b.option(
             []const u8,
             "libcxx-link-dir",
             "Path to the libc++ link-time libraries",

@@ -251,34 +251,58 @@
                       moveToOutput "lib/libclang.*" "$lib"
                     '';
                   };
+              mkDevShell =
+                {
+                  libclangIncludeDir,
+                  libclangLinkDir,
+                  libclangLinkMode,
+                  llvmLinkDir ? "",
+                  zlibLinkDir ? "",
+                  libcxxLinkDir ? "",
+                }:
+                pkgs.mkShell (
+                  {
+                    packages = commonPackages;
+                    LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+                    PUREGO_GEN_LIBCLANG_INCLUDE_DIR = libclangIncludeDir;
+                    PUREGO_GEN_LIBCLANG_LINK_DIR = libclangLinkDir;
+                    PUREGO_GEN_LIBCLANG_LINK_MODE = libclangLinkMode;
+                    PUREGO_GEN_LLVM_LINK_DIR = llvmLinkDir;
+                    PUREGO_GEN_ZLIB_LINK_DIR = zlibLinkDir;
+                    PUREGO_GEN_LIBCXX_LINK_DIR = libcxxLinkDir;
+                    shellHook = ''
+                      if [ "''${PUREGO_GEN_DEVSHELL:-}" = "1" ]; then
+                        echo "purego-gen: already inside devshell; do not nest nix develop." >&2
+                        exit 1
+                      fi
+                      export PUREGO_GEN_DEVSHELL=1
+                      export XDG_CACHE_HOME="$PWD/.cache"
+                      export GOMODCACHE="$PWD/.cache/gomod"
+                      export GOCACHE="$PWD/.cache/go-build"
+                      export CCACHE_DIR="$PWD/.cache/ccache"
+                      export CCACHE_BASEDIR="$PWD"
+                      export CCACHE_NOHASHDIR=1
+                      export UV_PROJECT_ENVIRONMENT=.venv
+                    '';
+                  }
+                  // testLibEnvVars
+                );
             in
             {
-              default = pkgs.mkShell (
-                {
-                  packages = commonPackages;
-                  PUREGO_GEN_LIBCLANG_INCLUDE_DIR = "${libclangStatic.dev}/include";
-                  PUREGO_GEN_LIBCLANG_LINK_DIR = "${libclangStatic.lib}/lib";
-                  PUREGO_GEN_LIBCLANG_LINK_MODE = "static";
-                  PUREGO_GEN_LLVM_LINK_DIR = "${llvmPkgsSlim.llvm.lib}/lib";
-                  PUREGO_GEN_ZLIB_LINK_DIR = "${pkgs.zlib.static}/lib";
-                  PUREGO_GEN_LIBCXX_LINK_DIR = "${llvmPkgsSlim.libcxx}/lib";
-                  shellHook = ''
-                    if [ "''${PUREGO_GEN_DEVSHELL:-}" = "1" ]; then
-                      echo "purego-gen: already inside devshell; do not nest nix develop." >&2
-                      exit 1
-                    fi
-                    export PUREGO_GEN_DEVSHELL=1
-                    export XDG_CACHE_HOME="$PWD/.cache"
-                    export GOMODCACHE="$PWD/.cache/gomod"
-                    export GOCACHE="$PWD/.cache/go-build"
-                    export CCACHE_DIR="$PWD/.cache/ccache"
-                    export CCACHE_BASEDIR="$PWD"
-                    export CCACHE_NOHASHDIR=1
-                    export UV_PROJECT_ENVIRONMENT=.venv
-                  '';
-                }
-                // testLibEnvVars
-              );
+              default = mkDevShell {
+                libclangIncludeDir = "${libclangStatic.dev}/include";
+                libclangLinkDir = "${libclangStatic.lib}/lib";
+                libclangLinkMode = "static";
+                llvmLinkDir = "${llvmPkgsSlim.llvm.lib}/lib";
+                zlibLinkDir = "${pkgs.zlib.static}/lib";
+                libcxxLinkDir = "${llvmPkgsSlim.libcxx}/lib";
+              };
+
+              dynamic = mkDevShell {
+                libclangIncludeDir = "${pkgs.libclang.dev}/include";
+                libclangLinkDir = "${pkgs.libclang.lib}/lib";
+                libclangLinkMode = "dynamic";
+              };
             };
         }
       );
