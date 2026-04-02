@@ -18,7 +18,7 @@ pub fn writeReport(
     try w.writeByte('\n');
 
     try w.print("functions={d}\n", .{decls.functions.items.len});
-    try w.print("typedefs={d}\n", .{decls.typedef_count});
+    try w.print("typedefs={d}\n", .{decls.typedefs.items.len});
 
     try w.writeAll("sample_functions:\n");
     const limit = @min(sample_size, decls.functions.items.len);

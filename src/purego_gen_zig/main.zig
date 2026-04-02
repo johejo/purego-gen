@@ -2,6 +2,7 @@ const std = @import("std");
 const parser = @import("parser.zig");
 const declarations = @import("declarations.zig");
 const output = @import("output.zig");
+const golden_cases = @import("golden_cases.zig");
 
 const Args = struct {
     header_path: ?[:0]const u8 = null,
@@ -86,4 +87,8 @@ pub fn main() !void {
     const w = &stdout_file.interface;
     try output.writeReport(w, header_path, args.clang_args.items, &decls, args.sample_size);
     try w.flush();
+}
+
+test {
+    _ = golden_cases;
 }

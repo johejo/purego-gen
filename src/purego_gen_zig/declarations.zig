@@ -10,10 +10,15 @@ pub const FunctionDecl = struct {
     parameter_names: []const []const u8,
 };
 
+pub const TypedefDecl = struct {
+    name: []const u8,
+    c_type: []const u8,
+};
+
 pub const CollectedDeclarations = struct {
     allocator: std.mem.Allocator,
     functions: std.ArrayListUnmanaged(FunctionDecl) = .{},
-    typedef_count: usize = 0,
+    typedefs: std.ArrayListUnmanaged(TypedefDecl) = .{},
 
     pub fn deinit(self: *CollectedDeclarations) void {
         for (self.functions.items) |func| {
@@ -25,6 +30,11 @@ pub const CollectedDeclarations = struct {
             self.allocator.free(func.parameter_names);
         }
         self.functions.deinit(self.allocator);
+        for (self.typedefs.items) |typedef_decl| {
+            self.allocator.free(typedef_decl.name);
+            self.allocator.free(typedef_decl.c_type);
+        }
+        self.typedefs.deinit(self.allocator);
     }
 };
 
@@ -89,6 +99,21 @@ fn collectFunction(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
     });
 }
 
+fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
+    const allocator = ctx.decls.allocator;
+    const name = try dupeString(allocator, c.clang_getCursorSpelling(cursor_arg));
+    errdefer allocator.free(name);
+
+    const underlying = c.clang_getTypedefDeclUnderlyingType(cursor_arg);
+    const c_type = try dupeString(allocator, c.clang_getTypeSpelling(underlying));
+    errdefer allocator.free(c_type);
+
+    try ctx.decls.typedefs.append(allocator, .{
+        .name = name,
+        .c_type = c_type,
+    });
+}
+
 fn visitorCallback(
     cursor_arg: c.CXCursor,
     _: c.CXCursor,
@@ -110,7 +135,10 @@ fn visitorCallback(
             };
         },
         c.CXCursor_TypedefDecl => {
-            ctx.decls.typedef_count += 1;
+            collectTypedef(ctx, cursor_arg) catch {
+                ctx.failed = true;
+                return c.CXChildVisit_Break;
+            };
         },
         else => {},
     }
