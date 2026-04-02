@@ -13,3 +13,22 @@ Build a practical C-header-to-purego binding generator.
 - For target-library coverage investigation, prefer `purego-gen inspect` over ad-hoc one-off commands.
 - For one-shot python script, use `./scripts/uv-run-python-src.sh`.
 - See also `./DESIGN.md`.
+
+## Codex Orchestration
+
+- Use `./scripts/codex-orchestrate.sh run` or `just codex-orchestrate` for the minimal planner/implementer/reviewer loop.
+- Keep orchestration state only in `.codex/` and treat it as ephemeral local scratch data.
+- `.codex/plan.txt` is planner output for one case, `.codex/review.txt` is the latest reviewer output, and `.codex/status.txt` is the current state.
+
+### Roles
+
+- `planner` inspects `tests/cases`, chooses one deterministic candidate that still needs implementation work, writes a decision-complete plan to `.codex/plan.txt`, runs `implementer`, and on success cherry-picks the resulting commit into the main worktree.
+- `implementer` reads `.codex/plan.txt`, creates a temporary `git worktree`, implements the plan, asks `reviewer` for feedback, loops up to 5 review rounds, commits on convergence, and discards the worktree on failure.
+- `reviewer` reviews the implementer work in `/review` style and writes either findings or `NO_FINDINGS` to `.codex/review.txt`.
+
+### Defaults
+
+- Run one case at a time, synchronously.
+- Start from a clean main worktree with no staged, unstaged, or untracked files.
+- Prefer a simple deterministic planner heuristic over a smart one.
+- If review does not converge within 5 rounds, discard the implementer worktree and stop the loop.

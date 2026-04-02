@@ -4,6 +4,9 @@ python_src_prefix := "scripts/uv-run-python-src.sh"
 default:
   @just --list
 
+codex-orchestrate:
+  ./scripts/codex-orchestrate.sh run
+
 # Day-to-day development tasks
 
 format:
