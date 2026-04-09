@@ -31,9 +31,9 @@ def _build_cli() -> argparse.ArgumentParser:
 
 def _zig_checker_source(selected_case_ids: list[str]) -> str:
     case_filter = (
-        "const selected_case_ids = [_][]const u8{" +
-        "".join(f'\n    "{case_id}",' for case_id in selected_case_ids) +
-        "\n};\n"
+        "const selected_case_ids = [_][]const u8{"
+        + "".join(f'\n    "{case_id}",' for case_id in selected_case_ids)
+        + "\n};\n"
         if selected_case_ids
         else "const selected_case_ids = [_][]const u8{};\n"
     )

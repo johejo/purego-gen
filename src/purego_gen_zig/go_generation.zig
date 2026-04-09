@@ -388,7 +388,7 @@ fn publicApiMatcherMatches(
         .exact => |value| std.mem.eql(u8, name, value),
         .pattern => |value| blk: {
             if (std.mem.indexOf(u8, value, ".*")) |_| {
-                const prefix = value[0 .. std.mem.indexOf(u8, value, ".*").?];
+                const prefix = value[0..std.mem.indexOf(u8, value, ".*").?];
                 const suffix = value[std.mem.indexOf(u8, value, ".*").? + 2 ..];
                 if (!std.mem.startsWith(u8, name, prefix)) break :blk false;
                 if (suffix.len == 0) break :blk true;
