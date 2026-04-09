@@ -85,6 +85,9 @@ zig-test:
 zig-inspect *ARGS:
   zig build {{zig_build_opts}} && ./zig-out/bin/purego-gen-zig {{ARGS}}
 
+zig-golden-check *ARGS:
+  {{python_src_prefix}} scripts/zig_golden_cases.py {{ARGS}}
+
 check: nix-flake-check lint typecheck golden-check test go-vet go-staticcheck go-test zig-build
 
 ci: nix-flake-check lint typecheck golden-check golden-check-nix test go-vet go-staticcheck go-test zig-build
