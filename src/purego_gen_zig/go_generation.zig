@@ -41,6 +41,7 @@ fn mergeDeclarations(
             continue;
         }
         allocator.free(constant_decl.name);
+        allocator.free(constant_decl.value_expr);
     }
     src.functions.items.len = 0;
     src.functions.deinit(allocator);
@@ -226,10 +227,10 @@ fn writeConstants(w: anytype, decls: *const declarations.CollectedDeclarations) 
     try w.writeAll("const (\n");
     for (decls.constants.items, 0..) |constant_decl, index| {
         if (index == 0) {
-            try w.print("\t{s} = {d}\n", .{ constant_decl.name, constant_decl.value });
+            try w.print("\t{s} = {s}\n", .{ constant_decl.name, constant_decl.value_expr });
             continue;
         }
-        try w.print("\t{s}  = {d}\n", .{ constant_decl.name, constant_decl.value });
+        try w.print("\t{s}  = {s}\n", .{ constant_decl.name, constant_decl.value_expr });
     }
     try w.writeAll(")\n");
 }

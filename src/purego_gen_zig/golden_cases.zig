@@ -4,6 +4,8 @@ const go_generation = @import("go_generation.zig");
 const supported_golden_case_ids = [_][]const u8{
     "abi_types",
     "basic_func_type",
+    "categories_const",
+    "macro_constants",
     "struct_accessors_basic",
 };
 
@@ -19,7 +21,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "callback_param",
     "callback_param_conflict",
     "callback_param_dedup",
-    "categories_const",
     "categories_mixed_filtered",
     "comments_default",
     "comments_parse_all",
@@ -31,7 +32,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "libclang",
     "libsqlite3",
     "libzstd",
-    "macro_constants",
     "macro_sentinels",
     "non_callback_typedef",
     "opaque_func_only",
