@@ -16,6 +16,7 @@ const supported_golden_case_ids = [_][]const u8{
     "comments_default",
     "comments_parse_all",
     "custom_prefix",
+    "exclude_only_basic",
     "macro_constants",
     "non_callback_typedef",
     "parameter_names",
@@ -29,7 +30,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "categories_mixed_filtered",
     "conditional_default",
     "conditional_with_define",
-    "exclude_only_basic",
     "inline_func_pointer",
     "libclang",
     "libsqlite3",
@@ -143,6 +143,17 @@ fn parseNamingValue(
     const naming_value = render.get("naming") orelse return allocator.dupe(u8, "");
     const naming = naming_value.object;
     const value = naming.get(key) orelse return allocator.dupe(u8, "");
+    return allocator.dupe(u8, value.string);
+}
+
+fn parseExcludeValue(
+    allocator: std.mem.Allocator,
+    parse: std.json.ObjectMap,
+    key: []const u8,
+) ![]const u8 {
+    const exclude_value = parse.get("exclude") orelse return allocator.dupe(u8, "");
+    const exclude = exclude_value.object;
+    const value = exclude.get(key) orelse return allocator.dupe(u8, "");
     return allocator.dupe(u8, value.string);
 }
 
@@ -357,6 +368,12 @@ pub fn loadCaseFromDir(
                     .var_prefix = try parseNamingValue(allocator, render, "var_prefix"),
                 };
             },
+            .exclude = .{
+                .func_name = try parseExcludeValue(allocator, parse, "func"),
+                .type_name = try parseExcludeValue(allocator, parse, "type"),
+                .const_name = try parseExcludeValue(allocator, parse, "const"),
+                .var_name = try parseExcludeValue(allocator, parse, "var"),
+            },
             .struct_accessors = blk: {
                 const render_value = generator.get("render") orelse break :blk false;
                 const render = render_value.object;
@@ -426,6 +443,7 @@ pub fn generateCaseSource(
         clang_args_z,
     );
     defer decls.deinit();
+    go_generation.applyExcludeFilters(allocator, loaded_case.generator, &decls);
 
     return go_generation.generateGoSource(allocator, loaded_case.generator, &decls);
 }
