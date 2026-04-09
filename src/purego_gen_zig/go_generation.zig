@@ -28,12 +28,18 @@ pub const BufferParamHelper = union(enum) {
     pattern: PatternBufferParamHelper,
 };
 
+pub const ExplicitCallbackParamHelper = struct {
+    function_name: []const u8,
+    params: []const []const u8,
+};
+
 pub const GeneratorConfig = struct {
     lib_id: []const u8,
     package_name: []const u8,
     emit: []const EmitKind,
     struct_accessors: bool = false,
     buffer_param_helpers: []const BufferParamHelper = &.{},
+    callback_param_helpers: []const ExplicitCallbackParamHelper = &.{},
     auto_callbacks: bool = false,
 
     pub fn deinit(self: *const GeneratorConfig, allocator: std.mem.Allocator) void {
@@ -56,6 +62,12 @@ pub const GeneratorConfig = struct {
             }
         }
         allocator.free(self.buffer_param_helpers);
+        for (self.callback_param_helpers) |helper| {
+            allocator.free(helper.function_name);
+            for (helper.params) |param| allocator.free(param);
+            allocator.free(helper.params);
+        }
+        allocator.free(self.callback_param_helpers);
     }
 };
 
@@ -248,6 +260,38 @@ fn collectAutoCallbackParams(
     for (decls.functions.items, 0..) |func, function_index| {
         for (func.parameter_c_types, 0..) |param_c_type, parameter_index| {
             if (!isFunctionPointerCType(param_c_type)) continue;
+            try params.append(allocator, .{
+                .function_index = function_index,
+                .parameter_index = parameter_index,
+            });
+        }
+    }
+
+    return params.toOwnedSlice(allocator);
+}
+
+fn collectExplicitCallbackParams(
+    allocator: std.mem.Allocator,
+    decls: *const declarations.CollectedDeclarations,
+    helpers: []const ExplicitCallbackParamHelper,
+) ![]AutoCallbackParam {
+    var params: std.ArrayList(AutoCallbackParam) = .empty;
+    errdefer params.deinit(allocator);
+
+    for (helpers) |helper| {
+        const func = findFunctionByName(decls, helper.function_name) orelse return error.CallbackHelperTargetFunctionNotFound;
+        const function_index = blk: {
+            for (decls.functions.items, 0..) |decl_func, index| {
+                if (std.mem.eql(u8, decl_func.name, func.name)) break :blk index;
+            }
+            return error.CallbackHelperTargetFunctionNotFound;
+        };
+
+        for (helper.params) |param_name| {
+            const parameter_index = findParameterIndexByName(func, param_name) orelse return error.CallbackHelperParameterNotFound;
+            if (!isFunctionPointerCType(func.parameter_c_types[parameter_index])) {
+                return error.InvalidCallbackHelperParameterType;
+            }
             try params.append(allocator, .{
                 .function_index = function_index,
                 .parameter_index = parameter_index,
@@ -501,6 +545,7 @@ fn writeComment(w: anytype, indent: []const u8, raw_comment: ?[]const u8) !void 
 }
 
 fn writeTypedefs(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
+    if (decls.typedefs.items.len == 0) return;
     try w.writeAll("type (\n");
     for (decls.typedefs.items) |typedef_decl| {
         try writeComment(w, "\t", typedef_decl.comment);
@@ -972,11 +1017,13 @@ pub fn generateGoSource(
     const need_unsafe = emits_functions or declarationsNeedUnsafe(decls);
     const need_fmt = declarationsNeedFmt(emits_functions, has_emitted_runtime_vars, decls);
     const has_helper_functions = declarationsHaveHelperFunctions(decls);
-    const auto_callback_params = if (config.auto_callbacks and emits_functions)
+    const callback_params = if (emits_functions and config.callback_param_helpers.len > 0)
+        try collectExplicitCallbackParams(allocator, decls, config.callback_param_helpers)
+    else if (config.auto_callbacks and emits_functions)
         try collectAutoCallbackParams(allocator, decls)
     else
         try allocator.alloc(AutoCallbackParam, 0);
-    defer allocator.free(auto_callback_params);
+    defer allocator.free(callback_params);
 
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
@@ -1017,10 +1064,10 @@ pub fn generateGoSource(
         try writeTypedefs(w, decls);
         try w.writeByte('\n');
     }
-    if (auto_callback_params.len > 0) {
-        try writeAutoCallbackTypes(allocator, w, decls, auto_callback_params);
+    if (callback_params.len > 0) {
+        try writeAutoCallbackTypes(allocator, w, decls, callback_params);
         try w.writeByte('\n');
-        try writeAutoCallbackConstructors(allocator, w, decls, auto_callback_params);
+        try writeAutoCallbackConstructors(allocator, w, decls, callback_params);
     }
     if (emits_constants and !has_helper_functions) {
         try writeConstants(w, decls);
@@ -1044,8 +1091,8 @@ pub fn generateGoSource(
         if (config.buffer_param_helpers.len > 0) {
             try w.writeByte('\n');
         }
-        try writeAutoCallbackWrappers(allocator, w, decls, auto_callback_params);
-        if (auto_callback_params.len > 0) {
+        try writeAutoCallbackWrappers(allocator, w, decls, callback_params);
+        if (callback_params.len > 0) {
             try w.writeByte('\n');
         }
         try writeRegisterFunctions(w, config, decls);

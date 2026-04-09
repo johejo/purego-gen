@@ -10,6 +10,7 @@ const supported_golden_case_ids = [_][]const u8{
     "buffer_input_pattern",
     "by_value_records",
     "callback_auto_discover",
+    "callback_param",
     "categories_const",
     "comments_default",
     "comments_parse_all",
@@ -22,7 +23,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
-    "callback_param",
     "callback_param_conflict",
     "callback_param_dedup",
     "categories_mixed_filtered",
@@ -123,6 +123,18 @@ fn freeBufferParamHelpers(
     allocator.free(helpers);
 }
 
+fn freeCallbackParamHelpers(
+    allocator: std.mem.Allocator,
+    helpers: []const go_generation.ExplicitCallbackParamHelper,
+) void {
+    for (helpers) |helper| {
+        allocator.free(helper.function_name);
+        for (helper.params) |param| allocator.free(param);
+        allocator.free(helper.params);
+    }
+    allocator.free(helpers);
+}
+
 fn parseBufferParamPairs(
     allocator: std.mem.Allocator,
     array: std.json.Array,
@@ -141,6 +153,39 @@ fn parseBufferParamPairs(
         try items.append(allocator, .{
             .pointer = try allocator.dupe(u8, obj.get("pointer").?.string),
             .length = try allocator.dupe(u8, obj.get("length").?.string),
+        });
+    }
+
+    return items.toOwnedSlice(allocator);
+}
+
+fn parseCallbackParamHelpers(
+    allocator: std.mem.Allocator,
+    generator: std.json.ObjectMap,
+) ![]go_generation.ExplicitCallbackParamHelper {
+    const render_value = generator.get("render") orelse return try allocator.alloc(go_generation.ExplicitCallbackParamHelper, 0);
+    const render = render_value.object;
+    const helpers_value = render.get("helpers") orelse return try allocator.alloc(go_generation.ExplicitCallbackParamHelper, 0);
+    const helpers = helpers_value.object;
+    const callback_params_value = helpers.get("callback_params") orelse return try allocator.alloc(go_generation.ExplicitCallbackParamHelper, 0);
+
+    var items: std.ArrayList(go_generation.ExplicitCallbackParamHelper) = .empty;
+    errdefer {
+        for (items.items) |helper| {
+            allocator.free(helper.function_name);
+            for (helper.params) |param| allocator.free(param);
+            allocator.free(helper.params);
+        }
+        items.deinit(allocator);
+    }
+
+    for (callback_params_value.array.items) |item| {
+        const obj = item.object;
+        const function_value = obj.get("function") orelse return error.MissingCallbackHelperFunction;
+        const params_value = obj.get("params") orelse return error.MissingCallbackHelperParams;
+        try items.append(allocator, .{
+            .function_name = try allocator.dupe(u8, function_value.string),
+            .params = try parseStringArray(allocator, params_value.array),
         });
     }
 
@@ -245,6 +290,8 @@ pub fn loadCaseFromDir(
     errdefer allocator.free(emit);
     const buffer_param_helpers = try parseBufferParamHelpers(allocator, generator);
     errdefer freeBufferParamHelpers(allocator, buffer_param_helpers);
+    const callback_param_helpers = try parseCallbackParamHelpers(allocator, generator);
+    errdefer freeCallbackParamHelpers(allocator, callback_param_helpers);
 
     const header_paths = try parseStringArray(allocator, header_list_value.array);
     errdefer {
@@ -291,6 +338,7 @@ pub fn loadCaseFromDir(
                 break :blk struct_accessors_value.bool;
             },
             .buffer_param_helpers = buffer_param_helpers,
+            .callback_param_helpers = callback_param_helpers,
             .auto_callbacks = blk: {
                 const render_value = generator.get("render") orelse break :blk false;
                 const render = render_value.object;
