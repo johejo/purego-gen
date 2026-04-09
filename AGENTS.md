@@ -12,6 +12,7 @@ Build a practical C-header-to-purego binding generator.
 - See Justfile for useful commands for development.
 - For target-library coverage investigation, prefer `purego-gen inspect` over ad-hoc one-off commands.
 - For one-shot python script, use `./scripts/uv-run-python-src.sh`.
+- For Zig work, prefer expanding `tests/cases` golden coverage over adding extra Zig-only unit tests unless a low-level helper is hard to validate through golden cases.
 - See also `./DESIGN.md`.
 
 ## Codex Orchestration
