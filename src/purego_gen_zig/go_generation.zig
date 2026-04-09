@@ -38,6 +38,25 @@ pub const OwnedStringReturnHelper = struct {
     free_func_name: []const u8,
 };
 
+pub const PublicApiMatcher = union(enum) {
+    exact: []const u8,
+    pattern: []const u8,
+};
+
+pub const PublicApiOverride = struct {
+    source_name: []const u8,
+    public_name: []const u8,
+};
+
+pub const PublicApiConfig = struct {
+    strip_prefix: []const u8,
+    type_aliases_include: []const PublicApiMatcher,
+    type_aliases_overrides: []const PublicApiOverride,
+    wrappers_include: []const PublicApiMatcher,
+    wrappers_exclude: []const PublicApiMatcher,
+    wrappers_overrides: []const PublicApiOverride,
+};
+
 pub const NamingConfig = struct {
     type_prefix: []const u8,
     const_prefix: []const u8,
@@ -71,6 +90,7 @@ pub const GeneratorConfig = struct {
     buffer_param_helpers: []const BufferParamHelper = &.{},
     callback_param_helpers: []const ExplicitCallbackParamHelper = &.{},
     owned_string_return_helpers: []const OwnedStringReturnHelper = &.{},
+    public_api: PublicApiConfig,
     auto_callbacks: bool = false,
 
     pub fn deinit(self: *const GeneratorConfig, allocator: std.mem.Allocator) void {
@@ -116,6 +136,38 @@ pub const GeneratorConfig = struct {
             allocator.free(helper.free_func_name);
         }
         allocator.free(self.owned_string_return_helpers);
+        allocator.free(self.public_api.strip_prefix);
+        for (self.public_api.type_aliases_include) |matcher| {
+            switch (matcher) {
+                .exact => |value| allocator.free(value),
+                .pattern => |value| allocator.free(value),
+            }
+        }
+        allocator.free(self.public_api.type_aliases_include);
+        for (self.public_api.type_aliases_overrides) |override| {
+            allocator.free(override.source_name);
+            allocator.free(override.public_name);
+        }
+        allocator.free(self.public_api.type_aliases_overrides);
+        for (self.public_api.wrappers_include) |matcher| {
+            switch (matcher) {
+                .exact => |value| allocator.free(value),
+                .pattern => |value| allocator.free(value),
+            }
+        }
+        allocator.free(self.public_api.wrappers_include);
+        for (self.public_api.wrappers_exclude) |matcher| {
+            switch (matcher) {
+                .exact => |value| allocator.free(value),
+                .pattern => |value| allocator.free(value),
+            }
+        }
+        allocator.free(self.public_api.wrappers_exclude);
+        for (self.public_api.wrappers_overrides) |override| {
+            allocator.free(override.source_name);
+            allocator.free(override.public_name);
+        }
+        allocator.free(self.public_api.wrappers_overrides);
     }
 };
 
@@ -309,6 +361,127 @@ fn isOwnedStringReturnTarget(
     return false;
 }
 
+fn snakeToPascalCase(
+    allocator: std.mem.Allocator,
+    value: []const u8,
+) ![]u8 {
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+
+    var parts = std.mem.splitScalar(u8, value, '_');
+    while (parts.next()) |part| {
+        if (part.len == 0) continue;
+        try buffer.append(allocator, std.ascii.toUpper(part[0]));
+        if (part.len > 1) try buffer.appendSlice(allocator, part[1..]);
+    }
+    return buffer.toOwnedSlice(allocator);
+}
+
+fn publicApiMatcherMatches(
+    name: []const u8,
+    matcher: PublicApiMatcher,
+) bool {
+    return switch (matcher) {
+        .exact => |value| std.mem.eql(u8, name, value),
+        .pattern => |value| blk: {
+            if (std.mem.indexOf(u8, value, ".*")) |_| {
+                const prefix = value[0 .. std.mem.indexOf(u8, value, ".*").?];
+                const suffix = value[std.mem.indexOf(u8, value, ".*").? + 2 ..];
+                if (!std.mem.startsWith(u8, name, prefix)) break :blk false;
+                if (suffix.len == 0) break :blk true;
+                break :blk std.mem.endsWith(u8, name, suffix);
+            }
+            break :blk functionNameMatchesPattern(name, value);
+        },
+    };
+}
+
+fn matchesAnyPublicApiMatcher(
+    name: []const u8,
+    matchers: []const PublicApiMatcher,
+) bool {
+    for (matchers) |matcher| {
+        if (publicApiMatcherMatches(name, matcher)) return true;
+    }
+    return false;
+}
+
+fn findPublicApiOverrideName(
+    overrides: []const PublicApiOverride,
+    source_name: []const u8,
+) ?[]const u8 {
+    for (overrides) |override| {
+        if (std.mem.eql(u8, override.source_name, source_name)) return override.public_name;
+    }
+    return null;
+}
+
+fn renderPublicApiName(
+    allocator: std.mem.Allocator,
+    strip_prefix: []const u8,
+    overrides: []const PublicApiOverride,
+    source_name: []const u8,
+) ![]u8 {
+    if (findPublicApiOverrideName(overrides, source_name)) |override_name| {
+        return allocator.dupe(u8, override_name);
+    }
+
+    const stripped = if (strip_prefix.len != 0 and std.mem.startsWith(u8, source_name, strip_prefix))
+        source_name[strip_prefix.len..]
+    else
+        source_name;
+    return snakeToPascalCase(allocator, stripped);
+}
+
+fn replaceTypeNameWithAlias(
+    allocator: std.mem.Allocator,
+    go_type: []const u8,
+    raw_type_name: []const u8,
+    public_type_name: []const u8,
+) ![]u8 {
+    if (std.mem.eql(u8, go_type, raw_type_name)) {
+        return allocator.dupe(u8, public_type_name);
+    }
+
+    const pointer_prefix = try std.fmt.allocPrint(allocator, "*{s}", .{raw_type_name});
+    defer allocator.free(pointer_prefix);
+    if (std.mem.eql(u8, go_type, pointer_prefix)) {
+        return std.fmt.allocPrint(allocator, "*{s}", .{public_type_name});
+    }
+
+    return allocator.dupe(u8, go_type);
+}
+
+fn resolvePublicApiGoType(
+    allocator: std.mem.Allocator,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+    c_type: []const u8,
+    emits_types: bool,
+) ![]u8 {
+    const mapped = try resolveFunctionParameterType(allocator, decls, c_type, false, emits_types);
+    defer if (resolvedGoTypeNeedsFree(c_type, mapped)) allocator.free(mapped.go_type);
+    var current = try allocator.dupe(u8, mapped.go_type);
+    errdefer allocator.free(current);
+
+    for (decls.typedefs.items) |typedef_decl| {
+        if (!matchesAnyPublicApiMatcher(typedef_decl.name, config.public_api.type_aliases_include)) continue;
+        const public_name = try renderPublicApiName(
+            allocator,
+            config.public_api.strip_prefix,
+            config.public_api.type_aliases_overrides,
+            typedef_decl.name,
+        );
+        defer allocator.free(public_name);
+
+        const replaced = try replaceTypeNameWithAlias(allocator, current, typedef_decl.name, public_name);
+        allocator.free(current);
+        current = replaced;
+    }
+
+    return current;
+}
+
 fn writePrefixedTypeDefinition(
     w: anytype,
     allocator: std.mem.Allocator,
@@ -401,13 +574,39 @@ fn resolveFunctionParameterType(
     decls: *const declarations.CollectedDeclarations,
     c_type: []const u8,
     keep_callback_pointer: bool,
+    emits_types: bool,
 ) !CTypeMapping {
     if (isFunctionPointerCType(c_type) and !keep_callback_pointer) {
         return .{
             .go_type = try renderCallbackGoSignature(allocator, decls, c_type),
         };
     }
+    if (emits_types) {
+        for (decls.typedefs.items) |typedef_decl| {
+            const is_opaque_typedef =
+                std.mem.startsWith(u8, typedef_decl.c_type, "struct ") or
+                std.mem.indexOf(u8, typedef_decl.main_definition, "struct{}") != null;
+            if (!is_opaque_typedef) continue;
+
+            if (std.mem.endsWith(u8, c_type, " *")) {
+                const base = c_type[0 .. c_type.len - 2];
+                if (std.mem.eql(u8, base, typedef_decl.name)) {
+                    return .{ .go_type = try std.fmt.allocPrint(allocator, "*{s}", .{typedef_decl.name}) };
+                }
+            }
+            if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " *")) {
+                const base = c_type[6 .. c_type.len - 2];
+                if (std.mem.eql(u8, base, typedef_decl.name)) {
+                    return .{ .go_type = try std.fmt.allocPrint(allocator, "*{s}", .{typedef_decl.name}) };
+                }
+            }
+        }
+    }
     return resolveCTypeToGo(decls, c_type);
+}
+
+fn resolvedGoTypeNeedsFree(c_type: []const u8, mapped: CTypeMapping) bool {
+    return isFunctionPointerCType(c_type) or std.mem.startsWith(u8, mapped.go_type, "*");
 }
 
 fn isSupportedBufferLengthType(go_type: []const u8) bool {
@@ -828,6 +1027,47 @@ fn writeTypedefs(
     try w.writeAll(")\n");
 }
 
+fn writePublicTypeAliases(
+    allocator: std.mem.Allocator,
+    w: anytype,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+) !void {
+    var count: usize = 0;
+    for (decls.typedefs.items) |typedef_decl| {
+        if (matchesAnyPublicApiMatcher(typedef_decl.name, config.public_api.type_aliases_include)) {
+            count += 1;
+        }
+    }
+    if (count == 0) return;
+
+    try w.writeAll("type (\n");
+    for (decls.typedefs.items) |typedef_decl| {
+        if (!matchesAnyPublicApiMatcher(typedef_decl.name, config.public_api.type_aliases_include)) continue;
+        const public_name = try renderPublicApiName(
+            allocator,
+            config.public_api.strip_prefix,
+            config.public_api.type_aliases_overrides,
+            typedef_decl.name,
+        );
+        defer allocator.free(public_name);
+        const emitted_internal_name = try renderTypeName(allocator, config, typedef_decl.name);
+        defer allocator.free(emitted_internal_name);
+        try w.print("\t{s} = {s}\n", .{ public_name, emitted_internal_name });
+    }
+    try w.writeAll(")\n");
+}
+
+fn hasPublicTypeAliases(
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+) bool {
+    for (decls.typedefs.items) |typedef_decl| {
+        if (matchesAnyPublicApiMatcher(typedef_decl.name, config.public_api.type_aliases_include)) return true;
+    }
+    return false;
+}
+
 fn writeFunctions(
     allocator: std.mem.Allocator,
     w: anytype,
@@ -851,8 +1091,9 @@ fn writeFunctions(
                     decls,
                     param_c_type,
                     isAutoCallbackParameter(callback_params, function_index, parameter_index),
+                    containsEmitKind(config.emit, .type),
                 );
-                defer if (isFunctionPointerCType(param_c_type) and !isAutoCallbackParameter(callback_params, function_index, parameter_index)) allocator.free(mapped.go_type);
+                defer if (resolvedGoTypeNeedsFree(param_c_type, mapped) and !isAutoCallbackParameter(callback_params, function_index, parameter_index)) allocator.free(mapped.go_type);
                 if (mapped.comment) |comment| {
                     try w.print("\t\t// C: {s}\n", .{comment});
                 }
@@ -861,8 +1102,8 @@ fn writeFunctions(
             const result_mapped = if (isOwnedStringReturnTarget(config, func.name))
                 CTypeMapping{ .go_type = "uintptr", .comment = func.result_c_type }
             else
-                try resolveFunctionParameterType(allocator, decls, func.result_c_type, false);
-            defer if (isFunctionPointerCType(func.result_c_type)) allocator.free(result_mapped.go_type);
+                try resolveFunctionParameterType(allocator, decls, func.result_c_type, false, containsEmitKind(config.emit, .type));
+            defer if (resolvedGoTypeNeedsFree(func.result_c_type, result_mapped)) allocator.free(result_mapped.go_type);
             if (result_mapped.comment) |comment| {
                 try w.print("\t\t// C: {s}\n", .{comment});
             }
@@ -872,8 +1113,8 @@ fn writeFunctions(
         const result_mapped = if (isOwnedStringReturnTarget(config, func.name))
             CTypeMapping{ .go_type = "uintptr", .comment = func.result_c_type }
         else
-            try resolveFunctionParameterType(allocator, decls, func.result_c_type, false);
-        defer if (isFunctionPointerCType(func.result_c_type)) allocator.free(result_mapped.go_type);
+            try resolveFunctionParameterType(allocator, decls, func.result_c_type, false, containsEmitKind(config.emit, .type));
+        defer if (resolvedGoTypeNeedsFree(func.result_c_type, result_mapped)) allocator.free(result_mapped.go_type);
         if (result_mapped.go_type.len != 0) {
             try w.print(" {s}\n", .{result_mapped.go_type});
         } else {
@@ -1174,14 +1415,14 @@ fn writeAutoCallbackWrappers(
                 try w.print("\t{s} {s},\n", .{ param_name, emitted_helper_type_name });
                 continue;
             }
-            const mapped = try resolveFunctionParameterType(allocator, decls, param_c_type, false);
-            defer if (isFunctionPointerCType(param_c_type)) allocator.free(mapped.go_type);
+            const mapped = try resolveFunctionParameterType(allocator, decls, param_c_type, false, containsEmitKind(config.emit, .type));
+            defer if (resolvedGoTypeNeedsFree(param_c_type, mapped)) allocator.free(mapped.go_type);
             try w.print("\t{s} {s},\n", .{ param_name, mapped.go_type });
         }
         try w.writeAll(")");
 
-        const result_mapped = try resolveFunctionParameterType(allocator, decls, func.result_c_type, false);
-        defer if (isFunctionPointerCType(func.result_c_type)) allocator.free(result_mapped.go_type);
+        const result_mapped = try resolveFunctionParameterType(allocator, decls, func.result_c_type, false, containsEmitKind(config.emit, .type));
+        defer if (resolvedGoTypeNeedsFree(func.result_c_type, result_mapped)) allocator.free(result_mapped.go_type);
         if (result_mapped.go_type.len != 0) {
             try w.print(" {s} {{\n", .{result_mapped.go_type});
         } else {
@@ -1303,9 +1544,10 @@ fn writeOwnedStringReturnHelpers(
                 decls,
                 param_c_type,
                 false,
+                containsEmitKind(config.emit, .type),
             );
             _ = parameter_index;
-            defer if (isFunctionPointerCType(param_c_type)) allocator.free(mapped.go_type);
+            defer if (resolvedGoTypeNeedsFree(param_c_type, mapped)) allocator.free(mapped.go_type);
             if (mapped.comment) |comment| {
                 try w.print("\t// C: {s}\n", .{comment});
             }
@@ -1337,6 +1579,55 @@ fn writeOwnedStringReturnHelpers(
     try w.writeAll("\t}\n");
     try w.writeAll("\treturn strings.Clone(unsafe.String((*byte)(p), n))\n");
     try w.writeAll("}\n");
+}
+
+fn writePublicApiWrappers(
+    allocator: std.mem.Allocator,
+    w: anytype,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+) !void {
+    var emitted_any = false;
+    for (decls.functions.items) |func| {
+        if (!matchesAnyPublicApiMatcher(func.name, config.public_api.wrappers_include)) continue;
+        if (matchesAnyPublicApiMatcher(func.name, config.public_api.wrappers_exclude)) continue;
+
+        emitted_any = true;
+        const public_name = try renderPublicApiName(
+            allocator,
+            config.public_api.strip_prefix,
+            config.public_api.wrappers_overrides,
+            func.name,
+        );
+        defer allocator.free(public_name);
+        const target_name = try renderFuncName(allocator, config, func.name);
+        defer allocator.free(target_name);
+
+        try w.print("func {s}(\n", .{public_name});
+        for (func.parameter_names, func.parameter_c_types) |param_name, param_c_type| {
+            const public_go_type = try resolvePublicApiGoType(allocator, config, decls, param_c_type, containsEmitKind(config.emit, .type));
+            defer allocator.free(public_go_type);
+            try w.print("\t{s} {s},\n", .{ param_name, public_go_type });
+        }
+        try w.writeAll(")");
+
+        const result_go_type = try resolvePublicApiGoType(allocator, config, decls, func.result_c_type, containsEmitKind(config.emit, .type));
+        defer allocator.free(result_go_type);
+        if (result_go_type.len != 0) {
+            try w.print(" {s} {{\n", .{result_go_type});
+            try w.print("\treturn {s}(\n", .{target_name});
+        } else {
+            try w.writeAll(" {\n");
+            try w.print("\t{s}(\n", .{target_name});
+        }
+        for (func.parameter_names) |param_name| {
+            try w.print("\t\t{s},\n", .{param_name});
+        }
+        try w.writeAll("\t)\n");
+        try w.writeAll("}\n");
+    }
+
+    if (emitted_any) try w.writeByte('\n');
 }
 
 fn writeHelperFunctions(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
@@ -1525,7 +1816,12 @@ pub fn generateGoSource(
 
     if (emits_types) {
         try writeTypedefs(allocator, w, config, decls);
-        try w.writeByte('\n');
+        if (hasPublicTypeAliases(config, decls)) {
+            try writePublicTypeAliases(allocator, w, config, decls);
+            try w.writeByte('\n');
+        } else {
+            try w.writeByte('\n');
+        }
     }
     if (callback_params.len > 0) {
         try writeAutoCallbackTypes(allocator, w, config, decls, callback_params);
@@ -1548,6 +1844,7 @@ pub fn generateGoSource(
         try w.writeByte('\n');
     }
     if (emits_functions) {
+        try writePublicApiWrappers(allocator, w, config, decls);
         try writeFunctions(allocator, w, config, decls, callback_params);
         try w.writeByte('\n');
         try writeBufferHelpers(allocator, w, config, decls);

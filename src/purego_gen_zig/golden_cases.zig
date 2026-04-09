@@ -25,6 +25,7 @@ const supported_golden_case_ids = [_][]const u8{
     "opaque_func_only",
     "owned_string_return",
     "parameter_names",
+    "public_api_basic",
     "struct_accessors_basic",
 };
 
@@ -38,7 +39,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "libsqlite3",
     "libzstd",
     "prefix_free",
-    "public_api_basic",
     "runtime_smoke",
     "runtime_string",
     "strict_typing_default",
@@ -146,6 +146,30 @@ fn freeOwnedStringReturnHelpers(
     allocator.free(helpers);
 }
 
+fn freePublicApiMatchers(
+    allocator: std.mem.Allocator,
+    matchers: []const go_generation.PublicApiMatcher,
+) void {
+    for (matchers) |matcher| {
+        switch (matcher) {
+            .exact => |value| allocator.free(value),
+            .pattern => |value| allocator.free(value),
+        }
+    }
+    allocator.free(matchers);
+}
+
+fn freePublicApiOverrides(
+    allocator: std.mem.Allocator,
+    overrides: []const go_generation.PublicApiOverride,
+) void {
+    for (overrides) |override| {
+        allocator.free(override.source_name);
+        allocator.free(override.public_name);
+    }
+    allocator.free(overrides);
+}
+
 fn parseNamingValue(
     allocator: std.mem.Allocator,
     render: std.json.ObjectMap,
@@ -204,6 +228,103 @@ fn parseBufferParamPairs(
     }
 
     return items.toOwnedSlice(allocator);
+}
+
+fn parsePublicApiMatchers(
+    allocator: std.mem.Allocator,
+    value: ?std.json.Value,
+) ![]go_generation.PublicApiMatcher {
+    const matchers_value = value orelse return try allocator.alloc(go_generation.PublicApiMatcher, 0);
+    var items: std.ArrayList(go_generation.PublicApiMatcher) = .empty;
+    errdefer {
+        for (items.items) |matcher| {
+            switch (matcher) {
+                .exact => |string| allocator.free(string),
+                .pattern => |string| allocator.free(string),
+            }
+        }
+        items.deinit(allocator);
+    }
+
+    for (matchers_value.array.items) |item| {
+        switch (item) {
+            .string => |string| try items.append(allocator, .{
+                .exact = try allocator.dupe(u8, string),
+            }),
+            .object => |obj| {
+                const pattern_value = obj.get("pattern") orelse return error.MissingPublicApiPattern;
+                try items.append(allocator, .{
+                    .pattern = try allocator.dupe(u8, pattern_value.string),
+                });
+            },
+            else => return error.InvalidPublicApiMatcher,
+        }
+    }
+
+    return items.toOwnedSlice(allocator);
+}
+
+fn parsePublicApiOverrides(
+    allocator: std.mem.Allocator,
+    value: ?std.json.Value,
+) ![]go_generation.PublicApiOverride {
+    const overrides_value = value orelse return try allocator.alloc(go_generation.PublicApiOverride, 0);
+    var items: std.ArrayList(go_generation.PublicApiOverride) = .empty;
+    errdefer {
+        for (items.items) |override| {
+            allocator.free(override.source_name);
+            allocator.free(override.public_name);
+        }
+        items.deinit(allocator);
+    }
+
+    var iterator = overrides_value.object.iterator();
+    while (iterator.next()) |entry| {
+        try items.append(allocator, .{
+            .source_name = try allocator.dupe(u8, entry.key_ptr.*),
+            .public_name = try allocator.dupe(u8, entry.value_ptr.*.string),
+        });
+    }
+
+    return items.toOwnedSlice(allocator);
+}
+
+fn parsePublicApiConfig(
+    allocator: std.mem.Allocator,
+    generator: std.json.ObjectMap,
+) !go_generation.PublicApiConfig {
+    const render_value = generator.get("render") orelse return .{
+        .strip_prefix = try allocator.dupe(u8, ""),
+        .type_aliases_include = try allocator.alloc(go_generation.PublicApiMatcher, 0),
+        .type_aliases_overrides = try allocator.alloc(go_generation.PublicApiOverride, 0),
+        .wrappers_include = try allocator.alloc(go_generation.PublicApiMatcher, 0),
+        .wrappers_exclude = try allocator.alloc(go_generation.PublicApiMatcher, 0),
+        .wrappers_overrides = try allocator.alloc(go_generation.PublicApiOverride, 0),
+    };
+    const render = render_value.object;
+    const public_api_value = render.get("public_api") orelse return .{
+        .strip_prefix = try allocator.dupe(u8, ""),
+        .type_aliases_include = try allocator.alloc(go_generation.PublicApiMatcher, 0),
+        .type_aliases_overrides = try allocator.alloc(go_generation.PublicApiOverride, 0),
+        .wrappers_include = try allocator.alloc(go_generation.PublicApiMatcher, 0),
+        .wrappers_exclude = try allocator.alloc(go_generation.PublicApiMatcher, 0),
+        .wrappers_overrides = try allocator.alloc(go_generation.PublicApiOverride, 0),
+    };
+    const public_api = public_api_value.object;
+    const type_aliases = public_api.get("type_aliases");
+    const wrappers = public_api.get("wrappers");
+
+    return .{
+        .strip_prefix = if (public_api.get("strip_prefix")) |value|
+            try allocator.dupe(u8, value.string)
+        else
+            try allocator.dupe(u8, ""),
+        .type_aliases_include = try parsePublicApiMatchers(allocator, if (type_aliases) |value| value.object.get("include") else null),
+        .type_aliases_overrides = try parsePublicApiOverrides(allocator, if (type_aliases) |value| value.object.get("overrides") else null),
+        .wrappers_include = try parsePublicApiMatchers(allocator, if (wrappers) |value| value.object.get("include") else null),
+        .wrappers_exclude = try parsePublicApiMatchers(allocator, if (wrappers) |value| value.object.get("exclude") else null),
+        .wrappers_overrides = try parsePublicApiOverrides(allocator, if (wrappers) |value| value.object.get("overrides") else null),
+    };
 }
 
 fn parseCallbackParamHelpers(
@@ -376,6 +497,15 @@ pub fn loadCaseFromDir(
     errdefer freeCallbackParamHelpers(allocator, callback_param_helpers);
     const owned_string_return_helpers = try parseOwnedStringReturnHelpers(allocator, generator);
     errdefer freeOwnedStringReturnHelpers(allocator, owned_string_return_helpers);
+    const public_api = try parsePublicApiConfig(allocator, generator);
+    errdefer {
+        allocator.free(public_api.strip_prefix);
+        freePublicApiMatchers(allocator, public_api.type_aliases_include);
+        freePublicApiOverrides(allocator, public_api.type_aliases_overrides);
+        freePublicApiMatchers(allocator, public_api.wrappers_include);
+        freePublicApiMatchers(allocator, public_api.wrappers_exclude);
+        freePublicApiOverrides(allocator, public_api.wrappers_overrides);
+    }
 
     const header_paths = try parseStringArray(allocator, header_list_value.array);
     errdefer {
@@ -459,6 +589,7 @@ pub fn loadCaseFromDir(
             .buffer_param_helpers = buffer_param_helpers,
             .callback_param_helpers = callback_param_helpers,
             .owned_string_return_helpers = owned_string_return_helpers,
+            .public_api = public_api,
             .auto_callbacks = blk: {
                 const render_value = generator.get("render") orelse break :blk false;
                 const render = render_value.object;
