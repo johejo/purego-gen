@@ -165,7 +165,10 @@ fn parseIncludeValue(
     const include_value = parse.get("include") orelse return allocator.dupe(u8, "");
     const include = include_value.object;
     const value = include.get(key) orelse return allocator.dupe(u8, "");
-    return allocator.dupe(u8, value.string);
+    return switch (value) {
+        .string => |string| allocator.dupe(u8, string),
+        else => allocator.dupe(u8, ""),
+    };
 }
 
 fn parseBufferParamPairs(
