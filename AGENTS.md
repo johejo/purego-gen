@@ -23,7 +23,7 @@ Build a practical C-header-to-purego binding generator.
 ### Roles
 
 - `planner` inspects `tests/cases`, chooses one deterministic candidate that still needs implementation work, writes a decision-complete plan to `.codex/plan.txt`, runs `implementer`, and on success cherry-picks the resulting commit into the main worktree.
-- `implementer` reads `.codex/plan.txt`, creates a temporary `git worktree`, implements the plan, asks `reviewer` for feedback, loops up to 5 review rounds, commits on convergence, and discards the worktree on failure.
+- `implementer` reads `.codex/plan.txt`, creates a temporary `git worktree`, implements the plan, asks `reviewer` for feedback, loops up to 5 review rounds, commits on convergence, and keeps the failed worktree for inspection when review does not converge.
 - `reviewer` reviews the implementer work in `/review` style and writes either findings or `NO_FINDINGS` to `.codex/review.txt`.
 
 ### Defaults
@@ -31,4 +31,4 @@ Build a practical C-header-to-purego binding generator.
 - Run one case at a time, synchronously.
 - Start from a clean main worktree with no staged, unstaged, or untracked files.
 - Prefer a simple deterministic planner heuristic over a smart one.
-- If review does not converge within 5 rounds, discard the implementer worktree and stop the loop.
+- If review does not converge within 5 rounds, keep the implementer worktree for inspection, report its path in `.codex/status.txt`, and stop the loop.

@@ -153,6 +153,13 @@ delete_branch_if_exists() {
   fi
 }
 
+keep_failed_worktree() {
+  local branch_name="$1"
+
+  write_status "failed review_limit ${branch_name} ${WORKTREE_DIR}"
+  trap - INT TERM
+}
+
 run_reviewer() {
   local plan_text="$1"
 
@@ -196,9 +203,7 @@ run_implementer() {
     if grep -qx 'NO_FINDINGS' "${REVIEW_FILE}"; then
       git -C "${WORKTREE_DIR}" add -A
       if git -C "${WORKTREE_DIR}" diff --cached --quiet; then
-        write_status "failed no_changes ${branch_name}"
-        remove_worktree
-        delete_branch_if_exists "${branch_name}"
+        write_status "failed no_changes ${branch_name} ${WORKTREE_DIR}"
         trap - INT TERM
         return "${HARD_ERROR_EXIT}"
       fi
@@ -213,10 +218,7 @@ run_implementer() {
     review_text="$(cat "${REVIEW_FILE}")"
   done
 
-  write_status "failed review_limit ${branch_name}"
-  remove_worktree
-  delete_branch_if_exists "${branch_name}"
-  trap - INT TERM
+  keep_failed_worktree "${branch_name}"
   return "${REVIEW_LIMIT_EXIT}"
 }
 
