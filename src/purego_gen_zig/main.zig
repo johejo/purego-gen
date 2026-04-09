@@ -3,6 +3,7 @@ const parser = @import("parser.zig");
 const declarations = @import("declarations.zig");
 const output = @import("output.zig");
 const golden_cases = @import("golden_cases.zig");
+const gotmpl = @import("gotmpl.zig");
 
 const Args = struct {
     header_path: ?[:0]const u8 = null,
@@ -91,4 +92,5 @@ pub fn main() !void {
 
 test {
     _ = golden_cases;
+    _ = gotmpl;
 }
