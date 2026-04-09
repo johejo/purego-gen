@@ -8,22 +8,26 @@ pub const FunctionDecl = struct {
     result_c_type: []const u8,
     parameter_c_types: []const []const u8,
     parameter_names: []const []const u8,
+    comment: ?[]const u8 = null,
 };
 
 pub const ConstantDecl = struct {
     name: []const u8,
     value_expr: []const u8,
+    comment: ?[]const u8 = null,
 };
 
 pub const RuntimeVarDecl = struct {
     name: []const u8,
     c_type: []const u8,
+    comment: ?[]const u8 = null,
 };
 
 pub const TypedefDecl = struct {
     name: []const u8,
     c_type: []const u8,
     main_definition: []const u8,
+    comment: ?[]const u8 = null,
     helper_type_definition: ?[]const u8 = null,
     helper_function_definition: ?[]const u8 = null,
     accessor_fields: []const RecordFieldDecl = &.{},
@@ -52,6 +56,7 @@ pub const CollectedDeclarations = struct {
             self.allocator.free(func.parameter_c_types);
             for (func.parameter_names) |pn| self.allocator.free(pn);
             self.allocator.free(func.parameter_names);
+            if (func.comment) |comment| self.allocator.free(comment);
         }
         self.functions.deinit(self.allocator);
 
@@ -59,6 +64,7 @@ pub const CollectedDeclarations = struct {
             self.allocator.free(typedef_decl.name);
             self.allocator.free(typedef_decl.c_type);
             self.allocator.free(typedef_decl.main_definition);
+            if (typedef_decl.comment) |comment| self.allocator.free(comment);
             if (typedef_decl.helper_type_definition) |text| self.allocator.free(text);
             if (typedef_decl.helper_function_definition) |text| self.allocator.free(text);
             for (typedef_decl.accessor_fields) |field| {
@@ -72,12 +78,14 @@ pub const CollectedDeclarations = struct {
         for (self.constants.items) |constant_decl| {
             self.allocator.free(constant_decl.name);
             self.allocator.free(constant_decl.value_expr);
+            if (constant_decl.comment) |comment| self.allocator.free(comment);
         }
         self.constants.deinit(self.allocator);
 
         for (self.runtime_vars.items) |runtime_var_decl| {
             self.allocator.free(runtime_var_decl.name);
             self.allocator.free(runtime_var_decl.c_type);
+            if (runtime_var_decl.comment) |comment| self.allocator.free(comment);
         }
         self.runtime_vars.deinit(self.allocator);
     }
@@ -137,6 +145,18 @@ fn dupeString(allocator: std.mem.Allocator, cx_str: c.CXString) ![]const u8 {
     defer c.clang_disposeString(cx_str);
     const slice = parser.clangString(cx_str);
     return allocator.dupe(u8, slice);
+}
+
+fn dupeCursorRawComment(
+    allocator: std.mem.Allocator,
+    cursor_arg: c.CXCursor,
+) !?[]const u8 {
+    const comment_text = c.clang_Cursor_getRawCommentText(cursor_arg);
+    defer c.clang_disposeString(comment_text);
+    const slice = parser.clangString(comment_text);
+    if (slice.len == 0) return null;
+    const duped: []const u8 = try allocator.dupe(u8, slice);
+    return duped;
 }
 
 fn sanitizeIdentifierToken(
@@ -514,10 +534,12 @@ fn appendConstant(
     ctx: *VisitorContext,
     name: []const u8,
     value: u64,
+    comment: ?[]const u8,
 ) !void {
     const decls = ctx.decls;
     for (decls.constants.items) |constant_decl| {
         if (std.mem.eql(u8, constant_decl.name, name)) {
+            if (comment) |text| decls.allocator.free(text);
             try appendKnownConstantValue(ctx, constant_decl.name, value);
             return;
         }
@@ -526,9 +548,11 @@ fn appendConstant(
     errdefer decls.allocator.free(owned_name);
     const value_expr = try std.fmt.allocPrint(decls.allocator, "{d}", .{value});
     errdefer decls.allocator.free(value_expr);
+    errdefer if (comment) |text| decls.allocator.free(text);
     try decls.constants.append(decls.allocator, .{
         .name = owned_name,
         .value_expr = value_expr,
+        .comment = comment,
     });
     try appendKnownConstantValue(ctx, owned_name, value);
 }
@@ -553,6 +577,10 @@ fn collectEnumConstants(
                 visitor.ctx,
                 parser.clangString(c.clang_getCursorSpelling(cursor_arg)),
                 c.clang_getEnumConstantDeclUnsignedValue(cursor_arg),
+                dupeCursorRawComment(visitor.ctx.decls.allocator, cursor_arg) catch |err| {
+                    visitor.failed = err;
+                    return c.CXChildVisit_Break;
+                },
             ) catch |err| {
                 visitor.failed = err;
                 return c.CXChildVisit_Break;
@@ -847,7 +875,7 @@ fn collectMacroDefinition(
     }
 
     const value = try evaluateMacroExpression(allocator, token_texts[1..], ctx) orelse return;
-    try appendConstant(ctx, token_texts[0], value);
+    try appendConstant(ctx, token_texts[0], value, null);
 }
 
 fn renderAliasDefinition(
@@ -995,11 +1023,14 @@ fn collectFunction(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
     const result_type = c.clang_getCursorResultType(cursor_arg);
     const result_c_type = try dupeString(allocator, c.clang_getTypeSpelling(result_type));
     errdefer allocator.free(result_c_type);
+    const comment = try dupeCursorRawComment(allocator, cursor_arg);
+    errdefer if (comment) |text| allocator.free(text);
 
     const num_args = c.clang_Cursor_getNumArguments(cursor_arg);
     if (num_args < 0) {
         allocator.free(name);
         allocator.free(result_c_type);
+        if (comment) |text| allocator.free(text);
         return;
     }
     const n: usize = @intCast(num_args);
@@ -1022,6 +1053,7 @@ fn collectFunction(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
         .result_c_type = result_c_type,
         .parameter_c_types = param_types,
         .parameter_names = param_names,
+        .comment = comment,
     });
 }
 
@@ -1039,6 +1071,7 @@ fn collectRuntimeVar(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
     try ctx.decls.runtime_vars.append(allocator, .{
         .name = try allocator.dupe(u8, name),
         .c_type = try dupeString(allocator, c.clang_getTypeSpelling(c.clang_getCursorType(cursor_arg))),
+        .comment = try dupeCursorRawComment(allocator, cursor_arg),
     });
 }
 
@@ -1051,6 +1084,8 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
     const underlying = c.clang_getTypedefDeclUnderlyingType(cursor_arg);
     const c_type = try dupeString(allocator, c.clang_getTypeSpelling(underlying));
     errdefer allocator.free(c_type);
+    const comment = try dupeCursorRawComment(allocator, cursor_arg);
+    errdefer if (comment) |text| allocator.free(text);
 
     const canonical = c.clang_getCanonicalType(underlying);
 
@@ -1063,6 +1098,7 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
             .name = name,
             .c_type = c_type,
             .main_definition = main_definition,
+            .comment = comment,
         });
         return;
     }
@@ -1074,6 +1110,7 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
                 .name = name,
                 .c_type = c_type,
                 .main_definition = main_definition,
+                .comment = comment,
             });
             return;
         }
@@ -1081,12 +1118,14 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
         const record_type = renderRecordBody(allocator, canonical, "\t\t") catch {
             allocator.free(name);
             allocator.free(c_type);
+            if (comment) |text| allocator.free(text);
             return;
         };
         defer freeRenderedType(allocator, record_type);
         const accessor_fields = collectStructAccessorFields(allocator, canonical) catch {
             allocator.free(name);
             allocator.free(c_type);
+            if (comment) |text| allocator.free(text);
             return;
         };
         errdefer {
@@ -1101,6 +1140,7 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
             .name = name,
             .c_type = c_type,
             .main_definition = main_definition,
+            .comment = comment,
             .accessor_fields = accessor_fields,
             .requires_unsafe = record_type.requires_unsafe,
             .requires_purego = record_type.requires_purego,
@@ -1137,6 +1177,7 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
                 .name = name,
                 .c_type = c_type,
                 .main_definition = main_definition,
+                .comment = comment,
                 .helper_type_definition = helper_type_definition,
                 .helper_function_definition = helper_function_definition,
                 .requires_purego = true,
@@ -1148,6 +1189,7 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
     const rendered = renderType(allocator, underlying) catch {
         allocator.free(name);
         allocator.free(c_type);
+        if (comment) |text| allocator.free(text);
         return;
     };
     defer freeRenderedType(allocator, rendered);
@@ -1157,6 +1199,7 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
         .name = name,
         .c_type = c_type,
         .main_definition = main_definition,
+        .comment = comment,
         .requires_purego = rendered.requires_purego,
         .requires_unsafe = rendered.requires_unsafe,
         .requires_union_helpers = rendered.requires_union_helpers,

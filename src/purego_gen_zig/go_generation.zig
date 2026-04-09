@@ -100,6 +100,7 @@ fn mergeDeclarations(
         }
         allocator.free(constant_decl.name);
         allocator.free(constant_decl.value_expr);
+        if (constant_decl.comment) |comment| allocator.free(comment);
     }
     for (src.runtime_vars.items) |runtime_var_decl| {
         if (!hasRuntimeVarNamed(dst, runtime_var_decl.name)) {
@@ -108,6 +109,7 @@ fn mergeDeclarations(
         }
         allocator.free(runtime_var_decl.name);
         allocator.free(runtime_var_decl.c_type);
+        if (runtime_var_decl.comment) |comment| allocator.free(comment);
     }
     src.functions.items.len = 0;
     src.functions.deinit(allocator);
@@ -130,12 +132,14 @@ fn freeFunctionDecl(allocator: std.mem.Allocator, func: declarations.FunctionDec
     allocator.free(func.parameter_c_types);
     for (func.parameter_names) |param_name| allocator.free(param_name);
     allocator.free(func.parameter_names);
+    if (func.comment) |comment| allocator.free(comment);
 }
 
 fn freeTypedefDecl(allocator: std.mem.Allocator, typedef_decl: declarations.TypedefDecl) void {
     allocator.free(typedef_decl.name);
     allocator.free(typedef_decl.c_type);
     allocator.free(typedef_decl.main_definition);
+    if (typedef_decl.comment) |comment| allocator.free(comment);
     if (typedef_decl.helper_type_definition) |text| allocator.free(text);
     if (typedef_decl.helper_function_definition) |text| allocator.free(text);
     for (typedef_decl.accessor_fields) |field| {
@@ -475,9 +479,31 @@ fn declarationsHaveHelperFunctions(decls: *const declarations.CollectedDeclarati
     return declarationsNeedUnionHelpers(decls);
 }
 
+fn trimCommentPrefix(line: []const u8) []const u8 {
+    var trimmed = std.mem.trim(u8, line, " \t\r");
+    if (std.mem.startsWith(u8, trimmed, "/**")) trimmed = trimmed[3..] else if (std.mem.startsWith(u8, trimmed, "/*")) trimmed = trimmed[2..] else if (std.mem.startsWith(u8, trimmed, "///")) trimmed = trimmed[3..] else if (std.mem.startsWith(u8, trimmed, "//")) trimmed = trimmed[2..] else if (std.mem.startsWith(u8, trimmed, "*")) trimmed = trimmed[1..];
+
+    trimmed = std.mem.trim(u8, trimmed, " \t\r");
+    if (std.mem.endsWith(u8, trimmed, "*/")) {
+        trimmed = std.mem.trimRight(u8, trimmed[0 .. trimmed.len - 2], " \t\r");
+    }
+    return trimmed;
+}
+
+fn writeComment(w: anytype, indent: []const u8, raw_comment: ?[]const u8) !void {
+    const comment = raw_comment orelse return;
+    var lines = std.mem.splitScalar(u8, comment, '\n');
+    while (lines.next()) |line| {
+        const normalized = trimCommentPrefix(line);
+        if (normalized.len == 0) continue;
+        try w.print("{s}// {s}\n", .{ indent, normalized });
+    }
+}
+
 fn writeTypedefs(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
     try w.writeAll("type (\n");
     for (decls.typedefs.items) |typedef_decl| {
+        try writeComment(w, "\t", typedef_decl.comment);
         try w.writeAll(typedef_decl.main_definition);
     }
     for (decls.typedefs.items) |typedef_decl| {
@@ -489,6 +515,7 @@ fn writeTypedefs(w: anytype, decls: *const declarations.CollectedDeclarations) !
 fn writeFunctions(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
     try w.writeAll("var (\n");
     for (decls.functions.items) |func| {
+        try writeComment(w, "\t", func.comment);
         try w.print("\t{s} func", .{func.name});
         if (func.parameter_names.len == 0) {
             try w.writeAll("()");
@@ -850,6 +877,7 @@ fn writeConstants(w: anytype, decls: *const declarations.CollectedDeclarations) 
     if (decls.constants.items.len == 0) return;
     try w.writeAll("const (\n");
     for (decls.constants.items, 0..) |constant_decl, index| {
+        try writeComment(w, "\t", constant_decl.comment);
         if (index == 0) {
             try w.print("\t{s} = {s}\n", .{ constant_decl.name, constant_decl.value_expr });
             continue;
@@ -868,6 +896,7 @@ fn writeRuntimeVars(
     try w.writeAll("var (\n");
     for (decls.runtime_vars.items) |runtime_var_decl| {
         _ = runtime_var_decl.c_type;
+        try writeComment(w, "\t", runtime_var_decl.comment);
         try w.print("\t{s} uintptr\n", .{runtime_var_decl.name});
     }
     try w.writeAll(")\n\n");
