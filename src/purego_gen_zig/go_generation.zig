@@ -34,6 +34,7 @@ pub const GeneratorConfig = struct {
     emit: []const EmitKind,
     struct_accessors: bool = false,
     buffer_param_helpers: []const BufferParamHelper = &.{},
+    auto_callbacks: bool = false,
 
     pub fn deinit(self: *const GeneratorConfig, allocator: std.mem.Allocator) void {
         allocator.free(self.lib_id);
@@ -66,6 +67,11 @@ const CTypeMapping = struct {
 const BufferPairIndices = struct {
     pointer_index: usize,
     length_index: usize,
+};
+
+const AutoCallbackParam = struct {
+    function_index: usize,
+    parameter_index: usize,
 };
 
 fn mergeDeclarations(
@@ -175,8 +181,13 @@ fn mapCTypeToGo(c_type: []const u8) !CTypeMapping {
     if (std.mem.eql(u8, c_type, "size_t")) return .{ .go_type = "uint64" };
     if (std.mem.eql(u8, c_type, "uint32_t")) return .{ .go_type = "uint32" };
     if (std.mem.eql(u8, c_type, "const char *")) return .{ .go_type = "string" };
+    if (isFunctionPointerCType(c_type)) return .{ .go_type = "uintptr", .comment = c_type };
     if (std.mem.startsWith(u8, c_type, "struct ")) return .{ .go_type = "struct{}" };
     return error.UnsupportedCType;
+}
+
+fn isFunctionPointerCType(c_type: []const u8) bool {
+    return std.mem.indexOf(u8, c_type, "(*)") != null;
 }
 
 fn resolveCTypeToGo(
@@ -221,6 +232,80 @@ fn findParameterIndexByName(func: declarations.FunctionDecl, name: []const u8) ?
         if (std.mem.eql(u8, param_name, name)) return index;
     }
     return null;
+}
+
+fn collectAutoCallbackParams(
+    allocator: std.mem.Allocator,
+    decls: *const declarations.CollectedDeclarations,
+) ![]AutoCallbackParam {
+    var params: std.ArrayList(AutoCallbackParam) = .empty;
+    errdefer params.deinit(allocator);
+
+    for (decls.functions.items, 0..) |func, function_index| {
+        for (func.parameter_c_types, 0..) |param_c_type, parameter_index| {
+            if (!isFunctionPointerCType(param_c_type)) continue;
+            try params.append(allocator, .{
+                .function_index = function_index,
+                .parameter_index = parameter_index,
+            });
+        }
+    }
+
+    return params.toOwnedSlice(allocator);
+}
+
+fn containsAutoCallbackParamName(
+    items: []const []const u8,
+    needle: []const u8,
+) bool {
+    return containsString(items, needle);
+}
+
+fn renderCallbackFuncTypeName(
+    allocator: std.mem.Allocator,
+    parameter_name: []const u8,
+) ![]u8 {
+    return std.fmt.allocPrint(allocator, "{s}_func", .{parameter_name});
+}
+
+fn renderCallbackGoSignature(
+    allocator: std.mem.Allocator,
+    decls: *const declarations.CollectedDeclarations,
+    c_type: []const u8,
+) ![]u8 {
+    const marker_index = std.mem.indexOf(u8, c_type, "(*)") orelse return error.UnsupportedCType;
+    if (marker_index + 4 > c_type.len) return error.UnsupportedCType;
+    if (c_type[marker_index + 3] != '(') return error.UnsupportedCType;
+    if (c_type[c_type.len - 1] != ')') return error.UnsupportedCType;
+
+    const result_c_type = std.mem.trim(u8, c_type[0..marker_index], " ");
+    const params_raw = c_type[marker_index + 4 .. c_type.len - 1];
+
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+    const w = buffer.writer(allocator);
+    try w.writeAll("func(");
+
+    const trimmed_params = std.mem.trim(u8, params_raw, " ");
+    if (trimmed_params.len != 0 and !std.mem.eql(u8, trimmed_params, "void")) {
+        var parts = std.mem.splitScalar(u8, trimmed_params, ',');
+        var wrote_any = false;
+        while (parts.next()) |part| {
+            const param_c_type = std.mem.trim(u8, part, " ");
+            const param_mapping = try resolveCTypeToGo(decls, param_c_type);
+            if (wrote_any) try w.writeAll(", ");
+            wrote_any = true;
+            try w.print("{s}", .{param_mapping.go_type});
+        }
+    }
+    try w.writeByte(')');
+
+    const result_mapping = try resolveCTypeToGo(decls, result_c_type);
+    if (result_mapping.go_type.len != 0) {
+        try w.print(" {s}", .{result_mapping.go_type});
+    }
+
+    return buffer.toOwnedSlice(allocator);
 }
 
 fn resolveBufferPair(
@@ -568,6 +653,146 @@ fn writeBufferHelpers(
     }
 }
 
+fn writeAutoCallbackTypes(
+    allocator: std.mem.Allocator,
+    w: anytype,
+    decls: *const declarations.CollectedDeclarations,
+    auto_callback_params: []const AutoCallbackParam,
+) !void {
+    if (auto_callback_params.len == 0) return;
+
+    var emitted_names: std.ArrayList([]const u8) = .empty;
+    defer emitted_names.deinit(allocator);
+
+    try w.writeAll("type (\n");
+    for (auto_callback_params) |auto_callback| {
+        const func = decls.functions.items[auto_callback.function_index];
+        const parameter_name = func.parameter_names[auto_callback.parameter_index];
+        if (containsAutoCallbackParamName(emitted_names.items, parameter_name)) continue;
+
+        const helper_type_name = try renderCallbackFuncTypeName(allocator, parameter_name);
+        defer allocator.free(helper_type_name);
+        const go_signature = try renderCallbackGoSignature(
+            allocator,
+            decls,
+            func.parameter_c_types[auto_callback.parameter_index],
+        );
+        defer allocator.free(go_signature);
+
+        try w.print("\t// C: {s}\n", .{func.parameter_c_types[auto_callback.parameter_index]});
+        try w.print("\t{s} = {s}\n", .{ helper_type_name, go_signature });
+        try emitted_names.append(allocator, parameter_name);
+    }
+    try w.writeAll(")\n");
+}
+
+fn writeAutoCallbackConstructors(
+    allocator: std.mem.Allocator,
+    w: anytype,
+    decls: *const declarations.CollectedDeclarations,
+    auto_callback_params: []const AutoCallbackParam,
+) !void {
+    if (auto_callback_params.len == 0) return;
+
+    var emitted_names: std.ArrayList([]const u8) = .empty;
+    defer emitted_names.deinit(allocator);
+
+    for (auto_callback_params) |auto_callback| {
+        const func = decls.functions.items[auto_callback.function_index];
+        const parameter_name = func.parameter_names[auto_callback.parameter_index];
+        if (containsAutoCallbackParamName(emitted_names.items, parameter_name)) continue;
+
+        const helper_type_name = try renderCallbackFuncTypeName(allocator, parameter_name);
+        defer allocator.free(helper_type_name);
+        try w.print(
+            "func new_{s}(fn {s}) uintptr {{\n\treturn uintptr(purego.NewCallback(fn))\n}}\n\n",
+            .{ parameter_name, helper_type_name },
+        );
+        try emitted_names.append(allocator, parameter_name);
+    }
+}
+
+fn hasAutoCallbackParamForFunction(
+    auto_callback_params: []const AutoCallbackParam,
+    function_index: usize,
+) bool {
+    for (auto_callback_params) |auto_callback| {
+        if (auto_callback.function_index == function_index) return true;
+    }
+    return false;
+}
+
+fn isAutoCallbackParameter(
+    auto_callback_params: []const AutoCallbackParam,
+    function_index: usize,
+    parameter_index: usize,
+) bool {
+    for (auto_callback_params) |auto_callback| {
+        if (auto_callback.function_index == function_index and
+            auto_callback.parameter_index == parameter_index)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+fn writeAutoCallbackWrappers(
+    allocator: std.mem.Allocator,
+    w: anytype,
+    decls: *const declarations.CollectedDeclarations,
+    auto_callback_params: []const AutoCallbackParam,
+) !void {
+    if (auto_callback_params.len == 0) return;
+
+    for (decls.functions.items, 0..) |func, function_index| {
+        if (!hasAutoCallbackParamForFunction(auto_callback_params, function_index)) continue;
+
+        try w.print("func {s}_callbacks(\n", .{func.name});
+        for (func.parameter_names, func.parameter_c_types, 0..) |param_name, param_c_type, parameter_index| {
+            if (isAutoCallbackParameter(auto_callback_params, function_index, parameter_index)) {
+                const helper_type_name = try renderCallbackFuncTypeName(allocator, param_name);
+                defer allocator.free(helper_type_name);
+                try w.print("\t{s} {s},\n", .{ param_name, helper_type_name });
+                continue;
+            }
+            const mapped = try resolveCTypeToGo(decls, param_c_type);
+            try w.print("\t{s} {s},\n", .{ param_name, mapped.go_type });
+        }
+        try w.writeAll(")");
+
+        const result_mapped = try resolveCTypeToGo(decls, func.result_c_type);
+        if (result_mapped.go_type.len != 0) {
+            try w.print(" {s} {{\n", .{result_mapped.go_type});
+        } else {
+            try w.writeAll(" {\n");
+        }
+
+        for (func.parameter_names, 0..) |param_name, parameter_index| {
+            if (!isAutoCallbackParameter(auto_callback_params, function_index, parameter_index)) continue;
+            try w.print("\t{s}_callback := uintptr(0)\n", .{param_name});
+            try w.print("\tif {s} != nil {{\n", .{param_name});
+            try w.print("\t\t{s}_callback = purego.NewCallback({s})\n", .{ param_name, param_name });
+            try w.writeAll("\t}\n");
+        }
+
+        if (result_mapped.go_type.len != 0) {
+            try w.print("\treturn {s}(\n", .{func.name});
+        } else {
+            try w.print("\t{s}(\n", .{func.name});
+        }
+        for (func.parameter_names, 0..) |param_name, parameter_index| {
+            if (isAutoCallbackParameter(auto_callback_params, function_index, parameter_index)) {
+                try w.print("\t\t{s}_callback,\n", .{param_name});
+                continue;
+            }
+            try w.print("\t\t{s},\n", .{param_name});
+        }
+        try w.writeAll("\t)\n");
+        try w.writeAll("}\n");
+    }
+}
+
 fn writeStructAccessors(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
     var wrote_any = false;
     for (decls.typedefs.items) |typedef_decl| {
@@ -718,6 +943,11 @@ pub fn generateGoSource(
     const need_unsafe = emits_functions or declarationsNeedUnsafe(decls);
     const need_fmt = declarationsNeedFmt(emits_functions, has_emitted_runtime_vars, decls);
     const has_helper_functions = declarationsHaveHelperFunctions(decls);
+    const auto_callback_params = if (config.auto_callbacks and emits_functions)
+        try collectAutoCallbackParams(allocator, decls)
+    else
+        try allocator.alloc(AutoCallbackParam, 0);
+    defer allocator.free(auto_callback_params);
 
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
@@ -758,6 +988,11 @@ pub fn generateGoSource(
         try writeTypedefs(w, decls);
         try w.writeByte('\n');
     }
+    if (auto_callback_params.len > 0) {
+        try writeAutoCallbackTypes(allocator, w, decls, auto_callback_params);
+        try w.writeByte('\n');
+        try writeAutoCallbackConstructors(allocator, w, decls, auto_callback_params);
+    }
     if (emits_constants and !has_helper_functions) {
         try writeConstants(w, decls);
         try w.writeByte('\n');
@@ -778,6 +1013,10 @@ pub fn generateGoSource(
         try w.writeByte('\n');
         try writeBufferHelpers(allocator, w, config, decls);
         if (config.buffer_param_helpers.len > 0) {
+            try w.writeByte('\n');
+        }
+        try writeAutoCallbackWrappers(allocator, w, decls, auto_callback_params);
+        if (auto_callback_params.len > 0) {
             try w.writeByte('\n');
         }
         try writeRegisterFunctions(w, config, decls);

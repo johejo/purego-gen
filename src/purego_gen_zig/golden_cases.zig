@@ -9,6 +9,7 @@ const supported_golden_case_ids = [_][]const u8{
     "buffer_input_helper",
     "buffer_input_pattern",
     "by_value_records",
+    "callback_auto_discover",
     "categories_const",
     "macro_constants",
     "non_callback_typedef",
@@ -19,7 +20,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
-    "callback_auto_discover",
     "callback_param",
     "callback_param_conflict",
     "callback_param_dedup",
@@ -291,6 +291,12 @@ pub fn loadCaseFromDir(
                 break :blk struct_accessors_value.bool;
             },
             .buffer_param_helpers = buffer_param_helpers,
+            .auto_callbacks = blk: {
+                const render_value = generator.get("render") orelse break :blk false;
+                const render = render_value.object;
+                const auto_callbacks_value = render.get("auto_callbacks") orelse break :blk false;
+                break :blk auto_callbacks_value.bool;
+            },
         },
     };
 }
