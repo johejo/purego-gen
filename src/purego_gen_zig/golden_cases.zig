@@ -6,6 +6,8 @@ const supported_golden_case_ids = [_][]const u8{
     "basic_and_categories",
     "basic_func_type",
     "basic_type_strict_opaque",
+    "buffer_input_helper",
+    "buffer_input_pattern",
     "categories_const",
     "macro_constants",
     "non_callback_typedef",
@@ -16,8 +18,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
-    "buffer_input_helper",
-    "buffer_input_pattern",
     "by_value_records",
     "callback_auto_discover",
     "callback_param",
@@ -62,9 +62,7 @@ pub const LoadedCase = struct {
         allocator.free(self.expected_path);
         for (self.clang_args) |arg| allocator.free(arg);
         allocator.free(self.clang_args);
-        allocator.free(self.generator.lib_id);
-        allocator.free(self.generator.package_name);
-        allocator.free(self.generator.emit);
+        self.generator.deinit(allocator);
     }
 };
 
@@ -100,6 +98,110 @@ fn parseStringArray(allocator: std.mem.Allocator, array: std.json.Array) ![][]co
     for (array.items) |item| {
         try items.append(allocator, try allocator.dupe(u8, item.string));
     }
+    return items.toOwnedSlice(allocator);
+}
+
+fn freeBufferParamHelpers(
+    allocator: std.mem.Allocator,
+    helpers: []const go_generation.BufferParamHelper,
+) void {
+    for (helpers) |helper| {
+        switch (helper) {
+            .explicit => |explicit| {
+                allocator.free(explicit.function_name);
+                for (explicit.pairs) |pair| {
+                    allocator.free(pair.pointer);
+                    allocator.free(pair.length);
+                }
+                allocator.free(explicit.pairs);
+            },
+            .pattern => |pattern| {
+                allocator.free(pattern.function_pattern);
+            },
+        }
+    }
+    allocator.free(helpers);
+}
+
+fn parseBufferParamPairs(
+    allocator: std.mem.Allocator,
+    array: std.json.Array,
+) ![]go_generation.BufferParamPair {
+    var items: std.ArrayList(go_generation.BufferParamPair) = .empty;
+    errdefer {
+        for (items.items) |pair| {
+            allocator.free(pair.pointer);
+            allocator.free(pair.length);
+        }
+        items.deinit(allocator);
+    }
+
+    for (array.items) |item| {
+        const obj = item.object;
+        try items.append(allocator, .{
+            .pointer = try allocator.dupe(u8, obj.get("pointer").?.string),
+            .length = try allocator.dupe(u8, obj.get("length").?.string),
+        });
+    }
+
+    return items.toOwnedSlice(allocator);
+}
+
+fn parseBufferParamHelpers(
+    allocator: std.mem.Allocator,
+    generator: std.json.ObjectMap,
+) ![]go_generation.BufferParamHelper {
+    const render_value = generator.get("render") orelse return try allocator.alloc(go_generation.BufferParamHelper, 0);
+    const render = render_value.object;
+    const helpers_value = render.get("helpers") orelse return try allocator.alloc(go_generation.BufferParamHelper, 0);
+    const helpers = helpers_value.object;
+    const buffer_params_value = helpers.get("buffer_params") orelse return try allocator.alloc(go_generation.BufferParamHelper, 0);
+
+    var items: std.ArrayList(go_generation.BufferParamHelper) = .empty;
+    errdefer {
+        for (items.items) |helper| {
+            switch (helper) {
+                .explicit => |explicit| {
+                    allocator.free(explicit.function_name);
+                    for (explicit.pairs) |pair| {
+                        allocator.free(pair.pointer);
+                        allocator.free(pair.length);
+                    }
+                    allocator.free(explicit.pairs);
+                },
+                .pattern => |pattern| {
+                    allocator.free(pattern.function_pattern);
+                },
+            }
+        }
+        items.deinit(allocator);
+    }
+
+    for (buffer_params_value.array.items) |item| {
+        const obj = item.object;
+        const function_value = obj.get("function") orelse return error.MissingBufferHelperFunction;
+        switch (function_value) {
+            .string => {
+                const pairs_value = obj.get("pairs") orelse return error.MissingBufferHelperPairs;
+                try items.append(allocator, .{
+                    .explicit = .{
+                        .function_name = try allocator.dupe(u8, function_value.string),
+                        .pairs = try parseBufferParamPairs(allocator, pairs_value.array),
+                    },
+                });
+            },
+            .object => {
+                const pattern_value = function_value.object.get("pattern") orelse return error.MissingBufferHelperPattern;
+                try items.append(allocator, .{
+                    .pattern = .{
+                        .function_pattern = try allocator.dupe(u8, pattern_value.string),
+                    },
+                });
+            },
+            else => return error.InvalidBufferHelperFunction,
+        }
+    }
+
     return items.toOwnedSlice(allocator);
 }
 
@@ -141,6 +243,8 @@ pub fn loadCaseFromDir(
     const emit_value = generator.get("emit") orelse return error.MissingEmitConfig;
     const emit = try parseEmitKinds(allocator, emit_value.array);
     errdefer allocator.free(emit);
+    const buffer_param_helpers = try parseBufferParamHelpers(allocator, generator);
+    errdefer freeBufferParamHelpers(allocator, buffer_param_helpers);
 
     const header_paths = try parseStringArray(allocator, header_list_value.array);
     errdefer {
@@ -186,6 +290,7 @@ pub fn loadCaseFromDir(
                 const struct_accessors_value = render.get("struct_accessors") orelse break :blk false;
                 break :blk struct_accessors_value.bool;
             },
+            .buffer_param_helpers = buffer_param_helpers,
         },
     };
 }

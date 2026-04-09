@@ -9,11 +9,63 @@ pub const EmitKind = enum {
     var_decl,
 };
 
+pub const BufferParamPair = struct {
+    pointer: []const u8,
+    length: []const u8,
+};
+
+pub const ExplicitBufferParamHelper = struct {
+    function_name: []const u8,
+    pairs: []const BufferParamPair,
+};
+
+pub const PatternBufferParamHelper = struct {
+    function_pattern: []const u8,
+};
+
+pub const BufferParamHelper = union(enum) {
+    explicit: ExplicitBufferParamHelper,
+    pattern: PatternBufferParamHelper,
+};
+
 pub const GeneratorConfig = struct {
     lib_id: []const u8,
     package_name: []const u8,
     emit: []const EmitKind,
     struct_accessors: bool = false,
+    buffer_param_helpers: []const BufferParamHelper = &.{},
+
+    pub fn deinit(self: *const GeneratorConfig, allocator: std.mem.Allocator) void {
+        allocator.free(self.lib_id);
+        allocator.free(self.package_name);
+        allocator.free(self.emit);
+        for (self.buffer_param_helpers) |helper| {
+            switch (helper) {
+                .explicit => |explicit| {
+                    allocator.free(explicit.function_name);
+                    for (explicit.pairs) |pair| {
+                        allocator.free(pair.pointer);
+                        allocator.free(pair.length);
+                    }
+                    allocator.free(explicit.pairs);
+                },
+                .pattern => |pattern| {
+                    allocator.free(pattern.function_pattern);
+                },
+            }
+        }
+        allocator.free(self.buffer_param_helpers);
+    }
+};
+
+const CTypeMapping = struct {
+    go_type: []const u8,
+    comment: ?[]const u8 = null,
+};
+
+const BufferPairIndices = struct {
+    pointer_index: usize,
+    length_index: usize,
 };
 
 fn mergeDeclarations(
@@ -115,12 +167,168 @@ fn hasRuntimeVarNamed(decls: *const declarations.CollectedDeclarations, name: []
     return false;
 }
 
-fn mapCTypeToGo(c_type: []const u8) ![]const u8 {
-    if (std.mem.eql(u8, c_type, "int")) return "int32";
-    if (std.mem.eql(u8, c_type, "void")) return "";
-    if (std.mem.eql(u8, c_type, "void *")) return "uintptr";
-    if (std.mem.startsWith(u8, c_type, "struct ")) return "struct{}";
+fn mapCTypeToGo(c_type: []const u8) !CTypeMapping {
+    if (std.mem.eql(u8, c_type, "int")) return .{ .go_type = "int32" };
+    if (std.mem.eql(u8, c_type, "void")) return .{ .go_type = "" };
+    if (std.mem.eql(u8, c_type, "void *")) return .{ .go_type = "uintptr", .comment = "void *" };
+    if (std.mem.eql(u8, c_type, "const void *")) return .{ .go_type = "uintptr", .comment = "const void *" };
+    if (std.mem.eql(u8, c_type, "size_t")) return .{ .go_type = "uint64" };
+    if (std.mem.eql(u8, c_type, "uint32_t")) return .{ .go_type = "uint32" };
+    if (std.mem.eql(u8, c_type, "const char *")) return .{ .go_type = "string" };
+    if (std.mem.startsWith(u8, c_type, "struct ")) return .{ .go_type = "struct{}" };
     return error.UnsupportedCType;
+}
+
+fn isSupportedBufferLengthType(go_type: []const u8) bool {
+    return std.mem.eql(u8, go_type, "uint64") or std.mem.eql(u8, go_type, "uint32");
+}
+
+fn containsString(items: []const []const u8, needle: []const u8) bool {
+    for (items) |item| {
+        if (std.mem.eql(u8, item, needle)) return true;
+    }
+    return false;
+}
+
+fn findFunctionByName(
+    decls: *const declarations.CollectedDeclarations,
+    name: []const u8,
+) ?declarations.FunctionDecl {
+    for (decls.functions.items) |func| {
+        if (std.mem.eql(u8, func.name, name)) return func;
+    }
+    return null;
+}
+
+fn findParameterIndexByName(func: declarations.FunctionDecl, name: []const u8) ?usize {
+    for (func.parameter_names, 0..) |param_name, index| {
+        if (std.mem.eql(u8, param_name, name)) return index;
+    }
+    return null;
+}
+
+fn resolveBufferPair(
+    allocator: std.mem.Allocator,
+    func: declarations.FunctionDecl,
+    pair: BufferParamPair,
+    seen_pointer_names: *std.ArrayList([]const u8),
+) !BufferPairIndices {
+    const pointer_index = findParameterIndexByName(func, pair.pointer) orelse return error.BufferHelperParameterNotFound;
+    const length_index = findParameterIndexByName(func, pair.length) orelse return error.BufferHelperParameterNotFound;
+    const pointer_name = func.parameter_names[pointer_index];
+    if (containsString(seen_pointer_names.items, pointer_name)) {
+        return error.DuplicateBufferPointerParameter;
+    }
+    try seen_pointer_names.append(allocator, pointer_name);
+
+    if (!std.mem.eql(u8, func.parameter_c_types[pointer_index], "const void *")) {
+        return error.InvalidBufferPointerParameterType;
+    }
+    const pointer_go_type = try mapCTypeToGo(func.parameter_c_types[pointer_index]);
+    if (!std.mem.eql(u8, pointer_go_type.go_type, "uintptr")) {
+        return error.InvalidBufferPointerParameterType;
+    }
+
+    const length_go_type = try mapCTypeToGo(func.parameter_c_types[length_index]);
+    if (!isSupportedBufferLengthType(length_go_type.go_type)) {
+        return error.InvalidBufferLengthParameterType;
+    }
+
+    return .{
+        .pointer_index = pointer_index,
+        .length_index = length_index,
+    };
+}
+
+fn resolveExplicitBufferPairs(
+    allocator: std.mem.Allocator,
+    func: declarations.FunctionDecl,
+    pairs: []const BufferParamPair,
+) ![]BufferPairIndices {
+    var resolved: std.ArrayList(BufferPairIndices) = .empty;
+    errdefer resolved.deinit(allocator);
+    var seen_pointer_names: std.ArrayList([]const u8) = .empty;
+    defer seen_pointer_names.deinit(allocator);
+
+    for (pairs) |pair| {
+        try resolved.append(allocator, try resolveBufferPair(allocator, func, pair, &seen_pointer_names));
+    }
+
+    return resolved.toOwnedSlice(allocator);
+}
+
+fn detectBufferPairs(
+    allocator: std.mem.Allocator,
+    func: declarations.FunctionDecl,
+) ![]BufferPairIndices {
+    var pairs: std.ArrayList(BufferPairIndices) = .empty;
+    errdefer pairs.deinit(allocator);
+
+    var index: usize = 0;
+    while (index + 1 < func.parameter_c_types.len) {
+        const pointer_mapping = mapCTypeToGo(func.parameter_c_types[index]) catch {
+            index += 1;
+            continue;
+        };
+        const length_mapping = mapCTypeToGo(func.parameter_c_types[index + 1]) catch {
+            index += 1;
+            continue;
+        };
+
+        if (std.mem.eql(u8, func.parameter_c_types[index], "const void *") and
+            std.mem.eql(u8, pointer_mapping.go_type, "uintptr") and
+            isSupportedBufferLengthType(length_mapping.go_type))
+        {
+            try pairs.append(allocator, .{
+                .pointer_index = index,
+                .length_index = index + 1,
+            });
+            index += 2;
+            continue;
+        }
+        index += 1;
+    }
+
+    return pairs.toOwnedSlice(allocator);
+}
+
+fn sortFunctionIndicesByName(indices: []usize, functions: []const declarations.FunctionDecl) void {
+    if (indices.len < 2) return;
+    var i: usize = 1;
+    while (i < indices.len) : (i += 1) {
+        const current = indices[i];
+        var j = i;
+        while (j > 0 and std.mem.lessThan(u8, functions[current].name, functions[indices[j - 1]].name)) : (j -= 1) {
+            indices[j] = indices[j - 1];
+        }
+        indices[j] = current;
+    }
+}
+
+fn functionNameMatchesPattern(name: []const u8, pattern: []const u8) bool {
+    var parts = std.mem.splitScalar(u8, pattern, '|');
+    while (parts.next()) |raw_part| {
+        var part = raw_part;
+        const anchored_start = std.mem.startsWith(u8, part, "^");
+        if (anchored_start) part = part[1..];
+        const anchored_end = std.mem.endsWith(u8, part, "$");
+        if (anchored_end) part = part[0 .. part.len - 1];
+
+        if (anchored_start and anchored_end) {
+            if (std.mem.eql(u8, name, part)) return true;
+            continue;
+        }
+        if (anchored_start) {
+            if (std.mem.startsWith(u8, name, part)) return true;
+            continue;
+        }
+        if (anchored_end) {
+            if (std.mem.endsWith(u8, name, part)) return true;
+            continue;
+        }
+        if (std.mem.indexOf(u8, name, part) != null) return true;
+    }
+    return false;
 }
 
 fn containsEmitKind(items: []const EmitKind, needle: EmitKind) bool {
@@ -186,20 +394,162 @@ fn writeFunctions(w: anytype, decls: *const declarations.CollectedDeclarations) 
         } else {
             try w.writeAll("(\n");
             for (func.parameter_names, func.parameter_c_types) |param_name, param_c_type| {
-                const go_type = try mapCTypeToGo(param_c_type);
-                try w.print("\t\t{s} {s},\n", .{ param_name, go_type });
+                const mapped = try mapCTypeToGo(param_c_type);
+                if (mapped.comment) |comment| {
+                    try w.print("\t\t// C: {s}\n", .{comment});
+                }
+                try w.print("\t\t{s} {s},\n", .{ param_name, mapped.go_type });
+            }
+            const result_mapped = try mapCTypeToGo(func.result_c_type);
+            if (result_mapped.comment) |comment| {
+                try w.print("\t\t// C: {s}\n", .{comment});
             }
             try w.writeAll("\t)");
         }
 
-        const result_go_type = try mapCTypeToGo(func.result_c_type);
-        if (result_go_type.len != 0) {
-            try w.print(" {s}\n", .{result_go_type});
+        const result_mapped = try mapCTypeToGo(func.result_c_type);
+        if (result_mapped.go_type.len != 0) {
+            try w.print(" {s}\n", .{result_mapped.go_type});
         } else {
             try w.writeByte('\n');
         }
     }
     try w.writeAll(")\n");
+}
+
+fn findPairByPointerIndex(pairs: []const BufferPairIndices, pointer_index: usize) ?BufferPairIndices {
+    for (pairs) |pair| {
+        if (pair.pointer_index == pointer_index) return pair;
+    }
+    return null;
+}
+
+fn findPairByLengthIndex(pairs: []const BufferPairIndices, length_index: usize) ?BufferPairIndices {
+    for (pairs) |pair| {
+        if (pair.length_index == length_index) return pair;
+    }
+    return null;
+}
+
+fn writeBufferHelper(
+    w: anytype,
+    func: declarations.FunctionDecl,
+    pairs: []const BufferPairIndices,
+) !void {
+    try w.print("func {s}_bytes(\n", .{func.name});
+    for (func.parameter_names, func.parameter_c_types, 0..) |param_name, param_c_type, index| {
+        if (findPairByLengthIndex(pairs, index) != null) continue;
+        if (findPairByPointerIndex(pairs, index) != null) {
+            try w.print("\t{s} []byte,\n", .{param_name});
+            continue;
+        }
+        const mapped = try mapCTypeToGo(param_c_type);
+        if (mapped.comment) |comment| {
+            try w.print("\t// C: {s}\n", .{comment});
+        }
+        try w.print("\t{s} {s},\n", .{ param_name, mapped.go_type });
+    }
+
+    const result_mapped = try mapCTypeToGo(func.result_c_type);
+    try w.writeAll(")");
+    if (result_mapped.go_type.len != 0) {
+        try w.print(" {s} {{\n", .{result_mapped.go_type});
+    } else {
+        try w.writeAll(" {\n");
+    }
+
+    for (pairs) |pair| {
+        const pointer_name = func.parameter_names[pair.pointer_index];
+        try w.print("\t{s}_ptr := uintptr(0)\n", .{pointer_name});
+        try w.print("\t{s}_len := {s}\n", .{ pointer_name, pointer_name });
+        try w.print("\tif len({s}_len) > 0 {{\n", .{pointer_name});
+        try w.print("\t\t{s}_ptr = uintptr(unsafe.Pointer(&{s}_len[0]))\n", .{ pointer_name, pointer_name });
+        try w.writeAll("\t}\n");
+    }
+
+    const returns_value = result_mapped.go_type.len != 0;
+    if (returns_value) {
+        try w.print("\treturn {s}(\n", .{func.name});
+    } else {
+        try w.print("\t{s}(\n", .{func.name});
+    }
+
+    for (func.parameter_names, func.parameter_c_types, 0..) |param_name, param_c_type, index| {
+        _ = param_c_type;
+        if (findPairByPointerIndex(pairs, index)) |pair| {
+            _ = pair;
+            try w.print("\t\t{s}_ptr,\n", .{param_name});
+            continue;
+        }
+        if (findPairByLengthIndex(pairs, index)) |pair| {
+            const pointer_name = func.parameter_names[pair.pointer_index];
+            const length_mapping = try mapCTypeToGo(func.parameter_c_types[pair.length_index]);
+            try w.print("\t\t{s}(len({s}_len)),\n", .{ length_mapping.go_type, pointer_name });
+            continue;
+        }
+        try w.print("\t\t{s},\n", .{param_name});
+    }
+    try w.writeAll("\t)\n");
+    try w.writeAll("}\n");
+}
+
+fn writeBufferHelpers(
+    allocator: std.mem.Allocator,
+    w: anytype,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+) !void {
+    if (config.buffer_param_helpers.len == 0) return;
+
+    var explicit_names: std.ArrayList([]const u8) = .empty;
+    defer explicit_names.deinit(allocator);
+    for (config.buffer_param_helpers) |helper| {
+        switch (helper) {
+            .explicit => |explicit| try explicit_names.append(allocator, explicit.function_name),
+            .pattern => {},
+        }
+    }
+
+    var emitted_names: std.ArrayList([]const u8) = .empty;
+    defer emitted_names.deinit(allocator);
+
+    for (config.buffer_param_helpers) |helper| {
+        switch (helper) {
+            .explicit => |explicit| {
+                const func = findFunctionByName(decls, explicit.function_name) orelse return error.BufferHelperTargetFunctionNotFound;
+                const pairs = try resolveExplicitBufferPairs(allocator, func, explicit.pairs);
+                defer allocator.free(pairs);
+                try writeBufferHelper(w, func, pairs);
+                try emitted_names.append(allocator, func.name);
+            },
+            .pattern => |pattern| {
+                const function_count = decls.functions.items.len;
+                const indices = try allocator.alloc(usize, function_count);
+                defer allocator.free(indices);
+                for (indices, 0..) |*slot, index| {
+                    slot.* = index;
+                }
+                sortFunctionIndicesByName(indices, decls.functions.items);
+
+                var match_count: usize = 0;
+                for (indices) |index| {
+                    const func = decls.functions.items[index];
+                    if (containsString(explicit_names.items, func.name)) continue;
+                    if (containsString(emitted_names.items, func.name)) continue;
+                    if (!functionNameMatchesPattern(func.name, pattern.function_pattern)) continue;
+
+                    const pairs = try detectBufferPairs(allocator, func);
+                    defer allocator.free(pairs);
+                    if (pairs.len == 0) continue;
+
+                    try writeBufferHelper(w, func, pairs);
+                    try emitted_names.append(allocator, func.name);
+                    match_count += 1;
+                }
+                if (match_count == 0) return error.BufferPatternMatchedNoFunctions;
+            },
+        }
+    }
 }
 
 fn writeStructAccessors(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
@@ -410,6 +760,10 @@ pub fn generateGoSource(
     if (emits_functions) {
         try writeFunctions(w, decls);
         try w.writeByte('\n');
+        try writeBufferHelpers(allocator, w, config, decls);
+        if (config.buffer_param_helpers.len > 0) {
+            try w.writeByte('\n');
+        }
         try writeRegisterFunctions(w, config, decls);
     }
     if (emits_runtime_vars) {
