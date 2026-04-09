@@ -4,8 +4,11 @@ const go_generation = @import("go_generation.zig");
 const supported_golden_case_ids = [_][]const u8{
     "abi_types",
     "basic_func_type",
+    "basic_type_strict_opaque",
     "categories_const",
     "macro_constants",
+    "non_callback_typedef",
+    "parameter_names",
     "struct_accessors_basic",
 };
 
@@ -13,7 +16,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
     "basic_and_categories",
-    "basic_type_strict_opaque",
     "buffer_input_helper",
     "buffer_input_pattern",
     "by_value_records",
@@ -33,10 +35,8 @@ const unsupported_golden_case_ids = [_][]const u8{
     "libsqlite3",
     "libzstd",
     "macro_sentinels",
-    "non_callback_typedef",
     "opaque_func_only",
     "owned_string_return",
-    "parameter_names",
     "prefix_free",
     "public_api_basic",
     "runtime_smoke",

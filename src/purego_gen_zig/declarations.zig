@@ -93,10 +93,99 @@ const RenderedType = struct {
     requires_union_helpers: bool = false,
 };
 
+const go_keywords = std.StaticStringMap(void).initComptime(.{
+    .{ "break", {} },
+    .{ "case", {} },
+    .{ "chan", {} },
+    .{ "const", {} },
+    .{ "continue", {} },
+    .{ "default", {} },
+    .{ "defer", {} },
+    .{ "else", {} },
+    .{ "fallthrough", {} },
+    .{ "for", {} },
+    .{ "func", {} },
+    .{ "go", {} },
+    .{ "goto", {} },
+    .{ "if", {} },
+    .{ "import", {} },
+    .{ "interface", {} },
+    .{ "map", {} },
+    .{ "package", {} },
+    .{ "range", {} },
+    .{ "return", {} },
+    .{ "select", {} },
+    .{ "struct", {} },
+    .{ "switch", {} },
+    .{ "type", {} },
+    .{ "var", {} },
+});
+
 fn dupeString(allocator: std.mem.Allocator, cx_str: c.CXString) ![]const u8 {
     defer c.clang_disposeString(cx_str);
     const slice = parser.clangString(cx_str);
     return allocator.dupe(u8, slice);
+}
+
+fn sanitizeIdentifierToken(
+    allocator: std.mem.Allocator,
+    raw: []const u8,
+    fallback: []const u8,
+) ![]const u8 {
+    const use_fallback = raw.len == 0 or std.mem.eql(u8, raw, "_");
+    const source = if (use_fallback) fallback else raw;
+
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+
+    for (source) |ch| {
+        if (std.ascii.isAlphanumeric(ch) or ch == '_') {
+            try buffer.append(allocator, ch);
+        } else {
+            try buffer.append(allocator, '_');
+        }
+    }
+
+    if (buffer.items.len == 0) {
+        try buffer.appendSlice(allocator, fallback);
+    }
+    if (std.ascii.isDigit(buffer.items[0])) {
+        try buffer.insertSlice(allocator, 0, "n_");
+    }
+    if (go_keywords.has(buffer.items)) {
+        try buffer.append(allocator, '_');
+    }
+
+    return buffer.toOwnedSlice(allocator);
+}
+
+fn nameExists(names: []const []const u8, candidate: []const u8, count: usize) bool {
+    for (names[0..count]) |name| {
+        if (std.mem.eql(u8, name, candidate)) return true;
+    }
+    return false;
+}
+
+fn normalizeParameterNames(
+    allocator: std.mem.Allocator,
+    param_names: [][]const u8,
+) !void {
+    for (param_names, 0..) |raw_name, i| {
+        const fallback = try std.fmt.allocPrint(allocator, "arg{d}", .{i + 1});
+        defer allocator.free(fallback);
+
+        var candidate = try sanitizeIdentifierToken(allocator, raw_name, fallback);
+        var suffix: usize = 2;
+        while (nameExists(param_names, candidate, i)) {
+            const duplicate = candidate;
+            candidate = try std.fmt.allocPrint(allocator, "{s}_{d}", .{ duplicate, suffix });
+            allocator.free(duplicate);
+            suffix += 1;
+        }
+
+        allocator.free(raw_name);
+        param_names[i] = candidate;
+    }
 }
 
 fn isFromTargetHeader(cursor_arg: c.CXCursor, header_path: [:0]const u8) bool {
@@ -914,6 +1003,7 @@ fn collectFunction(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
         param_types[i] = try dupeString(allocator, c.clang_getTypeSpelling(arg_type));
         param_names[i] = try dupeString(allocator, c.clang_getCursorSpelling(arg_cursor));
     }
+    try normalizeParameterNames(allocator, param_names);
 
     try ctx.decls.functions.append(allocator, .{
         .name = name,
