@@ -86,6 +86,7 @@ pub const GeneratorConfig = struct {
     include: IncludeConfig,
     exclude: ExcludeConfig,
     typed_sentinel_constants: bool = false,
+    strict_enum_typedefs: bool = false,
     struct_accessors: bool = false,
     buffer_param_helpers: []const BufferParamHelper = &.{},
     callback_param_helpers: []const ExplicitCallbackParamHelper = &.{},
@@ -252,6 +253,7 @@ fn freeTypedefDecl(allocator: std.mem.Allocator, typedef_decl: declarations.Type
     allocator.free(typedef_decl.name);
     allocator.free(typedef_decl.c_type);
     allocator.free(typedef_decl.main_definition);
+    if (typedef_decl.underlying_go_type) |underlying_go_type| allocator.free(underlying_go_type);
     if (typedef_decl.comment) |comment| allocator.free(comment);
     if (typedef_decl.helper_type_definition) |text| allocator.free(text);
     if (typedef_decl.helper_function_definition) |text| allocator.free(text);
@@ -300,6 +302,7 @@ fn isIncludedOnly(included_name: []const u8, name: []const u8) bool {
 
 fn mapCTypeToGo(c_type: []const u8) !CTypeMapping {
     if (std.mem.eql(u8, c_type, "int")) return .{ .go_type = "int32" };
+    if (std.mem.eql(u8, c_type, "unsigned long long")) return .{ .go_type = "uint64" };
     if (std.mem.eql(u8, c_type, "void")) return .{ .go_type = "" };
     if (std.mem.eql(u8, c_type, "void *")) return .{ .go_type = "uintptr", .comment = "void *" };
     if (std.mem.eql(u8, c_type, "const void *")) return .{ .go_type = "uintptr", .comment = "const void *" };
@@ -452,6 +455,18 @@ fn replaceTypeNameWithAlias(
     return allocator.dupe(u8, go_type);
 }
 
+fn resolveTypedefGoType(
+    decls: *const declarations.CollectedDeclarations,
+    typedef_decl: declarations.TypedefDecl,
+    strict_enum_typedefs: bool,
+) []const u8 {
+    if (typedef_decl.is_enum_typedef and !strict_enum_typedefs and typedef_decl.underlying_go_type != null) {
+        return typedef_decl.underlying_go_type.?;
+    }
+    _ = decls;
+    return typedef_decl.name;
+}
+
 fn resolvePublicApiGoType(
     allocator: std.mem.Allocator,
     config: GeneratorConfig,
@@ -459,7 +474,7 @@ fn resolvePublicApiGoType(
     c_type: []const u8,
     emits_types: bool,
 ) ![]u8 {
-    const mapped = try resolveFunctionParameterType(allocator, decls, c_type, false, emits_types);
+    const mapped = try resolveFunctionParameterType(allocator, decls, c_type, false, emits_types, config.strict_enum_typedefs);
     defer if (resolvedGoTypeNeedsFree(c_type, mapped)) allocator.free(mapped.go_type);
     var current = try allocator.dupe(u8, mapped.go_type);
     errdefer allocator.free(current);
@@ -526,12 +541,13 @@ fn resolveCallbackSignatureCTypeToGo(
     if (std.mem.eql(u8, c_type, "const char *")) {
         return .{ .go_type = "uintptr" };
     }
-    return resolveCTypeToGo(decls, c_type);
+    return resolveCTypeToGo(decls, c_type, false);
 }
 
 fn resolveCTypeToGo(
     decls: *const declarations.CollectedDeclarations,
     c_type: []const u8,
+    strict_enum_typedefs: bool,
 ) !CTypeMapping {
     return mapCTypeToGo(c_type) catch |err| switch (err) {
         error.UnsupportedCType => {
@@ -540,16 +556,16 @@ fn resolveCTypeToGo(
                     std.mem.startsWith(u8, typedef_decl.c_type, "struct ") or
                     std.mem.indexOf(u8, typedef_decl.main_definition, "struct{}") != null;
                 if (std.mem.eql(u8, typedef_decl.name, c_type)) {
-                    return .{ .go_type = typedef_decl.name };
+                    return .{ .go_type = resolveTypedefGoType(decls, typedef_decl, strict_enum_typedefs) };
                 }
                 if (std.mem.eql(u8, typedef_decl.name, c_type) and is_opaque_typedef) {
                     return .{ .go_type = "struct{}" };
                 }
                 if (std.mem.eql(u8, c_type, typedef_decl.name)) {
-                    return .{ .go_type = typedef_decl.name };
+                    return .{ .go_type = resolveTypedefGoType(decls, typedef_decl, strict_enum_typedefs) };
                 }
                 if (std.mem.eql(u8, c_type, typedef_decl.c_type)) {
-                    return .{ .go_type = typedef_decl.name };
+                    return .{ .go_type = resolveTypedefGoType(decls, typedef_decl, strict_enum_typedefs) };
                 }
                 if (std.mem.endsWith(u8, c_type, " *")) {
                     const base = c_type[0 .. c_type.len - 2];
@@ -575,6 +591,7 @@ fn resolveFunctionParameterType(
     c_type: []const u8,
     keep_callback_pointer: bool,
     emits_types: bool,
+    strict_enum_typedefs: bool,
 ) !CTypeMapping {
     if (isFunctionPointerCType(c_type) and !keep_callback_pointer) {
         return .{
@@ -602,7 +619,7 @@ fn resolveFunctionParameterType(
             }
         }
     }
-    return resolveCTypeToGo(decls, c_type);
+    return resolveCTypeToGo(decls, c_type, strict_enum_typedefs);
 }
 
 fn resolvedGoTypeNeedsFree(c_type: []const u8, mapped: CTypeMapping) bool {
@@ -1013,6 +1030,13 @@ fn writeTypedefs(
     try w.writeAll("type (\n");
     for (decls.typedefs.items) |typedef_decl| {
         try writeComment(w, "\t", typedef_decl.comment);
+        if (config.strict_enum_typedefs and typedef_decl.is_enum_typedef and typedef_decl.underlying_go_type != null) {
+            const emitted_name = try renderTypeName(allocator, config, typedef_decl.name);
+            defer allocator.free(emitted_name);
+            try w.print("\t// C: {s}\n", .{typedef_decl.c_type});
+            try w.print("\t{s} {s}\n", .{ emitted_name, typedef_decl.underlying_go_type.? });
+            continue;
+        }
         try writePrefixedTypeDefinition(
             w,
             allocator,
@@ -1092,6 +1116,7 @@ fn writeFunctions(
                     param_c_type,
                     isAutoCallbackParameter(callback_params, function_index, parameter_index),
                     containsEmitKind(config.emit, .type),
+                    config.strict_enum_typedefs,
                 );
                 defer if (resolvedGoTypeNeedsFree(param_c_type, mapped) and !isAutoCallbackParameter(callback_params, function_index, parameter_index)) allocator.free(mapped.go_type);
                 if (mapped.comment) |comment| {
@@ -1102,7 +1127,7 @@ fn writeFunctions(
             const result_mapped = if (isOwnedStringReturnTarget(config, func.name))
                 CTypeMapping{ .go_type = "uintptr", .comment = func.result_c_type }
             else
-                try resolveFunctionParameterType(allocator, decls, func.result_c_type, false, containsEmitKind(config.emit, .type));
+                try resolveFunctionParameterType(allocator, decls, func.result_c_type, false, containsEmitKind(config.emit, .type), config.strict_enum_typedefs);
             defer if (resolvedGoTypeNeedsFree(func.result_c_type, result_mapped)) allocator.free(result_mapped.go_type);
             if (result_mapped.comment) |comment| {
                 try w.print("\t\t// C: {s}\n", .{comment});
@@ -1113,7 +1138,7 @@ fn writeFunctions(
         const result_mapped = if (isOwnedStringReturnTarget(config, func.name))
             CTypeMapping{ .go_type = "uintptr", .comment = func.result_c_type }
         else
-            try resolveFunctionParameterType(allocator, decls, func.result_c_type, false, containsEmitKind(config.emit, .type));
+            try resolveFunctionParameterType(allocator, decls, func.result_c_type, false, containsEmitKind(config.emit, .type), config.strict_enum_typedefs);
         defer if (resolvedGoTypeNeedsFree(func.result_c_type, result_mapped)) allocator.free(result_mapped.go_type);
         if (result_mapped.go_type.len != 0) {
             try w.print(" {s}\n", .{result_mapped.go_type});
@@ -1415,13 +1440,13 @@ fn writeAutoCallbackWrappers(
                 try w.print("\t{s} {s},\n", .{ param_name, emitted_helper_type_name });
                 continue;
             }
-            const mapped = try resolveFunctionParameterType(allocator, decls, param_c_type, false, containsEmitKind(config.emit, .type));
+            const mapped = try resolveFunctionParameterType(allocator, decls, param_c_type, false, containsEmitKind(config.emit, .type), config.strict_enum_typedefs);
             defer if (resolvedGoTypeNeedsFree(param_c_type, mapped)) allocator.free(mapped.go_type);
             try w.print("\t{s} {s},\n", .{ param_name, mapped.go_type });
         }
         try w.writeAll(")");
 
-        const result_mapped = try resolveFunctionParameterType(allocator, decls, func.result_c_type, false, containsEmitKind(config.emit, .type));
+        const result_mapped = try resolveFunctionParameterType(allocator, decls, func.result_c_type, false, containsEmitKind(config.emit, .type), config.strict_enum_typedefs);
         defer if (resolvedGoTypeNeedsFree(func.result_c_type, result_mapped)) allocator.free(result_mapped.go_type);
         if (result_mapped.go_type.len != 0) {
             try w.print(" {s} {{\n", .{result_mapped.go_type});
@@ -1545,6 +1570,7 @@ fn writeOwnedStringReturnHelpers(
                 param_c_type,
                 false,
                 containsEmitKind(config.emit, .type),
+                config.strict_enum_typedefs,
             );
             _ = parameter_index;
             defer if (resolvedGoTypeNeedsFree(param_c_type, mapped)) allocator.free(mapped.go_type);

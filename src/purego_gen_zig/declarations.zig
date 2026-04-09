@@ -28,6 +28,8 @@ pub const TypedefDecl = struct {
     name: []const u8,
     c_type: []const u8,
     main_definition: []const u8,
+    underlying_go_type: ?[]const u8 = null,
+    is_enum_typedef: bool = false,
     comment: ?[]const u8 = null,
     helper_type_definition: ?[]const u8 = null,
     helper_function_definition: ?[]const u8 = null,
@@ -65,6 +67,7 @@ pub const CollectedDeclarations = struct {
             self.allocator.free(typedef_decl.name);
             self.allocator.free(typedef_decl.c_type);
             self.allocator.free(typedef_decl.main_definition);
+            if (typedef_decl.underlying_go_type) |underlying_go_type| self.allocator.free(underlying_go_type);
             if (typedef_decl.comment) |comment| self.allocator.free(comment);
             if (typedef_decl.helper_type_definition) |text| self.allocator.free(text);
             if (typedef_decl.helper_function_definition) |text| self.allocator.free(text);
@@ -902,7 +905,8 @@ fn collectMacroDefinition(
     }
 
     const value = try evaluateMacroExpression(allocator, token_texts[1..], ctx) orelse return;
-    try appendConstant(ctx, token_texts[0], value, null, null, null);
+    const unsigned_sentinel_go_type = try parseUnsignedSentinelGoType(ctx, token_texts[1..], value);
+    try appendConstant(ctx, token_texts[0], value, null, unsigned_sentinel_go_type, null);
 }
 
 const TypedSentinelMacro = struct {
@@ -910,6 +914,29 @@ const TypedSentinelMacro = struct {
     value_expr: []const u8,
     typed_go_type: []const u8,
 };
+
+fn parseUnsignedSentinelGoType(
+    ctx: *const VisitorContext,
+    tokens: []const []const u8,
+    value: u64,
+) !?[]const u8 {
+    _ = value;
+    var saw_unsigned_zero = false;
+    var saw_minus = false;
+    for (tokens) |token| {
+        if (std.mem.eql(u8, token, "-")) {
+            saw_minus = true;
+            continue;
+        }
+        if (normalizeMacroLiteralToken(token)) |normalized| {
+            if (normalized.is_unsigned and std.mem.eql(u8, normalized.literal, "0")) {
+                saw_unsigned_zero = true;
+            }
+        }
+    }
+    if (!saw_unsigned_zero or !saw_minus) return null;
+    return try ctx.decls.allocator.dupe(u8, "uint64");
+}
 
 fn parseTypedSentinelMacro(
     ctx: *const VisitorContext,
@@ -1165,6 +1192,8 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
             .name = name,
             .c_type = c_type,
             .main_definition = main_definition,
+            .underlying_go_type = try allocator.dupe(u8, "int32"),
+            .is_enum_typedef = true,
             .comment = comment,
         });
         return;

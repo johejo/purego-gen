@@ -580,6 +580,14 @@ pub fn loadCaseFromDir(
                 const typed_sentinel_value = type_mapping.get("typed_sentinel_constants") orelse break :blk false;
                 break :blk typed_sentinel_value.bool;
             },
+            .strict_enum_typedefs = blk: {
+                const render_value = generator.get("render") orelse break :blk false;
+                const render = render_value.object;
+                const type_mapping_value = render.get("type_mapping") orelse break :blk false;
+                const type_mapping = type_mapping_value.object;
+                const strict_enum_value = type_mapping.get("strict_enum_typedefs") orelse break :blk false;
+                break :blk strict_enum_value.bool;
+            },
             .struct_accessors = blk: {
                 const render_value = generator.get("render") orelse break :blk false;
                 const render = render_value.object;
