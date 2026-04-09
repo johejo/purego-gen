@@ -22,6 +22,7 @@ const supported_golden_case_ids = [_][]const u8{
     "macro_constants",
     "macro_sentinels",
     "non_callback_typedef",
+    "opaque_func_only",
     "parameter_names",
     "struct_accessors_basic",
 };
@@ -35,7 +36,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "libclang",
     "libsqlite3",
     "libzstd",
-    "opaque_func_only",
     "owned_string_return",
     "prefix_free",
     "public_api_basic",

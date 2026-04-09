@@ -342,10 +342,13 @@ fn resolveCTypeToGo(
     return mapCTypeToGo(c_type) catch |err| switch (err) {
         error.UnsupportedCType => {
             for (decls.typedefs.items) |typedef_decl| {
+                const is_opaque_typedef =
+                    std.mem.startsWith(u8, typedef_decl.c_type, "struct ") or
+                    std.mem.indexOf(u8, typedef_decl.main_definition, "struct{}") != null;
                 if (std.mem.eql(u8, typedef_decl.name, c_type)) {
                     return .{ .go_type = typedef_decl.name };
                 }
-                if (std.mem.eql(u8, typedef_decl.name, c_type) and std.mem.startsWith(u8, typedef_decl.c_type, "struct ")) {
+                if (std.mem.eql(u8, typedef_decl.name, c_type) and is_opaque_typedef) {
                     return .{ .go_type = "struct{}" };
                 }
                 if (std.mem.eql(u8, c_type, typedef_decl.name)) {
@@ -356,13 +359,13 @@ fn resolveCTypeToGo(
                 }
                 if (std.mem.endsWith(u8, c_type, " *")) {
                     const base = c_type[0 .. c_type.len - 2];
-                    if (std.mem.eql(u8, base, typedef_decl.name) and std.mem.startsWith(u8, typedef_decl.c_type, "struct ")) {
+                    if (std.mem.eql(u8, base, typedef_decl.name) and is_opaque_typedef) {
                         return .{ .go_type = "uintptr", .comment = c_type };
                     }
                 }
                 if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " *")) {
                     const base = c_type[6 .. c_type.len - 2];
-                    if (std.mem.eql(u8, base, typedef_decl.name) and std.mem.startsWith(u8, typedef_decl.c_type, "struct ")) {
+                    if (std.mem.eql(u8, base, typedef_decl.name) and is_opaque_typedef) {
                         return .{ .go_type = "uintptr", .comment = c_type };
                     }
                 }
