@@ -323,6 +323,16 @@ fn isFunctionPointerCType(c_type: []const u8) bool {
     return std.mem.indexOf(u8, c_type, "(*)") != null;
 }
 
+fn resolveCallbackSignatureCTypeToGo(
+    decls: *const declarations.CollectedDeclarations,
+    c_type: []const u8,
+) !CTypeMapping {
+    if (std.mem.eql(u8, c_type, "const char *")) {
+        return .{ .go_type = "uintptr" };
+    }
+    return resolveCTypeToGo(decls, c_type);
+}
+
 fn resolveCTypeToGo(
     decls: *const declarations.CollectedDeclarations,
     c_type: []const u8,
@@ -337,6 +347,20 @@ fn resolveCTypeToGo(
             return err;
         },
     };
+}
+
+fn resolveFunctionParameterType(
+    allocator: std.mem.Allocator,
+    decls: *const declarations.CollectedDeclarations,
+    c_type: []const u8,
+    keep_callback_pointer: bool,
+) !CTypeMapping {
+    if (isFunctionPointerCType(c_type) and !keep_callback_pointer) {
+        return .{
+            .go_type = try renderCallbackGoSignature(allocator, decls, c_type),
+        };
+    }
+    return resolveCTypeToGo(decls, c_type);
 }
 
 fn isSupportedBufferLengthType(go_type: []const u8) bool {
@@ -529,7 +553,7 @@ fn renderCallbackGoSignature(
         var wrote_any = false;
         while (parts.next()) |part| {
             const param_c_type = std.mem.trim(u8, part, " ");
-            const param_mapping = try resolveCTypeToGo(decls, param_c_type);
+            const param_mapping = try resolveCallbackSignatureCTypeToGo(decls, param_c_type);
             if (wrote_any) try w.writeAll(", ");
             wrote_any = true;
             try w.print("{s}", .{param_mapping.go_type});
@@ -537,7 +561,7 @@ fn renderCallbackGoSignature(
     }
     try w.writeByte(')');
 
-    const result_mapping = try resolveCTypeToGo(decls, result_c_type);
+    const result_mapping = try resolveCallbackSignatureCTypeToGo(decls, result_c_type);
     if (result_mapping.go_type.len != 0) {
         try w.print(" {s}", .{result_mapping.go_type});
     }
@@ -762,9 +786,10 @@ fn writeFunctions(
     w: anytype,
     config: GeneratorConfig,
     decls: *const declarations.CollectedDeclarations,
+    callback_params: []const AutoCallbackParam,
 ) !void {
     try w.writeAll("var (\n");
-    for (decls.functions.items) |func| {
+    for (decls.functions.items, 0..) |func, function_index| {
         try writeComment(w, "\t", func.comment);
         const func_name = try renderFuncName(allocator, config, func.name);
         defer allocator.free(func_name);
@@ -773,21 +798,29 @@ fn writeFunctions(
             try w.writeAll("()");
         } else {
             try w.writeAll("(\n");
-            for (func.parameter_names, func.parameter_c_types) |param_name, param_c_type| {
-                const mapped = try resolveCTypeToGo(decls, param_c_type);
+            for (func.parameter_names, func.parameter_c_types, 0..) |param_name, param_c_type, parameter_index| {
+                const mapped = try resolveFunctionParameterType(
+                    allocator,
+                    decls,
+                    param_c_type,
+                    isAutoCallbackParameter(callback_params, function_index, parameter_index),
+                );
+                defer if (isFunctionPointerCType(param_c_type) and !isAutoCallbackParameter(callback_params, function_index, parameter_index)) allocator.free(mapped.go_type);
                 if (mapped.comment) |comment| {
                     try w.print("\t\t// C: {s}\n", .{comment});
                 }
                 try w.print("\t\t{s} {s},\n", .{ param_name, mapped.go_type });
             }
-            const result_mapped = try resolveCTypeToGo(decls, func.result_c_type);
+            const result_mapped = try resolveFunctionParameterType(allocator, decls, func.result_c_type, false);
+            defer if (isFunctionPointerCType(func.result_c_type)) allocator.free(result_mapped.go_type);
             if (result_mapped.comment) |comment| {
                 try w.print("\t\t// C: {s}\n", .{comment});
             }
             try w.writeAll("\t)");
         }
 
-        const result_mapped = try resolveCTypeToGo(decls, func.result_c_type);
+        const result_mapped = try resolveFunctionParameterType(allocator, decls, func.result_c_type, false);
+        defer if (isFunctionPointerCType(func.result_c_type)) allocator.free(result_mapped.go_type);
         if (result_mapped.go_type.len != 0) {
             try w.print(" {s}\n", .{result_mapped.go_type});
         } else {
@@ -1088,12 +1121,14 @@ fn writeAutoCallbackWrappers(
                 try w.print("\t{s} {s},\n", .{ param_name, emitted_helper_type_name });
                 continue;
             }
-            const mapped = try resolveCTypeToGo(decls, param_c_type);
+            const mapped = try resolveFunctionParameterType(allocator, decls, param_c_type, false);
+            defer if (isFunctionPointerCType(param_c_type)) allocator.free(mapped.go_type);
             try w.print("\t{s} {s},\n", .{ param_name, mapped.go_type });
         }
         try w.writeAll(")");
 
-        const result_mapped = try resolveCTypeToGo(decls, func.result_c_type);
+        const result_mapped = try resolveFunctionParameterType(allocator, decls, func.result_c_type, false);
+        defer if (isFunctionPointerCType(func.result_c_type)) allocator.free(result_mapped.go_type);
         if (result_mapped.go_type.len != 0) {
             try w.print(" {s} {{\n", .{result_mapped.go_type});
         } else {
@@ -1383,7 +1418,7 @@ pub fn generateGoSource(
         try w.writeByte('\n');
     }
     if (emits_functions) {
-        try writeFunctions(allocator, w, config, decls);
+        try writeFunctions(allocator, w, config, decls, callback_params);
         try w.writeByte('\n');
         try writeBufferHelpers(allocator, w, config, decls);
         if (config.buffer_param_helpers.len > 0) {
