@@ -8,6 +8,7 @@ const supported_golden_case_ids = [_][]const u8{
     "basic_type_strict_opaque",
     "buffer_input_helper",
     "buffer_input_pattern",
+    "by_value_records",
     "categories_const",
     "macro_constants",
     "non_callback_typedef",
@@ -18,7 +19,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
-    "by_value_records",
     "callback_auto_discover",
     "callback_param",
     "callback_param_conflict",

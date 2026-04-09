@@ -179,6 +179,22 @@ fn mapCTypeToGo(c_type: []const u8) !CTypeMapping {
     return error.UnsupportedCType;
 }
 
+fn resolveCTypeToGo(
+    decls: *const declarations.CollectedDeclarations,
+    c_type: []const u8,
+) !CTypeMapping {
+    return mapCTypeToGo(c_type) catch |err| switch (err) {
+        error.UnsupportedCType => {
+            for (decls.typedefs.items) |typedef_decl| {
+                if (std.mem.eql(u8, typedef_decl.name, c_type)) {
+                    return .{ .go_type = typedef_decl.name };
+                }
+            }
+            return err;
+        },
+    };
+}
+
 fn isSupportedBufferLengthType(go_type: []const u8) bool {
     return std.mem.eql(u8, go_type, "uint64") or std.mem.eql(u8, go_type, "uint32");
 }
@@ -394,20 +410,20 @@ fn writeFunctions(w: anytype, decls: *const declarations.CollectedDeclarations) 
         } else {
             try w.writeAll("(\n");
             for (func.parameter_names, func.parameter_c_types) |param_name, param_c_type| {
-                const mapped = try mapCTypeToGo(param_c_type);
+                const mapped = try resolveCTypeToGo(decls, param_c_type);
                 if (mapped.comment) |comment| {
                     try w.print("\t\t// C: {s}\n", .{comment});
                 }
                 try w.print("\t\t{s} {s},\n", .{ param_name, mapped.go_type });
             }
-            const result_mapped = try mapCTypeToGo(func.result_c_type);
+            const result_mapped = try resolveCTypeToGo(decls, func.result_c_type);
             if (result_mapped.comment) |comment| {
                 try w.print("\t\t// C: {s}\n", .{comment});
             }
             try w.writeAll("\t)");
         }
 
-        const result_mapped = try mapCTypeToGo(func.result_c_type);
+        const result_mapped = try resolveCTypeToGo(decls, func.result_c_type);
         if (result_mapped.go_type.len != 0) {
             try w.print(" {s}\n", .{result_mapped.go_type});
         } else {
