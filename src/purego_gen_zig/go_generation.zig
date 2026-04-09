@@ -34,12 +34,22 @@ fn mergeDeclarations(
         }
         freeTypedefDecl(allocator, typedef_decl);
     }
+    for (src.constants.items) |constant_decl| {
+        if (!hasConstantNamed(dst, constant_decl.name)) {
+            try dst.constants.append(allocator, constant_decl);
+            continue;
+        }
+        allocator.free(constant_decl.name);
+    }
     src.functions.items.len = 0;
     src.functions.deinit(allocator);
     src.typedefs.items.len = 0;
     src.typedefs.deinit(allocator);
+    src.constants.items.len = 0;
+    src.constants.deinit(allocator);
     src.functions = .{};
     src.typedefs = .{};
+    src.constants = .{};
 }
 
 fn freeFunctionDecl(allocator: std.mem.Allocator, func: declarations.FunctionDecl) void {
@@ -54,6 +64,9 @@ fn freeFunctionDecl(allocator: std.mem.Allocator, func: declarations.FunctionDec
 fn freeTypedefDecl(allocator: std.mem.Allocator, typedef_decl: declarations.TypedefDecl) void {
     allocator.free(typedef_decl.name);
     allocator.free(typedef_decl.c_type);
+    allocator.free(typedef_decl.main_definition);
+    if (typedef_decl.helper_type_definition) |text| allocator.free(text);
+    if (typedef_decl.helper_function_definition) |text| allocator.free(text);
 }
 
 fn hasFunctionNamed(decls: *const declarations.CollectedDeclarations, name: []const u8) bool {
@@ -66,6 +79,13 @@ fn hasFunctionNamed(decls: *const declarations.CollectedDeclarations, name: []co
 fn hasTypedefNamed(decls: *const declarations.CollectedDeclarations, name: []const u8) bool {
     for (decls.typedefs.items) |typedef_decl| {
         if (std.mem.eql(u8, typedef_decl.name, name)) return true;
+    }
+    return false;
+}
+
+fn hasConstantNamed(decls: *const declarations.CollectedDeclarations, name: []const u8) bool {
+    for (decls.constants.items) |constant_decl| {
+        if (std.mem.eql(u8, constant_decl.name, name)) return true;
     }
     return false;
 }
@@ -85,16 +105,34 @@ fn containsEmitKind(items: []const EmitKind, needle: EmitKind) bool {
     return false;
 }
 
+fn declarationsNeedPurego(decls: *const declarations.CollectedDeclarations) bool {
+    for (decls.typedefs.items) |typedef_decl| {
+        if (typedef_decl.requires_purego) return true;
+    }
+    return false;
+}
+
+fn declarationsNeedUnsafe(decls: *const declarations.CollectedDeclarations) bool {
+    for (decls.typedefs.items) |typedef_decl| {
+        if (typedef_decl.requires_unsafe or typedef_decl.requires_union_helpers) return true;
+    }
+    return false;
+}
+
+fn declarationsNeedUnionHelpers(decls: *const declarations.CollectedDeclarations) bool {
+    for (decls.typedefs.items) |typedef_decl| {
+        if (typedef_decl.requires_union_helpers) return true;
+    }
+    return false;
+}
+
 fn writeTypedefs(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
     try w.writeAll("type (\n");
     for (decls.typedefs.items) |typedef_decl| {
-        const go_type = try mapCTypeToGo(typedef_decl.c_type);
-        try w.print("\t// C: {s}\n", .{typedef_decl.c_type});
-        if (std.mem.eql(u8, go_type, "struct{}")) {
-            try w.print("\t{s} struct{{}}\n", .{typedef_decl.name});
-            continue;
-        }
-        try w.print("\t{s} = {s}\n", .{ typedef_decl.name, go_type });
+        try w.writeAll(typedef_decl.main_definition);
+    }
+    for (decls.typedefs.items) |typedef_decl| {
+        if (typedef_decl.helper_type_definition) |helper_type_definition| try w.writeAll(helper_type_definition);
     }
     try w.writeAll(")\n");
 }
@@ -144,6 +182,73 @@ fn writeRegisterFunctions(
     try w.writeAll("}\n");
 }
 
+fn writeHelperFunctions(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
+    for (decls.typedefs.items) |typedef_decl| {
+        if (typedef_decl.helper_function_definition) |helper_function_definition| {
+            try w.writeAll(helper_function_definition);
+            try w.writeByte('\n');
+        }
+    }
+    if (declarationsNeedUnionHelpers(decls)) {
+        try w.writeAll("func union_get[T any, U any](u *U) T {\n");
+        try w.writeAll("\treturn *(*T)(unsafe.Pointer(u))\n");
+        try w.writeAll("}\n\n");
+        try w.writeAll("func union_set[T any, U any](u *U, v T) {\n");
+        try w.writeAll("\t*(*T)(unsafe.Pointer(u)) = v\n");
+        try w.writeAll("}\n\n");
+    }
+}
+
+fn writeConstants(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
+    if (decls.constants.items.len == 0) return;
+    try w.writeAll("const (\n");
+    for (decls.constants.items, 0..) |constant_decl, index| {
+        if (index == 0) {
+            try w.print("\t{s} = {d}\n", .{ constant_decl.name, constant_decl.value });
+            continue;
+        }
+        try w.print("\t{s}  = {d}\n", .{ constant_decl.name, constant_decl.value });
+    }
+    try w.writeAll(")\n");
+}
+
+fn formatGoSource(
+    allocator: std.mem.Allocator,
+    source: []const u8,
+) ![]u8 {
+    const temp_path = try std.fmt.allocPrint(
+        allocator,
+        "/tmp/purego-gen-zig-{d}.go",
+        .{std.time.nanoTimestamp()},
+    );
+    defer allocator.free(temp_path);
+    defer std.fs.deleteFileAbsolute(temp_path) catch {};
+
+    {
+        const file = try std.fs.createFileAbsolute(temp_path, .{ .truncate = true });
+        defer file.close();
+        try file.writeAll(source);
+    }
+
+    const result = try std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &.{ "gofmt", "-w", temp_path },
+    });
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+
+    switch (result.term) {
+        .Exited => |code| {
+            if (code != 0) return error.GofmtFailed;
+        },
+        else => return error.GofmtFailed,
+    }
+
+    const file = try std.fs.openFileAbsolute(temp_path, .{});
+    defer file.close();
+    return try file.readToEndAlloc(allocator, 1024 * 1024);
+}
+
 pub fn generateGoSource(
     allocator: std.mem.Allocator,
     config: GeneratorConfig,
@@ -151,10 +256,15 @@ pub fn generateGoSource(
 ) ![]u8 {
     const emits_functions = containsEmitKind(config.emit, .func);
     const emits_types = containsEmitKind(config.emit, .type);
+    const emits_constants = containsEmitKind(config.emit, .@"const");
 
-    if (containsEmitKind(config.emit, .@"const") or containsEmitKind(config.emit, .var_decl)) {
+    if (containsEmitKind(config.emit, .var_decl)) {
         return error.UnsupportedEmitKinds;
     }
+
+    const need_purego = emits_functions or declarationsNeedPurego(decls);
+    const need_unsafe = emits_functions or declarationsNeedUnsafe(decls);
+    const need_fmt = emits_functions or declarationsNeedPurego(decls);
 
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
@@ -162,30 +272,57 @@ pub fn generateGoSource(
 
     try w.writeAll("// Code generated by purego-gen; DO NOT EDIT.\n\n");
     try w.print("package {s}\n\n", .{config.package_name});
-    try w.writeAll("import (\n");
-    if (emits_functions) {
-        try w.writeAll("\t\"fmt\"\n");
-        try w.writeAll("\t\"unsafe\"\n\n");
-        try w.writeAll("\t\"github.com/ebitengine/purego\"\n");
-    }
-    try w.writeAll(")\n\n");
-    if (emits_functions) {
-        try w.writeAll("var (\n");
-        try w.writeAll("\t_ = fmt.Errorf\n");
-        try w.writeAll("\t_ = unsafe.Pointer(nil)\n");
+
+    if (need_fmt or need_unsafe or need_purego) {
+        try w.writeAll("import (\n");
+        if (need_fmt) {
+            try w.writeAll("\t\"fmt\"\n");
+        }
+        if (need_unsafe) {
+            try w.writeAll("\t\"unsafe\"\n");
+        }
+        if ((need_fmt and need_purego) or (need_unsafe and need_purego)) {
+            try w.writeByte('\n');
+        }
+        if (need_purego) {
+            try w.writeAll("\t\"github.com/ebitengine/purego\"\n");
+        }
         try w.writeAll(")\n\n");
     }
+
+    if (need_fmt or need_unsafe) {
+        try w.writeAll("var (\n");
+        if (need_fmt) {
+            try w.writeAll("\t_ = fmt.Errorf\n");
+        }
+        if (need_unsafe) {
+            try w.writeAll("\t_ = unsafe.Pointer(nil)\n");
+        }
+        try w.writeAll(")\n\n");
+    }
+
     if (emits_types) {
         try writeTypedefs(w, decls);
         try w.writeByte('\n');
+    }
+    if (declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls)) {
+        try writeHelperFunctions(w, decls);
     }
     if (emits_functions) {
         try writeFunctions(w, decls);
         try w.writeByte('\n');
         try writeRegisterFunctions(w, config, decls);
     }
+    if (emits_constants) {
+        if (emits_types or declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls) or emits_functions) {
+            try w.writeByte('\n');
+        }
+        try writeConstants(w, decls);
+    }
 
-    return buffer.toOwnedSlice(allocator);
+    const rendered = try buffer.toOwnedSlice(allocator);
+    defer allocator.free(rendered);
+    return formatGoSource(allocator, rendered);
 }
 
 pub fn collectDeclarationsFromHeader(

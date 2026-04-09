@@ -2,13 +2,13 @@ const std = @import("std");
 const go_generation = @import("go_generation.zig");
 
 const supported_golden_case_ids = [_][]const u8{
+    "abi_types",
     "basic_func_type",
 };
 
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
-    "abi_types",
     "basic_and_categories",
     "basic_type_strict_opaque",
     "buffer_input_helper",
