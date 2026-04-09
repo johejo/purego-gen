@@ -4,6 +4,7 @@ const go_generation = @import("go_generation.zig");
 const supported_golden_case_ids = [_][]const u8{
     "abi_types",
     "basic_func_type",
+    "struct_accessors_basic",
 };
 
 // Cases intentionally skipped until the Zig generator supports more of the
@@ -42,7 +43,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "runtime_string",
     "strict_typing_default",
     "strict_typing_enabled",
-    "struct_accessors_basic",
     "union_basic",
     "union_basic_accessors",
     "void_callback",
@@ -180,6 +180,12 @@ pub fn loadCaseFromDir(
             .lib_id = try allocator.dupe(u8, generator.get("lib_id").?.string),
             .package_name = try allocator.dupe(u8, generator.get("package").?.string),
             .emit = emit,
+            .struct_accessors = blk: {
+                const render_value = generator.get("render") orelse break :blk false;
+                const render = render_value.object;
+                const struct_accessors_value = render.get("struct_accessors") orelse break :blk false;
+                break :blk struct_accessors_value.bool;
+            },
         },
     };
 }

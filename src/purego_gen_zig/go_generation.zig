@@ -13,6 +13,7 @@ pub const GeneratorConfig = struct {
     lib_id: []const u8,
     package_name: []const u8,
     emit: []const EmitKind,
+    struct_accessors: bool = false,
 };
 
 fn mergeDeclarations(
@@ -67,6 +68,11 @@ fn freeTypedefDecl(allocator: std.mem.Allocator, typedef_decl: declarations.Type
     allocator.free(typedef_decl.main_definition);
     if (typedef_decl.helper_type_definition) |text| allocator.free(text);
     if (typedef_decl.helper_function_definition) |text| allocator.free(text);
+    for (typedef_decl.accessor_fields) |field| {
+        allocator.free(field.name);
+        allocator.free(field.go_type);
+    }
+    allocator.free(typedef_decl.accessor_fields);
 }
 
 fn hasFunctionNamed(decls: *const declarations.CollectedDeclarations, name: []const u8) bool {
@@ -160,6 +166,22 @@ fn writeFunctions(w: anytype, decls: *const declarations.CollectedDeclarations) 
         }
     }
     try w.writeAll(")\n");
+}
+
+fn writeStructAccessors(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
+    var wrote_any = false;
+    for (decls.typedefs.items) |typedef_decl| {
+        for (typedef_decl.accessor_fields) |field| {
+            if (wrote_any) try w.writeByte('\n');
+            wrote_any = true;
+            try w.print("func (s *{s}) Get_{s}() {s} {{\n", .{ typedef_decl.name, field.name, field.go_type });
+            try w.print("\treturn s.{s}\n", .{field.name});
+            try w.writeAll("}\n\n");
+            try w.print("func (s *{s}) Set_{s}(v {s}) {{\n", .{ typedef_decl.name, field.name, field.go_type });
+            try w.print("\ts.{s} = v\n", .{field.name});
+            try w.writeAll("}\n");
+        }
+    }
 }
 
 fn writeRegisterFunctions(
@@ -257,6 +279,7 @@ pub fn generateGoSource(
     const emits_functions = containsEmitKind(config.emit, .func);
     const emits_types = containsEmitKind(config.emit, .type);
     const emits_constants = containsEmitKind(config.emit, .@"const");
+    const emits_struct_accessors = emits_types and config.struct_accessors;
 
     if (containsEmitKind(config.emit, .var_decl)) {
         return error.UnsupportedEmitKinds;
@@ -305,6 +328,10 @@ pub fn generateGoSource(
         try writeTypedefs(w, decls);
         try w.writeByte('\n');
     }
+    if (emits_struct_accessors) {
+        try writeStructAccessors(w, decls);
+        try w.writeByte('\n');
+    }
     if (declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls)) {
         try writeHelperFunctions(w, decls);
     }
@@ -314,7 +341,7 @@ pub fn generateGoSource(
         try writeRegisterFunctions(w, config, decls);
     }
     if (emits_constants) {
-        if (emits_types or declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls) or emits_functions) {
+        if (emits_types or emits_struct_accessors or declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls) or emits_functions) {
             try w.writeByte('\n');
         }
         try writeConstants(w, decls);
