@@ -316,6 +316,78 @@ fn renderCallbackFuncTypeName(
     return std.fmt.allocPrint(allocator, "{s}_func", .{parameter_name});
 }
 
+fn renderQualifiedCallbackFuncTypeName(
+    allocator: std.mem.Allocator,
+    function_name: []const u8,
+    parameter_name: []const u8,
+) ![]u8 {
+    return std.fmt.allocPrint(allocator, "{s}_{s}_func", .{ function_name, parameter_name });
+}
+
+fn renderCallbackConstructorName(
+    allocator: std.mem.Allocator,
+    parameter_name: []const u8,
+) ![]u8 {
+    return std.fmt.allocPrint(allocator, "new_{s}", .{parameter_name});
+}
+
+fn renderQualifiedCallbackConstructorName(
+    allocator: std.mem.Allocator,
+    function_name: []const u8,
+    parameter_name: []const u8,
+) ![]u8 {
+    return std.fmt.allocPrint(allocator, "new_{s}_{s}", .{ function_name, parameter_name });
+}
+
+fn shouldQualifyCallbackName(
+    decls: *const declarations.CollectedDeclarations,
+    auto_callback_params: []const AutoCallbackParam,
+    target: AutoCallbackParam,
+) bool {
+    const target_func = decls.functions.items[target.function_index];
+    const target_param_name = target_func.parameter_names[target.parameter_index];
+    const target_c_type = target_func.parameter_c_types[target.parameter_index];
+
+    for (auto_callback_params) |candidate| {
+        const candidate_func = decls.functions.items[candidate.function_index];
+        const candidate_param_name = candidate_func.parameter_names[candidate.parameter_index];
+        if (!std.mem.eql(u8, candidate_param_name, target_param_name)) continue;
+
+        const candidate_c_type = candidate_func.parameter_c_types[candidate.parameter_index];
+        if (!std.mem.eql(u8, candidate_c_type, target_c_type)) return true;
+    }
+
+    return false;
+}
+
+fn renderEffectiveCallbackFuncTypeName(
+    allocator: std.mem.Allocator,
+    decls: *const declarations.CollectedDeclarations,
+    auto_callback_params: []const AutoCallbackParam,
+    target: AutoCallbackParam,
+) ![]u8 {
+    const func = decls.functions.items[target.function_index];
+    const parameter_name = func.parameter_names[target.parameter_index];
+    if (shouldQualifyCallbackName(decls, auto_callback_params, target)) {
+        return renderQualifiedCallbackFuncTypeName(allocator, func.name, parameter_name);
+    }
+    return renderCallbackFuncTypeName(allocator, parameter_name);
+}
+
+fn renderEffectiveCallbackConstructorName(
+    allocator: std.mem.Allocator,
+    decls: *const declarations.CollectedDeclarations,
+    auto_callback_params: []const AutoCallbackParam,
+    target: AutoCallbackParam,
+) ![]u8 {
+    const func = decls.functions.items[target.function_index];
+    const parameter_name = func.parameter_names[target.parameter_index];
+    if (shouldQualifyCallbackName(decls, auto_callback_params, target)) {
+        return renderQualifiedCallbackConstructorName(allocator, func.name, parameter_name);
+    }
+    return renderCallbackConstructorName(allocator, parameter_name);
+}
+
 fn renderCallbackGoSignature(
     allocator: std.mem.Allocator,
     decls: *const declarations.CollectedDeclarations,
@@ -734,16 +806,22 @@ fn writeAutoCallbackTypes(
     if (auto_callback_params.len == 0) return;
 
     var emitted_names: std.ArrayList([]const u8) = .empty;
-    defer emitted_names.deinit(allocator);
+    defer {
+        for (emitted_names.items) |name| allocator.free(name);
+        emitted_names.deinit(allocator);
+    }
 
     try w.writeAll("type (\n");
     for (auto_callback_params) |auto_callback| {
         const func = decls.functions.items[auto_callback.function_index];
-        const parameter_name = func.parameter_names[auto_callback.parameter_index];
-        if (containsAutoCallbackParamName(emitted_names.items, parameter_name)) continue;
-
-        const helper_type_name = try renderCallbackFuncTypeName(allocator, parameter_name);
+        const helper_type_name = try renderEffectiveCallbackFuncTypeName(
+            allocator,
+            decls,
+            auto_callback_params,
+            auto_callback,
+        );
         defer allocator.free(helper_type_name);
+        if (containsAutoCallbackParamName(emitted_names.items, helper_type_name)) continue;
         const go_signature = try renderCallbackGoSignature(
             allocator,
             decls,
@@ -753,7 +831,7 @@ fn writeAutoCallbackTypes(
 
         try w.print("\t// C: {s}\n", .{func.parameter_c_types[auto_callback.parameter_index]});
         try w.print("\t{s} = {s}\n", .{ helper_type_name, go_signature });
-        try emitted_names.append(allocator, parameter_name);
+        try emitted_names.append(allocator, try allocator.dupe(u8, helper_type_name));
     }
     try w.writeAll(")\n");
 }
@@ -767,20 +845,32 @@ fn writeAutoCallbackConstructors(
     if (auto_callback_params.len == 0) return;
 
     var emitted_names: std.ArrayList([]const u8) = .empty;
-    defer emitted_names.deinit(allocator);
+    defer {
+        for (emitted_names.items) |name| allocator.free(name);
+        emitted_names.deinit(allocator);
+    }
 
     for (auto_callback_params) |auto_callback| {
-        const func = decls.functions.items[auto_callback.function_index];
-        const parameter_name = func.parameter_names[auto_callback.parameter_index];
-        if (containsAutoCallbackParamName(emitted_names.items, parameter_name)) continue;
-
-        const helper_type_name = try renderCallbackFuncTypeName(allocator, parameter_name);
-        defer allocator.free(helper_type_name);
-        try w.print(
-            "func new_{s}(fn {s}) uintptr {{\n\treturn uintptr(purego.NewCallback(fn))\n}}\n\n",
-            .{ parameter_name, helper_type_name },
+        const helper_type_name = try renderEffectiveCallbackFuncTypeName(
+            allocator,
+            decls,
+            auto_callback_params,
+            auto_callback,
         );
-        try emitted_names.append(allocator, parameter_name);
+        defer allocator.free(helper_type_name);
+        const constructor_name = try renderEffectiveCallbackConstructorName(
+            allocator,
+            decls,
+            auto_callback_params,
+            auto_callback,
+        );
+        defer allocator.free(constructor_name);
+        if (containsAutoCallbackParamName(emitted_names.items, constructor_name)) continue;
+        try w.print(
+            "func {s}(fn {s}) uintptr {{\n\treturn uintptr(purego.NewCallback(fn))\n}}\n\n",
+            .{ constructor_name, helper_type_name },
+        );
+        try emitted_names.append(allocator, try allocator.dupe(u8, constructor_name));
     }
 }
 
@@ -823,7 +913,15 @@ fn writeAutoCallbackWrappers(
         try w.print("func {s}_callbacks(\n", .{func.name});
         for (func.parameter_names, func.parameter_c_types, 0..) |param_name, param_c_type, parameter_index| {
             if (isAutoCallbackParameter(auto_callback_params, function_index, parameter_index)) {
-                const helper_type_name = try renderCallbackFuncTypeName(allocator, param_name);
+                const helper_type_name = try renderEffectiveCallbackFuncTypeName(
+                    allocator,
+                    decls,
+                    auto_callback_params,
+                    .{
+                        .function_index = function_index,
+                        .parameter_index = parameter_index,
+                    },
+                );
                 defer allocator.free(helper_type_name);
                 try w.print("\t{s} {s},\n", .{ param_name, helper_type_name });
                 continue;
