@@ -33,6 +33,11 @@ pub const ExplicitCallbackParamHelper = struct {
     params: []const []const u8,
 };
 
+pub const OwnedStringReturnHelper = struct {
+    function_name: []const u8,
+    free_func_name: []const u8,
+};
+
 pub const NamingConfig = struct {
     type_prefix: []const u8,
     const_prefix: []const u8,
@@ -65,6 +70,7 @@ pub const GeneratorConfig = struct {
     struct_accessors: bool = false,
     buffer_param_helpers: []const BufferParamHelper = &.{},
     callback_param_helpers: []const ExplicitCallbackParamHelper = &.{},
+    owned_string_return_helpers: []const OwnedStringReturnHelper = &.{},
     auto_callbacks: bool = false,
 
     pub fn deinit(self: *const GeneratorConfig, allocator: std.mem.Allocator) void {
@@ -105,6 +111,11 @@ pub const GeneratorConfig = struct {
             allocator.free(helper.params);
         }
         allocator.free(self.callback_param_helpers);
+        for (self.owned_string_return_helpers) |helper| {
+            allocator.free(helper.function_name);
+            allocator.free(helper.free_func_name);
+        }
+        allocator.free(self.owned_string_return_helpers);
     }
 };
 
@@ -286,6 +297,16 @@ fn renderRuntimeVarName(
     name: []const u8,
 ) ![]u8 {
     return renderPrefixedName(allocator, config.naming.var_prefix, name);
+}
+
+fn isOwnedStringReturnTarget(
+    config: GeneratorConfig,
+    function_name: []const u8,
+) bool {
+    for (config.owned_string_return_helpers) |helper| {
+        if (std.mem.eql(u8, helper.function_name, function_name)) return true;
+    }
+    return false;
 }
 
 fn writePrefixedTypeDefinition(
@@ -837,7 +858,10 @@ fn writeFunctions(
                 }
                 try w.print("\t\t{s} {s},\n", .{ param_name, mapped.go_type });
             }
-            const result_mapped = try resolveFunctionParameterType(allocator, decls, func.result_c_type, false);
+            const result_mapped = if (isOwnedStringReturnTarget(config, func.name))
+                CTypeMapping{ .go_type = "uintptr", .comment = func.result_c_type }
+            else
+                try resolveFunctionParameterType(allocator, decls, func.result_c_type, false);
             defer if (isFunctionPointerCType(func.result_c_type)) allocator.free(result_mapped.go_type);
             if (result_mapped.comment) |comment| {
                 try w.print("\t\t// C: {s}\n", .{comment});
@@ -845,7 +869,10 @@ fn writeFunctions(
             try w.writeAll("\t)");
         }
 
-        const result_mapped = try resolveFunctionParameterType(allocator, decls, func.result_c_type, false);
+        const result_mapped = if (isOwnedStringReturnTarget(config, func.name))
+            CTypeMapping{ .go_type = "uintptr", .comment = func.result_c_type }
+        else
+            try resolveFunctionParameterType(allocator, decls, func.result_c_type, false);
         defer if (isFunctionPointerCType(func.result_c_type)) allocator.free(result_mapped.go_type);
         if (result_mapped.go_type.len != 0) {
             try w.print(" {s}\n", .{result_mapped.go_type});
@@ -1244,6 +1271,74 @@ fn writeRegisterFunctions(
     try w.writeAll("}\n");
 }
 
+fn writeOwnedStringReturnHelpers(
+    allocator: std.mem.Allocator,
+    w: anytype,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+) !void {
+    if (config.owned_string_return_helpers.len == 0) return;
+
+    const gostring_name = try renderFuncName(allocator, config, "gostring");
+    defer allocator.free(gostring_name);
+
+    for (config.owned_string_return_helpers) |helper| {
+        const func = findFunctionByName(decls, helper.function_name) orelse return error.OwnedStringHelperTargetFunctionNotFound;
+        const free_func = findFunctionByName(decls, helper.free_func_name) orelse return error.OwnedStringHelperFreeFunctionNotFound;
+        _ = free_func;
+
+        const helper_base = try std.fmt.allocPrint(allocator, "{s}_string", .{func.name});
+        defer allocator.free(helper_base);
+        const helper_name = try renderFuncName(allocator, config, helper_base);
+        defer allocator.free(helper_name);
+        const target_name = try renderFuncName(allocator, config, func.name);
+        defer allocator.free(target_name);
+        const free_name = try renderFuncName(allocator, config, helper.free_func_name);
+        defer allocator.free(free_name);
+
+        try w.print("func {s}(\n", .{helper_name});
+        for (func.parameter_names, func.parameter_c_types, 0..) |param_name, param_c_type, parameter_index| {
+            const mapped = try resolveFunctionParameterType(
+                allocator,
+                decls,
+                param_c_type,
+                false,
+            );
+            _ = parameter_index;
+            defer if (isFunctionPointerCType(param_c_type)) allocator.free(mapped.go_type);
+            if (mapped.comment) |comment| {
+                try w.print("\t// C: {s}\n", .{comment});
+            }
+            try w.print("\t{s} {s},\n", .{ param_name, mapped.go_type });
+        }
+        try w.writeAll(") string {\n");
+        try w.print("\trawPtr := {s}(\n", .{target_name});
+        for (func.parameter_names) |param_name| {
+            try w.print("\t\t{s},\n", .{param_name});
+        }
+        try w.writeAll("\t)\n");
+        try w.print("\tresult := {s}(rawPtr)\n", .{gostring_name});
+        try w.writeAll("\tif rawPtr != 0 {\n");
+        try w.print("\t\t{s}(rawPtr)\n", .{free_name});
+        try w.writeAll("\t}\n");
+        try w.writeAll("\treturn result\n");
+        try w.writeAll("}\n\n");
+    }
+
+    try w.writeByte('\n');
+    try w.print("func {s}(ptr uintptr) string {{\n", .{gostring_name});
+    try w.writeAll("\tif ptr == 0 {\n");
+    try w.writeAll("\t\treturn \"\"\n");
+    try w.writeAll("\t}\n");
+    try w.writeAll("\tp := *(*unsafe.Pointer)(unsafe.Pointer(&ptr))\n");
+    try w.writeAll("\tvar n int\n");
+    try w.writeAll("\tfor *(*byte)(unsafe.Add(p, n)) != 0 {\n");
+    try w.writeAll("\t\tn++\n");
+    try w.writeAll("\t}\n");
+    try w.writeAll("\treturn strings.Clone(unsafe.String((*byte)(p), n))\n");
+    try w.writeAll("}\n");
+}
+
 fn writeHelperFunctions(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
     for (decls.typedefs.items) |typedef_decl| {
         if (typedef_decl.helper_function_definition) |helper_function_definition| {
@@ -1380,6 +1475,7 @@ pub fn generateGoSource(
     const need_purego = emits_functions or has_emitted_runtime_vars or declarationsNeedPurego(decls);
     const need_unsafe = emits_functions or declarationsNeedUnsafe(decls) or declarationsNeedPurego(decls);
     const need_fmt = declarationsNeedFmt(emits_functions, has_emitted_runtime_vars, decls);
+    const need_strings = config.owned_string_return_helpers.len > 0;
     const has_helper_functions = declarationsHaveHelperFunctions(decls);
     const callback_params = if (emits_functions and config.callback_param_helpers.len > 0)
         try collectExplicitCallbackParams(allocator, decls, config.callback_param_helpers)
@@ -1396,15 +1492,18 @@ pub fn generateGoSource(
     try w.writeAll("// Code generated by purego-gen; DO NOT EDIT.\n\n");
     try w.print("package {s}\n\n", .{config.package_name});
 
-    if (need_fmt or need_unsafe or need_purego) {
+    if (need_fmt or need_unsafe or need_purego or need_strings) {
         try w.writeAll("import (\n");
         if (need_fmt) {
             try w.writeAll("\t\"fmt\"\n");
         }
+        if (need_strings) {
+            try w.writeAll("\t\"strings\"\n");
+        }
         if (need_unsafe) {
             try w.writeAll("\t\"unsafe\"\n");
         }
-        if ((need_fmt and need_purego) or (need_unsafe and need_purego)) {
+        if ((need_fmt and (need_unsafe or need_purego)) or (need_strings and (need_unsafe or need_purego)) or (need_unsafe and need_purego)) {
             try w.writeByte('\n');
         }
         if (need_purego) {
@@ -1457,6 +1556,10 @@ pub fn generateGoSource(
         }
         try writeAutoCallbackWrappers(allocator, w, config, decls, callback_params);
         if (callback_params.len > 0) {
+            try w.writeByte('\n');
+        }
+        try writeOwnedStringReturnHelpers(allocator, w, config, decls);
+        if (config.owned_string_return_helpers.len > 0) {
             try w.writeByte('\n');
         }
         try writeRegisterFunctions(allocator, w, config, decls);

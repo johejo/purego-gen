@@ -23,6 +23,7 @@ const supported_golden_case_ids = [_][]const u8{
     "macro_sentinels",
     "non_callback_typedef",
     "opaque_func_only",
+    "owned_string_return",
     "parameter_names",
     "struct_accessors_basic",
 };
@@ -36,7 +37,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "libclang",
     "libsqlite3",
     "libzstd",
-    "owned_string_return",
     "prefix_free",
     "public_api_basic",
     "runtime_smoke",
@@ -135,6 +135,17 @@ fn freeCallbackParamHelpers(
     allocator.free(helpers);
 }
 
+fn freeOwnedStringReturnHelpers(
+    allocator: std.mem.Allocator,
+    helpers: []const go_generation.OwnedStringReturnHelper,
+) void {
+    for (helpers) |helper| {
+        allocator.free(helper.function_name);
+        allocator.free(helper.free_func_name);
+    }
+    allocator.free(helpers);
+}
+
 fn parseNamingValue(
     allocator: std.mem.Allocator,
     render: std.json.ObjectMap,
@@ -223,6 +234,41 @@ fn parseCallbackParamHelpers(
             .function_name = try allocator.dupe(u8, function_value.string),
             .params = try parseStringArray(allocator, params_value.array),
         });
+    }
+
+    return items.toOwnedSlice(allocator);
+}
+
+fn parseOwnedStringReturnHelpers(
+    allocator: std.mem.Allocator,
+    generator: std.json.ObjectMap,
+) ![]go_generation.OwnedStringReturnHelper {
+    const render_value = generator.get("render") orelse return try allocator.alloc(go_generation.OwnedStringReturnHelper, 0);
+    const render = render_value.object;
+    const helpers_value = render.get("helpers") orelse return try allocator.alloc(go_generation.OwnedStringReturnHelper, 0);
+    const helpers = helpers_value.object;
+    const owned_value = helpers.get("owned_string_returns") orelse return try allocator.alloc(go_generation.OwnedStringReturnHelper, 0);
+
+    var items: std.ArrayList(go_generation.OwnedStringReturnHelper) = .empty;
+    errdefer {
+        for (items.items) |helper| {
+            allocator.free(helper.function_name);
+            allocator.free(helper.free_func_name);
+        }
+        items.deinit(allocator);
+    }
+
+    for (owned_value.array.items) |item| {
+        const obj = item.object;
+        const function_value = obj.get("function") orelse return error.MissingOwnedStringHelperFunction;
+        const free_func_value = obj.get("free_func") orelse return error.MissingOwnedStringHelperFreeFunction;
+        switch (function_value) {
+            .string => try items.append(allocator, .{
+                .function_name = try allocator.dupe(u8, function_value.string),
+                .free_func_name = try allocator.dupe(u8, free_func_value.string),
+            }),
+            else => return error.InvalidOwnedStringHelperFunction,
+        }
     }
 
     return items.toOwnedSlice(allocator);
@@ -328,6 +374,8 @@ pub fn loadCaseFromDir(
     errdefer freeBufferParamHelpers(allocator, buffer_param_helpers);
     const callback_param_helpers = try parseCallbackParamHelpers(allocator, generator);
     errdefer freeCallbackParamHelpers(allocator, callback_param_helpers);
+    const owned_string_return_helpers = try parseOwnedStringReturnHelpers(allocator, generator);
+    errdefer freeOwnedStringReturnHelpers(allocator, owned_string_return_helpers);
 
     const header_paths = try parseStringArray(allocator, header_list_value.array);
     errdefer {
@@ -410,6 +458,7 @@ pub fn loadCaseFromDir(
             },
             .buffer_param_helpers = buffer_param_helpers,
             .callback_param_helpers = callback_param_helpers,
+            .owned_string_return_helpers = owned_string_return_helpers,
             .auto_callbacks = blk: {
                 const render_value = generator.get("render") orelse break :blk false;
                 const render = render_value.object;
