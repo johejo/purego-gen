@@ -43,15 +43,26 @@ fn mergeDeclarations(
         allocator.free(constant_decl.name);
         allocator.free(constant_decl.value_expr);
     }
+    for (src.runtime_vars.items) |runtime_var_decl| {
+        if (!hasRuntimeVarNamed(dst, runtime_var_decl.name)) {
+            try dst.runtime_vars.append(allocator, runtime_var_decl);
+            continue;
+        }
+        allocator.free(runtime_var_decl.name);
+        allocator.free(runtime_var_decl.c_type);
+    }
     src.functions.items.len = 0;
     src.functions.deinit(allocator);
     src.typedefs.items.len = 0;
     src.typedefs.deinit(allocator);
     src.constants.items.len = 0;
     src.constants.deinit(allocator);
+    src.runtime_vars.items.len = 0;
+    src.runtime_vars.deinit(allocator);
     src.functions = .{};
     src.typedefs = .{};
     src.constants = .{};
+    src.runtime_vars = .{};
 }
 
 fn freeFunctionDecl(allocator: std.mem.Allocator, func: declarations.FunctionDecl) void {
@@ -97,6 +108,13 @@ fn hasConstantNamed(decls: *const declarations.CollectedDeclarations, name: []co
     return false;
 }
 
+fn hasRuntimeVarNamed(decls: *const declarations.CollectedDeclarations, name: []const u8) bool {
+    for (decls.runtime_vars.items) |runtime_var_decl| {
+        if (std.mem.eql(u8, runtime_var_decl.name, name)) return true;
+    }
+    return false;
+}
+
 fn mapCTypeToGo(c_type: []const u8) ![]const u8 {
     if (std.mem.eql(u8, c_type, "int")) return "int32";
     if (std.mem.eql(u8, c_type, "void")) return "";
@@ -126,11 +144,26 @@ fn declarationsNeedUnsafe(decls: *const declarations.CollectedDeclarations) bool
     return false;
 }
 
+fn declarationsNeedFmt(
+    emits_functions: bool,
+    emits_runtime_vars: bool,
+    decls: *const declarations.CollectedDeclarations,
+) bool {
+    return emits_functions or emits_runtime_vars or declarationsNeedPurego(decls);
+}
+
 fn declarationsNeedUnionHelpers(decls: *const declarations.CollectedDeclarations) bool {
     for (decls.typedefs.items) |typedef_decl| {
         if (typedef_decl.requires_union_helpers) return true;
     }
     return false;
+}
+
+fn declarationsHaveHelperFunctions(decls: *const declarations.CollectedDeclarations) bool {
+    for (decls.typedefs.items) |typedef_decl| {
+        if (typedef_decl.helper_function_definition != null) return true;
+    }
+    return declarationsNeedUnionHelpers(decls);
 }
 
 fn writeTypedefs(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
@@ -235,6 +268,37 @@ fn writeConstants(w: anytype, decls: *const declarations.CollectedDeclarations) 
     try w.writeAll(")\n");
 }
 
+fn writeRuntimeVars(
+    w: anytype,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+) !void {
+    if (decls.runtime_vars.items.len == 0) return;
+    try w.writeAll("var (\n");
+    for (decls.runtime_vars.items) |runtime_var_decl| {
+        _ = runtime_var_decl.c_type;
+        try w.print("\t{s} uintptr\n", .{runtime_var_decl.name});
+    }
+    try w.writeAll(")\n\n");
+
+    try w.print("func {s}_load_runtime_vars(handle uintptr) error {{\n", .{config.lib_id});
+    for (decls.runtime_vars.items) |runtime_var_decl| {
+        try w.print(
+            "\t{s}_symbol, err := purego.Dlsym(handle, \"{s}\")\n",
+            .{ runtime_var_decl.name, runtime_var_decl.name },
+        );
+        try w.writeAll("\tif err != nil {\n");
+        try w.print(
+            "\t\treturn fmt.Errorf(\n\t\t\t\"purego-gen: failed to resolve runtime var symbol {s}: %w\",\n\t\t\terr,\n\t\t)\n",
+            .{runtime_var_decl.name},
+        );
+        try w.writeAll("\t}\n");
+        try w.print("\t{s} = {s}_symbol\n", .{ runtime_var_decl.name, runtime_var_decl.name });
+    }
+    try w.writeAll("\treturn nil\n");
+    try w.writeAll("}\n");
+}
+
 fn formatGoSource(
     allocator: std.mem.Allocator,
     source: []const u8,
@@ -280,15 +344,14 @@ pub fn generateGoSource(
     const emits_functions = containsEmitKind(config.emit, .func);
     const emits_types = containsEmitKind(config.emit, .type);
     const emits_constants = containsEmitKind(config.emit, .@"const");
+    const emits_runtime_vars = containsEmitKind(config.emit, .var_decl);
     const emits_struct_accessors = emits_types and config.struct_accessors;
+    const has_emitted_runtime_vars = emits_runtime_vars and decls.runtime_vars.items.len > 0;
 
-    if (containsEmitKind(config.emit, .var_decl)) {
-        return error.UnsupportedEmitKinds;
-    }
-
-    const need_purego = emits_functions or declarationsNeedPurego(decls);
+    const need_purego = emits_functions or has_emitted_runtime_vars or declarationsNeedPurego(decls);
     const need_unsafe = emits_functions or declarationsNeedUnsafe(decls);
-    const need_fmt = emits_functions or declarationsNeedPurego(decls);
+    const need_fmt = declarationsNeedFmt(emits_functions, has_emitted_runtime_vars, decls);
+    const has_helper_functions = declarationsHaveHelperFunctions(decls);
 
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
@@ -329,6 +392,10 @@ pub fn generateGoSource(
         try writeTypedefs(w, decls);
         try w.writeByte('\n');
     }
+    if (emits_constants and !has_helper_functions) {
+        try writeConstants(w, decls);
+        try w.writeByte('\n');
+    }
     if (emits_struct_accessors) {
         try writeStructAccessors(w, decls);
         try w.writeByte('\n');
@@ -336,16 +403,20 @@ pub fn generateGoSource(
     if (declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls)) {
         try writeHelperFunctions(w, decls);
     }
+    if (emits_constants and has_helper_functions) {
+        try writeConstants(w, decls);
+        try w.writeByte('\n');
+    }
     if (emits_functions) {
         try writeFunctions(w, decls);
         try w.writeByte('\n');
         try writeRegisterFunctions(w, config, decls);
     }
-    if (emits_constants) {
-        if (emits_types or emits_struct_accessors or declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls) or emits_functions) {
+    if (emits_runtime_vars) {
+        if (emits_types or emits_struct_accessors or declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls) or emits_functions or emits_constants) {
             try w.writeByte('\n');
         }
-        try writeConstants(w, decls);
+        try writeRuntimeVars(w, config, decls);
     }
 
     const rendered = try buffer.toOwnedSlice(allocator);

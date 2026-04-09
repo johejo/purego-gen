@@ -15,6 +15,11 @@ pub const ConstantDecl = struct {
     value_expr: []const u8,
 };
 
+pub const RuntimeVarDecl = struct {
+    name: []const u8,
+    c_type: []const u8,
+};
+
 pub const TypedefDecl = struct {
     name: []const u8,
     c_type: []const u8,
@@ -37,6 +42,7 @@ pub const CollectedDeclarations = struct {
     functions: std.ArrayListUnmanaged(FunctionDecl) = .{},
     typedefs: std.ArrayListUnmanaged(TypedefDecl) = .{},
     constants: std.ArrayListUnmanaged(ConstantDecl) = .{},
+    runtime_vars: std.ArrayListUnmanaged(RuntimeVarDecl) = .{},
 
     pub fn deinit(self: *CollectedDeclarations) void {
         for (self.functions.items) |func| {
@@ -68,6 +74,12 @@ pub const CollectedDeclarations = struct {
             self.allocator.free(constant_decl.value_expr);
         }
         self.constants.deinit(self.allocator);
+
+        for (self.runtime_vars.items) |runtime_var_decl| {
+            self.allocator.free(runtime_var_decl.name);
+            self.allocator.free(runtime_var_decl.c_type);
+        }
+        self.runtime_vars.deinit(self.allocator);
     }
 };
 
@@ -1013,6 +1025,23 @@ fn collectFunction(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
     });
 }
 
+fn collectRuntimeVar(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
+    if (c.clang_Cursor_getStorageClass(cursor_arg) != c.CX_SC_Extern) return;
+
+    const allocator = ctx.decls.allocator;
+    const name = parser.clangString(c.clang_getCursorSpelling(cursor_arg));
+    if (name.len == 0) return;
+
+    for (ctx.decls.runtime_vars.items) |runtime_var_decl| {
+        if (std.mem.eql(u8, runtime_var_decl.name, name)) return;
+    }
+
+    try ctx.decls.runtime_vars.append(allocator, .{
+        .name = try allocator.dupe(u8, name),
+        .c_type = try dupeString(allocator, c.clang_getTypeSpelling(c.clang_getCursorType(cursor_arg))),
+    });
+}
+
 fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
     const allocator = ctx.decls.allocator;
 
@@ -1168,6 +1197,12 @@ fn visitorCallback(
         },
         c.CXCursor_MacroDefinition => {
             collectMacroDefinition(ctx, cursor_arg) catch {
+                ctx.failed = true;
+                return c.CXChildVisit_Break;
+            };
+        },
+        c.CXCursor_VarDecl => {
+            collectRuntimeVar(ctx, cursor_arg) catch {
                 ctx.failed = true;
                 return c.CXChildVisit_Break;
             };
