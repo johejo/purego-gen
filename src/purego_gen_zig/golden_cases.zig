@@ -15,6 +15,7 @@ const supported_golden_case_ids = [_][]const u8{
     "categories_const",
     "comments_default",
     "comments_parse_all",
+    "custom_prefix",
     "macro_constants",
     "non_callback_typedef",
     "parameter_names",
@@ -28,7 +29,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "categories_mixed_filtered",
     "conditional_default",
     "conditional_with_define",
-    "custom_prefix",
     "exclude_only_basic",
     "inline_func_pointer",
     "libclang",
@@ -133,6 +133,17 @@ fn freeCallbackParamHelpers(
         allocator.free(helper.params);
     }
     allocator.free(helpers);
+}
+
+fn parseNamingValue(
+    allocator: std.mem.Allocator,
+    render: std.json.ObjectMap,
+    key: []const u8,
+) ![]const u8 {
+    const naming_value = render.get("naming") orelse return allocator.dupe(u8, "");
+    const naming = naming_value.object;
+    const value = naming.get(key) orelse return allocator.dupe(u8, "");
+    return allocator.dupe(u8, value.string);
 }
 
 fn parseBufferParamPairs(
@@ -331,6 +342,21 @@ pub fn loadCaseFromDir(
             .lib_id = try allocator.dupe(u8, generator.get("lib_id").?.string),
             .package_name = try allocator.dupe(u8, generator.get("package").?.string),
             .emit = emit,
+            .naming = blk: {
+                const render_value = generator.get("render") orelse break :blk .{
+                    .type_prefix = try allocator.dupe(u8, ""),
+                    .const_prefix = try allocator.dupe(u8, ""),
+                    .func_prefix = try allocator.dupe(u8, ""),
+                    .var_prefix = try allocator.dupe(u8, ""),
+                };
+                const render = render_value.object;
+                break :blk .{
+                    .type_prefix = try parseNamingValue(allocator, render, "type_prefix"),
+                    .const_prefix = try parseNamingValue(allocator, render, "const_prefix"),
+                    .func_prefix = try parseNamingValue(allocator, render, "func_prefix"),
+                    .var_prefix = try parseNamingValue(allocator, render, "var_prefix"),
+                };
+            },
             .struct_accessors = blk: {
                 const render_value = generator.get("render") orelse break :blk false;
                 const render = render_value.object;

@@ -33,10 +33,18 @@ pub const ExplicitCallbackParamHelper = struct {
     params: []const []const u8,
 };
 
+pub const NamingConfig = struct {
+    type_prefix: []const u8,
+    const_prefix: []const u8,
+    func_prefix: []const u8,
+    var_prefix: []const u8,
+};
+
 pub const GeneratorConfig = struct {
     lib_id: []const u8,
     package_name: []const u8,
     emit: []const EmitKind,
+    naming: NamingConfig,
     struct_accessors: bool = false,
     buffer_param_helpers: []const BufferParamHelper = &.{},
     callback_param_helpers: []const ExplicitCallbackParamHelper = &.{},
@@ -46,6 +54,10 @@ pub const GeneratorConfig = struct {
         allocator.free(self.lib_id);
         allocator.free(self.package_name);
         allocator.free(self.emit);
+        allocator.free(self.naming.type_prefix);
+        allocator.free(self.naming.const_prefix);
+        allocator.free(self.naming.func_prefix);
+        allocator.free(self.naming.var_prefix);
         for (self.buffer_param_helpers) |helper| {
             switch (helper) {
                 .explicit => |explicit| {
@@ -200,6 +212,79 @@ fn mapCTypeToGo(c_type: []const u8) !CTypeMapping {
     if (isFunctionPointerCType(c_type)) return .{ .go_type = "uintptr", .comment = c_type };
     if (std.mem.startsWith(u8, c_type, "struct ")) return .{ .go_type = "struct{}" };
     return error.UnsupportedCType;
+}
+
+fn renderPrefixedName(
+    allocator: std.mem.Allocator,
+    prefix: []const u8,
+    name: []const u8,
+) ![]u8 {
+    return std.fmt.allocPrint(allocator, "{s}{s}", .{ prefix, name });
+}
+
+fn renderTypeName(
+    allocator: std.mem.Allocator,
+    config: GeneratorConfig,
+    name: []const u8,
+) ![]u8 {
+    return renderPrefixedName(allocator, config.naming.type_prefix, name);
+}
+
+fn renderConstName(
+    allocator: std.mem.Allocator,
+    config: GeneratorConfig,
+    name: []const u8,
+) ![]u8 {
+    return renderPrefixedName(allocator, config.naming.const_prefix, name);
+}
+
+fn renderFuncName(
+    allocator: std.mem.Allocator,
+    config: GeneratorConfig,
+    name: []const u8,
+) ![]u8 {
+    return renderPrefixedName(allocator, config.naming.func_prefix, name);
+}
+
+fn renderRuntimeVarName(
+    allocator: std.mem.Allocator,
+    config: GeneratorConfig,
+    name: []const u8,
+) ![]u8 {
+    return renderPrefixedName(allocator, config.naming.var_prefix, name);
+}
+
+fn writePrefixedTypeDefinition(
+    w: anytype,
+    allocator: std.mem.Allocator,
+    prefix: []const u8,
+    original_name: []const u8,
+    definition: []const u8,
+) !void {
+    if (prefix.len == 0) {
+        try w.writeAll(definition);
+        return;
+    }
+
+    const replacement = try std.fmt.allocPrint(allocator, "\t{s}{s}", .{ prefix, original_name });
+    defer allocator.free(replacement);
+    const start_needle = try std.fmt.allocPrint(allocator, "\t{s}", .{original_name});
+    defer allocator.free(start_needle);
+    const line_needle = try std.fmt.allocPrint(allocator, "\n\t{s}", .{original_name});
+    defer allocator.free(line_needle);
+
+    if (std.mem.indexOf(u8, definition, line_needle)) |index| {
+        try w.writeAll(definition[0 .. index + 1]);
+        try w.writeAll(replacement);
+        try w.writeAll(definition[index + line_needle.len ..]);
+        return;
+    }
+    if (std.mem.startsWith(u8, definition, start_needle)) {
+        try w.writeAll(replacement);
+        try w.writeAll(definition[start_needle.len..]);
+        return;
+    }
+    try w.writeAll(definition);
 }
 
 fn isFunctionPointerCType(c_type: []const u8) bool {
@@ -616,12 +701,23 @@ fn writeComment(w: anytype, indent: []const u8, raw_comment: ?[]const u8) !void 
     }
 }
 
-fn writeTypedefs(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
+fn writeTypedefs(
+    allocator: std.mem.Allocator,
+    w: anytype,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+) !void {
     if (decls.typedefs.items.len == 0) return;
     try w.writeAll("type (\n");
     for (decls.typedefs.items) |typedef_decl| {
         try writeComment(w, "\t", typedef_decl.comment);
-        try w.writeAll(typedef_decl.main_definition);
+        try writePrefixedTypeDefinition(
+            w,
+            allocator,
+            config.naming.type_prefix,
+            typedef_decl.name,
+            typedef_decl.main_definition,
+        );
     }
     for (decls.typedefs.items) |typedef_decl| {
         if (typedef_decl.helper_type_definition) |helper_type_definition| try w.writeAll(helper_type_definition);
@@ -629,11 +725,18 @@ fn writeTypedefs(w: anytype, decls: *const declarations.CollectedDeclarations) !
     try w.writeAll(")\n");
 }
 
-fn writeFunctions(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
+fn writeFunctions(
+    allocator: std.mem.Allocator,
+    w: anytype,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+) !void {
     try w.writeAll("var (\n");
     for (decls.functions.items) |func| {
         try writeComment(w, "\t", func.comment);
-        try w.print("\t{s} func", .{func.name});
+        const func_name = try renderFuncName(allocator, config, func.name);
+        defer allocator.free(func_name);
+        try w.print("\t{s} func", .{func_name});
         if (func.parameter_names.len == 0) {
             try w.writeAll("()");
         } else {
@@ -677,11 +780,20 @@ fn findPairByLengthIndex(pairs: []const BufferPairIndices, length_index: usize) 
 }
 
 fn writeBufferHelper(
+    allocator: std.mem.Allocator,
     w: anytype,
+    config: GeneratorConfig,
     func: declarations.FunctionDecl,
     pairs: []const BufferPairIndices,
 ) !void {
-    try w.print("func {s}_bytes(\n", .{func.name});
+    const helper_name = try std.fmt.allocPrint(allocator, "{s}_bytes", .{func.name});
+    defer allocator.free(helper_name);
+    const emitted_helper_name = try renderFuncName(allocator, config, helper_name);
+    defer allocator.free(emitted_helper_name);
+    const target_name = try renderFuncName(allocator, config, func.name);
+    defer allocator.free(target_name);
+
+    try w.print("func {s}(\n", .{emitted_helper_name});
     for (func.parameter_names, func.parameter_c_types, 0..) |param_name, param_c_type, index| {
         if (findPairByLengthIndex(pairs, index) != null) continue;
         if (findPairByPointerIndex(pairs, index) != null) {
@@ -714,9 +826,9 @@ fn writeBufferHelper(
 
     const returns_value = result_mapped.go_type.len != 0;
     if (returns_value) {
-        try w.print("\treturn {s}(\n", .{func.name});
+        try w.print("\treturn {s}(\n", .{target_name});
     } else {
-        try w.print("\t{s}(\n", .{func.name});
+        try w.print("\t{s}(\n", .{target_name});
     }
 
     for (func.parameter_names, func.parameter_c_types, 0..) |param_name, param_c_type, index| {
@@ -764,7 +876,7 @@ fn writeBufferHelpers(
                 const func = findFunctionByName(decls, explicit.function_name) orelse return error.BufferHelperTargetFunctionNotFound;
                 const pairs = try resolveExplicitBufferPairs(allocator, func, explicit.pairs);
                 defer allocator.free(pairs);
-                try writeBufferHelper(w, func, pairs);
+                try writeBufferHelper(allocator, w, config, func, pairs);
                 try emitted_names.append(allocator, func.name);
             },
             .pattern => |pattern| {
@@ -787,7 +899,7 @@ fn writeBufferHelpers(
                     defer allocator.free(pairs);
                     if (pairs.len == 0) continue;
 
-                    try writeBufferHelper(w, func, pairs);
+                    try writeBufferHelper(allocator, w, config, func, pairs);
                     try emitted_names.append(allocator, func.name);
                     match_count += 1;
                 }
@@ -800,6 +912,7 @@ fn writeBufferHelpers(
 fn writeAutoCallbackTypes(
     allocator: std.mem.Allocator,
     w: anytype,
+    config: GeneratorConfig,
     decls: *const declarations.CollectedDeclarations,
     auto_callback_params: []const AutoCallbackParam,
 ) !void {
@@ -821,7 +934,9 @@ fn writeAutoCallbackTypes(
             auto_callback,
         );
         defer allocator.free(helper_type_name);
-        if (containsAutoCallbackParamName(emitted_names.items, helper_type_name)) continue;
+        const emitted_helper_type_name = try renderTypeName(allocator, config, helper_type_name);
+        defer allocator.free(emitted_helper_type_name);
+        if (containsAutoCallbackParamName(emitted_names.items, emitted_helper_type_name)) continue;
         const go_signature = try renderCallbackGoSignature(
             allocator,
             decls,
@@ -830,8 +945,8 @@ fn writeAutoCallbackTypes(
         defer allocator.free(go_signature);
 
         try w.print("\t// C: {s}\n", .{func.parameter_c_types[auto_callback.parameter_index]});
-        try w.print("\t{s} = {s}\n", .{ helper_type_name, go_signature });
-        try emitted_names.append(allocator, try allocator.dupe(u8, helper_type_name));
+        try w.print("\t{s} = {s}\n", .{ emitted_helper_type_name, go_signature });
+        try emitted_names.append(allocator, try allocator.dupe(u8, emitted_helper_type_name));
     }
     try w.writeAll(")\n");
 }
@@ -839,6 +954,7 @@ fn writeAutoCallbackTypes(
 fn writeAutoCallbackConstructors(
     allocator: std.mem.Allocator,
     w: anytype,
+    config: GeneratorConfig,
     decls: *const declarations.CollectedDeclarations,
     auto_callback_params: []const AutoCallbackParam,
 ) !void {
@@ -858,6 +974,8 @@ fn writeAutoCallbackConstructors(
             auto_callback,
         );
         defer allocator.free(helper_type_name);
+        const emitted_helper_type_name = try renderTypeName(allocator, config, helper_type_name);
+        defer allocator.free(emitted_helper_type_name);
         const constructor_name = try renderEffectiveCallbackConstructorName(
             allocator,
             decls,
@@ -865,12 +983,14 @@ fn writeAutoCallbackConstructors(
             auto_callback,
         );
         defer allocator.free(constructor_name);
-        if (containsAutoCallbackParamName(emitted_names.items, constructor_name)) continue;
+        const emitted_constructor_name = try renderFuncName(allocator, config, constructor_name);
+        defer allocator.free(emitted_constructor_name);
+        if (containsAutoCallbackParamName(emitted_names.items, emitted_constructor_name)) continue;
         try w.print(
             "func {s}(fn {s}) uintptr {{\n\treturn uintptr(purego.NewCallback(fn))\n}}\n\n",
-            .{ constructor_name, helper_type_name },
+            .{ emitted_constructor_name, emitted_helper_type_name },
         );
-        try emitted_names.append(allocator, try allocator.dupe(u8, constructor_name));
+        try emitted_names.append(allocator, try allocator.dupe(u8, emitted_constructor_name));
     }
 }
 
@@ -902,6 +1022,7 @@ fn isAutoCallbackParameter(
 fn writeAutoCallbackWrappers(
     allocator: std.mem.Allocator,
     w: anytype,
+    config: GeneratorConfig,
     decls: *const declarations.CollectedDeclarations,
     auto_callback_params: []const AutoCallbackParam,
 ) !void {
@@ -910,7 +1031,14 @@ fn writeAutoCallbackWrappers(
     for (decls.functions.items, 0..) |func, function_index| {
         if (!hasAutoCallbackParamForFunction(auto_callback_params, function_index)) continue;
 
-        try w.print("func {s}_callbacks(\n", .{func.name});
+        const wrapper_name = try std.fmt.allocPrint(allocator, "{s}_callbacks", .{func.name});
+        defer allocator.free(wrapper_name);
+        const emitted_wrapper_name = try renderFuncName(allocator, config, wrapper_name);
+        defer allocator.free(emitted_wrapper_name);
+        const target_name = try renderFuncName(allocator, config, func.name);
+        defer allocator.free(target_name);
+
+        try w.print("func {s}(\n", .{emitted_wrapper_name});
         for (func.parameter_names, func.parameter_c_types, 0..) |param_name, param_c_type, parameter_index| {
             if (isAutoCallbackParameter(auto_callback_params, function_index, parameter_index)) {
                 const helper_type_name = try renderEffectiveCallbackFuncTypeName(
@@ -923,7 +1051,9 @@ fn writeAutoCallbackWrappers(
                     },
                 );
                 defer allocator.free(helper_type_name);
-                try w.print("\t{s} {s},\n", .{ param_name, helper_type_name });
+                const emitted_helper_type_name = try renderTypeName(allocator, config, helper_type_name);
+                defer allocator.free(emitted_helper_type_name);
+                try w.print("\t{s} {s},\n", .{ param_name, emitted_helper_type_name });
                 continue;
             }
             const mapped = try resolveCTypeToGo(decls, param_c_type);
@@ -947,9 +1077,9 @@ fn writeAutoCallbackWrappers(
         }
 
         if (result_mapped.go_type.len != 0) {
-            try w.print("\treturn {s}(\n", .{func.name});
+            try w.print("\treturn {s}(\n", .{target_name});
         } else {
-            try w.print("\t{s}(\n", .{func.name});
+            try w.print("\t{s}(\n", .{target_name});
         }
         for (func.parameter_names, 0..) |param_name, parameter_index| {
             if (isAutoCallbackParameter(auto_callback_params, function_index, parameter_index)) {
@@ -963,16 +1093,31 @@ fn writeAutoCallbackWrappers(
     }
 }
 
-fn writeStructAccessors(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
+fn writeStructAccessors(
+    allocator: std.mem.Allocator,
+    w: anytype,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+) !void {
     var wrote_any = false;
     for (decls.typedefs.items) |typedef_decl| {
         for (typedef_decl.accessor_fields) |field| {
             if (wrote_any) try w.writeByte('\n');
             wrote_any = true;
-            try w.print("func (s *{s}) Get_{s}() {s} {{\n", .{ typedef_decl.name, field.name, field.go_type });
+            const type_name = try renderTypeName(allocator, config, typedef_decl.name);
+            defer allocator.free(type_name);
+            const getter_base = try std.fmt.allocPrint(allocator, "Get_{s}", .{field.name});
+            defer allocator.free(getter_base);
+            const getter_name = try renderFuncName(allocator, config, getter_base);
+            defer allocator.free(getter_name);
+            const setter_base = try std.fmt.allocPrint(allocator, "Set_{s}", .{field.name});
+            defer allocator.free(setter_base);
+            const setter_name = try renderFuncName(allocator, config, setter_base);
+            defer allocator.free(setter_name);
+            try w.print("func (s *{s}) {s}() {s} {{\n", .{ type_name, getter_name, field.go_type });
             try w.print("\treturn s.{s}\n", .{field.name});
             try w.writeAll("}\n\n");
-            try w.print("func (s *{s}) Set_{s}(v {s}) {{\n", .{ typedef_decl.name, field.name, field.go_type });
+            try w.print("func (s *{s}) {s}(v {s}) {{\n", .{ type_name, setter_name, field.go_type });
             try w.print("\ts.{s} = v\n", .{field.name});
             try w.writeAll("}\n");
         }
@@ -980,20 +1125,27 @@ fn writeStructAccessors(w: anytype, decls: *const declarations.CollectedDeclarat
 }
 
 fn writeRegisterFunctions(
+    allocator: std.mem.Allocator,
     w: anytype,
     config: GeneratorConfig,
     decls: *const declarations.CollectedDeclarations,
 ) !void {
-    try w.print("func {s}_register_functions(handle uintptr) error {{\n", .{config.lib_id});
+    const register_name = try std.fmt.allocPrint(allocator, "{s}_register_functions", .{config.lib_id});
+    defer allocator.free(register_name);
+    const emitted_register_name = try renderFuncName(allocator, config, register_name);
+    defer allocator.free(emitted_register_name);
+    try w.print("func {s}(handle uintptr) error {{\n", .{emitted_register_name});
     for (decls.functions.items) |func| {
-        try w.print("\t{s}_symbol, err := purego.Dlsym(handle, \"{s}\")\n", .{ func.name, func.name });
+        const emitted_func_name = try renderFuncName(allocator, config, func.name);
+        defer allocator.free(emitted_func_name);
+        try w.print("\t{s}_symbol, err := purego.Dlsym(handle, \"{s}\")\n", .{ emitted_func_name, func.name });
         try w.writeAll("\tif err != nil {\n");
         try w.print(
             "\t\treturn fmt.Errorf(\"purego-gen: failed to resolve function symbol {s}: %w\", err)\n",
             .{func.name},
         );
         try w.writeAll("\t}\n");
-        try w.print("\tpurego.RegisterFunc(&{s}, {s}_symbol)\n", .{ func.name, func.name });
+        try w.print("\tpurego.RegisterFunc(&{s}, {s}_symbol)\n", .{ emitted_func_name, emitted_func_name });
     }
     try w.writeAll("\treturn nil\n");
     try w.writeAll("}\n");
@@ -1016,21 +1168,29 @@ fn writeHelperFunctions(w: anytype, decls: *const declarations.CollectedDeclarat
     }
 }
 
-fn writeConstants(w: anytype, decls: *const declarations.CollectedDeclarations) !void {
+fn writeConstants(
+    allocator: std.mem.Allocator,
+    w: anytype,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+) !void {
     if (decls.constants.items.len == 0) return;
     try w.writeAll("const (\n");
     for (decls.constants.items, 0..) |constant_decl, index| {
         try writeComment(w, "\t", constant_decl.comment);
+        const emitted_name = try renderConstName(allocator, config, constant_decl.name);
+        defer allocator.free(emitted_name);
         if (index == 0) {
-            try w.print("\t{s} = {s}\n", .{ constant_decl.name, constant_decl.value_expr });
+            try w.print("\t{s} = {s}\n", .{ emitted_name, constant_decl.value_expr });
             continue;
         }
-        try w.print("\t{s}  = {s}\n", .{ constant_decl.name, constant_decl.value_expr });
+        try w.print("\t{s}  = {s}\n", .{ emitted_name, constant_decl.value_expr });
     }
     try w.writeAll(")\n");
 }
 
 fn writeRuntimeVars(
+    allocator: std.mem.Allocator,
     w: anytype,
     config: GeneratorConfig,
     decls: *const declarations.CollectedDeclarations,
@@ -1040,15 +1200,23 @@ fn writeRuntimeVars(
     for (decls.runtime_vars.items) |runtime_var_decl| {
         _ = runtime_var_decl.c_type;
         try writeComment(w, "\t", runtime_var_decl.comment);
-        try w.print("\t{s} uintptr\n", .{runtime_var_decl.name});
+        const emitted_var_name = try renderRuntimeVarName(allocator, config, runtime_var_decl.name);
+        defer allocator.free(emitted_var_name);
+        try w.print("\t{s} uintptr\n", .{emitted_var_name});
     }
     try w.writeAll(")\n\n");
 
-    try w.print("func {s}_load_runtime_vars(handle uintptr) error {{\n", .{config.lib_id});
+    const load_name = try std.fmt.allocPrint(allocator, "{s}_load_runtime_vars", .{config.lib_id});
+    defer allocator.free(load_name);
+    const emitted_load_name = try renderFuncName(allocator, config, load_name);
+    defer allocator.free(emitted_load_name);
+    try w.print("func {s}(handle uintptr) error {{\n", .{emitted_load_name});
     for (decls.runtime_vars.items) |runtime_var_decl| {
+        const emitted_var_name = try renderRuntimeVarName(allocator, config, runtime_var_decl.name);
+        defer allocator.free(emitted_var_name);
         try w.print(
             "\t{s}_symbol, err := purego.Dlsym(handle, \"{s}\")\n",
-            .{ runtime_var_decl.name, runtime_var_decl.name },
+            .{ emitted_var_name, runtime_var_decl.name },
         );
         try w.writeAll("\tif err != nil {\n");
         try w.print(
@@ -1056,7 +1224,7 @@ fn writeRuntimeVars(
             .{runtime_var_decl.name},
         );
         try w.writeAll("\t}\n");
-        try w.print("\t{s} = {s}_symbol\n", .{ runtime_var_decl.name, runtime_var_decl.name });
+        try w.print("\t{s} = {s}_symbol\n", .{ emitted_var_name, emitted_var_name });
     }
     try w.writeAll("\treturn nil\n");
     try w.writeAll("}\n");
@@ -1159,47 +1327,47 @@ pub fn generateGoSource(
     }
 
     if (emits_types) {
-        try writeTypedefs(w, decls);
+        try writeTypedefs(allocator, w, config, decls);
         try w.writeByte('\n');
     }
     if (callback_params.len > 0) {
-        try writeAutoCallbackTypes(allocator, w, decls, callback_params);
+        try writeAutoCallbackTypes(allocator, w, config, decls, callback_params);
         try w.writeByte('\n');
-        try writeAutoCallbackConstructors(allocator, w, decls, callback_params);
+        try writeAutoCallbackConstructors(allocator, w, config, decls, callback_params);
     }
     if (emits_constants and !has_helper_functions) {
-        try writeConstants(w, decls);
+        try writeConstants(allocator, w, config, decls);
         try w.writeByte('\n');
     }
     if (emits_struct_accessors) {
-        try writeStructAccessors(w, decls);
+        try writeStructAccessors(allocator, w, config, decls);
         try w.writeByte('\n');
     }
     if (declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls)) {
         try writeHelperFunctions(w, decls);
     }
     if (emits_constants and has_helper_functions) {
-        try writeConstants(w, decls);
+        try writeConstants(allocator, w, config, decls);
         try w.writeByte('\n');
     }
     if (emits_functions) {
-        try writeFunctions(w, decls);
+        try writeFunctions(allocator, w, config, decls);
         try w.writeByte('\n');
         try writeBufferHelpers(allocator, w, config, decls);
         if (config.buffer_param_helpers.len > 0) {
             try w.writeByte('\n');
         }
-        try writeAutoCallbackWrappers(allocator, w, decls, callback_params);
+        try writeAutoCallbackWrappers(allocator, w, config, decls, callback_params);
         if (callback_params.len > 0) {
             try w.writeByte('\n');
         }
-        try writeRegisterFunctions(w, config, decls);
+        try writeRegisterFunctions(allocator, w, config, decls);
     }
     if (emits_runtime_vars) {
         if (emits_types or emits_struct_accessors or declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls) or emits_functions or emits_constants) {
             try w.writeByte('\n');
         }
-        try writeRuntimeVars(w, config, decls);
+        try writeRuntimeVars(allocator, w, config, decls);
     }
 
     const rendered = try buffer.toOwnedSlice(allocator);
