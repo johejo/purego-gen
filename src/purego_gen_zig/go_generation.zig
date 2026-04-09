@@ -61,6 +61,7 @@ pub const GeneratorConfig = struct {
     naming: NamingConfig,
     include: IncludeConfig,
     exclude: ExcludeConfig,
+    typed_sentinel_constants: bool = false,
     struct_accessors: bool = false,
     buffer_param_helpers: []const BufferParamHelper = &.{},
     callback_param_helpers: []const ExplicitCallbackParamHelper = &.{},
@@ -148,6 +149,7 @@ fn mergeDeclarations(
         }
         allocator.free(constant_decl.name);
         allocator.free(constant_decl.value_expr);
+        if (constant_decl.typed_go_type) |typed_go_type| allocator.free(typed_go_type);
         if (constant_decl.comment) |comment| allocator.free(comment);
     }
     for (src.runtime_vars.items) |runtime_var_decl| {
@@ -1247,11 +1249,16 @@ fn writeConstants(
         try writeComment(w, "\t", constant_decl.comment);
         const emitted_name = try renderConstName(allocator, config, constant_decl.name);
         defer allocator.free(emitted_name);
+        const typed_prefix = if (config.typed_sentinel_constants and constant_decl.typed_go_type != null)
+            try std.fmt.allocPrint(allocator, " {s}", .{constant_decl.typed_go_type.?})
+        else
+            try allocator.dupe(u8, "");
+        defer allocator.free(typed_prefix);
         if (index == 0) {
-            try w.print("\t{s} = {s}\n", .{ emitted_name, constant_decl.value_expr });
+            try w.print("\t{s}{s} = {s}\n", .{ emitted_name, typed_prefix, constant_decl.value_expr });
             continue;
         }
-        try w.print("\t{s}  = {s}\n", .{ emitted_name, constant_decl.value_expr });
+        try w.print("\t{s}{s} = {s}\n", .{ emitted_name, typed_prefix, constant_decl.value_expr });
     }
     try w.writeAll(")\n");
 }
@@ -1347,7 +1354,7 @@ pub fn generateGoSource(
     const has_emitted_runtime_vars = emits_runtime_vars and decls.runtime_vars.items.len > 0;
 
     const need_purego = emits_functions or has_emitted_runtime_vars or declarationsNeedPurego(decls);
-    const need_unsafe = emits_functions or declarationsNeedUnsafe(decls);
+    const need_unsafe = emits_functions or declarationsNeedUnsafe(decls) or declarationsNeedPurego(decls);
     const need_fmt = declarationsNeedFmt(emits_functions, has_emitted_runtime_vars, decls);
     const has_helper_functions = declarationsHaveHelperFunctions(decls);
     const callback_params = if (emits_functions and config.callback_param_helpers.len > 0)

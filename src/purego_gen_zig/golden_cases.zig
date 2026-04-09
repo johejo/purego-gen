@@ -20,6 +20,7 @@ const supported_golden_case_ids = [_][]const u8{
     "exclude_only_basic",
     "inline_func_pointer",
     "macro_constants",
+    "macro_sentinels",
     "non_callback_typedef",
     "parameter_names",
     "struct_accessors_basic",
@@ -34,7 +35,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "libclang",
     "libsqlite3",
     "libzstd",
-    "macro_sentinels",
     "opaque_func_only",
     "owned_string_return",
     "prefix_free",
@@ -393,6 +393,14 @@ pub fn loadCaseFromDir(
                 .type_name = try parseExcludeValue(allocator, parse, "type"),
                 .const_name = try parseExcludeValue(allocator, parse, "const"),
                 .var_name = try parseExcludeValue(allocator, parse, "var"),
+            },
+            .typed_sentinel_constants = blk: {
+                const render_value = generator.get("render") orelse break :blk false;
+                const render = render_value.object;
+                const type_mapping_value = render.get("type_mapping") orelse break :blk false;
+                const type_mapping = type_mapping_value.object;
+                const typed_sentinel_value = type_mapping.get("typed_sentinel_constants") orelse break :blk false;
+                break :blk typed_sentinel_value.bool;
             },
             .struct_accessors = blk: {
                 const render_value = generator.get("render") orelse break :blk false;

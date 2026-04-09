@@ -14,6 +14,7 @@ pub const FunctionDecl = struct {
 pub const ConstantDecl = struct {
     name: []const u8,
     value_expr: []const u8,
+    typed_go_type: ?[]const u8 = null,
     comment: ?[]const u8 = null,
 };
 
@@ -78,6 +79,7 @@ pub const CollectedDeclarations = struct {
         for (self.constants.items) |constant_decl| {
             self.allocator.free(constant_decl.name);
             self.allocator.free(constant_decl.value_expr);
+            if (constant_decl.typed_go_type) |typed_go_type| self.allocator.free(typed_go_type);
             if (constant_decl.comment) |comment| self.allocator.free(comment);
         }
         self.constants.deinit(self.allocator);
@@ -534,11 +536,15 @@ fn appendConstant(
     ctx: *VisitorContext,
     name: []const u8,
     value: u64,
+    value_expr_override: ?[]const u8,
+    typed_go_type: ?[]const u8,
     comment: ?[]const u8,
 ) !void {
     const decls = ctx.decls;
     for (decls.constants.items) |constant_decl| {
         if (std.mem.eql(u8, constant_decl.name, name)) {
+            if (value_expr_override) |value_expr| decls.allocator.free(value_expr);
+            if (typed_go_type) |go_type| decls.allocator.free(go_type);
             if (comment) |text| decls.allocator.free(text);
             try appendKnownConstantValue(ctx, constant_decl.name, value);
             return;
@@ -546,12 +552,17 @@ fn appendConstant(
     }
     const owned_name = try decls.allocator.dupe(u8, name);
     errdefer decls.allocator.free(owned_name);
-    const value_expr = try std.fmt.allocPrint(decls.allocator, "{d}", .{value});
+    const value_expr = if (value_expr_override) |value_expr|
+        value_expr
+    else
+        try std.fmt.allocPrint(decls.allocator, "{d}", .{value});
     errdefer decls.allocator.free(value_expr);
+    errdefer if (typed_go_type) |go_type| decls.allocator.free(go_type);
     errdefer if (comment) |text| decls.allocator.free(text);
     try decls.constants.append(decls.allocator, .{
         .name = owned_name,
         .value_expr = value_expr,
+        .typed_go_type = typed_go_type,
         .comment = comment,
     });
     try appendKnownConstantValue(ctx, owned_name, value);
@@ -577,6 +588,8 @@ fn collectEnumConstants(
                 visitor.ctx,
                 parser.clangString(c.clang_getCursorSpelling(cursor_arg)),
                 c.clang_getEnumConstantDeclUnsignedValue(cursor_arg),
+                null,
+                null,
                 dupeCursorRawComment(visitor.ctx.decls.allocator, cursor_arg) catch |err| {
                     visitor.failed = err;
                     return c.CXChildVisit_Break;
@@ -874,8 +887,62 @@ fn collectMacroDefinition(
         token_texts[i] = try dupeString(allocator, c.clang_getTokenSpelling(tu, tokens_ptr[i]));
     }
 
+    if (try parseTypedSentinelMacro(ctx, token_texts[1..])) |typed_constant| {
+        defer allocator.free(typed_constant.value_expr);
+        defer allocator.free(typed_constant.typed_go_type);
+        try appendConstant(
+            ctx,
+            token_texts[0],
+            typed_constant.value,
+            try allocator.dupe(u8, typed_constant.value_expr),
+            try allocator.dupe(u8, typed_constant.typed_go_type),
+            null,
+        );
+        return;
+    }
+
     const value = try evaluateMacroExpression(allocator, token_texts[1..], ctx) orelse return;
-    try appendConstant(ctx, token_texts[0], value, null);
+    try appendConstant(ctx, token_texts[0], value, null, null, null);
+}
+
+const TypedSentinelMacro = struct {
+    value: u64,
+    value_expr: []const u8,
+    typed_go_type: []const u8,
+};
+
+fn parseTypedSentinelMacro(
+    ctx: *const VisitorContext,
+    tokens: []const []const u8,
+) !?TypedSentinelMacro {
+    var expr_buffer: std.ArrayList(u8) = .empty;
+    defer expr_buffer.deinit(ctx.decls.allocator);
+    for (tokens) |token| {
+        try expr_buffer.appendSlice(ctx.decls.allocator, token);
+    }
+    const expr = expr_buffer.items;
+    if (!std.mem.startsWith(u8, expr, "((") or !std.mem.endsWith(u8, expr, ")")) return null;
+
+    const cast_end = std.mem.indexOfScalarPos(u8, expr, 2, ')') orelse return null;
+    const type_name = expr[2..cast_end];
+    if (type_name.len == 0) return null;
+
+    const sentinel_expr = expr[cast_end + 1 .. expr.len - 1];
+    if (std.mem.eql(u8, sentinel_expr, "0")) {
+        return .{
+            .value = 0,
+            .value_expr = try ctx.decls.allocator.dupe(u8, "0"),
+            .typed_go_type = try ctx.decls.allocator.dupe(u8, type_name),
+        };
+    }
+    if (std.mem.eql(u8, sentinel_expr, "-1")) {
+        return .{
+            .value = std.math.maxInt(u64),
+            .value_expr = try ctx.decls.allocator.dupe(u8, "^uintptr(0)"),
+            .typed_go_type = try ctx.decls.allocator.dupe(u8, type_name),
+        };
+    }
+    return null;
 }
 
 fn renderAliasDefinition(
