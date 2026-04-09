@@ -47,11 +47,19 @@ pub const ExcludeConfig = struct {
     var_name: []const u8,
 };
 
+pub const IncludeConfig = struct {
+    func_name: []const u8,
+    type_name: []const u8,
+    const_name: []const u8,
+    var_name: []const u8,
+};
+
 pub const GeneratorConfig = struct {
     lib_id: []const u8,
     package_name: []const u8,
     emit: []const EmitKind,
     naming: NamingConfig,
+    include: IncludeConfig,
     exclude: ExcludeConfig,
     struct_accessors: bool = false,
     buffer_param_helpers: []const BufferParamHelper = &.{},
@@ -66,6 +74,10 @@ pub const GeneratorConfig = struct {
         allocator.free(self.naming.const_prefix);
         allocator.free(self.naming.func_prefix);
         allocator.free(self.naming.var_prefix);
+        allocator.free(self.include.func_name);
+        allocator.free(self.include.type_name);
+        allocator.free(self.include.const_name);
+        allocator.free(self.include.var_name);
         allocator.free(self.exclude.func_name);
         allocator.free(self.exclude.type_name);
         allocator.free(self.exclude.const_name);
@@ -215,6 +227,10 @@ fn hasRuntimeVarNamed(decls: *const declarations.CollectedDeclarations, name: []
 
 fn isExactExcluded(excluded_name: []const u8, name: []const u8) bool {
     return excluded_name.len != 0 and std.mem.eql(u8, excluded_name, name);
+}
+
+fn isIncludedOnly(included_name: []const u8, name: []const u8) bool {
+    return included_name.len == 0 or std.mem.eql(u8, included_name, name);
 }
 
 fn mapCTypeToGo(c_type: []const u8) !CTypeMapping {
@@ -1434,6 +1450,60 @@ pub fn applyExcludeFilters(
     var next_runtime_var_index: usize = 0;
     for (decls.runtime_vars.items) |runtime_var_decl| {
         if (isExactExcluded(config.exclude.var_name, runtime_var_decl.name)) {
+            allocator.free(runtime_var_decl.name);
+            allocator.free(runtime_var_decl.c_type);
+            if (runtime_var_decl.comment) |comment| allocator.free(comment);
+            continue;
+        }
+        decls.runtime_vars.items[next_runtime_var_index] = runtime_var_decl;
+        next_runtime_var_index += 1;
+    }
+    decls.runtime_vars.items.len = next_runtime_var_index;
+}
+
+pub fn applyIncludeFilters(
+    allocator: std.mem.Allocator,
+    config: GeneratorConfig,
+    decls: *declarations.CollectedDeclarations,
+) void {
+    var next_function_index: usize = 0;
+    for (decls.functions.items) |func| {
+        if (!isIncludedOnly(config.include.func_name, func.name)) {
+            freeFunctionDecl(allocator, func);
+            continue;
+        }
+        decls.functions.items[next_function_index] = func;
+        next_function_index += 1;
+    }
+    decls.functions.items.len = next_function_index;
+
+    var next_typedef_index: usize = 0;
+    for (decls.typedefs.items) |typedef_decl| {
+        if (!isIncludedOnly(config.include.type_name, typedef_decl.name)) {
+            freeTypedefDecl(allocator, typedef_decl);
+            continue;
+        }
+        decls.typedefs.items[next_typedef_index] = typedef_decl;
+        next_typedef_index += 1;
+    }
+    decls.typedefs.items.len = next_typedef_index;
+
+    var next_constant_index: usize = 0;
+    for (decls.constants.items) |constant_decl| {
+        if (!isIncludedOnly(config.include.const_name, constant_decl.name)) {
+            allocator.free(constant_decl.name);
+            allocator.free(constant_decl.value_expr);
+            if (constant_decl.comment) |comment| allocator.free(comment);
+            continue;
+        }
+        decls.constants.items[next_constant_index] = constant_decl;
+        next_constant_index += 1;
+    }
+    decls.constants.items.len = next_constant_index;
+
+    var next_runtime_var_index: usize = 0;
+    for (decls.runtime_vars.items) |runtime_var_decl| {
+        if (!isIncludedOnly(config.include.var_name, runtime_var_decl.name)) {
             allocator.free(runtime_var_decl.name);
             allocator.free(runtime_var_decl.c_type);
             if (runtime_var_decl.comment) |comment| allocator.free(comment);

@@ -13,6 +13,7 @@ const supported_golden_case_ids = [_][]const u8{
     "callback_param",
     "callback_param_conflict",
     "categories_const",
+    "categories_mixed_filtered",
     "comments_default",
     "comments_parse_all",
     "custom_prefix",
@@ -27,7 +28,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
     "callback_param_dedup",
-    "categories_mixed_filtered",
     "conditional_default",
     "conditional_with_define",
     "inline_func_pointer",
@@ -154,6 +154,17 @@ fn parseExcludeValue(
     const exclude_value = parse.get("exclude") orelse return allocator.dupe(u8, "");
     const exclude = exclude_value.object;
     const value = exclude.get(key) orelse return allocator.dupe(u8, "");
+    return allocator.dupe(u8, value.string);
+}
+
+fn parseIncludeValue(
+    allocator: std.mem.Allocator,
+    parse: std.json.ObjectMap,
+    key: []const u8,
+) ![]const u8 {
+    const include_value = parse.get("include") orelse return allocator.dupe(u8, "");
+    const include = include_value.object;
+    const value = include.get(key) orelse return allocator.dupe(u8, "");
     return allocator.dupe(u8, value.string);
 }
 
@@ -368,6 +379,12 @@ pub fn loadCaseFromDir(
                     .var_prefix = try parseNamingValue(allocator, render, "var_prefix"),
                 };
             },
+            .include = .{
+                .func_name = try parseIncludeValue(allocator, parse, "func"),
+                .type_name = try parseIncludeValue(allocator, parse, "type"),
+                .const_name = try parseIncludeValue(allocator, parse, "const"),
+                .var_name = try parseIncludeValue(allocator, parse, "var"),
+            },
             .exclude = .{
                 .func_name = try parseExcludeValue(allocator, parse, "func"),
                 .type_name = try parseExcludeValue(allocator, parse, "type"),
@@ -443,6 +460,7 @@ pub fn generateCaseSource(
         clang_args_z,
     );
     defer decls.deinit();
+    go_generation.applyIncludeFilters(allocator, loaded_case.generator, &decls);
     go_generation.applyExcludeFilters(allocator, loaded_case.generator, &decls);
 
     return go_generation.generateGoSource(allocator, loaded_case.generator, &decls);
