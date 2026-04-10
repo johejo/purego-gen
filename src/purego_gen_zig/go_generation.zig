@@ -293,6 +293,65 @@ const TemplateRegisterFunctionView = struct {
     symbol: []const u8,
 };
 
+const AutoCallbackConstructorView = struct {
+    constructor_name: []const u8,
+    type_name: []const u8,
+};
+
+const StructAccessorView = struct {
+    type_name: []const u8,
+    getter_name: []const u8,
+    setter_name: []const u8,
+    field_name: []const u8,
+    go_type: []const u8,
+};
+
+const PublicWrapperParamView = struct {
+    name: []const u8,
+    go_type: []const u8,
+};
+
+const PublicWrapperView = struct {
+    public_name: []const u8,
+    target_name: []const u8,
+    params: []const PublicWrapperParamView,
+    result_type: []const u8,
+};
+
+const OwnedStringHelperParamView = struct {
+    name: []const u8,
+    go_type: []const u8,
+    c_comment: []const u8,
+};
+
+const OwnedStringHelperView = struct {
+    helper_name: []const u8,
+    target_name: []const u8,
+    free_name: []const u8,
+    gostring_name: []const u8,
+    params: []const OwnedStringHelperParamView,
+};
+
+const AutoCallbackWrapperParamView = struct {
+    name: []const u8,
+    go_type: []const u8,
+    is_callback: bool,
+};
+
+const AutoCallbackWrapperView = struct {
+    wrapper_name: []const u8,
+    target_name: []const u8,
+    params: []const AutoCallbackWrapperParamView,
+    result_type: []const u8,
+};
+
+const ConstantItemView = struct {
+    comment: []const u8,
+    name: []const u8,
+    typed_prefix: []const u8,
+    value_expr: []const u8,
+};
+
 const TemplateSectionView = struct {
     kind: []const u8,
     leading_gap: bool,
@@ -302,6 +361,13 @@ const TemplateSectionView = struct {
     register_function_items: []const TemplateRegisterFunctionView = &.{},
     load_runtime_vars_name: []const u8 = "",
     runtime_var_symbol_items: []const TemplateRegisterFunctionView = &.{},
+    auto_callback_constructor_items: []const AutoCallbackConstructorView = &.{},
+    struct_accessor_items: []const StructAccessorView = &.{},
+    public_wrapper_items: []const PublicWrapperView = &.{},
+    owned_string_helper_items: []const OwnedStringHelperView = &.{},
+    gostring_name: []const u8 = "",
+    auto_callback_wrapper_items: []const AutoCallbackWrapperView = &.{},
+    const_items: []const ConstantItemView = &.{},
 };
 
 const TemplateRuntimeVarView = struct {
@@ -1986,51 +2052,6 @@ fn renderFunctionVarItem(
     return try buffer.toOwnedSlice(allocator);
 }
 
-fn renderPublicWrapperItem(
-    allocator: std.mem.Allocator,
-    config: GeneratorConfig,
-    decls: *const declarations.CollectedDeclarations,
-    func: declarations.FunctionDecl,
-) ![]u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
-
-    const public_name = try renderPublicApiName(
-        allocator,
-        config.public_api.strip_prefix,
-        config.public_api.wrappers_overrides,
-        func.name,
-    );
-    defer allocator.free(public_name);
-    const target_name = try renderFuncName(allocator, config, func.name);
-    defer allocator.free(target_name);
-
-    try w.print("func {s}(\n", .{public_name});
-    for (func.parameter_names, func.parameter_c_types) |param_name, param_c_type| {
-        const public_go_type = try resolvePublicApiGoType(allocator, config, decls, param_c_type, containsEmitKind(config.emit, .type));
-        defer allocator.free(public_go_type);
-        try w.print("\t{s} {s},\n", .{ param_name, public_go_type });
-    }
-    try w.writeAll(")");
-
-    const result_go_type = try resolvePublicApiGoType(allocator, config, decls, func.result_c_type, containsEmitKind(config.emit, .type));
-    defer allocator.free(result_go_type);
-    if (result_go_type.len != 0) {
-        try w.print(" {s} {{\n", .{result_go_type});
-        try w.print("\treturn {s}(\n", .{target_name});
-    } else {
-        try w.writeAll(" {\n");
-        try w.print("\t{s}(\n", .{target_name});
-    }
-    for (func.parameter_names) |param_name| {
-        try w.print("\t\t{s},\n", .{param_name});
-    }
-    try w.writeAll("\t)\n");
-    try w.writeAll("}\n");
-    return try buffer.toOwnedSlice(allocator);
-}
-
 fn renderAutoCallbackTypeItem(
     allocator: std.mem.Allocator,
     config: GeneratorConfig,
@@ -2064,93 +2085,6 @@ fn renderAutoCallbackTypeItem(
     return try buffer.toOwnedSlice(allocator);
 }
 
-fn renderAutoCallbackConstructorItem(
-    allocator: std.mem.Allocator,
-    config: GeneratorConfig,
-    decls: *const declarations.CollectedDeclarations,
-    auto_callback_params: []const AutoCallbackParam,
-    auto_callback: AutoCallbackParam,
-) ![]u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
-
-    const helper_type_name = try renderEffectiveCallbackFuncTypeName(
-        allocator,
-        decls,
-        auto_callback_params,
-        auto_callback,
-    );
-    defer allocator.free(helper_type_name);
-    const emitted_helper_type_name = try renderTypeName(allocator, config, helper_type_name);
-    defer allocator.free(emitted_helper_type_name);
-    const constructor_name = try renderEffectiveCallbackConstructorName(
-        allocator,
-        decls,
-        auto_callback_params,
-        auto_callback,
-    );
-    defer allocator.free(constructor_name);
-    const emitted_constructor_name = try renderFuncName(allocator, config, constructor_name);
-    defer allocator.free(emitted_constructor_name);
-    try w.print(
-        "func {s}(fn {s}) uintptr {{\n\treturn uintptr(purego.NewCallback(fn))\n}}\n\n",
-        .{ emitted_constructor_name, emitted_helper_type_name },
-    );
-    return try buffer.toOwnedSlice(allocator);
-}
-
-fn renderStructAccessorItem(
-    allocator: std.mem.Allocator,
-    config: GeneratorConfig,
-    typedef_decl: declarations.TypedefDecl,
-    field: declarations.RecordFieldDecl,
-) ![]u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
-
-    const type_name = try renderTypeName(allocator, config, typedef_decl.name);
-    defer allocator.free(type_name);
-    const getter_base = try std.fmt.allocPrint(allocator, "Get_{s}", .{field.name});
-    defer allocator.free(getter_base);
-    const getter_name = try renderFuncName(allocator, config, getter_base);
-    defer allocator.free(getter_name);
-    const setter_base = try std.fmt.allocPrint(allocator, "Set_{s}", .{field.name});
-    defer allocator.free(setter_base);
-    const setter_name = try renderFuncName(allocator, config, setter_base);
-    defer allocator.free(setter_name);
-
-    try w.print("func (s *{s}) {s}() {s} {{\n", .{ type_name, getter_name, field.go_type });
-    try w.print("\treturn s.{s}\n", .{field.name});
-    try w.writeAll("}\n\n");
-    try w.print("func (s *{s}) {s}(v {s}) {{\n", .{ type_name, setter_name, field.go_type });
-    try w.print("\ts.{s} = v\n", .{field.name});
-    try w.writeAll("}\n\n");
-    return try buffer.toOwnedSlice(allocator);
-}
-
-fn renderConstantItem(
-    allocator: std.mem.Allocator,
-    config: GeneratorConfig,
-    constant_decl: declarations.ConstantDecl,
-) ![]u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
-
-    try writeComment(w, "\t", constant_decl.comment);
-    const emitted_name = try renderConstName(allocator, config, constant_decl.name);
-    defer allocator.free(emitted_name);
-    const typed_prefix = if (config.typed_sentinel_constants and constant_decl.typed_go_type != null)
-        try std.fmt.allocPrint(allocator, " {s}", .{constant_decl.typed_go_type.?})
-    else
-        try allocator.dupe(u8, "");
-    defer allocator.free(typed_prefix);
-    try w.print("\t{s}{s} = {s}\n", .{ emitted_name, typed_prefix, constant_decl.value_expr });
-    return try buffer.toOwnedSlice(allocator);
-}
-
 fn renderBufferHelperItem(
     allocator: std.mem.Allocator,
     config: GeneratorConfig,
@@ -2160,161 +2094,6 @@ fn renderBufferHelperItem(
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
     try writeBufferHelper(allocator, buffer.writer(allocator), config, func, pairs);
-    return try buffer.toOwnedSlice(allocator);
-}
-
-fn renderAutoCallbackWrapperItem(
-    allocator: std.mem.Allocator,
-    config: GeneratorConfig,
-    decls: *const declarations.CollectedDeclarations,
-    auto_callback_params: []const AutoCallbackParam,
-    func: declarations.FunctionDecl,
-    function_index: usize,
-) ![]u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
-
-    const wrapper_name = try std.fmt.allocPrint(allocator, "{s}_callbacks", .{func.name});
-    defer allocator.free(wrapper_name);
-    const emitted_wrapper_name = try renderFuncName(allocator, config, wrapper_name);
-    defer allocator.free(emitted_wrapper_name);
-    const target_name = try renderFuncName(allocator, config, func.name);
-    defer allocator.free(target_name);
-
-    try w.print("func {s}(\n", .{emitted_wrapper_name});
-    for (func.parameter_names, func.parameter_c_types, 0..) |param_name, param_c_type, parameter_index| {
-        if (isAutoCallbackParameter(auto_callback_params, function_index, parameter_index)) {
-            const helper_type_name = try renderEffectiveCallbackFuncTypeName(
-                allocator,
-                decls,
-                auto_callback_params,
-                .{
-                    .function_index = function_index,
-                    .parameter_index = parameter_index,
-                },
-            );
-            defer allocator.free(helper_type_name);
-            const emitted_helper_type_name = try renderTypeName(allocator, config, helper_type_name);
-            defer allocator.free(emitted_helper_type_name);
-            try w.print("\t{s} {s},\n", .{ param_name, emitted_helper_type_name });
-            continue;
-        }
-        const mapped = try resolveFunctionParameterType(allocator, decls, param_c_type, false, containsEmitKind(config.emit, .type), config.strict_enum_typedefs);
-        defer if (resolvedGoTypeNeedsFree(param_c_type, mapped)) allocator.free(mapped.go_type);
-        try w.print("\t{s} {s},\n", .{ param_name, mapped.go_type });
-    }
-    try w.writeAll(")");
-
-    const result_mapped = try resolveFunctionParameterType(allocator, decls, func.result_c_type, false, containsEmitKind(config.emit, .type), config.strict_enum_typedefs);
-    defer if (resolvedGoTypeNeedsFree(func.result_c_type, result_mapped)) allocator.free(result_mapped.go_type);
-    if (result_mapped.go_type.len != 0) {
-        try w.print(" {s} {{\n", .{result_mapped.go_type});
-    } else {
-        try w.writeAll(" {\n");
-    }
-
-    for (func.parameter_names, 0..) |param_name, parameter_index| {
-        if (!isAutoCallbackParameter(auto_callback_params, function_index, parameter_index)) continue;
-        try w.print("\t{s}_callback := uintptr(0)\n", .{param_name});
-        try w.print("\tif {s} != nil {{\n", .{param_name});
-        try w.print("\t\t{s}_callback = purego.NewCallback({s})\n", .{ param_name, param_name });
-        try w.writeAll("\t}\n");
-    }
-
-    if (result_mapped.go_type.len != 0) {
-        try w.print("\treturn {s}(\n", .{target_name});
-    } else {
-        try w.print("\t{s}(\n", .{target_name});
-    }
-    for (func.parameter_names, 0..) |param_name, parameter_index| {
-        if (isAutoCallbackParameter(auto_callback_params, function_index, parameter_index)) {
-            try w.print("\t\t{s}_callback,\n", .{param_name});
-            continue;
-        }
-        try w.print("\t\t{s},\n", .{param_name});
-    }
-    try w.writeAll("\t)\n");
-    try w.writeAll("}\n");
-    return try buffer.toOwnedSlice(allocator);
-}
-
-fn renderOwnedStringHelperItem(
-    allocator: std.mem.Allocator,
-    config: GeneratorConfig,
-    decls: *const declarations.CollectedDeclarations,
-    helper: OwnedStringReturnHelper,
-) ![]u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
-
-    const func = findFunctionByName(decls, helper.function_name) orelse return error.OwnedStringHelperTargetFunctionNotFound;
-    _ = findFunctionByName(decls, helper.free_func_name) orelse return error.OwnedStringHelperFreeFunctionNotFound;
-
-    const helper_base = try std.fmt.allocPrint(allocator, "{s}_string", .{func.name});
-    defer allocator.free(helper_base);
-    const helper_name = try renderFuncName(allocator, config, helper_base);
-    defer allocator.free(helper_name);
-    const target_name = try renderFuncName(allocator, config, func.name);
-    defer allocator.free(target_name);
-    const free_name = try renderFuncName(allocator, config, helper.free_func_name);
-    defer allocator.free(free_name);
-    const gostring_name = try renderFuncName(allocator, config, "gostring");
-    defer allocator.free(gostring_name);
-
-    try w.print("func {s}(\n", .{helper_name});
-    for (func.parameter_names, func.parameter_c_types) |param_name, param_c_type| {
-        const mapped = try resolveFunctionParameterType(
-            allocator,
-            decls,
-            param_c_type,
-            false,
-            containsEmitKind(config.emit, .type),
-            config.strict_enum_typedefs,
-        );
-        defer if (resolvedGoTypeNeedsFree(param_c_type, mapped)) allocator.free(mapped.go_type);
-        if (mapped.comment) |comment| {
-            try w.print("\t// C: {s}\n", .{comment});
-        }
-        try w.print("\t{s} {s},\n", .{ param_name, mapped.go_type });
-    }
-    try w.writeAll(") string {\n");
-    try w.print("\trawPtr := {s}(\n", .{target_name});
-    for (func.parameter_names) |param_name| {
-        try w.print("\t\t{s},\n", .{param_name});
-    }
-    try w.writeAll("\t)\n");
-    try w.print("\tresult := {s}(rawPtr)\n", .{gostring_name});
-    try w.writeAll("\tif rawPtr != 0 {\n");
-    try w.print("\t\t{s}(rawPtr)\n", .{free_name});
-    try w.writeAll("\t}\n");
-    try w.writeAll("\treturn result\n");
-    try w.writeAll("}\n\n");
-    return try buffer.toOwnedSlice(allocator);
-}
-
-fn renderGostringHelper(
-    allocator: std.mem.Allocator,
-    config: GeneratorConfig,
-) ![]u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
-
-    const gostring_name = try renderFuncName(allocator, config, "gostring");
-    defer allocator.free(gostring_name);
-    try w.print("func {s}(ptr uintptr) string {{\n", .{gostring_name});
-    try w.writeAll("\tif ptr == 0 {\n");
-    try w.writeAll("\t\treturn \"\"\n");
-    try w.writeAll("\t}\n");
-    try w.writeAll("\tp := *(*unsafe.Pointer)(unsafe.Pointer(&ptr))\n");
-    try w.writeAll("\tvar n int\n");
-    try w.writeAll("\tfor *(*byte)(unsafe.Add(p, n)) != 0 {\n");
-    try w.writeAll("\t\tn++\n");
-    try w.writeAll("\t}\n");
-    try w.writeAll("\treturn strings.Clone(unsafe.String((*byte)(p), n))\n");
-    try w.writeAll("}\n\n");
     return try buffer.toOwnedSlice(allocator);
 }
 
@@ -2390,6 +2169,125 @@ fn appendRuntimeVarLoaderSection(
         .text_items = &.{},
         .load_runtime_vars_name = load_runtime_vars_name,
         .runtime_var_symbol_items = items,
+    });
+    has_emitted_section.* = true;
+}
+
+fn appendAutoCallbackConstructorsSection(
+    allocator: std.mem.Allocator,
+    sections: *std.ArrayList(TemplateSectionView),
+    has_emitted_section: *bool,
+    items: []const AutoCallbackConstructorView,
+) !void {
+    if (items.len == 0) return;
+    try sections.append(allocator, .{
+        .kind = "auto_callback_constructors",
+        .leading_gap = false,
+        .block_items = &.{},
+        .text_items = &.{},
+        .auto_callback_constructor_items = items,
+    });
+    has_emitted_section.* = true;
+}
+
+fn appendStructAccessorsSection(
+    allocator: std.mem.Allocator,
+    sections: *std.ArrayList(TemplateSectionView),
+    has_emitted_section: *bool,
+    items: []const StructAccessorView,
+) !void {
+    if (items.len == 0) return;
+    try sections.append(allocator, .{
+        .kind = "struct_accessors",
+        .leading_gap = false,
+        .block_items = &.{},
+        .text_items = &.{},
+        .struct_accessor_items = items,
+    });
+    has_emitted_section.* = true;
+}
+
+fn appendUnionHelpersSection(
+    allocator: std.mem.Allocator,
+    sections: *std.ArrayList(TemplateSectionView),
+    has_emitted_section: *bool,
+) !void {
+    try sections.append(allocator, .{
+        .kind = "union_helpers",
+        .leading_gap = false,
+        .block_items = &.{},
+        .text_items = &.{},
+    });
+    has_emitted_section.* = true;
+}
+
+fn appendPublicWrappersSection(
+    allocator: std.mem.Allocator,
+    sections: *std.ArrayList(TemplateSectionView),
+    has_emitted_section: *bool,
+    items: []const PublicWrapperView,
+) !void {
+    if (items.len == 0) return;
+    try sections.append(allocator, .{
+        .kind = "public_wrappers",
+        .leading_gap = has_emitted_section.*,
+        .block_items = &.{},
+        .text_items = &.{},
+        .public_wrapper_items = items,
+    });
+    has_emitted_section.* = true;
+}
+
+fn appendAutoCallbackWrappersSection(
+    allocator: std.mem.Allocator,
+    sections: *std.ArrayList(TemplateSectionView),
+    has_emitted_section: *bool,
+    items: []const AutoCallbackWrapperView,
+) !void {
+    if (items.len == 0) return;
+    try sections.append(allocator, .{
+        .kind = "auto_callback_wrappers",
+        .leading_gap = false,
+        .block_items = &.{},
+        .text_items = &.{},
+        .auto_callback_wrapper_items = items,
+    });
+    has_emitted_section.* = true;
+}
+
+fn appendOwnedStringHelpersSection(
+    allocator: std.mem.Allocator,
+    sections: *std.ArrayList(TemplateSectionView),
+    has_emitted_section: *bool,
+    items: []const OwnedStringHelperView,
+    gostring_name: []const u8,
+) !void {
+    if (items.len == 0 and gostring_name.len == 0) return;
+    try sections.append(allocator, .{
+        .kind = "owned_string_helpers",
+        .leading_gap = false,
+        .block_items = &.{},
+        .text_items = &.{},
+        .owned_string_helper_items = items,
+        .gostring_name = gostring_name,
+    });
+    has_emitted_section.* = true;
+}
+
+fn appendConstBlockSection(
+    allocator: std.mem.Allocator,
+    sections: *std.ArrayList(TemplateSectionView),
+    has_emitted_section: *bool,
+    const_items: []const ConstantItemView,
+    add_leading_gap: bool,
+) !void {
+    if (const_items.len == 0) return;
+    try sections.append(allocator, .{
+        .kind = "const_block",
+        .leading_gap = has_emitted_section.* and add_leading_gap,
+        .block_items = &.{},
+        .text_items = &.{},
+        .const_items = const_items,
     });
     has_emitted_section.* = true;
 }
@@ -2654,36 +2552,66 @@ pub fn generateGoSource(
     }
     const auto_callback_type_texts = try auto_callback_type_items.toOwnedSlice(arena);
 
-    var auto_callback_constructor_items: std.ArrayList([]const u8) = .empty;
+    var auto_callback_constructor_views: std.ArrayList(AutoCallbackConstructorView) = .empty;
     var emitted_callback_constructor_names: std.ArrayList([]const u8) = .empty;
     if (callback_params.len > 0) {
         for (callback_params) |auto_callback| {
+            const helper_type_name = try renderEffectiveCallbackFuncTypeName(arena, decls, callback_params, auto_callback);
+            const emitted_helper_type_name = try renderTypeName(arena, config, helper_type_name);
             const constructor_name = try renderEffectiveCallbackConstructorName(arena, decls, callback_params, auto_callback);
             const emitted_constructor_name = try renderFuncName(arena, config, constructor_name);
             if (containsString(emitted_callback_constructor_names.items, emitted_constructor_name)) continue;
-            try auto_callback_constructor_items.append(arena, try renderAutoCallbackConstructorItem(arena, config, decls, callback_params, auto_callback));
+            try auto_callback_constructor_views.append(arena, .{
+                .constructor_name = emitted_constructor_name,
+                .type_name = emitted_helper_type_name,
+            });
             try emitted_callback_constructor_names.append(arena, emitted_constructor_name);
         }
     }
-    const auto_callback_constructor_texts = try auto_callback_constructor_items.toOwnedSlice(arena);
+    const auto_callback_constructor_view_items = try auto_callback_constructor_views.toOwnedSlice(arena);
 
-    var constants_items: std.ArrayList([]const u8) = .empty;
+    var constant_views: std.ArrayList(ConstantItemView) = .empty;
     if (emits_constants) {
         for (decls.constants.items) |constant_decl| {
-            try constants_items.append(arena, try renderConstantItem(arena, config, constant_decl));
+            var comment_buf: std.ArrayList(u8) = .empty;
+            const cw = comment_buf.writer(arena);
+            try writeComment(cw, "\t", constant_decl.comment);
+            const comment_str = try comment_buf.toOwnedSlice(arena);
+            const emitted_name = try renderConstName(arena, config, constant_decl.name);
+            const typed_prefix = if (config.typed_sentinel_constants and constant_decl.typed_go_type != null)
+                try std.fmt.allocPrint(arena, " {s}", .{constant_decl.typed_go_type.?})
+            else
+                try arena.dupe(u8, "");
+            try constant_views.append(arena, .{
+                .comment = comment_str,
+                .name = emitted_name,
+                .typed_prefix = typed_prefix,
+                .value_expr = constant_decl.value_expr,
+            });
         }
     }
-    const constant_texts = try constants_items.toOwnedSlice(arena);
+    const constant_view_items = try constant_views.toOwnedSlice(arena);
 
-    var struct_accessor_items: std.ArrayList([]const u8) = .empty;
+    var struct_accessor_views: std.ArrayList(StructAccessorView) = .empty;
     if (emits_struct_accessors) {
         for (decls.typedefs.items) |typedef_decl| {
+            const type_name = try renderTypeName(arena, config, typedef_decl.name);
             for (typedef_decl.accessor_fields) |field| {
-                try struct_accessor_items.append(arena, try renderStructAccessorItem(arena, config, typedef_decl, field));
+                const getter_base = try std.fmt.allocPrint(arena, "Get_{s}", .{field.name});
+                const getter_name = try renderFuncName(arena, config, getter_base);
+                const setter_base = try std.fmt.allocPrint(arena, "Set_{s}", .{field.name});
+                const setter_name = try renderFuncName(arena, config, setter_base);
+                try struct_accessor_views.append(arena, .{
+                    .type_name = type_name,
+                    .getter_name = getter_name,
+                    .setter_name = setter_name,
+                    .field_name = field.name,
+                    .go_type = field.go_type,
+                });
             }
         }
     }
-    const struct_accessor_texts = try struct_accessor_items.toOwnedSlice(arena);
+    const struct_accessor_view_items = try struct_accessor_views.toOwnedSlice(arena);
 
     var helper_items: std.ArrayList([]const u8) = .empty;
     for (decls.typedefs.items) |typedef_decl| {
@@ -2691,17 +2619,15 @@ pub fn generateGoSource(
             try helper_items.append(arena, try std.fmt.allocPrint(arena, "{s}\n", .{text}));
         }
     }
-    if (declarationsNeedUnionHelpers(decls)) {
-        try helper_items.append(arena, "func union_get[T any, U any](u *U) T {\n\treturn *(*T)(unsafe.Pointer(u))\n}\n\n");
-        try helper_items.append(arena, "func union_set[T any, U any](u *U, v T) {\n\t*(*T)(unsafe.Pointer(u)) = v\n}\n\n");
-    }
     const helper_texts = try helper_items.toOwnedSlice(arena);
+    const need_union_helpers = declarationsNeedUnionHelpers(decls);
 
-    var public_wrapper_items: std.ArrayList([]const u8) = .empty;
+    var public_wrapper_views: std.ArrayList(PublicWrapperView) = .empty;
     var function_var_items: std.ArrayList([]const u8) = .empty;
     var buffer_helper_items: std.ArrayList([]const u8) = .empty;
-    var auto_callback_wrapper_items: std.ArrayList([]const u8) = .empty;
-    var owned_string_helper_items: std.ArrayList([]const u8) = .empty;
+    var auto_callback_wrapper_views: std.ArrayList(AutoCallbackWrapperView) = .empty;
+    var owned_string_helper_views: std.ArrayList(OwnedStringHelperView) = .empty;
+    var gostring_name_str: []const u8 = "";
     var register_functions: std.ArrayList(TemplateRegisterFunctionView) = .empty;
 
     if (emits_functions) {
@@ -2709,7 +2635,20 @@ pub fn generateGoSource(
             if (matchesAnyPublicApiMatcher(func.name, config.public_api.wrappers_include) and
                 !matchesAnyPublicApiMatcher(func.name, config.public_api.wrappers_exclude))
             {
-                try public_wrapper_items.append(arena, try renderPublicWrapperItem(arena, config, decls, func));
+                const public_name = try renderPublicApiName(arena, config.public_api.strip_prefix, config.public_api.wrappers_overrides, func.name);
+                const target_name = try renderFuncName(arena, config, func.name);
+                const result_type = try resolvePublicApiGoType(arena, config, decls, func.result_c_type, containsEmitKind(config.emit, .type));
+                var params: std.ArrayList(PublicWrapperParamView) = .empty;
+                for (func.parameter_names, func.parameter_c_types) |param_name, param_c_type| {
+                    const go_type = try resolvePublicApiGoType(arena, config, decls, param_c_type, containsEmitKind(config.emit, .type));
+                    try params.append(arena, .{ .name = param_name, .go_type = go_type });
+                }
+                try public_wrapper_views.append(arena, .{
+                    .public_name = public_name,
+                    .target_name = target_name,
+                    .params = try params.toOwnedSlice(arena),
+                    .result_type = result_type,
+                });
             }
         }
 
@@ -2760,21 +2699,66 @@ pub fn generateGoSource(
 
         for (decls.functions.items, 0..) |func, function_index| {
             if (!hasAutoCallbackParamForFunction(callback_params, function_index)) continue;
-            try auto_callback_wrapper_items.append(arena, try renderAutoCallbackWrapperItem(arena, config, decls, callback_params, func, function_index));
+            const wrapper_name_base = try std.fmt.allocPrint(arena, "{s}_callbacks", .{func.name});
+            const wrapper_name = try renderFuncName(arena, config, wrapper_name_base);
+            const target_name = try renderFuncName(arena, config, func.name);
+            const result_mapped = try resolveFunctionParameterType(arena, decls, func.result_c_type, false, containsEmitKind(config.emit, .type), config.strict_enum_typedefs);
+            var params: std.ArrayList(AutoCallbackWrapperParamView) = .empty;
+            for (func.parameter_names, func.parameter_c_types, 0..) |param_name, param_c_type, parameter_index| {
+                if (isAutoCallbackParameter(callback_params, function_index, parameter_index)) {
+                    const helper_type_name = try renderEffectiveCallbackFuncTypeName(arena, decls, callback_params, .{
+                        .function_index = function_index,
+                        .parameter_index = parameter_index,
+                    });
+                    const emitted_type = try renderTypeName(arena, config, helper_type_name);
+                    try params.append(arena, .{ .name = param_name, .go_type = emitted_type, .is_callback = true });
+                } else {
+                    const mapped = try resolveFunctionParameterType(arena, decls, param_c_type, false, containsEmitKind(config.emit, .type), config.strict_enum_typedefs);
+                    try params.append(arena, .{ .name = param_name, .go_type = mapped.go_type, .is_callback = false });
+                }
+            }
+            try auto_callback_wrapper_views.append(arena, .{
+                .wrapper_name = wrapper_name,
+                .target_name = target_name,
+                .params = try params.toOwnedSlice(arena),
+                .result_type = result_mapped.go_type,
+            });
         }
 
         for (config.owned_string_return_helpers) |helper| {
-            try owned_string_helper_items.append(arena, try renderOwnedStringHelperItem(arena, config, decls, helper));
+            const func = findFunctionByName(decls, helper.function_name) orelse return error.OwnedStringHelperTargetFunctionNotFound;
+            _ = findFunctionByName(decls, helper.free_func_name) orelse return error.OwnedStringHelperFreeFunctionNotFound;
+            const helper_base = try std.fmt.allocPrint(arena, "{s}_string", .{func.name});
+            const helper_name = try renderFuncName(arena, config, helper_base);
+            const target_name = try renderFuncName(arena, config, func.name);
+            const free_name = try renderFuncName(arena, config, helper.free_func_name);
+            const gostring_n = try renderFuncName(arena, config, "gostring");
+            var params: std.ArrayList(OwnedStringHelperParamView) = .empty;
+            for (func.parameter_names, func.parameter_c_types) |param_name, param_c_type| {
+                const mapped = try resolveFunctionParameterType(arena, decls, param_c_type, false, containsEmitKind(config.emit, .type), config.strict_enum_typedefs);
+                try params.append(arena, .{
+                    .name = param_name,
+                    .go_type = mapped.go_type,
+                    .c_comment = mapped.comment orelse "",
+                });
+            }
+            try owned_string_helper_views.append(arena, .{
+                .helper_name = helper_name,
+                .target_name = target_name,
+                .free_name = free_name,
+                .gostring_name = gostring_n,
+                .params = try params.toOwnedSlice(arena),
+            });
         }
         if (config.owned_string_return_helpers.len > 0) {
-            try owned_string_helper_items.append(arena, try renderGostringHelper(arena, config));
+            gostring_name_str = try renderFuncName(arena, config, "gostring");
         }
     }
-    const public_wrapper_texts = try public_wrapper_items.toOwnedSlice(arena);
+    const public_wrapper_view_items = try public_wrapper_views.toOwnedSlice(arena);
     const function_var_texts = try function_var_items.toOwnedSlice(arena);
     const buffer_helper_texts = try buffer_helper_items.toOwnedSlice(arena);
-    const auto_callback_wrapper_texts = try auto_callback_wrapper_items.toOwnedSlice(arena);
-    const owned_string_helper_texts = try owned_string_helper_items.toOwnedSlice(arena);
+    const auto_callback_wrapper_view_items = try auto_callback_wrapper_views.toOwnedSlice(arena);
+    const owned_string_helper_view_items = try owned_string_helper_views.toOwnedSlice(arena);
     const register_function_items = try register_functions.toOwnedSlice(arena);
 
     var runtime_var_items: std.ArrayList([]const u8) = .empty;
@@ -2807,20 +2791,23 @@ pub fn generateGoSource(
     try appendBlockSection(arena, &sections, &has_emitted_section, "type_block", type_block_items, false, true);
     try appendBlockSection(arena, &sections, &has_emitted_section, "type_block", public_type_alias_texts, false, false);
     try appendBlockSection(arena, &sections, &has_emitted_section, "type_block", auto_callback_type_texts, false, false);
-    try appendTextSection(arena, &sections, &has_emitted_section, auto_callback_constructor_texts, false);
+    try appendAutoCallbackConstructorsSection(arena, &sections, &has_emitted_section, auto_callback_constructor_view_items);
     if (emits_constants and !has_helper_functions) {
-        try appendBlockSection(arena, &sections, &has_emitted_section, "const_block", constant_texts, false, true);
+        try appendConstBlockSection(arena, &sections, &has_emitted_section, constant_view_items, true);
     }
-    try appendTextSection(arena, &sections, &has_emitted_section, struct_accessor_texts, false);
+    try appendStructAccessorsSection(arena, &sections, &has_emitted_section, struct_accessor_view_items);
     try appendTextSection(arena, &sections, &has_emitted_section, helper_texts, false);
-    if (emits_constants and has_helper_functions) {
-        try appendBlockSection(arena, &sections, &has_emitted_section, "const_block", constant_texts, false, true);
+    if (need_union_helpers) {
+        try appendUnionHelpersSection(arena, &sections, &has_emitted_section);
     }
-    try appendTextSection(arena, &sections, &has_emitted_section, public_wrapper_texts, true);
+    if (emits_constants and has_helper_functions) {
+        try appendConstBlockSection(arena, &sections, &has_emitted_section, constant_view_items, true);
+    }
+    try appendPublicWrappersSection(arena, &sections, &has_emitted_section, public_wrapper_view_items);
     try appendBlockSection(arena, &sections, &has_emitted_section, "var_block", function_var_texts, emits_functions, true);
     try appendTextSection(arena, &sections, &has_emitted_section, buffer_helper_texts, false);
-    try appendTextSection(arena, &sections, &has_emitted_section, auto_callback_wrapper_texts, false);
-    try appendTextSection(arena, &sections, &has_emitted_section, owned_string_helper_texts, false);
+    try appendAutoCallbackWrappersSection(arena, &sections, &has_emitted_section, auto_callback_wrapper_view_items);
+    try appendOwnedStringHelpersSection(arena, &sections, &has_emitted_section, owned_string_helper_view_items, gostring_name_str);
     try appendRegisterFunctionsSection(arena, &sections, &has_emitted_section, true, register_functions_name, register_function_items);
     try appendBlockSection(arena, &sections, &has_emitted_section, "var_block", runtime_var_texts, emits_runtime_vars, true);
     try appendRuntimeVarLoaderSection(arena, &sections, &has_emitted_section, true, load_runtime_vars_name, runtime_var_symbol_items);
