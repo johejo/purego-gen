@@ -293,6 +293,17 @@ const TemplateRegisterFunctionView = struct {
     symbol: []const u8,
 };
 
+const TemplateSectionView = struct {
+    kind: []const u8,
+    leading_gap: bool,
+    block_items: []const []const u8,
+    text_items: []const []const u8,
+    register_functions_name: []const u8 = "",
+    register_function_items: []const TemplateRegisterFunctionView = &.{},
+    load_runtime_vars_name: []const u8 = "",
+    runtime_var_symbol_items: []const TemplateRegisterFunctionView = &.{},
+};
+
 const TemplateRuntimeVarView = struct {
     comment_lines: []const []const u8,
     name: []const u8,
@@ -2307,6 +2318,82 @@ fn renderGostringHelper(
     return try buffer.toOwnedSlice(allocator);
 }
 
+fn appendBlockSection(
+    allocator: std.mem.Allocator,
+    sections: *std.ArrayList(TemplateSectionView),
+    has_emitted_section: *bool,
+    kind: []const u8,
+    block_items: []const []const u8,
+    force_block: bool,
+    add_leading_gap: bool,
+) !void {
+    if (!force_block and block_items.len == 0) return;
+    try sections.append(allocator, .{
+        .kind = kind,
+        .leading_gap = has_emitted_section.* and add_leading_gap,
+        .block_items = block_items,
+        .text_items = &.{},
+    });
+    has_emitted_section.* = true;
+}
+
+fn appendTextSection(
+    allocator: std.mem.Allocator,
+    sections: *std.ArrayList(TemplateSectionView),
+    has_emitted_section: *bool,
+    text_items: []const []const u8,
+    add_leading_gap: bool,
+) !void {
+    if (text_items.len == 0) return;
+    try sections.append(allocator, .{
+        .kind = "text",
+        .leading_gap = has_emitted_section.* and add_leading_gap,
+        .block_items = &.{},
+        .text_items = text_items,
+    });
+    has_emitted_section.* = true;
+}
+
+fn appendRegisterFunctionsSection(
+    allocator: std.mem.Allocator,
+    sections: *std.ArrayList(TemplateSectionView),
+    has_emitted_section: *bool,
+    add_leading_gap: bool,
+    register_functions_name: []const u8,
+    items: []const TemplateRegisterFunctionView,
+) !void {
+    if (items.len == 0) return;
+    try sections.append(allocator, .{
+        .kind = "register_functions",
+        .leading_gap = has_emitted_section.* and add_leading_gap,
+        .block_items = &.{},
+        .text_items = &.{},
+        .register_functions_name = register_functions_name,
+        .register_function_items = items,
+    });
+    has_emitted_section.* = true;
+}
+
+fn appendRuntimeVarLoaderSection(
+    allocator: std.mem.Allocator,
+    sections: *std.ArrayList(TemplateSectionView),
+    has_emitted_section: *bool,
+    add_leading_gap: bool,
+    load_runtime_vars_name: []const u8,
+    items: []const TemplateRegisterFunctionView,
+) !void {
+    if (load_runtime_vars_name.len == 0) return;
+    try sections.append(allocator, .{
+        .kind = "runtime_var_loader",
+        .leading_gap = has_emitted_section.* and add_leading_gap,
+        .block_items = &.{},
+        .text_items = &.{},
+        .load_runtime_vars_name = load_runtime_vars_name,
+        .runtime_var_symbol_items = items,
+    });
+    has_emitted_section.* = true;
+}
+
 fn buildImportBlock(
     allocator: std.mem.Allocator,
     need_fmt: bool,
@@ -2531,6 +2618,12 @@ pub fn generateGoSource(
     }
     const type_alias_texts = try type_alias_items.toOwnedSlice(arena);
     const helper_type_alias_texts = try helper_type_alias_items.toOwnedSlice(arena);
+    const type_block_items = blk: {
+        var items: std.ArrayList([]const u8) = .empty;
+        for (type_alias_texts) |item| try items.append(arena, item);
+        for (helper_type_alias_texts) |item| try items.append(arena, item);
+        break :blk try items.toOwnedSlice(arena);
+    };
 
     var public_type_alias_items: std.ArrayList([]const u8) = .empty;
     if (emits_types) {
@@ -2709,6 +2802,30 @@ pub fn generateGoSource(
     else
         "";
 
+    var sections: std.ArrayList(TemplateSectionView) = .empty;
+    var has_emitted_section = false;
+    try appendBlockSection(arena, &sections, &has_emitted_section, "type_block", type_block_items, false, true);
+    try appendBlockSection(arena, &sections, &has_emitted_section, "type_block", public_type_alias_texts, false, false);
+    try appendBlockSection(arena, &sections, &has_emitted_section, "type_block", auto_callback_type_texts, false, false);
+    try appendTextSection(arena, &sections, &has_emitted_section, auto_callback_constructor_texts, false);
+    if (emits_constants and !has_helper_functions) {
+        try appendBlockSection(arena, &sections, &has_emitted_section, "const_block", constant_texts, false, true);
+    }
+    try appendTextSection(arena, &sections, &has_emitted_section, struct_accessor_texts, false);
+    try appendTextSection(arena, &sections, &has_emitted_section, helper_texts, false);
+    if (emits_constants and has_helper_functions) {
+        try appendBlockSection(arena, &sections, &has_emitted_section, "const_block", constant_texts, false, true);
+    }
+    try appendTextSection(arena, &sections, &has_emitted_section, public_wrapper_texts, true);
+    try appendBlockSection(arena, &sections, &has_emitted_section, "var_block", function_var_texts, emits_functions, true);
+    try appendTextSection(arena, &sections, &has_emitted_section, buffer_helper_texts, false);
+    try appendTextSection(arena, &sections, &has_emitted_section, auto_callback_wrapper_texts, false);
+    try appendTextSection(arena, &sections, &has_emitted_section, owned_string_helper_texts, false);
+    try appendRegisterFunctionsSection(arena, &sections, &has_emitted_section, true, register_functions_name, register_function_items);
+    try appendBlockSection(arena, &sections, &has_emitted_section, "var_block", runtime_var_texts, emits_runtime_vars, true);
+    try appendRuntimeVarLoaderSection(arena, &sections, &has_emitted_section, true, load_runtime_vars_name, runtime_var_symbol_items);
+    const section_items = try sections.toOwnedSlice(arena);
+
     const template_data = .{
         .package_name = config.package_name,
         .has_import_block = std_import_items.len > 0 or need_purego,
@@ -2716,33 +2833,7 @@ pub fn generateGoSource(
         .has_purego_import = need_purego,
         .has_blank_identifier_block = blank_identifier_items.len > 0,
         .blank_identifiers = blank_identifier_items,
-        .has_type_alias_block = type_alias_texts.len > 0,
-        .type_alias_items = type_alias_texts,
-        .helper_type_alias_items = helper_type_alias_texts,
-        .has_public_type_alias_block = public_type_alias_texts.len > 0,
-        .public_type_alias_items = public_type_alias_texts,
-        .has_auto_callback_type_block = auto_callback_type_texts.len > 0,
-        .auto_callback_type_items = auto_callback_type_texts,
-        .auto_callback_constructor_items = auto_callback_constructor_texts,
-        .has_constants_pre_helpers_section = emits_constants and !has_helper_functions and constant_texts.len > 0,
-        .has_constants_post_helpers_section = emits_constants and has_helper_functions and constant_texts.len > 0,
-        .constant_items = constant_texts,
-        .struct_accessor_items = struct_accessor_texts,
-        .helper_items = helper_texts,
-        .public_wrapper_items = public_wrapper_texts,
-        .has_function_var_block = emits_functions,
-        .function_var_items = function_var_texts,
-        .buffer_helper_items = buffer_helper_texts,
-        .auto_callback_wrapper_items = auto_callback_wrapper_texts,
-        .owned_string_helper_items = owned_string_helper_texts,
-        .has_register_functions = emits_functions,
-        .register_functions_name = register_functions_name,
-        .register_function_items = register_function_items,
-        .has_runtime_vars_section = emits_runtime_vars,
-        .runtime_var_items = runtime_var_texts,
-        .load_runtime_vars_name = load_runtime_vars_name,
-        .runtime_var_symbol_items = runtime_var_symbol_items,
-        .needs_runtime_vars_leading_gap = emits_runtime_vars and (type_alias_texts.len > 0 or struct_accessor_texts.len > 0 or helper_texts.len > 0 or emits_functions or constant_texts.len > 0 or auto_callback_type_texts.len > 0 or auto_callback_constructor_texts.len > 0 or public_type_alias_texts.len > 0),
+        .sections = section_items,
     };
 
     var buffer: std.ArrayList(u8) = .empty;

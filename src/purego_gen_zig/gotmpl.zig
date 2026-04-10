@@ -8,6 +8,7 @@ const std = @import("std");
 ///   {{range .field}}...{{end}}    iterate slice field (each element is new data context)
 ///   {{if .field}}...{{else}}...{{end}}       conditional (bool or truthy string/int)
 ///   {{if not .field}}...{{else}}...{{end}}   negated conditional
+///   {{if eq .field "value"}}...{{else}}...{{end}}   string equality conditional
 ///
 /// `tmpl` must be comptime-known; template validation (unknown tags, unclosed
 /// braces, missing {{end}}) becomes a compile error.
@@ -104,6 +105,42 @@ pub fn render(writer: anytype, comptime tmpl: []const u8, data: anytype) !void {
             try render(writer, else_body, data);
         }
         try render(writer, rest, data);
+    } else if (comptime std.mem.startsWith(u8, tag, "if eq .")) {
+        const eq_expr = comptime tag["if eq .".len..];
+        const separator = comptime std.mem.indexOfScalar(u8, eq_expr, ' ') orelse
+            @compileError("gotmpl: expected string literal in eq expression");
+        const field_name = comptime eq_expr[0..separator];
+        const raw_expected = comptime std.mem.trim(u8, eq_expr[separator + 1 ..], " \t");
+        if (comptime raw_expected.len < 2 or raw_expected[0] != '"' or raw_expected[raw_expected.len - 1] != '"') {
+            @compileError("gotmpl: eq only supports string literals");
+        }
+        const expected = comptime raw_expected[1 .. raw_expected.len - 1];
+        const block_info = comptime findBlockBounds(tmpl, after_tag);
+        const body_end = comptime block_info.else_start orelse block_info.end_start;
+        const body_left_trim = comptime if (block_info.else_start != null) block_info.body_left_trim else block_info.end_left_trim;
+        const body_limit = comptime if (body_left_trim)
+            trimTrailingWhitespace(tmpl, after_tag, body_end)
+        else
+            body_end;
+        const body = comptime tmpl[after_tag..body_limit];
+        const else_body = comptime if (block_info.else_start != null)
+            tmpl[block_info.else_after..(if (block_info.end_left_trim)
+                trimTrailingWhitespace(tmpl, block_info.else_after, block_info.end_start)
+            else
+                block_info.end_start)]
+        else
+            "";
+        const rest_start = comptime if (block_info.end_right_trim)
+            skipLeadingWhitespace(tmpl, block_info.end_after)
+        else
+            block_info.end_after;
+        const rest = comptime tmpl[rest_start..];
+        if (eqString(getFieldPath(data, field_name), expected)) {
+            try render(writer, body, data);
+        } else if (else_body.len > 0) {
+            try render(writer, else_body, data);
+        }
+        try render(writer, rest, data);
     } else if (comptime std.mem.startsWith(u8, tag, "if .")) {
         const field_name = comptime tag["if .".len..];
         const block_info = comptime findBlockBounds(tmpl, after_tag);
@@ -195,6 +232,7 @@ fn findBlockBounds(comptime s: []const u8, comptime from: usize) BlockBounds {
         const tag = tag_info.content;
         if (std.mem.startsWith(u8, tag, "range .") or
             std.mem.startsWith(u8, tag, "if not .") or
+            std.mem.startsWith(u8, tag, "if eq .") or
             std.mem.startsWith(u8, tag, "if ."))
         {
             depth += 1;
@@ -308,6 +346,14 @@ fn isTruthy(value: anytype) bool {
     };
 }
 
+fn eqString(value: anytype, expected: []const u8) bool {
+    const T = @TypeOf(value);
+    if (comptime (T == []const u8 or T == []u8 or T == [:0]const u8 or T == [:0]u8)) {
+        return std.mem.eql(u8, value, expected);
+    }
+    @compileError("gotmpl: eq only supports string-like fields, got: " ++ @typeName(T));
+}
+
 // --- tests ---
 
 fn expectRender(comptime tmpl: []const u8, data: anytype, expected: []const u8) !void {
@@ -358,6 +404,10 @@ test "if true" {
 
 test "if false" {
     try expectRender("{{if .show}}yes{{end}}", .{ .show = false }, "");
+}
+
+test "if eq string literal" {
+    try expectRender("{{if eq .kind \"block\"}}yes{{else}}no{{end}}", .{ .kind = @as([]const u8, "block") }, "yes");
 }
 
 test "if not true" {

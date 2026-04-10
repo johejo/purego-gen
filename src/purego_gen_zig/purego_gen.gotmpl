@@ -20,50 +20,19 @@ var (
 {{end}}
 )
 {{end}}
-{{if .has_type_alias_block -}}
+{{range .sections}}{{if .leading_gap}}
 
-type (
-{{range .type_alias_items}}{{.}}{{end}}{{range .helper_type_alias_items}}{{.}}{{end}}
-)
 {{end -}}
-{{if .has_public_type_alias_block -}}
-type (
-{{range .public_type_alias_items}}{{.}}{{end}}
+{{if eq .kind "type_block"}}type (
+{{range .block_items}}{{.}}{{end}}
 )
-{{end}}
-{{if .has_auto_callback_type_block -}}
-type (
-{{range .auto_callback_type_items}}{{.}}{{end}}
+{{end}}{{if eq .kind "const_block"}}const (
+{{range .block_items}}{{.}}{{end}}
 )
-{{end}}
-{{range .auto_callback_constructor_items}}{{.}}{{end}}
-{{if .has_constants_pre_helpers_section -}}
-
-const (
-{{range .constant_items}}{{.}}{{end}}
+{{end}}{{if eq .kind "var_block"}}var (
+{{range .block_items}}{{.}}{{end}}
 )
-{{end}}
-{{range .struct_accessor_items}}{{.}}{{end}}
-{{range .helper_items}}{{.}}{{end}}
-{{if .has_constants_post_helpers_section -}}
-
-const (
-{{range .constant_items}}{{.}}{{end}}
-)
-{{end}}
-{{range .public_wrapper_items}}{{.}}{{end}}
-{{if .has_function_var_block -}}
-
-var (
-{{range .function_var_items}}{{.}}{{end}}
-)
-{{end}}
-{{range .buffer_helper_items}}{{.}}{{end}}
-{{range .auto_callback_wrapper_items}}{{.}}{{end}}
-{{range .owned_string_helper_items}}{{.}}{{end}}
-{{if .has_register_functions -}}
-
-func {{.register_functions_name}}(handle uintptr) error {
+{{end}}{{if eq .kind "text"}}{{range .text_items}}{{.}}{{end}}{{end}}{{if eq .kind "register_functions"}}func {{.register_functions_name}}(handle uintptr) error {
 {{range .register_function_items}}	{{.name}}_symbol, err := purego.Dlsym(handle, "{{.symbol}}")
 	if err != nil {
 		return fmt.Errorf("purego-gen: failed to resolve function symbol {{.symbol}}: %w", err)
@@ -71,17 +40,7 @@ func {{.register_functions_name}}(handle uintptr) error {
 	purego.RegisterFunc(&{{.name}}, {{.name}}_symbol)
 {{end}}	return nil
 }
-{{end}}
-{{if .has_runtime_vars_section -}}
-{{if .needs_runtime_vars_leading_gap}}
-
-{{end -}}
-
-var (
-{{range .runtime_var_items}}{{.}}{{end}}
-)
-
-func {{.load_runtime_vars_name}}(handle uintptr) error {
+{{end}}{{if eq .kind "runtime_var_loader"}}func {{.load_runtime_vars_name}}(handle uintptr) error {
 {{range .runtime_var_symbol_items}}	{{.name}}_symbol, err := purego.Dlsym(handle, "{{.symbol}}")
 	if err != nil {
 		return fmt.Errorf(
@@ -92,4 +51,4 @@ func {{.load_runtime_vars_name}}(handle uintptr) error {
 	{{.name}} = {{.name}}_symbol
 {{end}}	return nil
 }
-{{end}}
+{{end}}{{end}}
