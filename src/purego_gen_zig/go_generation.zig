@@ -1,6 +1,9 @@
 const std = @import("std");
 const declarations = @import("declarations.zig");
+const gotmpl = @import("gotmpl.zig");
 const parser = @import("parser.zig");
+
+const go_file_template = @embedFile("purego_gen.gotmpl");
 
 pub const EmitKind = enum {
     func,
@@ -1777,6 +1780,178 @@ fn formatGoSource(
     return try file.readToEndAlloc(allocator, 1024 * 1024);
 }
 
+fn buildImportBlock(
+    allocator: std.mem.Allocator,
+    need_fmt: bool,
+    need_unsafe: bool,
+    need_purego: bool,
+    need_strings: bool,
+) ![]u8 {
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+    const w = buffer.writer(allocator);
+
+    try w.writeAll("import (\n");
+    if (need_fmt) {
+        try w.writeAll("\t\"fmt\"\n");
+    }
+    if (need_strings) {
+        try w.writeAll("\t\"strings\"\n");
+    }
+    if (need_unsafe) {
+        try w.writeAll("\t\"unsafe\"\n");
+    }
+    if ((need_fmt and (need_unsafe or need_purego)) or (need_strings and (need_unsafe or need_purego)) or (need_unsafe and need_purego)) {
+        try w.writeByte('\n');
+    }
+    if (need_purego) {
+        try w.writeAll("\t\"github.com/ebitengine/purego\"\n");
+    }
+    try w.writeAll(")\n\n");
+    return try buffer.toOwnedSlice(allocator);
+}
+
+fn buildBlankIdentifierBlock(
+    allocator: std.mem.Allocator,
+    need_fmt: bool,
+    need_unsafe: bool,
+) ![]u8 {
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+    const w = buffer.writer(allocator);
+
+    try w.writeAll("var (\n");
+    if (need_fmt) {
+        try w.writeAll("\t_ = fmt.Errorf\n");
+    }
+    if (need_unsafe) {
+        try w.writeAll("\t_ = unsafe.Pointer(nil)\n");
+    }
+    try w.writeAll(")\n\n");
+    return try buffer.toOwnedSlice(allocator);
+}
+
+fn buildTypesSection(
+    allocator: std.mem.Allocator,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+) ![]u8 {
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+    const w = buffer.writer(allocator);
+
+    try writeTypedefs(allocator, w, config, decls);
+    if (hasPublicTypeAliases(config, decls)) {
+        try writePublicTypeAliases(allocator, w, config, decls);
+        try w.writeByte('\n');
+    } else {
+        try w.writeByte('\n');
+    }
+    return try buffer.toOwnedSlice(allocator);
+}
+
+fn buildCallbacksSection(
+    allocator: std.mem.Allocator,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+    callback_params: []const AutoCallbackParam,
+) ![]u8 {
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+    const w = buffer.writer(allocator);
+
+    try writeAutoCallbackTypes(allocator, w, config, decls, callback_params);
+    try w.writeByte('\n');
+    try writeAutoCallbackConstructors(allocator, w, config, decls, callback_params);
+    return try buffer.toOwnedSlice(allocator);
+}
+
+fn buildConstantsSection(
+    allocator: std.mem.Allocator,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+) ![]u8 {
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+    const w = buffer.writer(allocator);
+
+    try writeConstants(allocator, w, config, decls);
+    try w.writeByte('\n');
+    return try buffer.toOwnedSlice(allocator);
+}
+
+fn buildStructAccessorsSection(
+    allocator: std.mem.Allocator,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+) ![]u8 {
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+    const w = buffer.writer(allocator);
+
+    try writeStructAccessors(allocator, w, config, decls);
+    try w.writeByte('\n');
+    return try buffer.toOwnedSlice(allocator);
+}
+
+fn buildHelpersSection(
+    allocator: std.mem.Allocator,
+    decls: *const declarations.CollectedDeclarations,
+) ![]u8 {
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+    const w = buffer.writer(allocator);
+
+    try writeHelperFunctions(w, decls);
+    return try buffer.toOwnedSlice(allocator);
+}
+
+fn buildFunctionsSection(
+    allocator: std.mem.Allocator,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+    callback_params: []const AutoCallbackParam,
+) ![]u8 {
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+    const w = buffer.writer(allocator);
+
+    try writePublicApiWrappers(allocator, w, config, decls);
+    try writeFunctions(allocator, w, config, decls, callback_params);
+    try w.writeByte('\n');
+    try writeBufferHelpers(allocator, w, config, decls);
+    if (config.buffer_param_helpers.len > 0) {
+        try w.writeByte('\n');
+    }
+    try writeAutoCallbackWrappers(allocator, w, config, decls, callback_params);
+    if (callback_params.len > 0) {
+        try w.writeByte('\n');
+    }
+    try writeOwnedStringReturnHelpers(allocator, w, config, decls);
+    if (config.owned_string_return_helpers.len > 0) {
+        try w.writeByte('\n');
+    }
+    try writeRegisterFunctions(allocator, w, config, decls);
+    return try buffer.toOwnedSlice(allocator);
+}
+
+fn buildRuntimeVarsSection(
+    allocator: std.mem.Allocator,
+    config: GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
+    needs_leading_separator: bool,
+) ![]u8 {
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+    const w = buffer.writer(allocator);
+
+    if (needs_leading_separator) {
+        try w.writeByte('\n');
+    }
+    try writeRuntimeVars(allocator, w, config, decls);
+    return try buffer.toOwnedSlice(allocator);
+}
+
 pub fn generateGoSource(
     allocator: std.mem.Allocator,
     config: GeneratorConfig,
@@ -1802,97 +1977,109 @@ pub fn generateGoSource(
         try allocator.alloc(AutoCallbackParam, 0);
     defer allocator.free(callback_params);
 
+    const has_import_block = need_fmt or need_unsafe or need_purego or need_strings;
+    const has_blank_identifier_block = need_fmt or need_unsafe;
+    const has_types_section = emits_types;
+    const has_callbacks_section = callback_params.len > 0;
+    const has_constants_pre_helpers_section = emits_constants and !has_helper_functions;
+    const has_struct_accessors_section = emits_struct_accessors;
+    const has_helpers_section = declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls);
+    const has_constants_post_helpers_section = emits_constants and has_helper_functions;
+    const has_functions_section = emits_functions;
+    const has_runtime_vars_section = emits_runtime_vars;
+
+    const import_block = if (has_import_block)
+        try buildImportBlock(allocator, need_fmt, need_unsafe, need_purego, need_strings)
+    else
+        try allocator.dupe(u8, "");
+    defer allocator.free(import_block);
+
+    const blank_identifier_block = if (has_blank_identifier_block)
+        try buildBlankIdentifierBlock(allocator, need_fmt, need_unsafe)
+    else
+        try allocator.dupe(u8, "");
+    defer allocator.free(blank_identifier_block);
+
+    const types_section = if (has_types_section)
+        try buildTypesSection(allocator, config, decls)
+    else
+        try allocator.dupe(u8, "");
+    defer allocator.free(types_section);
+
+    const callbacks_section = if (has_callbacks_section)
+        try buildCallbacksSection(allocator, config, decls, callback_params)
+    else
+        try allocator.dupe(u8, "");
+    defer allocator.free(callbacks_section);
+
+    const constants_pre_helpers_section = if (has_constants_pre_helpers_section)
+        try buildConstantsSection(allocator, config, decls)
+    else
+        try allocator.dupe(u8, "");
+    defer allocator.free(constants_pre_helpers_section);
+
+    const struct_accessors_section = if (has_struct_accessors_section)
+        try buildStructAccessorsSection(allocator, config, decls)
+    else
+        try allocator.dupe(u8, "");
+    defer allocator.free(struct_accessors_section);
+
+    const helpers_section = if (has_helpers_section)
+        try buildHelpersSection(allocator, decls)
+    else
+        try allocator.dupe(u8, "");
+    defer allocator.free(helpers_section);
+
+    const constants_post_helpers_section = if (has_constants_post_helpers_section)
+        try buildConstantsSection(allocator, config, decls)
+    else
+        try allocator.dupe(u8, "");
+    defer allocator.free(constants_post_helpers_section);
+
+    const functions_section = if (has_functions_section)
+        try buildFunctionsSection(allocator, config, decls, callback_params)
+    else
+        try allocator.dupe(u8, "");
+    defer allocator.free(functions_section);
+
+    const runtime_vars_section = if (has_runtime_vars_section)
+        try buildRuntimeVarsSection(
+            allocator,
+            config,
+            decls,
+            emits_types or emits_struct_accessors or declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls) or emits_functions or emits_constants,
+        )
+    else
+        try allocator.dupe(u8, "");
+    defer allocator.free(runtime_vars_section);
+
+    const template_data = .{
+        .package_name = config.package_name,
+        .has_import_block = has_import_block,
+        .import_block = import_block,
+        .has_blank_identifier_block = has_blank_identifier_block,
+        .blank_identifier_block = blank_identifier_block,
+        .has_types_section = has_types_section,
+        .types_section = types_section,
+        .has_callbacks_section = has_callbacks_section,
+        .callbacks_section = callbacks_section,
+        .has_constants_pre_helpers_section = has_constants_pre_helpers_section,
+        .constants_pre_helpers_section = constants_pre_helpers_section,
+        .has_struct_accessors_section = has_struct_accessors_section,
+        .struct_accessors_section = struct_accessors_section,
+        .has_helpers_section = has_helpers_section,
+        .helpers_section = helpers_section,
+        .has_constants_post_helpers_section = has_constants_post_helpers_section,
+        .constants_post_helpers_section = constants_post_helpers_section,
+        .has_functions_section = has_functions_section,
+        .functions_section = functions_section,
+        .has_runtime_vars_section = has_runtime_vars_section,
+        .runtime_vars_section = runtime_vars_section,
+    };
+
     var buffer: std.ArrayList(u8) = .empty;
     errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
-
-    try w.writeAll("// Code generated by purego-gen; DO NOT EDIT.\n\n");
-    try w.print("package {s}\n\n", .{config.package_name});
-
-    if (need_fmt or need_unsafe or need_purego or need_strings) {
-        try w.writeAll("import (\n");
-        if (need_fmt) {
-            try w.writeAll("\t\"fmt\"\n");
-        }
-        if (need_strings) {
-            try w.writeAll("\t\"strings\"\n");
-        }
-        if (need_unsafe) {
-            try w.writeAll("\t\"unsafe\"\n");
-        }
-        if ((need_fmt and (need_unsafe or need_purego)) or (need_strings and (need_unsafe or need_purego)) or (need_unsafe and need_purego)) {
-            try w.writeByte('\n');
-        }
-        if (need_purego) {
-            try w.writeAll("\t\"github.com/ebitengine/purego\"\n");
-        }
-        try w.writeAll(")\n\n");
-    }
-
-    if (need_fmt or need_unsafe) {
-        try w.writeAll("var (\n");
-        if (need_fmt) {
-            try w.writeAll("\t_ = fmt.Errorf\n");
-        }
-        if (need_unsafe) {
-            try w.writeAll("\t_ = unsafe.Pointer(nil)\n");
-        }
-        try w.writeAll(")\n\n");
-    }
-
-    if (emits_types) {
-        try writeTypedefs(allocator, w, config, decls);
-        if (hasPublicTypeAliases(config, decls)) {
-            try writePublicTypeAliases(allocator, w, config, decls);
-            try w.writeByte('\n');
-        } else {
-            try w.writeByte('\n');
-        }
-    }
-    if (callback_params.len > 0) {
-        try writeAutoCallbackTypes(allocator, w, config, decls, callback_params);
-        try w.writeByte('\n');
-        try writeAutoCallbackConstructors(allocator, w, config, decls, callback_params);
-    }
-    if (emits_constants and !has_helper_functions) {
-        try writeConstants(allocator, w, config, decls);
-        try w.writeByte('\n');
-    }
-    if (emits_struct_accessors) {
-        try writeStructAccessors(allocator, w, config, decls);
-        try w.writeByte('\n');
-    }
-    if (declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls)) {
-        try writeHelperFunctions(w, decls);
-    }
-    if (emits_constants and has_helper_functions) {
-        try writeConstants(allocator, w, config, decls);
-        try w.writeByte('\n');
-    }
-    if (emits_functions) {
-        try writePublicApiWrappers(allocator, w, config, decls);
-        try writeFunctions(allocator, w, config, decls, callback_params);
-        try w.writeByte('\n');
-        try writeBufferHelpers(allocator, w, config, decls);
-        if (config.buffer_param_helpers.len > 0) {
-            try w.writeByte('\n');
-        }
-        try writeAutoCallbackWrappers(allocator, w, config, decls, callback_params);
-        if (callback_params.len > 0) {
-            try w.writeByte('\n');
-        }
-        try writeOwnedStringReturnHelpers(allocator, w, config, decls);
-        if (config.owned_string_return_helpers.len > 0) {
-            try w.writeByte('\n');
-        }
-        try writeRegisterFunctions(allocator, w, config, decls);
-    }
-    if (emits_runtime_vars) {
-        if (emits_types or emits_struct_accessors or declarationsNeedPurego(decls) or declarationsNeedUnionHelpers(decls) or emits_functions or emits_constants) {
-            try w.writeByte('\n');
-        }
-        try writeRuntimeVars(allocator, w, config, decls);
-    }
+    try gotmpl.render(buffer.writer(allocator), go_file_template, template_data);
 
     const rendered = try buffer.toOwnedSlice(allocator);
     defer allocator.free(rendered);
