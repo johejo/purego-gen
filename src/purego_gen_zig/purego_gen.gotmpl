@@ -2,39 +2,42 @@
 
 package {{.package_name}}
 
-{{if .has_import_block}}
+{{if .has_import_block -}}
 
 import (
 {{range .std_imports}}	"{{.}}"
-{{end}}{{if .has_purego_import}}
+{{end -}}
+{{if .has_purego_import}}
 
 	"github.com/ebitengine/purego"
 {{end}}
 )
 {{end}}
-{{if .has_blank_identifier_block}}
+{{if .has_blank_identifier_block -}}
 
 var (
 {{range .blank_identifiers}}	_ = {{.}}
 {{end}}
 )
 {{end}}
-{{if .has_type_alias_block}}
+{{if .has_type_alias_block -}}
 
 type (
 {{range .type_alias_items}}{{.}}{{end}}{{range .helper_type_alias_items}}{{.}}{{end}}
-){{end}}{{if .has_public_type_alias_block}}
+)
+{{end -}}
+{{if .has_public_type_alias_block -}}
 type (
 {{range .public_type_alias_items}}{{.}}{{end}}
 )
 {{end}}
-{{if .has_auto_callback_type_block}}
+{{if .has_auto_callback_type_block -}}
 type (
 {{range .auto_callback_type_items}}{{.}}{{end}}
 )
 {{end}}
 {{range .auto_callback_constructor_items}}{{.}}{{end}}
-{{if .has_constants_pre_helpers_section}}
+{{if .has_constants_pre_helpers_section -}}
 
 const (
 {{range .constant_items}}{{.}}{{end}}
@@ -42,14 +45,14 @@ const (
 {{end}}
 {{range .struct_accessor_items}}{{.}}{{end}}
 {{range .helper_items}}{{.}}{{end}}
-{{if .has_constants_post_helpers_section}}
+{{if .has_constants_post_helpers_section -}}
 
 const (
 {{range .constant_items}}{{.}}{{end}}
 )
 {{end}}
 {{range .public_wrapper_items}}{{.}}{{end}}
-{{if .has_function_var_block}}
+{{if .has_function_var_block -}}
 
 var (
 {{range .function_var_items}}{{.}}{{end}}
@@ -58,7 +61,7 @@ var (
 {{range .buffer_helper_items}}{{.}}{{end}}
 {{range .auto_callback_wrapper_items}}{{.}}{{end}}
 {{range .owned_string_helper_items}}{{.}}{{end}}
-{{if .has_register_functions}}
+{{if .has_register_functions -}}
 
 func {{.register_functions_name}}(handle uintptr) error {
 {{range .register_function_items}}	{{.name}}_symbol, err := purego.Dlsym(handle, "{{.symbol}}")
@@ -69,10 +72,10 @@ func {{.register_functions_name}}(handle uintptr) error {
 {{end}}	return nil
 }
 {{end}}
-{{if .has_runtime_vars_section}}
+{{if .has_runtime_vars_section -}}
 {{if .needs_runtime_vars_leading_gap}}
 
-{{end}}
+{{end -}}
 
 var (
 {{range .runtime_var_items}}{{.}}{{end}}
