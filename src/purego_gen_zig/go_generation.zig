@@ -354,7 +354,7 @@ const ConstantItemView = struct {
 
 const TemplateSectionView = struct {
     kind: []const u8,
-    leading_gap: bool,
+    gap: []const u8,
     block_items: []const []const u8,
     text_items: []const []const u8,
     register_functions_name: []const u8 = "",
@@ -2097,6 +2097,10 @@ fn renderBufferHelperItem(
     return try buffer.toOwnedSlice(allocator);
 }
 
+fn sectionGap(has_emitted_section: bool, add_leading_gap: bool) []const u8 {
+    return if (add_leading_gap or !has_emitted_section) "\n\n" else "\n";
+}
+
 fn appendBlockSection(
     allocator: std.mem.Allocator,
     sections: *std.ArrayList(TemplateSectionView),
@@ -2109,7 +2113,7 @@ fn appendBlockSection(
     if (!force_block and block_items.len == 0) return;
     try sections.append(allocator, .{
         .kind = kind,
-        .leading_gap = has_emitted_section.* and add_leading_gap,
+        .gap = sectionGap(has_emitted_section.*, add_leading_gap),
         .block_items = block_items,
         .text_items = &.{},
     });
@@ -2126,7 +2130,7 @@ fn appendTextSection(
     if (text_items.len == 0) return;
     try sections.append(allocator, .{
         .kind = "text",
-        .leading_gap = has_emitted_section.* and add_leading_gap,
+        .gap = sectionGap(has_emitted_section.*, add_leading_gap),
         .block_items = &.{},
         .text_items = text_items,
     });
@@ -2144,7 +2148,7 @@ fn appendRegisterFunctionsSection(
     if (items.len == 0) return;
     try sections.append(allocator, .{
         .kind = "register_functions",
-        .leading_gap = has_emitted_section.* and add_leading_gap,
+        .gap = sectionGap(has_emitted_section.*, add_leading_gap),
         .block_items = &.{},
         .text_items = &.{},
         .register_functions_name = register_functions_name,
@@ -2164,7 +2168,7 @@ fn appendRuntimeVarLoaderSection(
     if (load_runtime_vars_name.len == 0) return;
     try sections.append(allocator, .{
         .kind = "runtime_var_loader",
-        .leading_gap = has_emitted_section.* and add_leading_gap,
+        .gap = sectionGap(has_emitted_section.*, add_leading_gap),
         .block_items = &.{},
         .text_items = &.{},
         .load_runtime_vars_name = load_runtime_vars_name,
@@ -2182,7 +2186,7 @@ fn appendAutoCallbackConstructorsSection(
     if (items.len == 0) return;
     try sections.append(allocator, .{
         .kind = "auto_callback_constructors",
-        .leading_gap = false,
+        .gap = sectionGap(has_emitted_section.*, false),
         .block_items = &.{},
         .text_items = &.{},
         .auto_callback_constructor_items = items,
@@ -2199,7 +2203,7 @@ fn appendStructAccessorsSection(
     if (items.len == 0) return;
     try sections.append(allocator, .{
         .kind = "struct_accessors",
-        .leading_gap = false,
+        .gap = sectionGap(has_emitted_section.*, false),
         .block_items = &.{},
         .text_items = &.{},
         .struct_accessor_items = items,
@@ -2214,7 +2218,7 @@ fn appendUnionHelpersSection(
 ) !void {
     try sections.append(allocator, .{
         .kind = "union_helpers",
-        .leading_gap = false,
+        .gap = sectionGap(has_emitted_section.*, false),
         .block_items = &.{},
         .text_items = &.{},
     });
@@ -2230,7 +2234,7 @@ fn appendPublicWrappersSection(
     if (items.len == 0) return;
     try sections.append(allocator, .{
         .kind = "public_wrappers",
-        .leading_gap = has_emitted_section.*,
+        .gap = sectionGap(has_emitted_section.*, true),
         .block_items = &.{},
         .text_items = &.{},
         .public_wrapper_items = items,
@@ -2247,7 +2251,7 @@ fn appendAutoCallbackWrappersSection(
     if (items.len == 0) return;
     try sections.append(allocator, .{
         .kind = "auto_callback_wrappers",
-        .leading_gap = false,
+        .gap = sectionGap(has_emitted_section.*, false),
         .block_items = &.{},
         .text_items = &.{},
         .auto_callback_wrapper_items = items,
@@ -2265,7 +2269,7 @@ fn appendOwnedStringHelpersSection(
     if (items.len == 0 and gostring_name.len == 0) return;
     try sections.append(allocator, .{
         .kind = "owned_string_helpers",
-        .leading_gap = false,
+        .gap = sectionGap(has_emitted_section.*, false),
         .block_items = &.{},
         .text_items = &.{},
         .owned_string_helper_items = items,
@@ -2284,7 +2288,7 @@ fn appendConstBlockSection(
     if (const_items.len == 0) return;
     try sections.append(allocator, .{
         .kind = "const_block",
-        .leading_gap = has_emitted_section.* and add_leading_gap,
+        .gap = sectionGap(has_emitted_section.*, add_leading_gap),
         .block_items = &.{},
         .text_items = &.{},
         .const_items = const_items,

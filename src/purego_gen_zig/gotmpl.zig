@@ -273,6 +273,9 @@ const TagInfo = struct {
 fn parseTag(comptime s: []const u8, comptime tag_start: usize, comptime tag_end: usize) TagInfo {
     const left_trim = s[tag_start + 2] == '-';
     const right_trim = s[tag_end] == '-';
+    if (left_trim != right_trim) {
+        @compileError("gotmpl: one-sided trim is not supported; use {{- ... -}} or {{ ... }}");
+    }
 
     const content_start = tag_start + 2 + @as(usize, if (left_trim) 1 else 0);
     const content_end = tag_end - @as(usize, if (right_trim) 1 else 0);
@@ -443,24 +446,8 @@ test "trimmed variable removes surrounding whitespace" {
     try expectRender("before \n\t{{- .name -}}\n after", .{ .name = @as([]const u8, "X") }, "beforeXafter");
 }
 
-test "left-trimmed variable removes preceding whitespace only" {
-    try expectRender("before \n\t{{- .name}}\n after", .{ .name = @as([]const u8, "X") }, "beforeX\n after");
-}
-
-test "right-trimmed variable removes following whitespace only" {
-    try expectRender("before \n\t{{.name -}}\n after", .{ .name = @as([]const u8, "X") }, "before \n\tXafter");
-}
-
 test "trimmed if removes surrounding block whitespace" {
     try expectRender("a \n{{- if .show -}}\n yes \n{{- end -}}\n b", .{ .show = true }, "ayesb");
-}
-
-test "left-trimmed if removes block-leading whitespace only" {
-    try expectRender("a \n{{- if .show}}yes{{end}} b", .{ .show = true }, "ayes b");
-}
-
-test "right-trimmed if removes block-trailing whitespace only" {
-    try expectRender("a {{if .show -}}\n yes{{end}} b", .{ .show = true }, "a yes b");
 }
 
 test "trimmed range removes surrounding block whitespace" {
@@ -497,22 +484,6 @@ test "nested field if else with trimming" {
     );
 }
 
-test "else can trim following whitespace only" {
-    try expectRender(
-        "{{if .show}}left{{else -}}\nright{{end}}",
-        .{ .show = false },
-        "right",
-    );
-}
-
-test "else can trim preceding whitespace only" {
-    try expectRender(
-        "{{if .show}}left\n{{- else}}right{{end}}",
-        .{ .show = false },
-        "right",
-    );
-}
-
 test "range else branch" {
     const Item = struct { name: []const u8 };
     const items = [_]Item{};
@@ -536,12 +507,12 @@ test "nested range field access" {
     );
 }
 
-test "range right trim and left trimmed end do not leak across nesting" {
+test "both-sided trim does not leak across nesting" {
     const Item = struct { name: []const u8 };
     const items = [_]Item{ .{ .name = "A" }, .{ .name = "B" } };
     try expectRender(
-        "head {{range .items -}}\n{{.name}}\n{{- end}} tail",
+        "head {{- range .items -}}\n{{.name}}\n{{- end -}} tail",
         .{ .items = @as([]const Item, &items) },
-        "head AB tail",
+        "headABtail",
     );
 }
