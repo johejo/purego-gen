@@ -4,9 +4,10 @@ const std = @import("std");
 ///
 /// Supported syntax:
 ///   {{.field}}                    variable expansion
+///   {{.field.nested}}             nested variable expansion
 ///   {{range .field}}...{{end}}    iterate slice field (each element is new data context)
-///   {{if .field}}...{{end}}       conditional (bool or truthy string/int)
-///   {{if not .field}}...{{end}}   negated conditional
+///   {{if .field}}...{{else}}...{{end}}       conditional (bool or truthy string/int)
+///   {{if not .field}}...{{else}}...{{end}}   negated conditional
 ///
 /// `tmpl` must be comptime-known; template validation (unknown tags, unclosed
 /// braces, missing {{end}}) becomes a compile error.
@@ -15,8 +16,8 @@ const std = @import("std");
 ///
 /// Supports {{- ... -}} whitespace trimming.
 ///
-/// Not supported: one-sided trimming ({{- ...}} / {{ ... -}}), {{else}}, {{block}},
-/// pipelines, function calls, nested field access ({{.a.b}}).
+/// Not supported: one-sided trimming ({{- ...}} / {{ ... -}}), {{block}},
+/// pipelines, function calls.
 pub fn render(writer: anytype, comptime tmpl: []const u8, data: anytype) !void {
     @setEvalBranchQuota(1_000_000);
     if (comptime tmpl.len == 0) return;
@@ -48,65 +49,98 @@ pub fn render(writer: anytype, comptime tmpl: []const u8, data: anytype) !void {
 
     if (comptime std.mem.startsWith(u8, tag, "range .")) {
         const field_name = comptime tag["range .".len..];
-        const body_end = comptime findEnd(tmpl, after_tag);
-        const end_tag_end = comptime findTagEnd(tmpl, body_end);
-        const end_tag_info = comptime parseTag(tmpl, body_end, end_tag_end);
-        const body_limit = comptime if (end_tag_info.left_trim)
+        const block_info = comptime findBlockBounds(tmpl, after_tag);
+        const body_end = comptime block_info.else_start orelse block_info.end_start;
+        const body_left_trim = comptime if (block_info.else_start != null) block_info.body_left_trim else block_info.end_left_trim;
+        const body_limit = comptime if (body_left_trim)
             trimTrailingWhitespace(tmpl, after_tag, body_end)
         else
             body_end;
         const body = comptime tmpl[after_tag..body_limit];
-        const rest_start = comptime if (end_tag_info.right_trim)
-            skipLeadingWhitespace(tmpl, end_tag_info.after)
+        const else_body = comptime if (block_info.else_start != null)
+            tmpl[block_info.else_after..(if (block_info.end_left_trim)
+                trimTrailingWhitespace(tmpl, block_info.else_after, block_info.end_start)
+            else
+                block_info.end_start)]
         else
-            end_tag_info.after;
+            "";
+        const rest_start = comptime if (block_info.end_right_trim)
+            skipLeadingWhitespace(tmpl, block_info.end_after)
+        else
+            block_info.end_after;
         const rest = comptime tmpl[rest_start..];
-        for (@field(data, field_name)) |item| {
+        const items = getFieldPath(data, field_name);
+        if (items.len == 0 and else_body.len > 0) {
+            try render(writer, else_body, data);
+        }
+        for (items) |item| {
             try render(writer, body, item);
         }
         try render(writer, rest, data);
     } else if (comptime std.mem.startsWith(u8, tag, "if not .")) {
         const field_name = comptime tag["if not .".len..];
-        const body_end = comptime findEnd(tmpl, after_tag);
-        const end_tag_end = comptime findTagEnd(tmpl, body_end);
-        const end_tag_info = comptime parseTag(tmpl, body_end, end_tag_end);
-        const body_limit = comptime if (end_tag_info.left_trim)
+        const block_info = comptime findBlockBounds(tmpl, after_tag);
+        const body_end = comptime block_info.else_start orelse block_info.end_start;
+        const body_left_trim = comptime if (block_info.else_start != null) block_info.body_left_trim else block_info.end_left_trim;
+        const body_limit = comptime if (body_left_trim)
             trimTrailingWhitespace(tmpl, after_tag, body_end)
         else
             body_end;
         const body = comptime tmpl[after_tag..body_limit];
-        const rest_start = comptime if (end_tag_info.right_trim)
-            skipLeadingWhitespace(tmpl, end_tag_info.after)
+        const else_body = comptime if (block_info.else_start != null)
+            tmpl[block_info.else_after..(if (block_info.end_left_trim)
+                trimTrailingWhitespace(tmpl, block_info.else_after, block_info.end_start)
+            else
+                block_info.end_start)]
         else
-            end_tag_info.after;
+            "";
+        const rest_start = comptime if (block_info.end_right_trim)
+            skipLeadingWhitespace(tmpl, block_info.end_after)
+        else
+            block_info.end_after;
         const rest = comptime tmpl[rest_start..];
-        if (!isTruthy(@field(data, field_name))) {
+        if (!isTruthy(getFieldPath(data, field_name))) {
             try render(writer, body, data);
+        } else if (else_body.len > 0) {
+            try render(writer, else_body, data);
         }
         try render(writer, rest, data);
     } else if (comptime std.mem.startsWith(u8, tag, "if .")) {
         const field_name = comptime tag["if .".len..];
-        const body_end = comptime findEnd(tmpl, after_tag);
-        const end_tag_end = comptime findTagEnd(tmpl, body_end);
-        const end_tag_info = comptime parseTag(tmpl, body_end, end_tag_end);
-        const body_limit = comptime if (end_tag_info.left_trim)
+        const block_info = comptime findBlockBounds(tmpl, after_tag);
+        const body_end = comptime block_info.else_start orelse block_info.end_start;
+        const body_left_trim = comptime if (block_info.else_start != null) block_info.body_left_trim else block_info.end_left_trim;
+        const body_limit = comptime if (body_left_trim)
             trimTrailingWhitespace(tmpl, after_tag, body_end)
         else
             body_end;
         const body = comptime tmpl[after_tag..body_limit];
-        const rest_start = comptime if (end_tag_info.right_trim)
-            skipLeadingWhitespace(tmpl, end_tag_info.after)
+        const else_body = comptime if (block_info.else_start != null)
+            tmpl[block_info.else_after..(if (block_info.end_left_trim)
+                trimTrailingWhitespace(tmpl, block_info.else_after, block_info.end_start)
+            else
+                block_info.end_start)]
         else
-            end_tag_info.after;
+            "";
+        const rest_start = comptime if (block_info.end_right_trim)
+            skipLeadingWhitespace(tmpl, block_info.end_after)
+        else
+            block_info.end_after;
         const rest = comptime tmpl[rest_start..];
-        if (isTruthy(@field(data, field_name))) {
+        if (isTruthy(getFieldPath(data, field_name))) {
             try render(writer, body, data);
+        } else if (else_body.len > 0) {
+            try render(writer, else_body, data);
         }
         try render(writer, rest, data);
     } else if (comptime std.mem.startsWith(u8, tag, ".")) {
         const field_name = comptime tag[1..];
         const rest = comptime tmpl[after_tag..];
-        try writeValue(writer, @field(data, field_name));
+        if (comptime field_name.len == 0) {
+            try writeValue(writer, data);
+        } else {
+            try writeValue(writer, getFieldPath(data, field_name));
+        }
         try render(writer, rest, data);
     } else {
         @compileError("gotmpl: unknown tag: {{" ++ tag ++ "}}");
@@ -135,27 +169,59 @@ fn findTagEnd(comptime s: []const u8, comptime tag_start: usize) comptime_int {
     @compileError("gotmpl: unclosed '{{' in template");
 }
 
-/// Returns the index of the `{` that starts the `{{end}}` matching the
-/// innermost open range/if block starting at `from`. Handles nesting.
+const BlockBounds = struct {
+    else_start: ?usize,
+    else_after: usize,
+    end_start: usize,
+    end_after: usize,
+    body_left_trim: bool,
+    end_left_trim: bool,
+    end_right_trim: bool,
+};
+
+/// Returns matching {{else}}/{{end}} positions for the innermost open
+/// range/if block starting at `from`. Handles nesting.
 /// Emits a compile error if no matching {{end}} is found.
-fn findEnd(comptime s: []const u8, comptime from: usize) comptime_int {
+fn findBlockBounds(comptime s: []const u8, comptime from: usize) BlockBounds {
     var depth: usize = 1;
     var pos = from;
+    var else_start: ?usize = null;
+    var else_after: usize = 0;
+    var body_left_trim = false;
     while (pos < s.len) {
         const ts = findTagStart(s, pos);
         if (ts >= s.len) break;
         const te = findTagEnd(s, ts);
-        const tag = parseTag(s, ts, te).content;
+        const tag_info = parseTag(s, ts, te);
+        const tag = tag_info.content;
         if (std.mem.startsWith(u8, tag, "range .") or
             std.mem.startsWith(u8, tag, "if not .") or
             std.mem.startsWith(u8, tag, "if ."))
         {
             depth += 1;
+        } else if (std.mem.eql(u8, tag, "else")) {
+            if (depth == 1) {
+                if (else_start != null) @compileError("gotmpl: multiple {{else}} tags in block");
+                else_start = ts;
+                else_after = if (tag_info.right_trim)
+                    skipLeadingWhitespace(s, tag_info.after)
+                else
+                    tag_info.after;
+                body_left_trim = tag_info.left_trim;
+            }
         } else if (std.mem.eql(u8, tag, "end")) {
             depth -= 1;
-            if (depth == 0) return ts;
+            if (depth == 0) return .{
+                .else_start = else_start,
+                .else_after = else_after,
+                .end_start = ts,
+                .end_after = tag_info.after,
+                .body_left_trim = body_left_trim,
+                .end_left_trim = tag_info.left_trim,
+                .end_right_trim = tag_info.right_trim,
+            };
         }
-        pos = parseTag(s, ts, te).after;
+        pos = tag_info.after;
     }
     @compileError("gotmpl: missing '{{end}}' in template");
 }
@@ -183,6 +249,22 @@ fn parseTag(comptime s: []const u8, comptime tag_start: usize, comptime tag_end:
         .right_trim = right_trim,
         .after = after,
     };
+}
+
+fn fieldPathType(comptime T: type, comptime path: []const u8) type {
+    const dot_index = comptime std.mem.indexOfScalar(u8, path, '.');
+    if (dot_index == null) return @FieldType(T, path);
+    const head = comptime path[0..dot_index.?];
+    const tail = comptime path[dot_index.? + 1 ..];
+    return fieldPathType(@FieldType(T, head), tail);
+}
+
+fn getFieldPath(root: anytype, comptime path: []const u8) fieldPathType(@TypeOf(root), path) {
+    const dot_index = comptime std.mem.indexOfScalar(u8, path, '.');
+    if (dot_index == null) return @field(root, path);
+    const head = comptime path[0..dot_index.?];
+    const tail = comptime path[dot_index.? + 1 ..];
+    return getFieldPath(@field(root, head), tail);
 }
 
 fn isTemplateWhitespace(ch: u8) bool {
@@ -222,6 +304,8 @@ fn isTruthy(value: anytype) bool {
     if (comptime T == bool) return value;
     if (comptime (T == []const u8 or T == []u8 or T == [:0]const u8 or T == [:0]u8)) return value.len > 0;
     return switch (comptime @typeInfo(T)) {
+        .pointer => |pointer| if (pointer.size == .slice) value.len > 0 else @compileError("gotmpl: isTruthy: unsupported pointer type: " ++ @typeName(T)),
+        .array => value.len > 0,
         .int, .comptime_int => value != 0,
         .optional => value != null,
         else => @compileError("gotmpl: isTruthy: unsupported type: " ++ @typeName(T)),
@@ -332,5 +416,44 @@ test "trimmed nested end matches correct block" {
         "{{- if .ok -}}\n{{- range .items -}}\n[{{.label}}]\n{{- end -}}\n{{- end -}}",
         .{ .ok = true, .items = @as([]const Item, &items) },
         "[X][Y]",
+    );
+}
+
+test "nested field expansion" {
+    try expectRender("{{.outer.name}}", .{ .outer = .{ .name = @as([]const u8, "Alice") } }, "Alice");
+}
+
+test "if else branch" {
+    try expectRender("{{if .show}}yes{{else}}no{{end}}", .{ .show = false }, "no");
+}
+
+test "nested field if else with trimming" {
+    try expectRender(
+        "a\n{{- if .outer.show -}}\nleft\n{{- else -}}\nright\n{{- end -}}\nb",
+        .{ .outer = .{ .show = false } },
+        "arightb",
+    );
+}
+
+test "range else branch" {
+    const Item = struct { name: []const u8 };
+    const items = [_]Item{};
+    try expectRender(
+        "{{range .items}}{{.name}}{{else}}empty{{end}}",
+        .{ .items = @as([]const Item, &items) },
+        "empty",
+    );
+}
+
+test "nested range field access" {
+    const Item = struct { value: []const u8 };
+    const Group = struct {
+        items: []const Item,
+    };
+    const items = [_]Item{ .{ .value = "A" }, .{ .value = "B" } };
+    try expectRender(
+        "{{range .group.items}}{{.value}}{{end}}",
+        .{ .group = Group{ .items = &items } },
+        "AB",
     );
 }
