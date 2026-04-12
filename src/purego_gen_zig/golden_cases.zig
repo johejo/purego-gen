@@ -640,6 +640,7 @@ fn freeZStringArray(
 pub fn generateCaseSource(
     allocator: std.mem.Allocator,
     loaded_case: *const LoadedCase,
+    skip_gofmt: bool,
 ) ![]u8 {
     const header_paths_z = try allocator.alloc([:0]const u8, loaded_case.header_paths.len);
     defer {
@@ -662,7 +663,7 @@ pub fn generateCaseSource(
     go_generation.applyIncludeFilters(allocator, loaded_case.generator, &decls);
     go_generation.applyExcludeFilters(allocator, loaded_case.generator, &decls);
 
-    return go_generation.generateGoSource(allocator, loaded_case.generator, &decls);
+    return go_generation.generateGoSource(allocator, loaded_case.generator, &decls, skip_gofmt);
 }
 
 pub fn expectCaseMatchesGeneratedGo(
@@ -675,7 +676,11 @@ pub fn expectCaseMatchesGeneratedGo(
     const expected = try std.fs.cwd().readFileAlloc(allocator, loaded_case.expected_path, 1024 * 1024);
     defer allocator.free(expected);
 
-    const actual = try generateCaseSource(allocator, &loaded_case);
+    const skip_gofmt = if (std.posix.getenv("PUREGO_GEN_SKIP_GOFMT")) |val|
+        std.mem.eql(u8, val, "1") or std.mem.eql(u8, val, "true")
+    else
+        false;
+    const actual = try generateCaseSource(allocator, &loaded_case, skip_gofmt);
     defer allocator.free(actual);
 
     try std.testing.expectEqualStrings(expected, actual);

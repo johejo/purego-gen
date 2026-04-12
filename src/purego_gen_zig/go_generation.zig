@@ -1586,6 +1586,7 @@ pub fn generateGoSource(
     allocator: std.mem.Allocator,
     config: GeneratorConfig,
     decls: *const declarations.CollectedDeclarations,
+    skip_gofmt: bool,
 ) ![]u8 {
     const emits_functions = containsEmitKind(config.emit, .func);
     const emits_types = containsEmitKind(config.emit, .type);
@@ -1946,6 +1947,9 @@ pub fn generateGoSource(
     try gotmpl.render(buffer.writer(allocator), go_file_template, template_data);
 
     const rendered = try buffer.toOwnedSlice(allocator);
+    if (skip_gofmt) {
+        return rendered;
+    }
     defer allocator.free(rendered);
     return formatGoSource(allocator, rendered);
 }

@@ -9,6 +9,7 @@ const Args = struct {
     header_path: ?[:0]const u8 = null,
     clang_args: std.ArrayListUnmanaged([*:0]const u8) = .{},
     sample_size: usize = 12,
+    skip_gofmt: bool = false,
 
     fn deinit(self: *Args, allocator: std.mem.Allocator) void {
         self.clang_args.deinit(allocator);
@@ -35,6 +36,8 @@ fn parseArgs(allocator: std.mem.Allocator) !Args {
                 return error.InvalidArgs;
             };
             try args.clang_args.append(allocator, val);
+        } else if (std.mem.eql(u8, arg, "--skip-gofmt")) {
+            args.skip_gofmt = true;
         } else if (std.mem.eql(u8, arg, "--sample-size")) {
             const val = iter.next() orelse {
                 std.debug.print("error: --sample-size requires a value\n", .{});
@@ -65,7 +68,7 @@ pub fn main() !void {
 
     var args = parseArgs(allocator) catch |err| switch (err) {
         error.InvalidArgs => {
-            std.debug.print("usage: purego-gen-zig --header-path <path> [--clang-arg <arg>]... [--sample-size <n>]\n", .{});
+            std.debug.print("usage: purego-gen-zig --header-path <path> [--clang-arg <arg>]... [--sample-size <n>] [--skip-gofmt]\n", .{});
             std.process.exit(1);
         },
         else => return err,

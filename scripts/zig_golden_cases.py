@@ -26,10 +26,15 @@ def _build_cli() -> argparse.ArgumentParser:
         action="store_true",
         help="Print only matching case ids.",
     )
+    parser.add_argument(
+        "--skip-gofmt",
+        action="store_true",
+        help="Skip gofmt formatting (debug: see raw template output).",
+    )
     return parser
 
 
-def _zig_checker_source(selected_case_ids: list[str]) -> str:
+def _zig_checker_source(selected_case_ids: list[str], *, skip_gofmt: bool = False) -> str:
     case_filter = (
         "const selected_case_ids = [_][]const u8{"
         + "".join(f'\n    "{case_id}",' for case_id in selected_case_ids)
@@ -86,7 +91,7 @@ pub fn main() !void {{
         }};
         defer allocator.free(expected);
 
-        const actual = golden_cases.generateCaseSource(allocator, &loaded) catch |err| {{
+        const actual = golden_cases.generateCaseSource(allocator, &loaded, {"true" if skip_gofmt else "false"}) catch |err| {{
             try w.print("{{s}}\\tGENERATE_ERR\\t{{}}\\n", .{{ entry.name, err }});
             continue;
         }};
@@ -122,7 +127,7 @@ def main() -> int:
 
     checker_path = repo_root / ".tmp_zig_case_check.zig"
     try:
-        checker_path.write_text(_zig_checker_source(args.cases), encoding="utf-8")
+        checker_path.write_text(_zig_checker_source(args.cases, skip_gofmt=args.skip_gofmt), encoding="utf-8")
         command = [
             "zig",
             "run",
