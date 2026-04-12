@@ -148,17 +148,18 @@ func {{.register_functions_name}}(handle uintptr) error {
 }
 {{- end -}}
 {{- if eq .kind "runtime_var_loader" -}}
-
 func {{.load_runtime_vars_name}}(handle uintptr) error {
-{{range .runtime_var_symbol_items}}	{{.name}}_symbol, err := purego.Dlsym(handle, "{{.symbol}}")
+{{- range .runtime_var_symbol_items }}
+{{ .name }}_symbol, err := purego.Dlsym(handle, "{{.symbol}}")
 	if err != nil {
 		return fmt.Errorf(
-			"purego-gen: failed to resolve runtime var symbol {{.symbol}}: %w",
+			"purego-gen: failed to resolve runtime var symbol {{ .symbol }}: %w",
 			err,
 		)
 	}
-	{{.name}} = {{.name}}_symbol
-{{end}}	return nil
+	{{ .name }} = {{ .name }}_symbol
+{{- end }}
+	return nil
 }
 {{- end -}}
 {{- end -}}
