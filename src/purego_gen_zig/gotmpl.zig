@@ -273,9 +273,6 @@ const TagInfo = struct {
 fn parseTag(comptime s: []const u8, comptime tag_start: usize, comptime tag_end: usize) TagInfo {
     const left_trim = s[tag_start + 2] == '-';
     const right_trim = s[tag_end] == '-';
-    if (left_trim != right_trim) {
-        @compileError("gotmpl: one-sided trim is not supported; use {{- ... -}} or {{ ... }}");
-    }
 
     const content_start = tag_start + 2 + @as(usize, if (left_trim) 1 else 0);
     const content_end = tag_end - @as(usize, if (right_trim) 1 else 0);
@@ -515,4 +512,20 @@ test "both-sided trim does not leak across nesting" {
         .{ .items = @as([]const Item, &items) },
         "headABtail",
     );
+}
+
+test "left-only trim removes preceding whitespace" {
+    try expectRender("before \n\t{{- .name}}", .{ .name = @as([]const u8, "X") }, "beforeX");
+}
+
+test "right-only trim removes following whitespace" {
+    try expectRender("{{.name -}}\n\t after", .{ .name = @as([]const u8, "X") }, "Xafter");
+}
+
+test "left-only trim on block tag" {
+    try expectRender("a\n{{- if .show}}\nyes{{end}}", .{ .show = true }, "a\nyes");
+}
+
+test "right-only trim on block tag" {
+    try expectRender("{{if .show -}}\nyes\n{{end}}", .{ .show = true }, "yes\n");
 }
