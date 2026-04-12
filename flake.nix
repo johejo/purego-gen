@@ -283,6 +283,7 @@
                       export CCACHE_BASEDIR="$PWD"
                       export CCACHE_NOHASHDIR=1
                       export UV_PROJECT_ENVIRONMENT=.venv
+                      unset NIX_CFLAGS_COMPILE
                     '';
                   }
                   // testLibEnvVars
