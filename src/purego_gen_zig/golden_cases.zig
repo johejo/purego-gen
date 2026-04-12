@@ -685,7 +685,29 @@ pub fn expectCaseMatchesGeneratedGo(
     const actual = try generateCaseSource(allocator, &loaded_case, skip_gofmt);
     defer allocator.free(actual);
 
-    try std.testing.expectEqualStrings(expected, actual);
+    if (std.mem.eql(u8, expected, actual)) return;
+
+    // Write actual output to a temp file and run diff -u for readable output.
+    const tmp_path = try std.fmt.allocPrint(allocator, "{s}.actual", .{loaded_case.expected_path});
+    defer allocator.free(tmp_path);
+    {
+        const f = try std.fs.cwd().createFile(tmp_path, .{});
+        defer f.close();
+        try f.writeAll(actual);
+    }
+    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+
+    const result = std.process.Child.run(.{
+        .allocator = allocator,
+        .argv = &.{ "diff", "-u", loaded_case.expected_path, tmp_path },
+    });
+    if (result) |r| {
+        defer allocator.free(r.stdout);
+        defer allocator.free(r.stderr);
+        std.debug.print("\n{s}\n", .{r.stdout});
+    } else |_| {}
+
+    return error.TestExpectedEqual;
 }
 
 fn expectCaseIdMatchesGeneratedGo(
