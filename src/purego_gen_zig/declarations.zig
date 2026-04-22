@@ -42,14 +42,15 @@ pub const TypedefDecl = struct {
 pub const RecordFieldDecl = struct {
     name: []const u8,
     go_type: []const u8,
+    is_union: bool = false,
 };
 
 pub const CollectedDeclarations = struct {
     allocator: std.mem.Allocator,
-    functions: std.ArrayListUnmanaged(FunctionDecl) = .{},
-    typedefs: std.ArrayListUnmanaged(TypedefDecl) = .{},
-    constants: std.ArrayListUnmanaged(ConstantDecl) = .{},
-    runtime_vars: std.ArrayListUnmanaged(RuntimeVarDecl) = .{},
+    functions: std.ArrayListUnmanaged(FunctionDecl) = .empty,
+    typedefs: std.ArrayListUnmanaged(TypedefDecl) = .empty,
+    constants: std.ArrayListUnmanaged(ConstantDecl) = .empty,
+    runtime_vars: std.ArrayListUnmanaged(RuntimeVarDecl) = .empty,
 
     pub fn deinit(self: *CollectedDeclarations) void {
         for (self.functions.items) |func| {
@@ -102,7 +103,7 @@ const VisitorContext = struct {
     known_constant_values: std.ArrayListUnmanaged(struct {
         name: []const u8,
         value: u64,
-    }) = .{},
+    }) = .empty,
     failed: bool,
 
     fn deinit(self: *VisitorContext, allocator: std.mem.Allocator) void {
@@ -116,6 +117,7 @@ const RenderedType = struct {
     requires_unsafe: bool = false,
     requires_purego: bool = false,
     requires_union_helpers: bool = false,
+    rendered_as_alias: bool = false,
 };
 
 const go_keywords = std.StaticStringMap(void).initComptime(.{
@@ -261,9 +263,9 @@ fn renderFunctionType(
     const num_args = c.clang_getNumArgTypes(fn_type);
     if (num_args < 0) return error.UnsupportedType;
 
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
+    const w = &aw.writer;
 
     try w.writeAll("func(");
     for (0..@as(usize, @intCast(num_args))) |i| {
@@ -277,7 +279,7 @@ fn renderFunctionType(
     if (result_rendered.text.len != 0) {
         try w.print(" {s}", .{result_rendered.text});
     }
-    return buffer.toOwnedSlice(allocator);
+    return aw.toOwnedSlice();
 }
 
 fn renderRecordBody(
@@ -292,15 +294,30 @@ fn renderRecordBody(
     const record_align = c.clang_Type_getAlignOf(canonical);
     if (record_size < 0 or record_align < 0) return error.UnsupportedType;
 
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
+    const w = &aw.writer;
 
     const kind = c.clang_getCursorKind(decl);
     if (kind == c.CXCursor_UnionDecl) {
+        const anchor_type: []const u8 = switch (record_align) {
+            1 => "",
+            2 => "int16",
+            4 => "int32",
+            8 => "int64",
+            else => return error.UnsupportedType,
+        };
+
+        if (anchor_type.len == 0) {
+            try w.print("[{d}]byte", .{@as(usize, @intCast(record_size))});
+            return .{
+                .text = try aw.toOwnedSlice(),
+                .requires_union_helpers = true,
+                .rendered_as_alias = true,
+            };
+        }
+
         const UnionVisitor = struct {
-            allocator: std.mem.Allocator,
-            first_field: ?RenderedType = null,
             failed: ?anyerror = null,
 
             fn callback(
@@ -321,33 +338,20 @@ fn renderRecordBody(
                     ctx.failed = error.UnsupportedType;
                     return c.CXChildVisit_Break;
                 }
-
-                if (ctx.first_field != null) return c.CXChildVisit_Continue;
-
-                const field_rendered = renderType(ctx.allocator, c.clang_getCursorType(cursor_arg)) catch |err| {
-                    ctx.failed = err;
-                    return c.CXChildVisit_Break;
-                };
-                ctx.first_field = field_rendered;
                 return c.CXChildVisit_Continue;
             }
         };
 
-        var union_visitor = UnionVisitor{ .allocator = allocator };
+        var union_visitor = UnionVisitor{};
         _ = c.clang_visitChildren(decl, UnionVisitor.callback, @ptrCast(&union_visitor));
         if (union_visitor.failed) |err| return err;
 
-        const anchor = union_visitor.first_field orelse return error.UnsupportedType;
-        defer freeRenderedType(allocator, anchor);
-
         try w.writeAll("struct {\n");
-        try w.print("{s}_ [0]{s}\n", .{ indent, anchor.text });
+        try w.print("{s}_ [0]{s}\n", .{ indent, anchor_type });
         try w.print("{s}_ [{d}]byte\n", .{ indent, @as(usize, @intCast(record_size)) });
         try w.print("{s}}}", .{indent[0 .. indent.len - 1]});
         return .{
-            .text = try buffer.toOwnedSlice(allocator),
-            .requires_unsafe = anchor.requires_unsafe,
-            .requires_purego = anchor.requires_purego,
+            .text = try aw.toOwnedSlice(),
             .requires_union_helpers = true,
         };
     }
@@ -439,7 +443,7 @@ fn renderRecordBody(
     try w.print("{s}}}", .{indent[0 .. indent.len - 1]});
 
     return .{
-        .text = try buffer.toOwnedSlice(allocator),
+        .text = try aw.toOwnedSlice(),
     };
 }
 
@@ -455,6 +459,8 @@ fn renderType(
         c.CXType_UChar, c.CXType_Char_U => return .{ .text = try allocator.dupe(u8, "uint8") },
         c.CXType_Int, c.CXType_Enum => return .{ .text = try allocator.dupe(u8, "int32") },
         c.CXType_UInt => return .{ .text = try allocator.dupe(u8, "uint32") },
+        c.CXType_Float => return .{ .text = try allocator.dupe(u8, "float32") },
+        c.CXType_Double => return .{ .text = try allocator.dupe(u8, "float64") },
         c.CXType_Record => return try renderRecordBody(allocator, canonical, "\t\t"),
         c.CXType_ConstantArray => {
             const element_type = c.clang_getArrayElementType(canonical);
@@ -464,12 +470,12 @@ fn renderType(
             const size = c.clang_getArraySize(canonical);
             if (size < 0) return error.UnsupportedType;
 
-            var buffer: std.ArrayList(u8) = .empty;
-            errdefer buffer.deinit(allocator);
-            const w = buffer.writer(allocator);
+            var aw: std.Io.Writer.Allocating = .init(allocator);
+            errdefer aw.deinit();
+            const w = &aw.writer;
             try w.print("[{d}]{s}", .{ @as(usize, @intCast(size)), element_rendered.text });
             return .{
-                .text = try buffer.toOwnedSlice(allocator),
+                .text = try aw.toOwnedSlice(),
                 .comment = if (element_rendered.comment) |comment| try allocator.dupe(u8, comment) else null,
                 .requires_unsafe = element_rendered.requires_unsafe,
                 .requires_purego = element_rendered.requires_purego,
@@ -678,8 +684,8 @@ fn isRightAssociative(op: MacroOperator) bool {
 
 const MacroEvalState = struct {
     allocator: std.mem.Allocator,
-    values: std.ArrayListUnmanaged(u64) = .{},
-    ops: std.ArrayListUnmanaged(union(enum) { lparen, op: MacroOperator }) = .{},
+    values: std.ArrayListUnmanaged(u64) = .empty,
+    ops: std.ArrayListUnmanaged(union(enum) { lparen, op: MacroOperator }) = .empty,
     expect_operand: bool = true,
 
     fn deinit(self: *MacroEvalState) void {
@@ -978,12 +984,12 @@ fn renderAliasDefinition(
     c_type: []const u8,
     go_type: []const u8,
 ) ![]const u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
+    const w = &aw.writer;
     try w.print("\t// C: {s}\n", .{c_type});
     try w.print("\t{s} = {s}\n", .{ name, go_type });
-    return buffer.toOwnedSlice(allocator);
+    return aw.toOwnedSlice();
 }
 
 fn renderStructDefinition(
@@ -991,11 +997,25 @@ fn renderStructDefinition(
     name: []const u8,
     go_type: []const u8,
 ) ![]const u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
+    const w = &aw.writer;
     try w.print("\t{s} {s}\n", .{ name, go_type });
-    return buffer.toOwnedSlice(allocator);
+    return aw.toOwnedSlice();
+}
+
+fn renderCommentedTypeDefinition(
+    allocator: std.mem.Allocator,
+    name: []const u8,
+    c_type: []const u8,
+    go_type: []const u8,
+) ![]const u8 {
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
+    const w = &aw.writer;
+    try w.print("\t// C: {s}\n", .{c_type});
+    try w.print("\t{s} {s}\n", .{ name, go_type });
+    return aw.toOwnedSlice();
 }
 
 fn collectStructAccessorFields(
@@ -1004,13 +1024,16 @@ fn collectStructAccessorFields(
 ) ![]const RecordFieldDecl {
     const canonical = c.clang_getCanonicalType(record_type);
     const decl = c.clang_getTypeDeclaration(canonical);
-    if (c.clang_getCursorKind(decl) != c.CXCursor_StructDecl) {
+    const kind = c.clang_getCursorKind(decl);
+    if (kind != c.CXCursor_StructDecl and kind != c.CXCursor_UnionDecl) {
         return allocator.alloc(RecordFieldDecl, 0);
     }
+    const is_union = kind == c.CXCursor_UnionDecl;
 
     const AccessorVisitor = struct {
         allocator: std.mem.Allocator,
-        fields: std.ArrayListUnmanaged(RecordFieldDecl) = .{},
+        is_union: bool,
+        fields: std.ArrayListUnmanaged(RecordFieldDecl) = .empty,
         failed: ?anyerror = null,
 
         fn callback(
@@ -1041,6 +1064,7 @@ fn collectStructAccessorFields(
                     ctx.failed = err;
                     return c.CXChildVisit_Break;
                 },
+                .is_union = ctx.is_union,
             }) catch |err| {
                 ctx.failed = err;
                 return c.CXChildVisit_Break;
@@ -1049,7 +1073,7 @@ fn collectStructAccessorFields(
         }
     };
 
-    var visitor = AccessorVisitor{ .allocator = allocator };
+    var visitor = AccessorVisitor{ .allocator = allocator, .is_union = is_union };
     errdefer {
         for (visitor.fields.items) |field| {
             allocator.free(field.name);
@@ -1067,12 +1091,12 @@ fn renderOpaqueDefinition(
     name: []const u8,
     c_type: []const u8,
 ) ![]const u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
+    const w = &aw.writer;
     try w.print("\t// C: {s}\n", .{c_type});
     try w.print("\t{s} struct{{}}\n", .{name});
-    return buffer.toOwnedSlice(allocator);
+    return aw.toOwnedSlice();
 }
 
 fn renderCallbackHelperTypeName(
@@ -1088,12 +1112,12 @@ fn renderCallbackHelperDefinition(
     c_type: []const u8,
     go_signature: []const u8,
 ) ![]const u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
+    const w = &aw.writer;
     try w.print("\t// C: {s}\n", .{c_type});
     try w.print("\t{s} = {s}\n", .{ helper_type_name, go_signature });
-    return buffer.toOwnedSlice(allocator);
+    return aw.toOwnedSlice();
 }
 
 fn renderCallbackConstructor(
@@ -1231,7 +1255,10 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
             }
             allocator.free(accessor_fields);
         }
-        const main_definition = try renderStructDefinition(allocator, name, record_type.text);
+        const main_definition = if (record_type.rendered_as_alias)
+            try renderCommentedTypeDefinition(allocator, name, c_type, record_type.text)
+        else
+            try renderStructDefinition(allocator, name, record_type.text);
         try ctx.decls.typedefs.append(allocator, .{
             .name = name,
             .c_type = c_type,

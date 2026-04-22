@@ -39,6 +39,16 @@ func {{.constructor_name}}(fn {{.type_name}}) uintptr {
 {{end}}{{- end -}}
 {{- if eq .kind "struct_accessors" -}}
 {{range .struct_accessor_items}}
+{{if .is_union}}
+func (u *{{.type_name}}) {{.getter_name}}() {{.go_type}} {
+	return *(*{{.go_type}})(unsafe.Pointer(u))
+}
+
+func (u *{{.type_name}}) {{.setter_name}}(v {{.go_type}}) {
+	*(*{{.go_type}})(unsafe.Pointer(u)) = v
+}
+
+{{else}}
 func (s *{{.type_name}}) {{.getter_name}}() {{.go_type}} {
 	return s.{{.field_name}}
 }
@@ -46,6 +56,7 @@ func (s *{{.type_name}}) {{.getter_name}}() {{.go_type}} {
 func (s *{{.type_name}}) {{.setter_name}}(v {{.go_type}}) {
 	s.{{.field_name}} = v
 }
+{{end}}
 {{end}}{{- end -}}
 {{- if eq .kind "union_helpers" -}}
 

@@ -7,7 +7,7 @@ const gotmpl = @import("gotmpl.zig");
 
 const Args = struct {
     header_path: ?[:0]const u8 = null,
-    clang_args: std.ArrayListUnmanaged([*:0]const u8) = .{},
+    clang_args: std.ArrayListUnmanaged([*:0]const u8) = .empty,
     sample_size: usize = 12,
     skip_gofmt: bool = false,
 
@@ -16,11 +16,11 @@ const Args = struct {
     }
 };
 
-fn parseArgs(allocator: std.mem.Allocator) !Args {
+fn parseArgs(allocator: std.mem.Allocator, process_args: std.process.Args) !Args {
     var args = Args{};
     errdefer args.deinit(allocator);
 
-    var iter = try std.process.argsWithAllocator(allocator);
+    var iter = try std.process.Args.Iterator.initAllocator(process_args, allocator);
     defer iter.deinit();
     _ = iter.next(); // skip program name
 
@@ -61,12 +61,10 @@ fn parseArgs(allocator: std.mem.Allocator) !Args {
     return args;
 }
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
 
-    var args = parseArgs(allocator) catch |err| switch (err) {
+    var args = parseArgs(allocator, init.minimal.args) catch |err| switch (err) {
         error.InvalidArgs => {
             std.debug.print("usage: purego-gen-zig --header-path <path> [--clang-arg <arg>]... [--sample-size <n>] [--skip-gofmt]\n", .{});
             std.process.exit(1);
@@ -87,7 +85,7 @@ pub fn main() !void {
     defer decls.deinit();
 
     var buf: [4096]u8 = undefined;
-    var stdout_file = std.fs.File.stdout().writer(&buf);
+    var stdout_file = std.Io.File.stdout().writer(init.io, &buf);
     const w = &stdout_file.interface;
     try output.writeReport(w, header_path, args.clang_args.items, &decls, args.sample_size);
     try w.flush();

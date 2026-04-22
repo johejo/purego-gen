@@ -468,7 +468,8 @@ pub fn loadCaseFromDir(
     const config_path = try std.fs.path.join(allocator, &.{ case_dir, "config.json" });
     defer allocator.free(config_path);
 
-    const config_raw = try std.fs.cwd().readFileAlloc(allocator, config_path, 1024 * 1024);
+    const io = std.Io.Threaded.global_single_threaded.io();
+    const config_raw = try std.Io.Dir.cwd().readFileAlloc(io, config_path, allocator, .limited(1024 * 1024));
     defer allocator.free(config_raw);
 
     var parsed = try std.json.parseFromSlice(std.json.Value, allocator, config_raw, .{});
@@ -673,7 +674,8 @@ pub fn expectCaseMatchesGeneratedGo(
     var loaded_case = try loadCaseFromDir(allocator, case_dir);
     defer loaded_case.deinit(allocator);
 
-    const expected = try std.fs.cwd().readFileAlloc(allocator, loaded_case.expected_path, 1024 * 1024);
+    const io = std.Io.Threaded.global_single_threaded.io();
+    const expected = try std.Io.Dir.cwd().readFileAlloc(io, loaded_case.expected_path, allocator, .limited(1024 * 1024));
     defer allocator.free(expected);
 
     const skip_gofmt = if (std.posix.getenv("PUREGO_GEN_SKIP_GOFMT")) |val|

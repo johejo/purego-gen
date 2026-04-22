@@ -5,9 +5,19 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import os
-import subprocess
+import sys
 from pathlib import Path
+from typing import cast
+
+REQUIRED_ENVS = [
+    "PUREGO_GEN_LIBCLANG_INCLUDE_DIR",
+    "PUREGO_GEN_LIBCLANG_LINK_DIR",
+    "PUREGO_GEN_LLVM_LINK_DIR",
+    "PUREGO_GEN_ZLIB_LINK_DIR",
+    "PUREGO_GEN_LIBCXX_LINK_DIR",
+]
 
 
 def _build_cli() -> argparse.ArgumentParser:
@@ -55,20 +65,19 @@ fn shouldCheck(case_id: []const u8) bool {{
     return false;
 }}
 
-pub fn main() !void {{
-    var gpa = std.heap.GeneralPurposeAllocator(.{{}}){{}};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {{
+    const io = init.io;
+    const allocator = init.gpa;
 
-    var dir = try std.fs.cwd().openDir("tests/cases", .{{ .iterate = true }});
-    defer dir.close();
+    var dir = try std.Io.Dir.cwd().openDir(io, "tests/cases", .{{ .iterate = true }});
+    defer dir.close(io);
 
     var iter = dir.iterate();
     var stdout_buf: [4096]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buf);
+    var stdout_writer = std.Io.File.stdout().writer(io, &stdout_buf);
     const w = &stdout_writer.interface;
 
-    while (try iter.next()) |entry| {{
+    while (try iter.next(io)) |entry| {{
         if (entry.kind != .directory) continue;
         if (!shouldCheck(entry.name)) continue;
 
@@ -77,7 +86,7 @@ pub fn main() !void {{
 
         const config_path = try std.fs.path.join(allocator, &.{{ case_dir, "config.json" }});
         defer allocator.free(config_path);
-        std.fs.cwd().access(config_path, .{{}}) catch continue;
+        std.Io.Dir.cwd().access(io, config_path, .{{}}) catch continue;
 
         var loaded = golden_cases.loadCaseFromDir(allocator, case_dir) catch |err| {{
             try w.print("{{s}}\\tLOAD_ERR\\t{{}}\\n", .{{ entry.name, err }});
@@ -85,13 +94,22 @@ pub fn main() !void {{
         }};
         defer loaded.deinit(allocator);
 
-        const expected = std.fs.cwd().readFileAlloc(allocator, loaded.expected_path, 1024 * 1024) catch |err| {{
+        const expected = std.Io.Dir.cwd().readFileAlloc(
+            io,
+            loaded.expected_path,
+            allocator,
+            .limited(1024 * 1024),
+        ) catch |err| {{
             try w.print("{{s}}\\tEXPECTED_ERR\\t{{}}\\n", .{{ entry.name, err }});
             continue;
         }};
         defer allocator.free(expected);
 
-        const actual = golden_cases.generateCaseSource(allocator, &loaded, {"true" if skip_gofmt else "false"}) catch |err| {{
+        const actual = golden_cases.generateCaseSource(
+            allocator,
+            &loaded,
+            {"true" if skip_gofmt else "false"},
+        ) catch |err| {{
             try w.print("{{s}}\\tGENERATE_ERR\\t{{}}\\n", .{{ entry.name, err }});
             continue;
         }};
@@ -108,26 +126,45 @@ pub fn main() !void {{
 """
 
 
-def main() -> int:
-    args = _build_cli().parse_args()
-    repo_root = Path(__file__).resolve().parents[1]
-    env = os.environ.copy()
+async def _run_command(command: list[str], cwd: Path, env: dict[str, str]) -> tuple[int, str, str]:
+    process = await asyncio.create_subprocess_exec(
+        *command,
+        cwd=cwd,
+        env=env,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await process.communicate()
+    return process.returncode or 0, stdout.decode(), stderr.decode()
 
-    required_envs = [
-        "PUREGO_GEN_LIBCLANG_INCLUDE_DIR",
-        "PUREGO_GEN_LIBCLANG_LINK_DIR",
-        "PUREGO_GEN_LLVM_LINK_DIR",
-        "PUREGO_GEN_ZLIB_LINK_DIR",
-        "PUREGO_GEN_LIBCXX_LINK_DIR",
-    ]
-    missing = [name for name in required_envs if not env.get(name)]
+
+def _ensure_required_envs(env: dict[str, str]) -> None:
+    missing = [name for name in REQUIRED_ENVS if not env.get(name)]
     if missing:
         names = ", ".join(missing)
-        raise SystemExit(f"missing required environment variable(s): {names}")
+        message = f"missing required environment variable(s): {names}"
+        raise SystemExit(message)
+
+
+def main() -> int:
+    """Compare selected golden cases against Zig generator output.
+
+    Returns:
+        Process exit code.
+    """
+    args = _build_cli().parse_args()
+    selected_cases = cast("list[str]", args.cases)
+    only_match = cast("bool", args.only_match)
+    skip_gofmt = cast("bool", args.skip_gofmt)
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    _ensure_required_envs(env)
 
     checker_path = repo_root / ".tmp_zig_case_check.zig"
     try:
-        checker_path.write_text(_zig_checker_source(args.cases, skip_gofmt=args.skip_gofmt), encoding="utf-8")
+        checker_path.write_text(
+            _zig_checker_source(selected_cases, skip_gofmt=skip_gofmt), encoding="utf-8"
+        )
         command = [
             "zig",
             "run",
@@ -147,32 +184,25 @@ def main() -> int:
             "-lclang",
             "-lc++",
         ]
-        result = subprocess.run(
-            command,
-            cwd=repo_root,
-            text=True,
-            capture_output=True,
-            check=False,
-            env=env,
-        )
+        returncode, stdout, stderr = asyncio.run(_run_command(command, repo_root, env))
     finally:
         checker_path.unlink(missing_ok=True)
 
-    if result.returncode != 0:
-        if result.stdout:
-            print(result.stdout, end="")
-        if result.stderr:
-            print(result.stderr, end="")
-        return result.returncode
+    if returncode != 0:
+        if stdout:
+            sys.stdout.write(stdout)
+        if stderr:
+            sys.stderr.write(stderr)
+        return returncode
 
-    if args.only_match:
-        for line in result.stdout.splitlines():
+    if only_match:
+        for line in stdout.splitlines():
             case_id, status, *_ = line.split("\t")
             if status == "MATCH":
-                print(case_id)
+                sys.stdout.write(f"{case_id}\n")
         return 0
 
-    print(result.stdout, end="")
+    sys.stdout.write(stdout)
     return 0
 
 

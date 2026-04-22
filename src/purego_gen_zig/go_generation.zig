@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const declarations = @import("declarations.zig");
 const gotmpl = @import("gotmpl.zig");
 const parser = @import("parser.zig");
@@ -206,6 +207,7 @@ const StructAccessorView = struct {
     setter_name: []const u8,
     field_name: []const u8,
     go_type: []const u8,
+    is_union: bool,
 };
 
 const PublicWrapperParamView = struct {
@@ -318,10 +320,10 @@ fn mergeDeclarations(
     src.constants.deinit(allocator);
     src.runtime_vars.items.len = 0;
     src.runtime_vars.deinit(allocator);
-    src.functions = .{};
-    src.typedefs = .{};
-    src.constants = .{};
-    src.runtime_vars = .{};
+    src.functions = .empty;
+    src.typedefs = .empty;
+    src.constants = .empty;
+    src.runtime_vars = .empty;
 }
 
 fn freeFunctionDecl(allocator: std.mem.Allocator, func: declarations.FunctionDecl) void {
@@ -890,9 +892,9 @@ fn renderCallbackGoSignature(
     const result_c_type = std.mem.trim(u8, c_type[0..marker_index], " ");
     const params_raw = c_type[marker_index + 4 .. c_type.len - 1];
 
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
+    const w = &aw.writer;
     try w.writeAll("func(");
 
     const trimmed_params = std.mem.trim(u8, params_raw, " ");
@@ -914,7 +916,7 @@ fn renderCallbackGoSignature(
         try w.print(" {s}", .{result_mapping.go_type});
     }
 
-    return buffer.toOwnedSlice(allocator);
+    return aw.toOwnedSlice();
 }
 
 fn resolveBufferPair(
@@ -1090,7 +1092,7 @@ fn trimCommentPrefix(line: []const u8) []const u8 {
 
     trimmed = std.mem.trim(u8, trimmed, " \t\r");
     if (std.mem.endsWith(u8, trimmed, "*/")) {
-        trimmed = std.mem.trimRight(u8, trimmed[0 .. trimmed.len - 2], " \t\r");
+        trimmed = std.mem.trimEnd(u8, trimmed[0 .. trimmed.len - 2], " \t\r");
     }
     return trimmed;
 }
@@ -1219,37 +1221,59 @@ fn formatGoSource(
     allocator: std.mem.Allocator,
     source: []const u8,
 ) ![]u8 {
+    var threaded_io = std.Io.Threaded.init(allocator, .{
+        .environ = currentEnviron(),
+    });
+    defer threaded_io.deinit();
+    const io = threaded_io.io();
     const temp_path = try std.fmt.allocPrint(
         allocator,
         "/tmp/purego-gen-zig-{d}.go",
-        .{std.time.nanoTimestamp()},
+        .{std.Io.Timestamp.now(io, .real).nanoseconds},
     );
     defer allocator.free(temp_path);
-    defer std.fs.deleteFileAbsolute(temp_path) catch {};
+    defer std.Io.Dir.deleteFileAbsolute(io, temp_path) catch {};
 
     {
-        const file = try std.fs.createFileAbsolute(temp_path, .{ .truncate = true });
-        defer file.close();
-        try file.writeAll(source);
+        const file = try std.Io.Dir.createFileAbsolute(io, temp_path, .{ .truncate = true });
+        defer file.close(io);
+        try file.writeStreamingAll(io, source);
     }
 
-    const result = try std.process.Child.run(.{
-        .allocator = allocator,
+    const result = try std.process.run(allocator, io, .{
         .argv = &.{ "gofmt", "-w", temp_path },
     });
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);
 
     switch (result.term) {
-        .Exited => |code| {
+        .exited => |code| {
             if (code != 0) return error.GofmtFailed;
         },
         else => return error.GofmtFailed,
     }
 
-    const file = try std.fs.openFileAbsolute(temp_path, .{});
-    defer file.close();
-    return try file.readToEndAlloc(allocator, 1024 * 1024);
+    return try std.Io.Dir.cwd().readFileAlloc(io, temp_path, allocator, .limited(1024 * 1024));
+}
+
+fn currentEnviron() std.process.Environ {
+    switch (builtin.os.tag) {
+        .windows => return .{ .block = .global },
+        .wasi, .emscripten => {
+            if (!builtin.link_libc) return .empty;
+            const c_environ = std.c.environ;
+            var env_count: usize = 0;
+            while (c_environ[env_count] != null) : (env_count += 1) {}
+            return .{ .block = .{ .slice = @ptrCast(c_environ[0..env_count :null]) } };
+        },
+        .freestanding, .other => return .empty,
+        else => {
+            const c_environ = std.c.environ;
+            var env_count: usize = 0;
+            while (c_environ[env_count] != null) : (env_count += 1) {}
+            return .{ .block = .{ .slice = @ptrCast(c_environ[0..env_count :null]) } };
+        },
+    }
 }
 
 fn renderTypeAliasItem(
@@ -1257,9 +1281,9 @@ fn renderTypeAliasItem(
     config: GeneratorConfig,
     typedef_decl: declarations.TypedefDecl,
 ) ![]u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
+    const w = &aw.writer;
 
     try writeComment(w, "\t", typedef_decl.comment);
     if (config.strict_enum_typedefs and typedef_decl.is_enum_typedef and typedef_decl.underlying_go_type != null) {
@@ -1276,7 +1300,7 @@ fn renderTypeAliasItem(
             typedef_decl.main_definition,
         );
     }
-    return try buffer.toOwnedSlice(allocator);
+    return try aw.toOwnedSlice();
 }
 
 fn renderFunctionVarItem(
@@ -1287,9 +1311,9 @@ fn renderFunctionVarItem(
     function_index: usize,
     callback_params: []const AutoCallbackParam,
 ) ![]u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
+    const w = &aw.writer;
 
     try writeComment(w, "\t", func.comment);
     const func_name = try renderFuncName(allocator, config, func.name);
@@ -1335,7 +1359,7 @@ fn renderFunctionVarItem(
     } else {
         try w.writeByte('\n');
     }
-    return try buffer.toOwnedSlice(allocator);
+    return try aw.toOwnedSlice();
 }
 
 fn renderAutoCallbackTypeItem(
@@ -1345,9 +1369,9 @@ fn renderAutoCallbackTypeItem(
     auto_callback_params: []const AutoCallbackParam,
     auto_callback: AutoCallbackParam,
 ) ![]u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    const w = buffer.writer(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
+    const w = &aw.writer;
 
     const func = decls.functions.items[auto_callback.function_index];
     const helper_type_name = try renderEffectiveCallbackFuncTypeName(
@@ -1368,7 +1392,7 @@ fn renderAutoCallbackTypeItem(
 
     try w.print("\t// C: {s}\n", .{func.parameter_c_types[auto_callback.parameter_index]});
     try w.print("\t{s} = {s}\n", .{ emitted_helper_type_name, go_signature });
-    return try buffer.toOwnedSlice(allocator);
+    return try aw.toOwnedSlice();
 }
 
 fn renderBufferHelperItem(
@@ -1377,10 +1401,10 @@ fn renderBufferHelperItem(
     func: declarations.FunctionDecl,
     pairs: []const BufferPairIndices,
 ) ![]u8 {
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    try writeBufferHelper(allocator, buffer.writer(allocator), config, func, pairs);
-    return try buffer.toOwnedSlice(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
+    try writeBufferHelper(allocator, &aw.writer, config, func, pairs);
+    return try aw.toOwnedSlice();
 }
 
 fn sectionGap(has_emitted_section: bool, add_leading_gap: bool) []const u8 {
@@ -1692,10 +1716,10 @@ pub fn generateGoSource(
     var constant_views: std.ArrayList(ConstantItemView) = .empty;
     if (emits_constants) {
         for (decls.constants.items) |constant_decl| {
-            var comment_buf: std.ArrayList(u8) = .empty;
-            const cw = comment_buf.writer(arena);
+            var comment_aw: std.Io.Writer.Allocating = .init(arena);
+            const cw = &comment_aw.writer;
             try writeComment(cw, "\t", constant_decl.comment);
-            const comment_str = try comment_buf.toOwnedSlice(arena);
+            const comment_str = try comment_aw.toOwnedSlice();
             const emitted_name = try renderConstName(arena, config, constant_decl.name);
             const typed_prefix = if (config.typed_sentinel_constants and constant_decl.typed_go_type != null)
                 try std.fmt.allocPrint(arena, " {s}", .{constant_decl.typed_go_type.?})
@@ -1713,20 +1737,24 @@ pub fn generateGoSource(
 
     var struct_accessor_views: std.ArrayList(StructAccessorView) = .empty;
     if (emits_struct_accessors) {
-        for (decls.typedefs.items) |typedef_decl| {
-            const type_name = try renderTypeName(arena, config, typedef_decl.name);
-            for (typedef_decl.accessor_fields) |field| {
-                const getter_base = try std.fmt.allocPrint(arena, "Get_{s}", .{field.name});
-                const getter_name = try renderFuncName(arena, config, getter_base);
-                const setter_base = try std.fmt.allocPrint(arena, "Set_{s}", .{field.name});
-                const setter_name = try renderFuncName(arena, config, setter_base);
-                try struct_accessor_views.append(arena, .{
-                    .type_name = type_name,
-                    .getter_name = getter_name,
-                    .setter_name = setter_name,
-                    .field_name = field.name,
-                    .go_type = field.go_type,
-                });
+        for ([_]bool{ false, true }) |emit_union_fields| {
+            for (decls.typedefs.items) |typedef_decl| {
+                const type_name = try renderTypeName(arena, config, typedef_decl.name);
+                for (typedef_decl.accessor_fields) |field| {
+                    if (field.is_union != emit_union_fields) continue;
+                    const getter_base = try std.fmt.allocPrint(arena, "Get_{s}", .{field.name});
+                    const getter_name = try renderFuncName(arena, config, getter_base);
+                    const setter_base = try std.fmt.allocPrint(arena, "Set_{s}", .{field.name});
+                    const setter_name = try renderFuncName(arena, config, setter_base);
+                    try struct_accessor_views.append(arena, .{
+                        .type_name = type_name,
+                        .getter_name = getter_name,
+                        .setter_name = setter_name,
+                        .field_name = field.name,
+                        .go_type = field.go_type,
+                        .is_union = field.is_union,
+                    });
+                }
             }
         }
     }
@@ -1884,12 +1912,12 @@ pub fn generateGoSource(
     var runtime_var_symbols: std.ArrayList(TemplateRegisterFunctionView) = .empty;
     if (emits_runtime_vars) {
         for (decls.runtime_vars.items) |runtime_var_decl| {
-            var buffer: std.ArrayList(u8) = .empty;
-            const w = buffer.writer(arena);
+            var aw: std.Io.Writer.Allocating = .init(arena);
+            const w = &aw.writer;
             try writeComment(w, "\t", runtime_var_decl.comment);
             const emitted_var_name = try renderRuntimeVarName(arena, config, runtime_var_decl.name);
             try w.print("\t{s} uintptr\n", .{emitted_var_name});
-            try runtime_var_items.append(arena, try buffer.toOwnedSlice(arena));
+            try runtime_var_items.append(arena, try aw.toOwnedSlice());
             try runtime_var_symbols.append(arena, .{ .name = emitted_var_name, .symbol = runtime_var_decl.name });
         }
     }
@@ -1900,7 +1928,7 @@ pub fn generateGoSource(
         try renderFuncName(arena, config, try std.fmt.allocPrint(arena, "{s}_register_functions", .{config.lib_id}))
     else
         "";
-    const load_runtime_vars_name = if (emits_runtime_vars)
+    const load_runtime_vars_name = if (has_emitted_runtime_vars)
         try renderFuncName(arena, config, try std.fmt.allocPrint(arena, "{s}_load_runtime_vars", .{config.lib_id}))
     else
         "";
@@ -1914,11 +1942,11 @@ pub fn generateGoSource(
     if (emits_constants and !has_helper_functions) {
         try appendConstBlockSection(arena, &sections, &has_emitted_section, constant_view_items, true);
     }
-    try appendStructAccessorsSection(arena, &sections, &has_emitted_section, struct_accessor_view_items);
     try appendTextSection(arena, &sections, &has_emitted_section, helper_texts, false);
     if (need_union_helpers) {
         try appendUnionHelpersSection(arena, &sections, &has_emitted_section);
     }
+    try appendStructAccessorsSection(arena, &sections, &has_emitted_section, struct_accessor_view_items);
     if (emits_constants and has_helper_functions) {
         try appendConstBlockSection(arena, &sections, &has_emitted_section, constant_view_items, true);
     }
@@ -1928,7 +1956,7 @@ pub fn generateGoSource(
     try appendAutoCallbackWrappersSection(arena, &sections, &has_emitted_section, auto_callback_wrapper_view_items);
     try appendOwnedStringHelpersSection(arena, &sections, &has_emitted_section, owned_string_helper_view_items, gostring_name_str);
     try appendRegisterFunctionsSection(arena, &sections, &has_emitted_section, true, register_functions_name, register_function_items);
-    try appendBlockSection(arena, &sections, &has_emitted_section, "var_block", runtime_var_texts, emits_runtime_vars, true);
+    try appendBlockSection(arena, &sections, &has_emitted_section, "var_block", runtime_var_texts, has_emitted_runtime_vars, true);
     try appendRuntimeVarLoaderSection(arena, &sections, &has_emitted_section, true, load_runtime_vars_name, runtime_var_symbol_items);
     const section_items = try sections.toOwnedSlice(arena);
 
@@ -1942,11 +1970,11 @@ pub fn generateGoSource(
         .sections = section_items,
     };
 
-    var buffer: std.ArrayList(u8) = .empty;
-    errdefer buffer.deinit(allocator);
-    try gotmpl.render(buffer.writer(allocator), go_file_template, template_data);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
+    try gotmpl.render(&aw.writer, go_file_template, template_data);
 
-    const rendered = try buffer.toOwnedSlice(allocator);
+    const rendered = try aw.toOwnedSlice();
     if (skip_gofmt) {
         return rendered;
     }

@@ -156,7 +156,7 @@
               zstd
               treefmt
             ])
-            ++ [ zig-overlay.packages.${system}."0.15.2" ];
+            ++ [ zig-overlay.packages.${system}."0.16.0" ];
           sources = pkgs.callPackage ./_sources/generated.nix { };
         in
         {

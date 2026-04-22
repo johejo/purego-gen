@@ -360,10 +360,10 @@ fn eqString(value: anytype, expected: []const u8) bool {
 // --- tests ---
 
 fn expectRender(comptime tmpl: []const u8, data: anytype, expected: []const u8) !void {
-    var buf: std.ArrayList(u8) = .empty;
-    defer buf.deinit(std.testing.allocator);
-    try render(buf.writer(std.testing.allocator), tmpl, data);
-    try std.testing.expectEqualStrings(expected, buf.items);
+    var aw: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer aw.deinit();
+    try render(&aw.writer, tmpl, data);
+    try std.testing.expectEqualStrings(expected, aw.written());
 }
 
 test "empty template" {

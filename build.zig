@@ -28,12 +28,12 @@ fn getRequiredOption(
         ) catch "missing required zig build option");
 }
 
-fn addAllStaticLibs(mod: *std.Build.Module, dir_path: []const u8) void {
-    var dir = std.fs.openDirAbsolute(dir_path, .{ .iterate = true }) catch
+fn addAllStaticLibs(b: *std.Build, mod: *std.Build.Module, dir_path: []const u8) void {
+    var dir = std.Io.Dir.openDirAbsolute(b.graph.io, dir_path, .{ .iterate = true }) catch
         @panic("cannot open lib dir");
-    defer dir.close();
+    defer dir.close(b.graph.io);
     var iter = dir.iterate();
-    while (iter.next() catch @panic("dir iteration failed")) |entry| {
+    while (iter.next(b.graph.io) catch @panic("dir iteration failed")) |entry| {
         if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".a")) {
             addSingleStaticLib(mod, dir_path, entry.name);
         }
@@ -63,10 +63,10 @@ fn configureLibclang(mod: *std.Build.Module, opts: BuildOptions) void {
             const libcxx_link_dir = requireNonEmptyPath(opts.libcxx_link_dir, "libcxx-link-dir");
 
             // Link all clang static archives (includes libclang.a with C API + internal libs).
-            addAllStaticLibs(mod, opts.libclang_link_dir);
+            addAllStaticLibs(mod.owner, mod, opts.libclang_link_dir);
 
             // Link all LLVM static archives.
-            addAllStaticLibs(mod, llvm_link_dir);
+            addAllStaticLibs(mod.owner, mod, llvm_link_dir);
 
             // Link zlib static.
             addSingleStaticLib(mod, zlib_link_dir, "libz.a");
