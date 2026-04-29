@@ -29,6 +29,7 @@ const supported_golden_case_ids = [_][]const u8{
     "owned_string_return",
     "parameter_names",
     "public_api_basic",
+    "strict_typing_default",
     "strict_typing_enabled",
     "struct_accessors_basic",
     "void_callback",
@@ -43,7 +44,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "prefix_free",
     "runtime_smoke",
     "runtime_string",
-    "strict_typing_default",
     "union_basic",
     "union_basic_accessors",
 };
