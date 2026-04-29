@@ -12,6 +12,7 @@ const supported_golden_case_ids = [_][]const u8{
     "callback_auto_discover",
     "callback_param",
     "callback_param_conflict",
+    "callback_param_dedup",
     "categories_const",
     "categories_mixed_filtered",
     "comments_default",
@@ -33,7 +34,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
-    "callback_param_dedup",
     "conditional_default",
     "conditional_with_define",
     "libclang",
