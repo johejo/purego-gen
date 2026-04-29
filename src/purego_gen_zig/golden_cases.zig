@@ -34,6 +34,7 @@ const supported_golden_case_ids = [_][]const u8{
     "strict_typing_enabled",
     "struct_accessors_basic",
     "union_basic",
+    "union_basic_accessors",
     "void_callback",
 };
 
@@ -45,7 +46,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "libzstd",
     "runtime_smoke",
     "runtime_string",
-    "union_basic_accessors",
 };
 
 pub const LoadedCase = struct {
