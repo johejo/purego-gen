@@ -292,4 +292,3 @@ pub fn sortFunctionIndicesByName(indices: []usize, functions: []const declaratio
         indices[j] = current;
     }
 }
-
