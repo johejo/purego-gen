@@ -601,7 +601,6 @@ pub fn collectDeclarations(
     _ = c.clang_visitChildren(tu.cursor(), visitorCallback, @ptrCast(&ctx));
 
     if (ctx.failed) {
-        decls.deinit();
         return error.OutOfMemory;
     }
 

@@ -27,6 +27,7 @@ const supported_golden_case_ids = [_][]const u8{
     "parameter_names",
     "public_api_basic",
     "struct_accessors_basic",
+    "void_callback",
 };
 
 // Cases intentionally skipped until the Zig generator supports more of the
@@ -45,7 +46,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "strict_typing_enabled",
     "union_basic",
     "union_basic_accessors",
-    "void_callback",
 };
 
 pub const LoadedCase = struct {
@@ -484,9 +484,25 @@ pub fn loadCaseFromDir(
     const headers_obj = parse.get("headers") orelse return error.MissingHeadersConfig;
     const headers = headers_obj.object;
     const headers_kind = headers.get("kind") orelse return error.MissingHeadersKind;
-    if (!std.mem.eql(u8, headers_kind.string, "local")) {
+    const is_local = std.mem.eql(u8, headers_kind.string, "local");
+    const is_env_include = std.mem.eql(u8, headers_kind.string, "env_include");
+    if (!is_local and !is_env_include) {
         return error.UnsupportedHeadersKind;
     }
+
+    var include_dir_owned: ?[]u8 = null;
+    defer if (include_dir_owned) |dir| allocator.free(dir);
+    if (is_env_include) {
+        const include_dir_env_value = headers.get("include_dir_env") orelse return error.MissingIncludeDirEnv;
+        const env_name = try allocator.dupeZ(u8, include_dir_env_value.string);
+        defer allocator.free(env_name);
+        const raw = std.c.getenv(env_name.ptr) orelse return error.RequiredIncludeDirEnvNotSet;
+        const trimmed = std.mem.trim(u8, std.mem.span(raw), &std.ascii.whitespace);
+        if (trimmed.len == 0) return error.RequiredIncludeDirEnvNotSet;
+        std.Io.Dir.cwd().access(io, trimmed, .{}) catch return error.IncludeDirNotFound;
+        include_dir_owned = try allocator.dupe(u8, trimmed);
+    }
+    const header_base_dir: []const u8 = if (include_dir_owned) |dir| dir else case_dir;
 
     const header_list_value = headers.get("headers") orelse return error.MissingHeadersList;
     const emit_value = generator.get("emit") orelse return error.MissingEmitConfig;
@@ -514,10 +530,26 @@ pub fn loadCaseFromDir(
         allocator.free(header_paths);
     }
 
-    const clang_args = if (parse.get("clang_args")) |clang_args_value|
-        try parseStringArray(allocator, clang_args_value.array)
-    else
-        try allocator.alloc([]const u8, 0);
+    const clang_args = blk: {
+        const config_clang_args = if (parse.get("clang_args")) |clang_args_value|
+            try parseStringArray(allocator, clang_args_value.array)
+        else
+            try allocator.alloc([]const u8, 0);
+        errdefer {
+            for (config_clang_args) |arg| allocator.free(arg);
+            allocator.free(config_clang_args);
+        }
+
+        const dir = include_dir_owned orelse break :blk config_clang_args;
+        const combined = try allocator.alloc([]const u8, config_clang_args.len + 2);
+        errdefer allocator.free(combined);
+        combined[0] = try allocator.dupe(u8, "-I");
+        errdefer allocator.free(combined[0]);
+        combined[1] = try allocator.dupe(u8, dir);
+        @memcpy(combined[2..], config_clang_args);
+        allocator.free(config_clang_args);
+        break :blk combined;
+    };
     errdefer {
         for (clang_args) |arg| allocator.free(arg);
         allocator.free(clang_args);
@@ -530,7 +562,7 @@ pub fn loadCaseFromDir(
             resolved_paths.deinit(allocator);
         }
         for (header_paths) |header_path| {
-            try resolved_paths.append(allocator, try joinCasePath(allocator, case_dir, header_path));
+            try resolved_paths.append(allocator, try joinCasePath(allocator, header_base_dir, header_path));
         }
         break :blk try resolved_paths.toOwnedSlice(allocator);
     };
@@ -678,36 +710,14 @@ pub fn expectCaseMatchesGeneratedGo(
     const expected = try std.Io.Dir.cwd().readFileAlloc(io, loaded_case.expected_path, allocator, .limited(1024 * 1024));
     defer allocator.free(expected);
 
-    const skip_gofmt = if (std.posix.getenv("PUREGO_GEN_SKIP_GOFMT")) |val|
-        std.mem.eql(u8, val, "1") or std.mem.eql(u8, val, "true")
-    else
-        false;
+    const skip_gofmt = if (std.c.getenv("PUREGO_GEN_SKIP_GOFMT")) |val| blk: {
+        const slice = std.mem.span(val);
+        break :blk std.mem.eql(u8, slice, "1") or std.mem.eql(u8, slice, "true");
+    } else false;
     const actual = try generateCaseSource(allocator, &loaded_case, skip_gofmt);
     defer allocator.free(actual);
 
-    if (std.mem.eql(u8, expected, actual)) return;
-
-    // Write actual output to a temp file and run diff -u for readable output.
-    const tmp_path = try std.fmt.allocPrint(allocator, "{s}.actual", .{loaded_case.expected_path});
-    defer allocator.free(tmp_path);
-    {
-        const f = try std.fs.cwd().createFile(tmp_path, .{});
-        defer f.close();
-        try f.writeAll(actual);
-    }
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
-
-    const result = std.process.Child.run(.{
-        .allocator = allocator,
-        .argv = &.{ "diff", "-u", loaded_case.expected_path, tmp_path },
-    });
-    if (result) |r| {
-        defer allocator.free(r.stdout);
-        defer allocator.free(r.stderr);
-        std.debug.print("\n{s}\n", .{r.stdout});
-    } else |_| {}
-
-    return error.TestExpectedEqual;
+    try std.testing.expectEqualStrings(expected, actual);
 }
 
 fn expectCaseIdMatchesGeneratedGo(
