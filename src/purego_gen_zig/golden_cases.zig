@@ -30,6 +30,7 @@ const supported_golden_case_ids = [_][]const u8{
     "parameter_names",
     "prefix_free",
     "public_api_basic",
+    "runtime_smoke",
     "runtime_string",
     "strict_typing_default",
     "strict_typing_enabled",
@@ -45,7 +46,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "libclang",
     "libsqlite3",
     "libzstd",
-    "runtime_smoke",
 };
 
 pub const LoadedCase = struct {
