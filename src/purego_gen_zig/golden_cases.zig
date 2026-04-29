@@ -18,6 +18,7 @@ const supported_golden_case_ids = [_][]const u8{
     "comments_default",
     "comments_parse_all",
     "conditional_default",
+    "conditional_with_define",
     "custom_prefix",
     "exclude_only_basic",
     "inline_func_pointer",
@@ -35,7 +36,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
-    "conditional_with_define",
     "libclang",
     "libsqlite3",
     "libzstd",
