@@ -101,73 +101,9 @@ fn parseStringArray(allocator: std.mem.Allocator, array: std.json.Array) ![][]co
     return items.toOwnedSlice(allocator);
 }
 
-fn freeBufferParamHelpers(
-    allocator: std.mem.Allocator,
-    helpers: []const go_generation.BufferParamHelper,
-) void {
-    for (helpers) |helper| {
-        switch (helper) {
-            .explicit => |explicit| {
-                allocator.free(explicit.function_name);
-                for (explicit.pairs) |pair| {
-                    allocator.free(pair.pointer);
-                    allocator.free(pair.length);
-                }
-                allocator.free(explicit.pairs);
-            },
-            .pattern => |pattern| {
-                allocator.free(pattern.function_pattern);
-            },
-        }
-    }
-    allocator.free(helpers);
-}
-
-fn freeCallbackParamHelpers(
-    allocator: std.mem.Allocator,
-    helpers: []const go_generation.ExplicitCallbackParamHelper,
-) void {
-    for (helpers) |helper| {
-        allocator.free(helper.function_name);
-        for (helper.params) |param| allocator.free(param);
-        allocator.free(helper.params);
-    }
-    allocator.free(helpers);
-}
-
-fn freeOwnedStringReturnHelpers(
-    allocator: std.mem.Allocator,
-    helpers: []const go_generation.OwnedStringReturnHelper,
-) void {
-    for (helpers) |helper| {
-        allocator.free(helper.function_name);
-        allocator.free(helper.free_func_name);
-    }
-    allocator.free(helpers);
-}
-
-fn freePublicApiMatchers(
-    allocator: std.mem.Allocator,
-    matchers: []const go_generation.PublicApiMatcher,
-) void {
-    for (matchers) |matcher| {
-        switch (matcher) {
-            .exact => |value| allocator.free(value),
-            .pattern => |value| allocator.free(value),
-        }
-    }
-    allocator.free(matchers);
-}
-
-fn freePublicApiOverrides(
-    allocator: std.mem.Allocator,
-    overrides: []const go_generation.PublicApiOverride,
-) void {
-    for (overrides) |override| {
-        allocator.free(override.source_name);
-        allocator.free(override.public_name);
-    }
-    allocator.free(overrides);
+fn freeOwnedSlice(comptime T: type, allocator: std.mem.Allocator, items: []const T) void {
+    for (items) |item| item.deinit(allocator);
+    allocator.free(items);
 }
 
 fn parseNamingValue(
@@ -212,10 +148,7 @@ fn parseBufferParamPairs(
 ) ![]go_generation.BufferParamPair {
     var items: std.ArrayList(go_generation.BufferParamPair) = .empty;
     errdefer {
-        for (items.items) |pair| {
-            allocator.free(pair.pointer);
-            allocator.free(pair.length);
-        }
+        for (items.items) |pair| pair.deinit(allocator);
         items.deinit(allocator);
     }
 
@@ -237,12 +170,7 @@ fn parsePublicApiMatchers(
     const matchers_value = value orelse return try allocator.alloc(go_generation.PublicApiMatcher, 0);
     var items: std.ArrayList(go_generation.PublicApiMatcher) = .empty;
     errdefer {
-        for (items.items) |matcher| {
-            switch (matcher) {
-                .exact => |string| allocator.free(string),
-                .pattern => |string| allocator.free(string),
-            }
-        }
+        for (items.items) |matcher| matcher.deinit(allocator);
         items.deinit(allocator);
     }
 
@@ -271,10 +199,7 @@ fn parsePublicApiOverrides(
     const overrides_value = value orelse return try allocator.alloc(go_generation.PublicApiOverride, 0);
     var items: std.ArrayList(go_generation.PublicApiOverride) = .empty;
     errdefer {
-        for (items.items) |override| {
-            allocator.free(override.source_name);
-            allocator.free(override.public_name);
-        }
+        for (items.items) |override| override.deinit(allocator);
         items.deinit(allocator);
     }
 
@@ -339,11 +264,7 @@ fn parseCallbackParamHelpers(
 
     var items: std.ArrayList(go_generation.ExplicitCallbackParamHelper) = .empty;
     errdefer {
-        for (items.items) |helper| {
-            allocator.free(helper.function_name);
-            for (helper.params) |param| allocator.free(param);
-            allocator.free(helper.params);
-        }
+        for (items.items) |helper| helper.deinit(allocator);
         items.deinit(allocator);
     }
 
@@ -372,10 +293,7 @@ fn parseOwnedStringReturnHelpers(
 
     var items: std.ArrayList(go_generation.OwnedStringReturnHelper) = .empty;
     errdefer {
-        for (items.items) |helper| {
-            allocator.free(helper.function_name);
-            allocator.free(helper.free_func_name);
-        }
+        for (items.items) |helper| helper.deinit(allocator);
         items.deinit(allocator);
     }
 
@@ -407,21 +325,7 @@ fn parseBufferParamHelpers(
 
     var items: std.ArrayList(go_generation.BufferParamHelper) = .empty;
     errdefer {
-        for (items.items) |helper| {
-            switch (helper) {
-                .explicit => |explicit| {
-                    allocator.free(explicit.function_name);
-                    for (explicit.pairs) |pair| {
-                        allocator.free(pair.pointer);
-                        allocator.free(pair.length);
-                    }
-                    allocator.free(explicit.pairs);
-                },
-                .pattern => |pattern| {
-                    allocator.free(pattern.function_pattern);
-                },
-            }
-        }
+        for (items.items) |helper| helper.deinit(allocator);
         items.deinit(allocator);
     }
 
@@ -509,20 +413,13 @@ pub fn loadCaseFromDir(
     const emit = try parseEmitKinds(allocator, emit_value.array);
     errdefer allocator.free(emit);
     const buffer_param_helpers = try parseBufferParamHelpers(allocator, generator);
-    errdefer freeBufferParamHelpers(allocator, buffer_param_helpers);
+    errdefer freeOwnedSlice(go_generation.BufferParamHelper, allocator, buffer_param_helpers);
     const callback_param_helpers = try parseCallbackParamHelpers(allocator, generator);
-    errdefer freeCallbackParamHelpers(allocator, callback_param_helpers);
+    errdefer freeOwnedSlice(go_generation.ExplicitCallbackParamHelper, allocator, callback_param_helpers);
     const owned_string_return_helpers = try parseOwnedStringReturnHelpers(allocator, generator);
-    errdefer freeOwnedStringReturnHelpers(allocator, owned_string_return_helpers);
+    errdefer freeOwnedSlice(go_generation.OwnedStringReturnHelper, allocator, owned_string_return_helpers);
     const public_api = try parsePublicApiConfig(allocator, generator);
-    errdefer {
-        allocator.free(public_api.strip_prefix);
-        freePublicApiMatchers(allocator, public_api.type_aliases_include);
-        freePublicApiOverrides(allocator, public_api.type_aliases_overrides);
-        freePublicApiMatchers(allocator, public_api.wrappers_include);
-        freePublicApiMatchers(allocator, public_api.wrappers_exclude);
-        freePublicApiOverrides(allocator, public_api.wrappers_overrides);
-    }
+    errdefer public_api.deinit(allocator);
 
     const header_paths = try parseStringArray(allocator, header_list_value.array);
     errdefer {

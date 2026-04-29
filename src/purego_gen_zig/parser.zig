@@ -30,6 +30,30 @@ pub fn clangString(cx_str: c.CXString) []const u8 {
     return "";
 }
 
+pub fn visitChildren(
+    comptime Ctx: type,
+    comptime body: fn (ctx: *Ctx, cursor: c.CXCursor) anyerror!c.enum_CXChildVisitResult,
+    parent: c.CXCursor,
+    ctx: *Ctx,
+) !void {
+    const Wrapper = struct {
+        ctx: *Ctx,
+        err: ?anyerror = null,
+
+        fn cb(cur: c.CXCursor, _: c.CXCursor, data: c.CXClientData) callconv(.c) c.enum_CXChildVisitResult {
+            const w: *@This() = @ptrCast(@alignCast(data));
+            if (w.err != null) return c.CXChildVisit_Break;
+            return body(w.ctx, cur) catch |err| {
+                w.err = err;
+                return c.CXChildVisit_Break;
+            };
+        }
+    };
+    var w = Wrapper{ .ctx = ctx };
+    _ = c.clang_visitChildren(parent, Wrapper.cb, @ptrCast(&w));
+    if (w.err) |err| return err;
+}
+
 pub fn parseHeader(
     header_path: [:0]const u8,
     clang_args: []const [*:0]const u8,

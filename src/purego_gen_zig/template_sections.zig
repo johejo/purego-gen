@@ -73,8 +73,8 @@ pub const ConstantItemView = struct {
 pub const TemplateSectionView = struct {
     kind: []const u8,
     gap: []const u8,
-    block_items: []const []const u8,
-    text_items: []const []const u8,
+    block_items: []const []const u8 = &.{},
+    text_items: []const []const u8 = &.{},
     register_functions_name: []const u8 = "",
     register_function_items: []const TemplateRegisterFunctionView = &.{},
     load_runtime_vars_name: []const u8 = "",
@@ -464,198 +464,13 @@ pub fn sectionGap(has_emitted_section: bool, add_leading_gap: bool) []const u8 {
     return if (add_leading_gap or !has_emitted_section) "\n\n" else "\n";
 }
 
-pub fn appendBlockSection(
+pub fn appendSection(
     allocator: std.mem.Allocator,
     sections: *std.ArrayList(TemplateSectionView),
     has_emitted_section: *bool,
-    kind: []const u8,
-    block_items: []const []const u8,
-    force_block: bool,
-    add_leading_gap: bool,
+    view: TemplateSectionView,
 ) !void {
-    if (!force_block and block_items.len == 0) return;
-    try sections.append(allocator, .{
-        .kind = kind,
-        .gap = sectionGap(has_emitted_section.*, add_leading_gap),
-        .block_items = block_items,
-        .text_items = &.{},
-    });
-    has_emitted_section.* = true;
-}
-
-pub fn appendTextSection(
-    allocator: std.mem.Allocator,
-    sections: *std.ArrayList(TemplateSectionView),
-    has_emitted_section: *bool,
-    text_items: []const []const u8,
-    add_leading_gap: bool,
-) !void {
-    if (text_items.len == 0) return;
-    try sections.append(allocator, .{
-        .kind = "text",
-        .gap = sectionGap(has_emitted_section.*, add_leading_gap),
-        .block_items = &.{},
-        .text_items = text_items,
-    });
-    has_emitted_section.* = true;
-}
-
-pub fn appendRegisterFunctionsSection(
-    allocator: std.mem.Allocator,
-    sections: *std.ArrayList(TemplateSectionView),
-    has_emitted_section: *bool,
-    add_leading_gap: bool,
-    register_functions_name: []const u8,
-    items: []const TemplateRegisterFunctionView,
-) !void {
-    if (items.len == 0) return;
-    try sections.append(allocator, .{
-        .kind = "register_functions",
-        .gap = sectionGap(has_emitted_section.*, add_leading_gap),
-        .block_items = &.{},
-        .text_items = &.{},
-        .register_functions_name = register_functions_name,
-        .register_function_items = items,
-    });
-    has_emitted_section.* = true;
-}
-
-pub fn appendRuntimeVarLoaderSection(
-    allocator: std.mem.Allocator,
-    sections: *std.ArrayList(TemplateSectionView),
-    has_emitted_section: *bool,
-    add_leading_gap: bool,
-    load_runtime_vars_name: []const u8,
-    items: []const TemplateRegisterFunctionView,
-) !void {
-    if (load_runtime_vars_name.len == 0) return;
-    try sections.append(allocator, .{
-        .kind = "runtime_var_loader",
-        .gap = sectionGap(has_emitted_section.*, add_leading_gap),
-        .block_items = &.{},
-        .text_items = &.{},
-        .load_runtime_vars_name = load_runtime_vars_name,
-        .runtime_var_symbol_items = items,
-    });
-    has_emitted_section.* = true;
-}
-
-pub fn appendAutoCallbackConstructorsSection(
-    allocator: std.mem.Allocator,
-    sections: *std.ArrayList(TemplateSectionView),
-    has_emitted_section: *bool,
-    items: []const AutoCallbackConstructorView,
-) !void {
-    if (items.len == 0) return;
-    try sections.append(allocator, .{
-        .kind = "auto_callback_constructors",
-        .gap = sectionGap(has_emitted_section.*, false),
-        .block_items = &.{},
-        .text_items = &.{},
-        .auto_callback_constructor_items = items,
-    });
-    has_emitted_section.* = true;
-}
-
-pub fn appendStructAccessorsSection(
-    allocator: std.mem.Allocator,
-    sections: *std.ArrayList(TemplateSectionView),
-    has_emitted_section: *bool,
-    items: []const StructAccessorView,
-) !void {
-    if (items.len == 0) return;
-    try sections.append(allocator, .{
-        .kind = "struct_accessors",
-        .gap = sectionGap(has_emitted_section.*, false),
-        .block_items = &.{},
-        .text_items = &.{},
-        .struct_accessor_items = items,
-    });
-    has_emitted_section.* = true;
-}
-
-pub fn appendUnionHelpersSection(
-    allocator: std.mem.Allocator,
-    sections: *std.ArrayList(TemplateSectionView),
-    has_emitted_section: *bool,
-) !void {
-    try sections.append(allocator, .{
-        .kind = "union_helpers",
-        .gap = sectionGap(has_emitted_section.*, false),
-        .block_items = &.{},
-        .text_items = &.{},
-    });
-    has_emitted_section.* = true;
-}
-
-pub fn appendPublicWrappersSection(
-    allocator: std.mem.Allocator,
-    sections: *std.ArrayList(TemplateSectionView),
-    has_emitted_section: *bool,
-    items: []const PublicWrapperView,
-) !void {
-    if (items.len == 0) return;
-    try sections.append(allocator, .{
-        .kind = "public_wrappers",
-        .gap = sectionGap(has_emitted_section.*, true),
-        .block_items = &.{},
-        .text_items = &.{},
-        .public_wrapper_items = items,
-    });
-    has_emitted_section.* = true;
-}
-
-pub fn appendAutoCallbackWrappersSection(
-    allocator: std.mem.Allocator,
-    sections: *std.ArrayList(TemplateSectionView),
-    has_emitted_section: *bool,
-    items: []const AutoCallbackWrapperView,
-) !void {
-    if (items.len == 0) return;
-    try sections.append(allocator, .{
-        .kind = "auto_callback_wrappers",
-        .gap = sectionGap(has_emitted_section.*, false),
-        .block_items = &.{},
-        .text_items = &.{},
-        .auto_callback_wrapper_items = items,
-    });
-    has_emitted_section.* = true;
-}
-
-pub fn appendOwnedStringHelpersSection(
-    allocator: std.mem.Allocator,
-    sections: *std.ArrayList(TemplateSectionView),
-    has_emitted_section: *bool,
-    items: []const OwnedStringHelperView,
-    gostring_name: []const u8,
-) !void {
-    if (items.len == 0 and gostring_name.len == 0) return;
-    try sections.append(allocator, .{
-        .kind = "owned_string_helpers",
-        .gap = sectionGap(has_emitted_section.*, false),
-        .block_items = &.{},
-        .text_items = &.{},
-        .owned_string_helper_items = items,
-        .gostring_name = gostring_name,
-    });
-    has_emitted_section.* = true;
-}
-
-pub fn appendConstBlockSection(
-    allocator: std.mem.Allocator,
-    sections: *std.ArrayList(TemplateSectionView),
-    has_emitted_section: *bool,
-    const_items: []const ConstantItemView,
-    add_leading_gap: bool,
-) !void {
-    if (const_items.len == 0) return;
-    try sections.append(allocator, .{
-        .kind = "const_block",
-        .gap = sectionGap(has_emitted_section.*, add_leading_gap),
-        .block_items = &.{},
-        .text_items = &.{},
-        .const_items = const_items,
-    });
+    try sections.append(allocator, view);
     has_emitted_section.* = true;
 }
 

@@ -163,6 +163,53 @@ pub fn renderFunctionType(
     return aw.toOwnedSlice();
 }
 
+const UnionValidator = struct {};
+
+fn unionFieldCheck(_: *UnionValidator, cursor_arg: c.CXCursor) anyerror!c.enum_CXChildVisitResult {
+    if (c.clang_getCursorKind(cursor_arg) != c.CXCursor_FieldDecl) return c.CXChildVisit_Continue;
+    if (c.clang_Cursor_isBitField(cursor_arg) != 0) return error.UnsupportedType;
+    const field_name = parser.clangString(c.clang_getCursorSpelling(cursor_arg));
+    if (field_name.len == 0) return error.UnsupportedType;
+    return c.CXChildVisit_Continue;
+}
+
+const StructFieldContext = struct {
+    allocator: std.mem.Allocator,
+    writer: *std.Io.Writer,
+    indent: []const u8,
+    offset_bytes: usize = 0,
+    saw_field: bool = false,
+};
+
+fn structFieldChildBody(ctx: *StructFieldContext, cursor_arg: c.CXCursor) anyerror!c.enum_CXChildVisitResult {
+    if (c.clang_getCursorKind(cursor_arg) != c.CXCursor_FieldDecl) return c.CXChildVisit_Continue;
+    if (c.clang_Cursor_isBitField(cursor_arg) != 0) return error.UnsupportedType;
+    ctx.saw_field = true;
+
+    const field_name = parser.clangString(c.clang_getCursorSpelling(cursor_arg));
+    if (field_name.len == 0) return error.UnsupportedType;
+
+    const field_offset_bits = c.clang_Cursor_getOffsetOfField(cursor_arg);
+    if (field_offset_bits < 0) return error.UnsupportedType;
+    const field_offset: usize = @intCast(@divTrunc(field_offset_bits, 8));
+    if (field_offset > ctx.offset_bytes) {
+        try appendPaddingField(ctx.writer, ctx.indent, field_offset - ctx.offset_bytes);
+    }
+
+    const field_rendered = try renderType(ctx.allocator, c.clang_getCursorType(cursor_arg));
+    defer freeRenderedType(ctx.allocator, field_rendered);
+
+    if (field_rendered.comment) |comment| {
+        try ctx.writer.print("{s}// C: {s}\n", .{ ctx.indent, comment });
+    }
+    try ctx.writer.print("{s}{s} {s}\n", .{ ctx.indent, field_name, field_rendered.text });
+
+    const field_size = c.clang_Type_getSizeOf(c.clang_getCanonicalType(c.clang_getCursorType(cursor_arg)));
+    if (field_size < 0) return error.UnsupportedType;
+    ctx.offset_bytes = field_offset + @as(usize, @intCast(field_size));
+    return c.CXChildVisit_Continue;
+}
+
 pub fn renderRecordBody(
     allocator: std.mem.Allocator,
     record_type: c.CXType,
@@ -198,34 +245,8 @@ pub fn renderRecordBody(
             };
         }
 
-        const UnionVisitor = struct {
-            failed: ?anyerror = null,
-
-            fn callback(
-                cursor_arg: c.CXCursor,
-                _: c.CXCursor,
-                client_data: c.CXClientData,
-            ) callconv(.c) c.enum_CXChildVisitResult {
-                const ctx: *@This() = @ptrCast(@alignCast(client_data));
-                if (ctx.failed != null) return c.CXChildVisit_Break;
-                if (c.clang_getCursorKind(cursor_arg) != c.CXCursor_FieldDecl) return c.CXChildVisit_Continue;
-                if (c.clang_Cursor_isBitField(cursor_arg) != 0) {
-                    ctx.failed = error.UnsupportedType;
-                    return c.CXChildVisit_Break;
-                }
-
-                const field_name = parser.clangString(c.clang_getCursorSpelling(cursor_arg));
-                if (field_name.len == 0) {
-                    ctx.failed = error.UnsupportedType;
-                    return c.CXChildVisit_Break;
-                }
-                return c.CXChildVisit_Continue;
-            }
-        };
-
-        var union_visitor = UnionVisitor{};
-        _ = c.clang_visitChildren(decl, UnionVisitor.callback, @ptrCast(&union_visitor));
-        if (union_visitor.failed) |err| return err;
+        var union_validator: UnionValidator = .{};
+        try parser.visitChildren(UnionValidator, unionFieldCheck, decl, &union_validator);
 
         try w.writeAll("struct {\n");
         try w.print("{s}_ [0]{s}\n", .{ indent, anchor_type });
@@ -240,86 +261,17 @@ pub fn renderRecordBody(
     if (kind != c.CXCursor_StructDecl) return error.UnsupportedType;
 
     try w.writeAll("struct {\n");
-    const StructVisitor = struct {
-        allocator: std.mem.Allocator,
-        writer: @TypeOf(w),
-        indent: []const u8,
-        offset_bytes: usize = 0,
-        saw_field: bool = false,
-        failed: ?anyerror = null,
-
-        fn callback(
-            cursor_arg: c.CXCursor,
-            _: c.CXCursor,
-            client_data: c.CXClientData,
-        ) callconv(.c) c.enum_CXChildVisitResult {
-            const ctx: *@This() = @ptrCast(@alignCast(client_data));
-            if (ctx.failed != null) return c.CXChildVisit_Break;
-            if (c.clang_getCursorKind(cursor_arg) != c.CXCursor_FieldDecl) return c.CXChildVisit_Continue;
-            if (c.clang_Cursor_isBitField(cursor_arg) != 0) {
-                ctx.failed = error.UnsupportedType;
-                return c.CXChildVisit_Break;
-            }
-            ctx.saw_field = true;
-
-            const field_name = parser.clangString(c.clang_getCursorSpelling(cursor_arg));
-            if (field_name.len == 0) {
-                ctx.failed = error.UnsupportedType;
-                return c.CXChildVisit_Break;
-            }
-
-            const field_offset_bits = c.clang_Cursor_getOffsetOfField(cursor_arg);
-            if (field_offset_bits < 0) {
-                ctx.failed = error.UnsupportedType;
-                return c.CXChildVisit_Break;
-            }
-            const field_offset: usize = @intCast(@divTrunc(field_offset_bits, 8));
-            if (field_offset > ctx.offset_bytes) {
-                appendPaddingField(ctx.writer, ctx.indent, field_offset - ctx.offset_bytes) catch |err| {
-                    ctx.failed = err;
-                    return c.CXChildVisit_Break;
-                };
-            }
-
-            const field_rendered = renderType(ctx.allocator, c.clang_getCursorType(cursor_arg)) catch |err| {
-                ctx.failed = err;
-                return c.CXChildVisit_Break;
-            };
-            defer freeRenderedType(ctx.allocator, field_rendered);
-
-            if (field_rendered.comment) |comment| {
-                ctx.writer.print("{s}// C: {s}\n", .{ ctx.indent, comment }) catch |err| {
-                    ctx.failed = err;
-                    return c.CXChildVisit_Break;
-                };
-            }
-            ctx.writer.print("{s}{s} {s}\n", .{ ctx.indent, field_name, field_rendered.text }) catch |err| {
-                ctx.failed = err;
-                return c.CXChildVisit_Break;
-            };
-
-            const field_size = c.clang_Type_getSizeOf(c.clang_getCanonicalType(c.clang_getCursorType(cursor_arg)));
-            if (field_size < 0) {
-                ctx.failed = error.UnsupportedType;
-                return c.CXChildVisit_Break;
-            }
-            ctx.offset_bytes = field_offset + @as(usize, @intCast(field_size));
-            return c.CXChildVisit_Continue;
-        }
-    };
-
-    var struct_visitor = StructVisitor{
+    var field_ctx = StructFieldContext{
         .allocator = allocator,
         .writer = w,
         .indent = indent,
     };
-    _ = c.clang_visitChildren(decl, StructVisitor.callback, @ptrCast(&struct_visitor));
-    if (struct_visitor.failed) |err| return err;
-    if (!struct_visitor.saw_field) return error.UnsupportedType;
+    try parser.visitChildren(StructFieldContext, structFieldChildBody, decl, &field_ctx);
+    if (!field_ctx.saw_field) return error.UnsupportedType;
 
     const final_size: usize = @intCast(record_size);
-    if (final_size > struct_visitor.offset_bytes) {
-        try appendPaddingField(w, indent, final_size - struct_visitor.offset_bytes);
+    if (final_size > field_ctx.offset_bytes) {
+        try appendPaddingField(w, indent, final_size - field_ctx.offset_bytes);
     }
     try w.print("{s}}}", .{indent[0 .. indent.len - 1]});
 

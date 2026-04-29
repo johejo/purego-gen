@@ -11,6 +11,16 @@ pub const FunctionDecl = struct {
     parameter_c_types: []const []const u8,
     parameter_names: []const []const u8,
     comment: ?[]const u8 = null,
+
+    pub fn deinit(self: FunctionDecl, allocator: std.mem.Allocator) void {
+        allocator.free(self.name);
+        allocator.free(self.result_c_type);
+        for (self.parameter_c_types) |pt| allocator.free(pt);
+        allocator.free(self.parameter_c_types);
+        for (self.parameter_names) |pn| allocator.free(pn);
+        allocator.free(self.parameter_names);
+        if (self.comment) |comment| allocator.free(comment);
+    }
 };
 
 pub const ConstantDecl = struct {
@@ -18,12 +28,25 @@ pub const ConstantDecl = struct {
     value_expr: []const u8,
     typed_go_type: ?[]const u8 = null,
     comment: ?[]const u8 = null,
+
+    pub fn deinit(self: ConstantDecl, allocator: std.mem.Allocator) void {
+        allocator.free(self.name);
+        allocator.free(self.value_expr);
+        if (self.typed_go_type) |typed_go_type| allocator.free(typed_go_type);
+        if (self.comment) |comment| allocator.free(comment);
+    }
 };
 
 pub const RuntimeVarDecl = struct {
     name: []const u8,
     c_type: []const u8,
     comment: ?[]const u8 = null,
+
+    pub fn deinit(self: RuntimeVarDecl, allocator: std.mem.Allocator) void {
+        allocator.free(self.name);
+        allocator.free(self.c_type);
+        if (self.comment) |comment| allocator.free(comment);
+    }
 };
 
 pub const TypedefDecl = struct {
@@ -39,12 +62,29 @@ pub const TypedefDecl = struct {
     requires_purego: bool = false,
     requires_unsafe: bool = false,
     requires_union_helpers: bool = false,
+
+    pub fn deinit(self: TypedefDecl, allocator: std.mem.Allocator) void {
+        allocator.free(self.name);
+        allocator.free(self.c_type);
+        allocator.free(self.main_definition);
+        if (self.underlying_go_type) |underlying_go_type| allocator.free(underlying_go_type);
+        if (self.comment) |comment| allocator.free(comment);
+        if (self.helper_type_definition) |text| allocator.free(text);
+        if (self.helper_function_definition) |text| allocator.free(text);
+        for (self.accessor_fields) |field| field.deinit(allocator);
+        allocator.free(self.accessor_fields);
+    }
 };
 
 pub const RecordFieldDecl = struct {
     name: []const u8,
     go_type: []const u8,
     is_union: bool = false,
+
+    pub fn deinit(self: RecordFieldDecl, allocator: std.mem.Allocator) void {
+        allocator.free(self.name);
+        allocator.free(self.go_type);
+    }
 };
 
 pub const CollectedDeclarations = struct {
@@ -55,46 +95,13 @@ pub const CollectedDeclarations = struct {
     runtime_vars: std.ArrayListUnmanaged(RuntimeVarDecl) = .empty,
 
     pub fn deinit(self: *CollectedDeclarations) void {
-        for (self.functions.items) |func| {
-            self.allocator.free(func.name);
-            self.allocator.free(func.result_c_type);
-            for (func.parameter_c_types) |pt| self.allocator.free(pt);
-            self.allocator.free(func.parameter_c_types);
-            for (func.parameter_names) |pn| self.allocator.free(pn);
-            self.allocator.free(func.parameter_names);
-            if (func.comment) |comment| self.allocator.free(comment);
-        }
+        for (self.functions.items) |func| func.deinit(self.allocator);
         self.functions.deinit(self.allocator);
-
-        for (self.typedefs.items) |typedef_decl| {
-            self.allocator.free(typedef_decl.name);
-            self.allocator.free(typedef_decl.c_type);
-            self.allocator.free(typedef_decl.main_definition);
-            if (typedef_decl.underlying_go_type) |underlying_go_type| self.allocator.free(underlying_go_type);
-            if (typedef_decl.comment) |comment| self.allocator.free(comment);
-            if (typedef_decl.helper_type_definition) |text| self.allocator.free(text);
-            if (typedef_decl.helper_function_definition) |text| self.allocator.free(text);
-            for (typedef_decl.accessor_fields) |field| {
-                self.allocator.free(field.name);
-                self.allocator.free(field.go_type);
-            }
-            self.allocator.free(typedef_decl.accessor_fields);
-        }
+        for (self.typedefs.items) |typedef_decl| typedef_decl.deinit(self.allocator);
         self.typedefs.deinit(self.allocator);
-
-        for (self.constants.items) |constant_decl| {
-            self.allocator.free(constant_decl.name);
-            self.allocator.free(constant_decl.value_expr);
-            if (constant_decl.typed_go_type) |typed_go_type| self.allocator.free(typed_go_type);
-            if (constant_decl.comment) |comment| self.allocator.free(comment);
-        }
+        for (self.constants.items) |constant_decl| constant_decl.deinit(self.allocator);
         self.constants.deinit(self.allocator);
-
-        for (self.runtime_vars.items) |runtime_var_decl| {
-            self.allocator.free(runtime_var_decl.name);
-            self.allocator.free(runtime_var_decl.c_type);
-            if (runtime_var_decl.comment) |comment| self.allocator.free(comment);
-        }
+        for (self.runtime_vars.items) |runtime_var_decl| runtime_var_decl.deinit(self.allocator);
         self.runtime_vars.deinit(self.allocator);
     }
 };
@@ -106,7 +113,6 @@ pub const VisitorContext = struct {
         name: []const u8,
         value: u64,
     }) = .empty,
-    failed: bool,
 
     fn deinit(self: *VisitorContext, allocator: std.mem.Allocator) void {
         self.known_constant_values.deinit(allocator);
@@ -184,43 +190,25 @@ fn appendConstant(
     try appendKnownConstantValue(ctx, owned_name, value);
 }
 
+fn enumChildBody(ctx: *VisitorContext, cursor_arg: c.CXCursor) anyerror!c.enum_CXChildVisitResult {
+    if (c.clang_getCursorKind(cursor_arg) != c.CXCursor_EnumConstantDecl) return c.CXChildVisit_Continue;
+    const comment = try type_render.dupeCursorRawComment(ctx.decls.allocator, cursor_arg);
+    try appendConstant(
+        ctx,
+        parser.clangString(c.clang_getCursorSpelling(cursor_arg)),
+        c.clang_getEnumConstantDeclUnsignedValue(cursor_arg),
+        null,
+        null,
+        comment,
+    );
+    return c.CXChildVisit_Continue;
+}
+
 fn collectEnumConstants(
     ctx: *VisitorContext,
     enum_decl: c.CXCursor,
 ) !void {
-    const EnumVisitor = struct {
-        ctx: *VisitorContext,
-        failed: ?anyerror = null,
-
-        fn callback(
-            cursor_arg: c.CXCursor,
-            _: c.CXCursor,
-            client_data: c.CXClientData,
-        ) callconv(.c) c.enum_CXChildVisitResult {
-            const visitor: *@This() = @ptrCast(@alignCast(client_data));
-            if (visitor.failed != null) return c.CXChildVisit_Break;
-            if (c.clang_getCursorKind(cursor_arg) != c.CXCursor_EnumConstantDecl) return c.CXChildVisit_Continue;
-            appendConstant(
-                visitor.ctx,
-                parser.clangString(c.clang_getCursorSpelling(cursor_arg)),
-                c.clang_getEnumConstantDeclUnsignedValue(cursor_arg),
-                null,
-                null,
-                type_render.dupeCursorRawComment(visitor.ctx.decls.allocator, cursor_arg) catch |err| {
-                    visitor.failed = err;
-                    return c.CXChildVisit_Break;
-                },
-            ) catch |err| {
-                visitor.failed = err;
-                return c.CXChildVisit_Break;
-            };
-            return c.CXChildVisit_Continue;
-        }
-    };
-
-    var enum_visitor = EnumVisitor{ .ctx = ctx };
-    _ = c.clang_visitChildren(enum_decl, EnumVisitor.callback, @ptrCast(&enum_visitor));
-    if (enum_visitor.failed) |err| return err;
+    try parser.visitChildren(VisitorContext, enumChildBody, enum_decl, ctx);
 }
 
 fn collectMacroDefinition(
@@ -268,6 +256,37 @@ fn collectMacroDefinition(
     try appendConstant(ctx, token_texts[0], value, null, unsigned_sentinel_go_type, null);
 }
 
+const AccessorContext = struct {
+    allocator: std.mem.Allocator,
+    is_union: bool,
+    fields: std.ArrayListUnmanaged(RecordFieldDecl) = .empty,
+};
+
+fn accessorChildBody(ctx: *AccessorContext, cursor_arg: c.CXCursor) anyerror!c.enum_CXChildVisitResult {
+    if (c.clang_getCursorKind(cursor_arg) != c.CXCursor_FieldDecl) return c.CXChildVisit_Continue;
+    if (c.clang_Cursor_isBitField(cursor_arg) != 0) return c.CXChildVisit_Continue;
+
+    const field_name = parser.clangString(c.clang_getCursorSpelling(cursor_arg));
+    if (field_name.len == 0) return c.CXChildVisit_Continue;
+
+    const rendered = type_render.renderType(ctx.allocator, c.clang_getCursorType(cursor_arg)) catch {
+        return c.CXChildVisit_Continue;
+    };
+    defer type_render.freeRenderedType(ctx.allocator, rendered);
+    if (std.mem.indexOfScalar(u8, rendered.text, '\n') != null) return c.CXChildVisit_Continue;
+
+    const dup_name = try ctx.allocator.dupe(u8, field_name);
+    errdefer ctx.allocator.free(dup_name);
+    const dup_type = try ctx.allocator.dupe(u8, rendered.text);
+    errdefer ctx.allocator.free(dup_type);
+    try ctx.fields.append(ctx.allocator, .{
+        .name = dup_name,
+        .go_type = dup_type,
+        .is_union = ctx.is_union,
+    });
+    return c.CXChildVisit_Continue;
+}
+
 fn collectStructAccessorFields(
     allocator: std.mem.Allocator,
     record_type: c.CXType,
@@ -278,62 +297,14 @@ fn collectStructAccessorFields(
     if (kind != c.CXCursor_StructDecl and kind != c.CXCursor_UnionDecl) {
         return allocator.alloc(RecordFieldDecl, 0);
     }
-    const is_union = kind == c.CXCursor_UnionDecl;
 
-    const AccessorVisitor = struct {
-        allocator: std.mem.Allocator,
-        is_union: bool,
-        fields: std.ArrayListUnmanaged(RecordFieldDecl) = .empty,
-        failed: ?anyerror = null,
-
-        fn callback(
-            cursor_arg: c.CXCursor,
-            _: c.CXCursor,
-            client_data: c.CXClientData,
-        ) callconv(.c) c.enum_CXChildVisitResult {
-            const ctx: *@This() = @ptrCast(@alignCast(client_data));
-            if (ctx.failed != null) return c.CXChildVisit_Break;
-            if (c.clang_getCursorKind(cursor_arg) != c.CXCursor_FieldDecl) return c.CXChildVisit_Continue;
-            if (c.clang_Cursor_isBitField(cursor_arg) != 0) return c.CXChildVisit_Continue;
-
-            const field_name = parser.clangString(c.clang_getCursorSpelling(cursor_arg));
-            if (field_name.len == 0) return c.CXChildVisit_Continue;
-
-            const rendered = type_render.renderType(ctx.allocator, c.clang_getCursorType(cursor_arg)) catch {
-                return c.CXChildVisit_Continue;
-            };
-            defer type_render.freeRenderedType(ctx.allocator, rendered);
-            if (std.mem.indexOfScalar(u8, rendered.text, '\n') != null) return c.CXChildVisit_Continue;
-
-            ctx.fields.append(ctx.allocator, .{
-                .name = ctx.allocator.dupe(u8, field_name) catch |err| {
-                    ctx.failed = err;
-                    return c.CXChildVisit_Break;
-                },
-                .go_type = ctx.allocator.dupe(u8, rendered.text) catch |err| {
-                    ctx.failed = err;
-                    return c.CXChildVisit_Break;
-                },
-                .is_union = ctx.is_union,
-            }) catch |err| {
-                ctx.failed = err;
-                return c.CXChildVisit_Break;
-            };
-            return c.CXChildVisit_Continue;
-        }
-    };
-
-    var visitor = AccessorVisitor{ .allocator = allocator, .is_union = is_union };
+    var ctx = AccessorContext{ .allocator = allocator, .is_union = kind == c.CXCursor_UnionDecl };
     errdefer {
-        for (visitor.fields.items) |field| {
-            allocator.free(field.name);
-            allocator.free(field.go_type);
-        }
-        visitor.fields.deinit(allocator);
+        for (ctx.fields.items) |field| field.deinit(allocator);
+        ctx.fields.deinit(allocator);
     }
-    _ = c.clang_visitChildren(decl, AccessorVisitor.callback, @ptrCast(&visitor));
-    if (visitor.failed) |err| return err;
-    return visitor.fields.toOwnedSlice(allocator);
+    try parser.visitChildren(AccessorContext, accessorChildBody, decl, &ctx);
+    return ctx.fields.toOwnedSlice(allocator);
 }
 
 fn collectFunction(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
@@ -533,53 +504,17 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
     });
 }
 
-fn visitorCallback(
-    cursor_arg: c.CXCursor,
-    _: c.CXCursor,
-    client_data: c.CXClientData,
-) callconv(.c) c.enum_CXChildVisitResult {
-    const ctx: *VisitorContext = @ptrCast(@alignCast(client_data));
-    if (ctx.failed) return c.CXChildVisit_Break;
+fn topLevelBody(ctx: *VisitorContext, cursor_arg: c.CXCursor) anyerror!c.enum_CXChildVisitResult {
+    if (!isFromTargetHeader(cursor_arg, ctx.header_path)) return c.CXChildVisit_Continue;
 
-    if (!isFromTargetHeader(cursor_arg, ctx.header_path)) {
-        return c.CXChildVisit_Continue;
-    }
-
-    const kind = c.clang_getCursorKind(cursor_arg);
-    switch (kind) {
-        c.CXCursor_FunctionDecl => {
-            collectFunction(ctx, cursor_arg) catch {
-                ctx.failed = true;
-                return c.CXChildVisit_Break;
-            };
-        },
-        c.CXCursor_TypedefDecl => {
-            collectTypedef(ctx, cursor_arg) catch {
-                ctx.failed = true;
-                return c.CXChildVisit_Break;
-            };
-        },
-        c.CXCursor_EnumDecl => {
-            collectEnumConstants(ctx, cursor_arg) catch {
-                ctx.failed = true;
-                return c.CXChildVisit_Break;
-            };
-        },
-        c.CXCursor_MacroDefinition => {
-            collectMacroDefinition(ctx, cursor_arg) catch {
-                ctx.failed = true;
-                return c.CXChildVisit_Break;
-            };
-        },
-        c.CXCursor_VarDecl => {
-            collectRuntimeVar(ctx, cursor_arg) catch {
-                ctx.failed = true;
-                return c.CXChildVisit_Break;
-            };
-        },
+    switch (c.clang_getCursorKind(cursor_arg)) {
+        c.CXCursor_FunctionDecl => try collectFunction(ctx, cursor_arg),
+        c.CXCursor_TypedefDecl => try collectTypedef(ctx, cursor_arg),
+        c.CXCursor_EnumDecl => try collectEnumConstants(ctx, cursor_arg),
+        c.CXCursor_MacroDefinition => try collectMacroDefinition(ctx, cursor_arg),
+        c.CXCursor_VarDecl => try collectRuntimeVar(ctx, cursor_arg),
         else => {},
     }
-
     return c.CXChildVisit_Continue;
 }
 
@@ -594,15 +529,10 @@ pub fn collectDeclarations(
     var ctx = VisitorContext{
         .decls = &decls,
         .header_path = header_path,
-        .failed = false,
     };
     defer ctx.deinit(allocator);
 
-    _ = c.clang_visitChildren(tu.cursor(), visitorCallback, @ptrCast(&ctx));
-
-    if (ctx.failed) {
-        return error.OutOfMemory;
-    }
+    try parser.visitChildren(VisitorContext, topLevelBody, tu.cursor(), &ctx);
 
     return decls;
 }

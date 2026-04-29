@@ -10,40 +10,85 @@ pub const EmitKind = enum {
 pub const BufferParamPair = struct {
     pointer: []const u8,
     length: []const u8,
+
+    pub fn deinit(self: BufferParamPair, allocator: std.mem.Allocator) void {
+        allocator.free(self.pointer);
+        allocator.free(self.length);
+    }
 };
 
 pub const ExplicitBufferParamHelper = struct {
     function_name: []const u8,
     pairs: []const BufferParamPair,
+
+    pub fn deinit(self: ExplicitBufferParamHelper, allocator: std.mem.Allocator) void {
+        allocator.free(self.function_name);
+        for (self.pairs) |pair| pair.deinit(allocator);
+        allocator.free(self.pairs);
+    }
 };
 
 pub const PatternBufferParamHelper = struct {
     function_pattern: []const u8,
+
+    pub fn deinit(self: PatternBufferParamHelper, allocator: std.mem.Allocator) void {
+        allocator.free(self.function_pattern);
+    }
 };
 
 pub const BufferParamHelper = union(enum) {
     explicit: ExplicitBufferParamHelper,
     pattern: PatternBufferParamHelper,
+
+    pub fn deinit(self: BufferParamHelper, allocator: std.mem.Allocator) void {
+        switch (self) {
+            .explicit => |explicit| explicit.deinit(allocator),
+            .pattern => |pattern| pattern.deinit(allocator),
+        }
+    }
 };
 
 pub const ExplicitCallbackParamHelper = struct {
     function_name: []const u8,
     params: []const []const u8,
+
+    pub fn deinit(self: ExplicitCallbackParamHelper, allocator: std.mem.Allocator) void {
+        allocator.free(self.function_name);
+        for (self.params) |param| allocator.free(param);
+        allocator.free(self.params);
+    }
 };
 
 pub const OwnedStringReturnHelper = struct {
     function_name: []const u8,
     free_func_name: []const u8,
+
+    pub fn deinit(self: OwnedStringReturnHelper, allocator: std.mem.Allocator) void {
+        allocator.free(self.function_name);
+        allocator.free(self.free_func_name);
+    }
 };
 
 pub const PublicApiMatcher = union(enum) {
     exact: []const u8,
     pattern: []const u8,
+
+    pub fn deinit(self: PublicApiMatcher, allocator: std.mem.Allocator) void {
+        switch (self) {
+            .exact => |value| allocator.free(value),
+            .pattern => |value| allocator.free(value),
+        }
+    }
 };
 
 pub const PublicApiOverride = struct {
     source_name: []const u8,
     public_name: []const u8,
+
+    pub fn deinit(self: PublicApiOverride, allocator: std.mem.Allocator) void {
+        allocator.free(self.source_name);
+        allocator.free(self.public_name);
+    }
 };
 
 pub const PublicApiConfig = struct {
@@ -53,7 +98,21 @@ pub const PublicApiConfig = struct {
     wrappers_include: []const PublicApiMatcher,
     wrappers_exclude: []const PublicApiMatcher,
     wrappers_overrides: []const PublicApiOverride,
+
+    pub fn deinit(self: PublicApiConfig, allocator: std.mem.Allocator) void {
+        allocator.free(self.strip_prefix);
+        freeOwnedSlice(PublicApiMatcher, allocator, self.type_aliases_include);
+        freeOwnedSlice(PublicApiOverride, allocator, self.type_aliases_overrides);
+        freeOwnedSlice(PublicApiMatcher, allocator, self.wrappers_include);
+        freeOwnedSlice(PublicApiMatcher, allocator, self.wrappers_exclude);
+        freeOwnedSlice(PublicApiOverride, allocator, self.wrappers_overrides);
+    }
 };
+
+fn freeOwnedSlice(comptime T: type, allocator: std.mem.Allocator, items: []const T) void {
+    for (items) |item| item.deinit(allocator);
+    allocator.free(items);
+}
 
 pub const NamingConfig = struct {
     type_prefix: []const u8,
@@ -108,64 +167,9 @@ pub const GeneratorConfig = struct {
         allocator.free(self.exclude.type_name);
         allocator.free(self.exclude.const_name);
         allocator.free(self.exclude.var_name);
-        for (self.buffer_param_helpers) |helper| {
-            switch (helper) {
-                .explicit => |explicit| {
-                    allocator.free(explicit.function_name);
-                    for (explicit.pairs) |pair| {
-                        allocator.free(pair.pointer);
-                        allocator.free(pair.length);
-                    }
-                    allocator.free(explicit.pairs);
-                },
-                .pattern => |pattern| {
-                    allocator.free(pattern.function_pattern);
-                },
-            }
-        }
-        allocator.free(self.buffer_param_helpers);
-        for (self.callback_param_helpers) |helper| {
-            allocator.free(helper.function_name);
-            for (helper.params) |param| allocator.free(param);
-            allocator.free(helper.params);
-        }
-        allocator.free(self.callback_param_helpers);
-        for (self.owned_string_return_helpers) |helper| {
-            allocator.free(helper.function_name);
-            allocator.free(helper.free_func_name);
-        }
-        allocator.free(self.owned_string_return_helpers);
-        allocator.free(self.public_api.strip_prefix);
-        for (self.public_api.type_aliases_include) |matcher| {
-            switch (matcher) {
-                .exact => |value| allocator.free(value),
-                .pattern => |value| allocator.free(value),
-            }
-        }
-        allocator.free(self.public_api.type_aliases_include);
-        for (self.public_api.type_aliases_overrides) |override| {
-            allocator.free(override.source_name);
-            allocator.free(override.public_name);
-        }
-        allocator.free(self.public_api.type_aliases_overrides);
-        for (self.public_api.wrappers_include) |matcher| {
-            switch (matcher) {
-                .exact => |value| allocator.free(value),
-                .pattern => |value| allocator.free(value),
-            }
-        }
-        allocator.free(self.public_api.wrappers_include);
-        for (self.public_api.wrappers_exclude) |matcher| {
-            switch (matcher) {
-                .exact => |value| allocator.free(value),
-                .pattern => |value| allocator.free(value),
-            }
-        }
-        allocator.free(self.public_api.wrappers_exclude);
-        for (self.public_api.wrappers_overrides) |override| {
-            allocator.free(override.source_name);
-            allocator.free(override.public_name);
-        }
-        allocator.free(self.public_api.wrappers_overrides);
+        freeOwnedSlice(BufferParamHelper, allocator, self.buffer_param_helpers);
+        freeOwnedSlice(ExplicitCallbackParamHelper, allocator, self.callback_param_helpers);
+        freeOwnedSlice(OwnedStringReturnHelper, allocator, self.owned_string_return_helpers);
+        self.public_api.deinit(allocator);
     }
 };
