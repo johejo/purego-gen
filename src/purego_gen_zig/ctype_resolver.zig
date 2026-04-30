@@ -24,6 +24,25 @@ pub fn isFunctionPointerCType(c_type: []const u8) bool {
     return std.mem.indexOf(u8, c_type, "(*)") != null;
 }
 
+pub fn underlyingTypedefCType(
+    decls: *const declarations.CollectedDeclarations,
+    c_type: []const u8,
+) ?[]const u8 {
+    for (decls.typedefs.items) |typedef_decl| {
+        if (std.mem.eql(u8, typedef_decl.name, c_type)) return typedef_decl.c_type;
+    }
+    return null;
+}
+
+pub fn isFunctionPointerCTypeOrTypedef(
+    decls: *const declarations.CollectedDeclarations,
+    c_type: []const u8,
+) bool {
+    if (isFunctionPointerCType(c_type)) return true;
+    if (underlyingTypedefCType(decls, c_type)) |underlying| return isFunctionPointerCType(underlying);
+    return false;
+}
+
 pub fn isSupportedBufferLengthType(go_type: []const u8) bool {
     return std.mem.eql(u8, go_type, "uint64") or std.mem.eql(u8, go_type, "uint32");
 }

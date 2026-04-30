@@ -97,7 +97,7 @@ func {{.wrapper_name}}(
 {{end}}){{if .result_type}} {{.result_type}} {
 {{else}} {
 {{end}}{{range .params}}{{if .is_callback}}	{{.name}}_callback := uintptr(0)
-	if {{.name}} != nil {
+{{end}}{{end}}{{range .params}}{{if .is_callback}}	if {{.name}} != nil {
 		{{.name}}_callback = purego.NewCallback({{.name}})
 	}
 {{end}}{{end}}{{if .result_type}}	return {{.target_name}}(

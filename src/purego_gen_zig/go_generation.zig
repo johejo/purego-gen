@@ -281,6 +281,11 @@ fn buildAutoCallbackArtifacts(
     var type_items: std.ArrayList([]const u8) = .empty;
     var emitted_type_names: std.ArrayList([]const u8) = .empty;
     for (callback_params) |auto_callback| {
+        const func = decls.functions.items[auto_callback.function_index];
+        const param_c_type = func.parameter_c_types[auto_callback.parameter_index];
+        if (ctype_resolver.underlyingTypedefCType(decls, param_c_type)) |underlying| {
+            if (ctype_resolver.isFunctionPointerCType(underlying)) continue;
+        }
         const helper_type_name = try callback_render.renderEffectiveCallbackFuncTypeName(arena, decls, callback_params, auto_callback);
         const emitted_helper_type_name = try ctype_resolver.renderTypeName(arena, config, helper_type_name);
         if (ctype_resolver.containsString(emitted_type_names.items, emitted_helper_type_name)) continue;
@@ -291,6 +296,11 @@ fn buildAutoCallbackArtifacts(
     var constructor_views: std.ArrayList(template_sections.AutoCallbackConstructorView) = .empty;
     var emitted_constructor_names: std.ArrayList([]const u8) = .empty;
     for (callback_params) |auto_callback| {
+        const func = decls.functions.items[auto_callback.function_index];
+        const param_c_type = func.parameter_c_types[auto_callback.parameter_index];
+        if (ctype_resolver.underlyingTypedefCType(decls, param_c_type)) |underlying| {
+            if (ctype_resolver.isFunctionPointerCType(underlying)) continue;
+        }
         const helper_type_name = try callback_render.renderEffectiveCallbackFuncTypeName(arena, decls, callback_params, auto_callback);
         const emitted_helper_type_name = try ctype_resolver.renderTypeName(arena, config, helper_type_name);
         const constructor_name = try callback_render.renderEffectiveCallbackConstructorName(arena, decls, callback_params, auto_callback);
@@ -486,6 +496,13 @@ fn buildAutoCallbackWrapperViews(
         var params: std.ArrayList(template_sections.AutoCallbackWrapperParamView) = .empty;
         for (func.parameter_names, func.parameter_c_types, 0..) |param_name, param_c_type, parameter_index| {
             if (callback_render.isAutoCallbackParameter(callback_params, function_index, parameter_index)) {
+                if (ctype_resolver.underlyingTypedefCType(decls, param_c_type)) |underlying| {
+                    if (ctype_resolver.isFunctionPointerCType(underlying)) {
+                        const inline_sig = try callback_render.renderCallbackGoSignature(arena, decls, underlying);
+                        try params.append(arena, .{ .name = param_name, .go_type = inline_sig, .is_callback = true });
+                        continue;
+                    }
+                }
                 const helper_type_name = try callback_render.renderEffectiveCallbackFuncTypeName(arena, decls, callback_params, .{
                     .function_index = function_index,
                     .parameter_index = parameter_index,

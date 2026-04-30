@@ -47,7 +47,7 @@ pub fn collectExplicitCallbackParams(
 
         for (helper.params) |param_name| {
             const parameter_index = ctype_resolver.findParameterIndexByName(func, param_name) orelse return error.CallbackHelperParameterNotFound;
-            if (!ctype_resolver.isFunctionPointerCType(func.parameter_c_types[parameter_index])) {
+            if (!ctype_resolver.isFunctionPointerCTypeOrTypedef(decls, func.parameter_c_types[parameter_index])) {
                 return error.InvalidCallbackHelperParameterType;
             }
             try params.append(allocator, .{

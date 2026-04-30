@@ -14,6 +14,7 @@ const supported_golden_case_ids = [_][]const u8{
     "callback_param",
     "callback_param_conflict",
     "callback_param_dedup",
+    "callback_param_multi",
     "categories_const",
     "categories_mixed_filtered",
     "comments_default",
@@ -48,7 +49,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
     "buffer_input_multi_pair",
-    "callback_param_multi",
     "libclang",
     "libsqlite3",
     "libzstd",
