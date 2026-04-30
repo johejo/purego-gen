@@ -20,6 +20,7 @@ const supported_golden_case_ids = [_][]const u8{
     "comments_parse_all",
     "conditional_default",
     "conditional_with_define",
+    "cross_header_strict_enum",
     "custom_prefix",
     "double_pointer_param",
     "exclude_only_basic",
@@ -47,7 +48,6 @@ const supported_golden_case_ids = [_][]const u8{
 const unsupported_golden_case_ids = [_][]const u8{
     "buffer_input_multi_pair",
     "callback_param_multi",
-    "cross_header_strict_enum",
     "libclang",
     "libsqlite3",
     "libzstd",
