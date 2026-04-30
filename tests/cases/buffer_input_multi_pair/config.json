@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": [
+      "func"
+    ],
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "buffer_input_multi_pair.h"
+        ]
+      },
+      "include": {
+        "func": [
+          "fixture_compress_with_dict"
+        ]
+      }
+    },
+    "render": {
+      "helpers": {
+        "buffer_params": [
+          {
+            "function": "fixture_compress_with_dict",
+            "pairs": [
+              {
+                "pointer": "src",
+                "length": "src_size"
+              },
+              {
+                "pointer": "dict",
+                "length": "dict_size"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

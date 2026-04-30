@@ -43,6 +43,9 @@ const supported_golden_case_ids = [_][]const u8{
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
+    "auto_string_return",
+    "buffer_input_multi_pair",
+    "cross_header_strict_enum",
     "libclang",
     "libsqlite3",
     "libzstd",

@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": [
+      "func",
+      "type"
+    ],
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "cross_header_errors.h",
+          "cross_header_demo.h"
+        ]
+      }
+    },
+    "render": {
+      "type_mapping": {
+        "strict_enum_typedefs": true
+      }
+    }
+  }
+}
