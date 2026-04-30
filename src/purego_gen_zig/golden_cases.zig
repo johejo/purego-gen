@@ -3,6 +3,7 @@ const go_generation = @import("go_generation.zig");
 
 const supported_golden_case_ids = [_][]const u8{
     "abi_types",
+    "auto_string_return",
     "basic_and_categories",
     "basic_func_type",
     "basic_type_strict_opaque",
@@ -44,7 +45,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
-    "auto_string_return",
     "buffer_input_multi_pair",
     "callback_param_multi",
     "cross_header_strict_enum",
