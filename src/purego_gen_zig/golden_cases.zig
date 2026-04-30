@@ -45,10 +45,13 @@ const supported_golden_case_ids = [_][]const u8{
 const unsupported_golden_case_ids = [_][]const u8{
     "auto_string_return",
     "buffer_input_multi_pair",
+    "callback_param_multi",
     "cross_header_strict_enum",
+    "double_pointer_param",
     "libclang",
     "libsqlite3",
     "libzstd",
+    "struct_array_pointer_mix",
 };
 
 pub const LoadedCase = struct {

@@ -1,1 +1,1 @@
-const char *fixture_describe(int code);
+const char* fixture_describe(int code);
