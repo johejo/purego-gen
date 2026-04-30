@@ -208,13 +208,25 @@ pub fn resolveCTypeToGo(
                 if (std.mem.eql(u8, c_type, typedef_decl.c_type)) {
                     return .{ .go_type = resolveTypedefGoType(decls, typedef_decl, strict_enum_typedefs) };
                 }
-                if (std.mem.endsWith(u8, c_type, " *")) {
+                if (std.mem.endsWith(u8, c_type, " **")) {
+                    const base = c_type[0 .. c_type.len - 3];
+                    if (std.mem.eql(u8, base, typedef_decl.name) and is_opaque_typedef) {
+                        return .{ .go_type = "uintptr", .comment = c_type };
+                    }
+                }
+                if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " **")) {
+                    const base = c_type[6 .. c_type.len - 3];
+                    if (std.mem.eql(u8, base, typedef_decl.name) and is_opaque_typedef) {
+                        return .{ .go_type = "uintptr", .comment = c_type };
+                    }
+                }
+                if (std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
                     const base = c_type[0 .. c_type.len - 2];
                     if (std.mem.eql(u8, base, typedef_decl.name) and is_opaque_typedef) {
                         return .{ .go_type = "uintptr", .comment = c_type };
                     }
                 }
-                if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " *")) {
+                if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
                     const base = c_type[6 .. c_type.len - 2];
                     if (std.mem.eql(u8, base, typedef_decl.name) and is_opaque_typedef) {
                         return .{ .go_type = "uintptr", .comment = c_type };

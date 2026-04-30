@@ -209,13 +209,25 @@ pub fn resolveFunctionParameterType(
                 std.mem.indexOf(u8, typedef_decl.main_definition, "struct{}") != null;
             if (!is_opaque_typedef) continue;
 
-            if (std.mem.endsWith(u8, c_type, " *")) {
+            if (std.mem.endsWith(u8, c_type, " **")) {
+                const base = c_type[0 .. c_type.len - 3];
+                if (std.mem.eql(u8, base, typedef_decl.name)) {
+                    return .{ .go_type = try std.fmt.allocPrint(allocator, "**{s}", .{typedef_decl.name}) };
+                }
+            }
+            if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " **")) {
+                const base = c_type[6 .. c_type.len - 3];
+                if (std.mem.eql(u8, base, typedef_decl.name)) {
+                    return .{ .go_type = try std.fmt.allocPrint(allocator, "**{s}", .{typedef_decl.name}) };
+                }
+            }
+            if (std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
                 const base = c_type[0 .. c_type.len - 2];
                 if (std.mem.eql(u8, base, typedef_decl.name)) {
                     return .{ .go_type = try std.fmt.allocPrint(allocator, "*{s}", .{typedef_decl.name}) };
                 }
             }
-            if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " *")) {
+            if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
                 const base = c_type[6 .. c_type.len - 2];
                 if (std.mem.eql(u8, base, typedef_decl.name)) {
                     return .{ .go_type = try std.fmt.allocPrint(allocator, "*{s}", .{typedef_decl.name}) };
