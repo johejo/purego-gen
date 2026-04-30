@@ -280,9 +280,6 @@ fn writeBufferHelper(
             continue;
         }
         const mapped = try ctype_resolver.mapCTypeToGo(param_c_type);
-        if (mapped.comment) |comment| {
-            try w.print("\t// C: {s}\n", .{comment});
-        }
         try w.print("\t{s} {s},\n", .{ param_name, mapped.go_type });
     }
 
@@ -298,6 +295,10 @@ fn writeBufferHelper(
         const pointer_name = func.parameter_names[pair.pointer_index];
         try w.print("\t{s}_ptr := uintptr(0)\n", .{pointer_name});
         try w.print("\t{s}_len := {s}\n", .{ pointer_name, pointer_name });
+    }
+
+    for (pairs) |pair| {
+        const pointer_name = func.parameter_names[pair.pointer_index];
         try w.print("\tif len({s}_len) > 0 {{\n", .{pointer_name});
         try w.print("\t\t{s}_ptr = uintptr(unsafe.Pointer(&{s}_len[0]))\n", .{ pointer_name, pointer_name });
         try w.writeAll("\t}\n");
