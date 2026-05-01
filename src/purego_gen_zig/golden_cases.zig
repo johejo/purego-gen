@@ -51,6 +51,7 @@ const supported_golden_case_ids = [_][]const u8{
     "union_basic",
     "union_basic_accessors",
     "unsigned_int_return",
+    "unsigned_short_param",
     "void_callback",
 };
 
@@ -70,7 +71,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "uintptr_t_param",
     "unsigned_char_param",
     "unsigned_long_param",
-    "unsigned_short_param",
 };
 
 pub const LoadedCase = struct {
