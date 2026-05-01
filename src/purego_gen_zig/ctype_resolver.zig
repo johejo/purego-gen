@@ -49,6 +49,7 @@ pub fn isSupportedBufferLengthType(go_type: []const u8) bool {
 }
 
 pub fn mapCTypeToGo(c_type: []const u8) !CTypeMapping {
+    if (std.mem.eql(u8, c_type, "short")) return .{ .go_type = "int16" };
     if (std.mem.eql(u8, c_type, "int")) return .{ .go_type = "int32" };
     if (std.mem.eql(u8, c_type, "int *")) return .{ .go_type = "*int32" };
     if (std.mem.eql(u8, c_type, "unsigned int")) return .{ .go_type = "uint32" };
