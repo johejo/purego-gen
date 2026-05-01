@@ -803,10 +803,10 @@ pub fn applyExcludeFilters(
     config: GeneratorConfig,
     decls: *declarations.CollectedDeclarations,
 ) void {
-    filterInPlace(declarations.FunctionDecl, allocator, &decls.functions, config.exclude.func_name, .exclude);
-    filterInPlace(declarations.TypedefDecl, allocator, &decls.typedefs, config.exclude.type_name, .exclude);
-    filterInPlace(declarations.ConstantDecl, allocator, &decls.constants, config.exclude.const_name, .exclude);
-    filterInPlace(declarations.RuntimeVarDecl, allocator, &decls.runtime_vars, config.exclude.var_name, .exclude);
+    filterInPlace(declarations.FunctionDecl, allocator, &decls.functions, config.exclude.func_names, .exclude);
+    filterInPlace(declarations.TypedefDecl, allocator, &decls.typedefs, config.exclude.type_names, .exclude);
+    filterInPlace(declarations.ConstantDecl, allocator, &decls.constants, config.exclude.const_names, .exclude);
+    filterInPlace(declarations.RuntimeVarDecl, allocator, &decls.runtime_vars, config.exclude.var_names, .exclude);
 }
 
 pub fn applyIncludeFilters(
@@ -814,10 +814,10 @@ pub fn applyIncludeFilters(
     config: GeneratorConfig,
     decls: *declarations.CollectedDeclarations,
 ) void {
-    filterInPlace(declarations.FunctionDecl, allocator, &decls.functions, config.include.func_name, .include);
-    filterInPlace(declarations.TypedefDecl, allocator, &decls.typedefs, config.include.type_name, .include);
-    filterInPlace(declarations.ConstantDecl, allocator, &decls.constants, config.include.const_name, .include);
-    filterInPlace(declarations.RuntimeVarDecl, allocator, &decls.runtime_vars, config.include.var_name, .include);
+    filterInPlace(declarations.FunctionDecl, allocator, &decls.functions, config.include.func_names, .include);
+    filterInPlace(declarations.TypedefDecl, allocator, &decls.typedefs, config.include.type_names, .include);
+    filterInPlace(declarations.ConstantDecl, allocator, &decls.constants, config.include.const_names, .include);
+    filterInPlace(declarations.RuntimeVarDecl, allocator, &decls.runtime_vars, config.include.var_names, .include);
 }
 
 fn appendBlock(
@@ -860,14 +860,14 @@ fn filterInPlace(
     comptime Decl: type,
     allocator: std.mem.Allocator,
     list: *std.ArrayListUnmanaged(Decl),
-    pattern: []const u8,
+    patterns: []const []const u8,
     mode: FilterMode,
 ) void {
     var next: usize = 0;
     for (list.items) |decl| {
         const matched = switch (mode) {
-            .exclude => ctype_resolver.isExactExcluded(pattern, decl.name),
-            .include => !ctype_resolver.isIncludedOnly(pattern, decl.name),
+            .exclude => ctype_resolver.isExactExcluded(patterns, decl.name),
+            .include => !ctype_resolver.isIncludedOnly(patterns, decl.name),
         };
         if (matched) {
             decl.deinit(allocator);

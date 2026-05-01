@@ -13,12 +13,20 @@ pub const BufferPairIndices = struct {
     length_index: usize,
 };
 
-pub fn isExactExcluded(excluded_name: []const u8, name: []const u8) bool {
-    return excluded_name.len != 0 and std.mem.eql(u8, excluded_name, name);
+pub fn isExactExcluded(excluded_names: []const []const u8, name: []const u8) bool {
+    if (excluded_names.len == 0) return false;
+    for (excluded_names) |excluded| {
+        if (std.mem.eql(u8, excluded, name)) return true;
+    }
+    return false;
 }
 
-pub fn isIncludedOnly(included_name: []const u8, name: []const u8) bool {
-    return included_name.len == 0 or std.mem.eql(u8, included_name, name);
+pub fn isIncludedOnly(included_names: []const []const u8, name: []const u8) bool {
+    if (included_names.len == 0) return true;
+    for (included_names) |included| {
+        if (std.mem.eql(u8, included, name)) return true;
+    }
+    return false;
 }
 
 pub fn isFunctionPointerCType(c_type: []const u8) bool {

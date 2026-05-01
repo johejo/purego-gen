@@ -142,29 +142,42 @@ fn parseNamingValue(
     return allocator.dupe(u8, value.string);
 }
 
+fn parseStringOrStringArray(
+    allocator: std.mem.Allocator,
+    value: std.json.Value,
+) ![][]const u8 {
+    return switch (value) {
+        .string => |string| blk: {
+            var items = try allocator.alloc([]const u8, 1);
+            errdefer allocator.free(items);
+            items[0] = try allocator.dupe(u8, string);
+            break :blk items;
+        },
+        .array => |array| try parseStringArray(allocator, array),
+        else => error.InvalidIncludeOrExcludeValue,
+    };
+}
+
 fn parseExcludeValue(
     allocator: std.mem.Allocator,
     parse: std.json.ObjectMap,
     key: []const u8,
-) ![]const u8 {
-    const exclude_value = parse.get("exclude") orelse return allocator.dupe(u8, "");
+) ![][]const u8 {
+    const exclude_value = parse.get("exclude") orelse return try allocator.alloc([]const u8, 0);
     const exclude = exclude_value.object;
-    const value = exclude.get(key) orelse return allocator.dupe(u8, "");
-    return allocator.dupe(u8, value.string);
+    const value = exclude.get(key) orelse return try allocator.alloc([]const u8, 0);
+    return parseStringOrStringArray(allocator, value);
 }
 
 fn parseIncludeValue(
     allocator: std.mem.Allocator,
     parse: std.json.ObjectMap,
     key: []const u8,
-) ![]const u8 {
-    const include_value = parse.get("include") orelse return allocator.dupe(u8, "");
+) ![][]const u8 {
+    const include_value = parse.get("include") orelse return try allocator.alloc([]const u8, 0);
     const include = include_value.object;
-    const value = include.get(key) orelse return allocator.dupe(u8, "");
-    return switch (value) {
-        .string => |string| allocator.dupe(u8, string),
-        else => allocator.dupe(u8, ""),
-    };
+    const value = include.get(key) orelse return try allocator.alloc([]const u8, 0);
+    return parseStringOrStringArray(allocator, value);
 }
 
 fn parseBufferParamPairs(
@@ -516,16 +529,16 @@ pub fn loadCaseFromDir(
                 };
             },
             .include = .{
-                .func_name = try parseIncludeValue(allocator, parse, "func"),
-                .type_name = try parseIncludeValue(allocator, parse, "type"),
-                .const_name = try parseIncludeValue(allocator, parse, "const"),
-                .var_name = try parseIncludeValue(allocator, parse, "var"),
+                .func_names = try parseIncludeValue(allocator, parse, "func"),
+                .type_names = try parseIncludeValue(allocator, parse, "type"),
+                .const_names = try parseIncludeValue(allocator, parse, "const"),
+                .var_names = try parseIncludeValue(allocator, parse, "var"),
             },
             .exclude = .{
-                .func_name = try parseExcludeValue(allocator, parse, "func"),
-                .type_name = try parseExcludeValue(allocator, parse, "type"),
-                .const_name = try parseExcludeValue(allocator, parse, "const"),
-                .var_name = try parseExcludeValue(allocator, parse, "var"),
+                .func_names = try parseExcludeValue(allocator, parse, "func"),
+                .type_names = try parseExcludeValue(allocator, parse, "type"),
+                .const_names = try parseExcludeValue(allocator, parse, "const"),
+                .var_names = try parseExcludeValue(allocator, parse, "var"),
             },
             .typed_sentinel_constants = blk: {
                 const render_value = generator.get("render") orelse break :blk false;

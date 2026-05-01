@@ -122,18 +122,23 @@ pub const NamingConfig = struct {
 };
 
 pub const ExcludeConfig = struct {
-    func_name: []const u8,
-    type_name: []const u8,
-    const_name: []const u8,
-    var_name: []const u8,
+    func_names: []const []const u8,
+    type_names: []const []const u8,
+    const_names: []const []const u8,
+    var_names: []const []const u8,
 };
 
 pub const IncludeConfig = struct {
-    func_name: []const u8,
-    type_name: []const u8,
-    const_name: []const u8,
-    var_name: []const u8,
+    func_names: []const []const u8,
+    type_names: []const []const u8,
+    const_names: []const []const u8,
+    var_names: []const []const u8,
 };
+
+fn freeStringSlice(allocator: std.mem.Allocator, items: []const []const u8) void {
+    for (items) |item| allocator.free(item);
+    allocator.free(items);
+}
 
 pub const GeneratorConfig = struct {
     lib_id: []const u8,
@@ -159,14 +164,14 @@ pub const GeneratorConfig = struct {
         allocator.free(self.naming.const_prefix);
         allocator.free(self.naming.func_prefix);
         allocator.free(self.naming.var_prefix);
-        allocator.free(self.include.func_name);
-        allocator.free(self.include.type_name);
-        allocator.free(self.include.const_name);
-        allocator.free(self.include.var_name);
-        allocator.free(self.exclude.func_name);
-        allocator.free(self.exclude.type_name);
-        allocator.free(self.exclude.const_name);
-        allocator.free(self.exclude.var_name);
+        freeStringSlice(allocator, self.include.func_names);
+        freeStringSlice(allocator, self.include.type_names);
+        freeStringSlice(allocator, self.include.const_names);
+        freeStringSlice(allocator, self.include.var_names);
+        freeStringSlice(allocator, self.exclude.func_names);
+        freeStringSlice(allocator, self.exclude.type_names);
+        freeStringSlice(allocator, self.exclude.const_names);
+        freeStringSlice(allocator, self.exclude.var_names);
         freeOwnedSlice(BufferParamHelper, allocator, self.buffer_param_helpers);
         freeOwnedSlice(ExplicitCallbackParamHelper, allocator, self.callback_param_helpers);
         freeOwnedSlice(OwnedStringReturnHelper, allocator, self.owned_string_return_helpers);
