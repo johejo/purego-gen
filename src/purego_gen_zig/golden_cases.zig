@@ -25,6 +25,7 @@ const supported_golden_case_ids = [_][]const u8{
     "conditional_with_define",
     "cross_header_strict_enum",
     "custom_prefix",
+    "double_param",
     "double_pointer_param",
     "enum_typedef_nonstrict_return",
     "exclude_only_basic",
@@ -61,7 +62,6 @@ const supported_golden_case_ids = [_][]const u8{
 const unsupported_golden_case_ids = [_][]const u8{
     "bool_param",
     "char_pointer_pointer_param",
-    "double_param",
     "intptr_t_param",
     "libclang",
     "libsqlite3",
