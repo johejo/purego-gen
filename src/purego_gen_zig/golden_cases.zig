@@ -53,6 +53,7 @@ const supported_golden_case_ids = [_][]const u8{
     "struct_array_pointer_mix",
     "union_basic",
     "union_basic_accessors",
+    "unsigned_char_param",
     "unsigned_int_return",
     "unsigned_short_param",
     "void_callback",
@@ -69,7 +70,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "libzstd",
     "long_param",
     "uintptr_t_param",
-    "unsigned_char_param",
     "unsigned_long_param",
 };
 
