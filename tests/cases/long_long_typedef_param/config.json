@@ -1,0 +1,18 @@
+{
+  "schema_version": 2,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": [
+      "func"
+    ],
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "long_long_typedef_param.h"
+        ]
+      }
+    }
+  }
+}

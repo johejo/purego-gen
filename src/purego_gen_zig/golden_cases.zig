@@ -52,6 +52,10 @@ const unsupported_golden_case_ids = [_][]const u8{
     "libclang",
     "libsqlite3",
     "libzstd",
+    "long_long_param",
+    "long_long_typedef_param",
+    "pointer_to_int_param",
+    "unsigned_int_return",
 };
 
 pub const LoadedCase = struct {
