@@ -5,6 +5,7 @@ const config_mod = @import("config.zig");
 pub const CTypeMapping = struct {
     go_type: []const u8,
     comment: ?[]const u8 = null,
+    owns_go_type: bool = false,
 };
 
 pub const BufferPairIndices = struct {
@@ -49,6 +50,7 @@ pub fn isSupportedBufferLengthType(go_type: []const u8) bool {
 
 pub fn mapCTypeToGo(c_type: []const u8) !CTypeMapping {
     if (std.mem.eql(u8, c_type, "int")) return .{ .go_type = "int32" };
+    if (std.mem.eql(u8, c_type, "int *")) return .{ .go_type = "*int32" };
     if (std.mem.eql(u8, c_type, "unsigned int")) return .{ .go_type = "uint32" };
     if (std.mem.eql(u8, c_type, "long long")) return .{ .go_type = "int64" };
     if (std.mem.eql(u8, c_type, "unsigned long long")) return .{ .go_type = "uint64" };
@@ -260,7 +262,8 @@ pub fn resolveCTypeToGo(
 }
 
 pub fn resolvedGoTypeNeedsFree(c_type: []const u8, mapped: CTypeMapping) bool {
-    return isFunctionPointerCType(c_type) or std.mem.startsWith(u8, mapped.go_type, "*");
+    _ = c_type;
+    return mapped.owns_go_type;
 }
 
 pub fn functionNameMatchesPattern(name: []const u8, pattern: []const u8) bool {

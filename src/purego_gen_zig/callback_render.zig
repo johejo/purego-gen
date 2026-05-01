@@ -200,6 +200,7 @@ pub fn resolveFunctionParameterType(
     if (ctype_resolver.isFunctionPointerCType(c_type) and !keep_callback_pointer) {
         return .{
             .go_type = try renderCallbackGoSignature(allocator, decls, c_type),
+            .owns_go_type = true,
         };
     }
     if (emits_types) {
@@ -212,25 +213,37 @@ pub fn resolveFunctionParameterType(
             if (std.mem.endsWith(u8, c_type, " **")) {
                 const base = c_type[0 .. c_type.len - 3];
                 if (std.mem.eql(u8, base, typedef_decl.name)) {
-                    return .{ .go_type = try std.fmt.allocPrint(allocator, "**{s}", .{typedef_decl.name}) };
+                    return .{
+                        .go_type = try std.fmt.allocPrint(allocator, "**{s}", .{typedef_decl.name}),
+                        .owns_go_type = true,
+                    };
                 }
             }
             if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " **")) {
                 const base = c_type[6 .. c_type.len - 3];
                 if (std.mem.eql(u8, base, typedef_decl.name)) {
-                    return .{ .go_type = try std.fmt.allocPrint(allocator, "**{s}", .{typedef_decl.name}) };
+                    return .{
+                        .go_type = try std.fmt.allocPrint(allocator, "**{s}", .{typedef_decl.name}),
+                        .owns_go_type = true,
+                    };
                 }
             }
             if (std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
                 const base = c_type[0 .. c_type.len - 2];
                 if (std.mem.eql(u8, base, typedef_decl.name)) {
-                    return .{ .go_type = try std.fmt.allocPrint(allocator, "*{s}", .{typedef_decl.name}) };
+                    return .{
+                        .go_type = try std.fmt.allocPrint(allocator, "*{s}", .{typedef_decl.name}),
+                        .owns_go_type = true,
+                    };
                 }
             }
             if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
                 const base = c_type[6 .. c_type.len - 2];
                 if (std.mem.eql(u8, base, typedef_decl.name)) {
-                    return .{ .go_type = try std.fmt.allocPrint(allocator, "*{s}", .{typedef_decl.name}) };
+                    return .{
+                        .go_type = try std.fmt.allocPrint(allocator, "*{s}", .{typedef_decl.name}),
+                        .owns_go_type = true,
+                    };
                 }
             }
         }
