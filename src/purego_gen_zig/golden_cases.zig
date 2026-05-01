@@ -32,6 +32,7 @@ const supported_golden_case_ids = [_][]const u8{
     "exclude_only_basic",
     "float_param",
     "inline_func_pointer",
+    "intptr_t_param",
     "long_long_param",
     "long_long_typedef_param",
     "long_param",
@@ -66,7 +67,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
     "char_pointer_pointer_param",
-    "intptr_t_param",
     "libclang",
     "libsqlite3",
     "libzstd",
