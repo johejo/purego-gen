@@ -71,6 +71,9 @@ pub fn mapCTypeToGo(c_type: []const u8) !CTypeMapping {
     if (std.mem.eql(u8, c_type, "intptr_t")) return .{ .go_type = "int64" };
     if (std.mem.eql(u8, c_type, "uintptr_t")) return .{ .go_type = "uint64" };
     if (std.mem.eql(u8, c_type, "const char *")) return .{ .go_type = "string" };
+    if (std.mem.eql(u8, c_type, "char **")) return .{ .go_type = "uintptr", .comment = "char **" };
+    if (std.mem.eql(u8, c_type, "const char **")) return .{ .go_type = "uintptr", .comment = "const char **" };
+    if (std.mem.eql(u8, c_type, "const char *const *")) return .{ .go_type = "uintptr", .comment = "const char *const *" };
     if (isFunctionPointerCType(c_type)) return .{ .go_type = "uintptr", .comment = c_type };
     if (std.mem.startsWith(u8, c_type, "struct ")) return .{ .go_type = "struct{}" };
     return error.UnsupportedCType;

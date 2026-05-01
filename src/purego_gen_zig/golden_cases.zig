@@ -20,6 +20,7 @@ const supported_golden_case_ids = [_][]const u8{
     "callback_param_multi",
     "categories_const",
     "categories_mixed_filtered",
+    "char_pointer_pointer_param",
     "comments_default",
     "comments_parse_all",
     "conditional_default",
@@ -67,7 +68,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
-    "char_pointer_pointer_param",
     "libclang",
     "libsqlite3",
     "libzstd",
