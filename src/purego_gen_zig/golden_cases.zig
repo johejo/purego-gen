@@ -27,6 +27,7 @@ const supported_golden_case_ids = [_][]const u8{
     "double_pointer_param",
     "exclude_only_basic",
     "inline_func_pointer",
+    "long_long_param",
     "macro_constants",
     "macro_sentinels",
     "non_callback_typedef",
@@ -53,7 +54,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "libclang",
     "libsqlite3",
     "libzstd",
-    "long_long_param",
     "long_long_typedef_param",
     "pointer_to_int_param",
 };
