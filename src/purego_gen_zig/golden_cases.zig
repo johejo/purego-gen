@@ -43,6 +43,7 @@ const supported_golden_case_ids = [_][]const u8{
     "struct_array_pointer_mix",
     "union_basic",
     "union_basic_accessors",
+    "unsigned_int_return",
     "void_callback",
 };
 
@@ -55,7 +56,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "long_long_param",
     "long_long_typedef_param",
     "pointer_to_int_param",
-    "unsigned_int_return",
 };
 
 pub const LoadedCase = struct {
