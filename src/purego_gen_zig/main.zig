@@ -4,6 +4,7 @@ const declarations = @import("declarations.zig");
 const output = @import("output.zig");
 const golden_cases = @import("golden_cases.zig");
 const gotmpl = @import("gotmpl.zig");
+const text_diff = @import("text_diff.zig");
 
 const Args = struct {
     header_path: ?[:0]const u8 = null,
@@ -94,4 +95,5 @@ pub fn main(init: std.process.Init) !void {
 test {
     _ = golden_cases;
     _ = gotmpl;
+    _ = text_diff;
 }

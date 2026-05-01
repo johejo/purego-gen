@@ -1,5 +1,6 @@
 const std = @import("std");
 const go_generation = @import("go_generation.zig");
+const text_diff = @import("text_diff.zig");
 
 const supported_golden_case_ids = [_][]const u8{
     "abi_types",
@@ -638,7 +639,11 @@ pub fn expectCaseMatchesGeneratedGo(
     const actual = try generateCaseSource(allocator, &loaded_case, skip_gofmt);
     defer allocator.free(actual);
 
-    try std.testing.expectEqualStrings(expected, actual);
+    if (!std.mem.eql(u8, expected, actual)) {
+        const case_id = std.fs.path.basename(case_dir);
+        try text_diff.writeGoldenDiff(allocator, case_id, expected, actual);
+        return error.TestExpectedEqual;
+    }
 }
 
 fn expectCaseIdMatchesGeneratedGo(
