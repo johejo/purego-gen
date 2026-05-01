@@ -292,6 +292,8 @@ pub fn renderType(
         c.CXType_UChar, c.CXType_Char_U => return .{ .text = try allocator.dupe(u8, "uint8") },
         c.CXType_Int, c.CXType_Enum => return .{ .text = try allocator.dupe(u8, "int32") },
         c.CXType_UInt => return .{ .text = try allocator.dupe(u8, "uint32") },
+        c.CXType_LongLong => return .{ .text = try allocator.dupe(u8, "int64") },
+        c.CXType_ULongLong => return .{ .text = try allocator.dupe(u8, "uint64") },
         c.CXType_Float => return .{ .text = try allocator.dupe(u8, "float32") },
         c.CXType_Double => return .{ .text = try allocator.dupe(u8, "float64") },
         c.CXType_Record => return try renderRecordBody(allocator, canonical, "\t\t"),

@@ -220,6 +220,14 @@ pub fn resolveCTypeToGo(
                     std.mem.startsWith(u8, typedef_decl.c_type, "struct ") or
                     std.mem.indexOf(u8, typedef_decl.main_definition, "struct{}") != null;
                 if (std.mem.eql(u8, typedef_decl.name, c_type)) {
+                    if (!is_opaque_typedef and
+                        !isFunctionPointerCType(typedef_decl.c_type) and
+                        std.mem.indexOfScalar(u8, typedef_decl.c_type, '*') == null)
+                    {
+                        if (mapCTypeToGo(typedef_decl.c_type)) |underlying_mapping| {
+                            return underlying_mapping;
+                        } else |_| {}
+                    }
                     return .{ .go_type = resolveTypedefGoType(decls, typedef_decl, strict_enum_typedefs) };
                 }
                 if (std.mem.eql(u8, typedef_decl.name, c_type) and is_opaque_typedef) {
