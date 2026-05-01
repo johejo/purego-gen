@@ -8,6 +8,7 @@ const supported_golden_case_ids = [_][]const u8{
     "basic_and_categories",
     "basic_func_type",
     "basic_type_strict_opaque",
+    "bool_param",
     "buffer_input_helper",
     "buffer_input_multi_pair",
     "buffer_input_pattern",
@@ -64,7 +65,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
-    "bool_param",
     "char_pointer_pointer_param",
     "intptr_t_param",
     "libclang",
