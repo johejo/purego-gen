@@ -54,6 +54,7 @@ const supported_golden_case_ids = [_][]const u8{
     "strict_typing_enabled",
     "struct_accessors_basic",
     "struct_array_pointer_mix",
+    "uintptr_t_param",
     "union_basic",
     "union_basic_accessors",
     "unsigned_char_param",
@@ -70,7 +71,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "libclang",
     "libsqlite3",
     "libzstd",
-    "uintptr_t_param",
 };
 
 pub const LoadedCase = struct {
