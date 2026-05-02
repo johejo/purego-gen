@@ -53,7 +53,7 @@ pub fn isFunctionPointerCTypeOrTypedef(
 }
 
 pub fn isSupportedBufferLengthType(go_type: []const u8) bool {
-    return std.mem.eql(u8, go_type, "uint64") or std.mem.eql(u8, go_type, "uint32");
+    return std.mem.eql(u8, go_type, "uint64") or std.mem.eql(u8, go_type, "uint32") or std.mem.eql(u8, go_type, "int32") or std.mem.eql(u8, go_type, "int64");
 }
 
 pub fn mapCTypeToGo(c_type: []const u8) !CTypeMapping {
@@ -80,6 +80,7 @@ pub fn mapCTypeToGo(c_type: []const u8) !CTypeMapping {
     if (std.mem.eql(u8, c_type, "intptr_t")) return .{ .go_type = "int64" };
     if (std.mem.eql(u8, c_type, "uintptr_t")) return .{ .go_type = "uint64" };
     if (std.mem.eql(u8, c_type, "const char *")) return .{ .go_type = "string" };
+    if (std.mem.eql(u8, c_type, "const unsigned char *")) return .{ .go_type = "string" };
     if (std.mem.eql(u8, c_type, "char **")) return .{ .go_type = "uintptr", .comment = "char **" };
     if (std.mem.eql(u8, c_type, "const char **")) return .{ .go_type = "uintptr", .comment = "const char **" };
     if (std.mem.eql(u8, c_type, "const char *const *")) return .{ .go_type = "uintptr", .comment = "const char *const *" };
