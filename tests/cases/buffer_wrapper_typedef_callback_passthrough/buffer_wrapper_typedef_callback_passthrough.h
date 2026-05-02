@@ -11,6 +11,6 @@
  * the Zig generator currently inlines it (`destroy func(uintptr)` in the
  * wrapper, `destroy uintptr` with a `// C: ...` comment in the var block).
  */
-typedef void (*fixture_destructor)(void *p);
+typedef void (*fixture_destructor)(void* p);
 
-int fixture_bind(int idx, const void *data, int n, void (*destroy)(void *));
+int fixture_bind(int idx, const void* data, int n, void (*destroy)(void*));

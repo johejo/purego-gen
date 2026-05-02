@@ -8,6 +8,6 @@
  * the Zig generator currently renders it as `callback uintptr` with a
  * `// C: ...` comment.
  */
-typedef int (*fixture_cb_t)(void *, int, char **);
+typedef int (*fixture_cb_t)(void*, int, char**);
 
-int fixture_register(int (*callback)(void *, int, char **));
+int fixture_register(int (*callback)(void*, int, char**));
