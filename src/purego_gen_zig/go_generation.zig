@@ -618,9 +618,20 @@ fn assembleSections(
 ) ![]const template_sections.TemplateSectionView {
     var sections: std.ArrayList(template_sections.TemplateSectionView) = .empty;
     var has_emitted_section = false;
-    try appendBlock(arena, &sections, &has_emitted_section, "type_block", inputs.type_block, false, true);
+    // Mirror Python: typedef-helper func type aliases and auto-callback func
+    // type aliases share one `type (...)` block (see go_file.go.j2).
+    const merged_type_block = if (inputs.type_block.len > 0 and inputs.auto_callback_type_items.len > 0) blk: {
+        const combined = try arena.alloc([]const u8, inputs.type_block.len + inputs.auto_callback_type_items.len);
+        @memcpy(combined[0..inputs.type_block.len], inputs.type_block);
+        @memcpy(combined[inputs.type_block.len..], inputs.auto_callback_type_items);
+        break :blk combined;
+    } else if (inputs.type_block.len > 0) inputs.type_block else inputs.auto_callback_type_items;
+    try appendBlock(arena, &sections, &has_emitted_section, "type_block", merged_type_block, false, true);
     try appendBlock(arena, &sections, &has_emitted_section, "type_block", inputs.public_type_aliases, false, false);
-    try appendBlock(arena, &sections, &has_emitted_section, "type_block", inputs.auto_callback_type_items, false, false);
+    // Mirror Python: typedef-helper constructors precede auto-callback
+    // constructors (see render_context._build_func_type_and_newcallback_contexts
+    // followed by callback_param_contexts.newcallback_helpers append order).
+    try appendText(arena, &sections, &has_emitted_section, inputs.helper_texts, false);
     if (inputs.auto_callback_constructor_views.len > 0) {
         try template_sections.appendSection(arena, &sections, &has_emitted_section, .{
             .kind = "auto_callback_constructors",
@@ -635,7 +646,6 @@ fn assembleSections(
             .const_items = inputs.constant_views,
         });
     }
-    try appendText(arena, &sections, &has_emitted_section, inputs.helper_texts, false);
     if (inputs.flags.need_union_helpers) {
         try template_sections.appendSection(arena, &sections, &has_emitted_section, .{
             .kind = "union_helpers",

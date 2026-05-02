@@ -12,6 +12,7 @@ const supported_golden_case_ids = [_][]const u8{
     "buffer_input_helper",
     "buffer_input_multi_pair",
     "buffer_input_pattern",
+    "buffer_wrapper_typedef_callback_passthrough",
     "by_value_records",
     "callback_auto_discover",
     "callback_param",
@@ -19,6 +20,7 @@ const supported_golden_case_ids = [_][]const u8{
     "callback_param_dedup",
     "callback_param_multi",
     "callback_struct_opaque_ptr",
+    "callback_typedef_complex_signature",
     "categories_const",
     "categories_mixed_filtered",
     "char_pointer_pointer_param",
@@ -75,8 +77,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
-    "buffer_wrapper_typedef_callback_passthrough",
-    "callback_typedef_complex_signature",
     "libsqlite3",
 };
 

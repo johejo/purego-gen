@@ -252,6 +252,14 @@ pub fn resolveFunctionParameterType(
     emits_types: bool,
     strict_enum_typedefs: bool,
 ) !ctype_resolver.CTypeMapping {
+    if (emits_types and ctype_resolver.isFunctionPointerCType(c_type)) {
+        if (try ctype_resolver.findFunctionPointerTypedefAlias(allocator, decls, c_type)) |alias_name| {
+            return .{
+                .go_type = try allocator.dupe(u8, alias_name),
+                .owns_go_type = true,
+            };
+        }
+    }
     if (ctype_resolver.isFunctionPointerCType(c_type) and !keep_callback_pointer) {
         return .{
             .go_type = try renderCallbackGoSignature(allocator, decls, c_type),

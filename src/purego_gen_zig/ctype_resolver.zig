@@ -35,6 +35,55 @@ pub fn isFunctionPointerCType(c_type: []const u8) bool {
     return std.mem.indexOf(u8, c_type, "(*)") != null;
 }
 
+const c_type_qualifiers = [_][]const u8{ "const", "volatile", "restrict" };
+
+fn isCTypeQualifierToken(token: []const u8) bool {
+    for (c_type_qualifiers) |qualifier| {
+        if (std.mem.eql(u8, token, qualifier)) return true;
+    }
+    return false;
+}
+
+/// Normalize a function-pointer C type spelling to the lookup key Python uses
+/// in `normalize_function_pointer_c_type_for_lookup`: drop qualifier tokens
+/// (`const`, `volatile`, `restrict`) and remove all whitespace.
+fn normalizeFunctionPointerCTypeForLookup(
+    allocator: std.mem.Allocator,
+    c_type: []const u8,
+) ![]u8 {
+    var buffer: std.ArrayList(u8) = .empty;
+    errdefer buffer.deinit(allocator);
+
+    var iterator = std.mem.tokenizeAny(u8, c_type, " \t\n\r");
+    while (iterator.next()) |token| {
+        if (isCTypeQualifierToken(token)) continue;
+        try buffer.appendSlice(allocator, token);
+    }
+    return buffer.toOwnedSlice(allocator);
+}
+
+/// Find a function-pointer typedef whose normalized signature matches `c_type`; only emitted typedefs in `decls.typedefs.items` are considered.
+/// Assumes all function-pointer typedefs map to `uintptr` in Go (mirroring Python's `go_type == "uintptr"` filter); a non-`uintptr` mapping would need a typedef-side gate.
+/// First match wins by declaration order (Python's dict keeps the last writer); no current golden case exercises duplicate signatures, so divergence is benign.
+pub fn findFunctionPointerTypedefAlias(
+    allocator: std.mem.Allocator,
+    decls: *const declarations.CollectedDeclarations,
+    c_type: []const u8,
+) !?[]const u8 {
+    if (!isFunctionPointerCType(c_type)) return null;
+
+    const target_key = try normalizeFunctionPointerCTypeForLookup(allocator, c_type);
+    defer allocator.free(target_key);
+
+    for (decls.typedefs.items) |typedef_decl| {
+        if (!isFunctionPointerCType(typedef_decl.c_type)) continue;
+        const candidate_key = try normalizeFunctionPointerCTypeForLookup(allocator, typedef_decl.c_type);
+        defer allocator.free(candidate_key);
+        if (std.mem.eql(u8, target_key, candidate_key)) return typedef_decl.name;
+    }
+    return null;
+}
+
 pub fn underlyingTypedefCType(
     decls: *const declarations.CollectedDeclarations,
     c_type: []const u8,
