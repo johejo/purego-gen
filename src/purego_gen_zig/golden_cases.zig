@@ -78,6 +78,7 @@ const supported_golden_case_ids = [_][]const u8{
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
     "libsqlite3",
+    "typedef_chain_filtered_inner_int_param",
 };
 
 pub const LoadedCase = struct {
