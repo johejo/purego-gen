@@ -1,0 +1,31 @@
+{
+  "schema_version": 2,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": [
+      "func",
+      "type"
+    ],
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "func_pointer_typedef_char_pp_param.h"
+        ]
+      }
+    },
+    "render": {
+      "helpers": {
+        "callback_params": [
+          {
+            "function": "fixture_run",
+            "params": [
+              "cb"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

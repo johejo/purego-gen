@@ -69,6 +69,7 @@ const supported_golden_case_ids = [_][]const u8{
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
     "enum_bare_param_return",
+    "func_pointer_typedef_char_pp_param",
     "libclang",
     "libsqlite3",
     "libzstd",
