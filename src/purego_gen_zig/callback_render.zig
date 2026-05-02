@@ -139,13 +139,66 @@ pub fn renderEffectiveCallbackConstructorName(
     return renderCallbackConstructorName(allocator, parameter_name);
 }
 
+fn matchOpaqueStructPointerTypedef(
+    allocator: std.mem.Allocator,
+    decls: *const declarations.CollectedDeclarations,
+    c_type: []const u8,
+) !?ctype_resolver.CTypeMapping {
+    for (decls.typedefs.items) |typedef_decl| {
+        const is_opaque_typedef =
+            std.mem.startsWith(u8, typedef_decl.c_type, "struct ") or
+            std.mem.indexOf(u8, typedef_decl.main_definition, "struct{}") != null;
+        if (!is_opaque_typedef) continue;
+
+        if (std.mem.endsWith(u8, c_type, " **")) {
+            const base = c_type[0 .. c_type.len - 3];
+            if (std.mem.eql(u8, base, typedef_decl.name)) {
+                return .{
+                    .go_type = try std.fmt.allocPrint(allocator, "**{s}", .{typedef_decl.name}),
+                    .owns_go_type = true,
+                };
+            }
+        }
+        if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " **")) {
+            const base = c_type[6 .. c_type.len - 3];
+            if (std.mem.eql(u8, base, typedef_decl.name)) {
+                return .{
+                    .go_type = try std.fmt.allocPrint(allocator, "**{s}", .{typedef_decl.name}),
+                    .owns_go_type = true,
+                };
+            }
+        }
+        if (std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
+            const base = c_type[0 .. c_type.len - 2];
+            if (std.mem.eql(u8, base, typedef_decl.name)) {
+                return .{
+                    .go_type = try std.fmt.allocPrint(allocator, "*{s}", .{typedef_decl.name}),
+                    .owns_go_type = true,
+                };
+            }
+        }
+        if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
+            const base = c_type[6 .. c_type.len - 2];
+            if (std.mem.eql(u8, base, typedef_decl.name)) {
+                return .{
+                    .go_type = try std.fmt.allocPrint(allocator, "*{s}", .{typedef_decl.name}),
+                    .owns_go_type = true,
+                };
+            }
+        }
+    }
+    return null;
+}
+
 fn resolveCallbackSignatureCTypeToGo(
+    allocator: std.mem.Allocator,
     decls: *const declarations.CollectedDeclarations,
     c_type: []const u8,
 ) !ctype_resolver.CTypeMapping {
     if (std.mem.eql(u8, c_type, "const char *")) {
         return .{ .go_type = "uintptr" };
     }
+    if (try matchOpaqueStructPointerTypedef(allocator, decls, c_type)) |mapping| return mapping;
     return ctype_resolver.resolveCTypeToGo(decls, c_type, false);
 }
 
@@ -173,7 +226,8 @@ pub fn renderCallbackGoSignature(
         var wrote_any = false;
         while (parts.next()) |part| {
             const param_c_type = std.mem.trim(u8, part, " ");
-            const param_mapping = try resolveCallbackSignatureCTypeToGo(decls, param_c_type);
+            const param_mapping = try resolveCallbackSignatureCTypeToGo(allocator, decls, param_c_type);
+            defer if (ctype_resolver.resolvedGoTypeNeedsFree(param_c_type, param_mapping)) allocator.free(param_mapping.go_type);
             if (wrote_any) try w.writeAll(", ");
             wrote_any = true;
             try w.print("{s}", .{param_mapping.go_type});
@@ -181,7 +235,8 @@ pub fn renderCallbackGoSignature(
     }
     try w.writeByte(')');
 
-    const result_mapping = try resolveCallbackSignatureCTypeToGo(decls, result_c_type);
+    const result_mapping = try resolveCallbackSignatureCTypeToGo(allocator, decls, result_c_type);
+    defer if (ctype_resolver.resolvedGoTypeNeedsFree(result_c_type, result_mapping)) allocator.free(result_mapping.go_type);
     if (result_mapping.go_type.len != 0) {
         try w.print(" {s}", .{result_mapping.go_type});
     }
@@ -204,49 +259,7 @@ pub fn resolveFunctionParameterType(
         };
     }
     if (emits_types) {
-        for (decls.typedefs.items) |typedef_decl| {
-            const is_opaque_typedef =
-                std.mem.startsWith(u8, typedef_decl.c_type, "struct ") or
-                std.mem.indexOf(u8, typedef_decl.main_definition, "struct{}") != null;
-            if (!is_opaque_typedef) continue;
-
-            if (std.mem.endsWith(u8, c_type, " **")) {
-                const base = c_type[0 .. c_type.len - 3];
-                if (std.mem.eql(u8, base, typedef_decl.name)) {
-                    return .{
-                        .go_type = try std.fmt.allocPrint(allocator, "**{s}", .{typedef_decl.name}),
-                        .owns_go_type = true,
-                    };
-                }
-            }
-            if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " **")) {
-                const base = c_type[6 .. c_type.len - 3];
-                if (std.mem.eql(u8, base, typedef_decl.name)) {
-                    return .{
-                        .go_type = try std.fmt.allocPrint(allocator, "**{s}", .{typedef_decl.name}),
-                        .owns_go_type = true,
-                    };
-                }
-            }
-            if (std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
-                const base = c_type[0 .. c_type.len - 2];
-                if (std.mem.eql(u8, base, typedef_decl.name)) {
-                    return .{
-                        .go_type = try std.fmt.allocPrint(allocator, "*{s}", .{typedef_decl.name}),
-                        .owns_go_type = true,
-                    };
-                }
-            }
-            if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
-                const base = c_type[6 .. c_type.len - 2];
-                if (std.mem.eql(u8, base, typedef_decl.name)) {
-                    return .{
-                        .go_type = try std.fmt.allocPrint(allocator, "*{s}", .{typedef_decl.name}),
-                        .owns_go_type = true,
-                    };
-                }
-            }
-        }
+        if (try matchOpaqueStructPointerTypedef(allocator, decls, c_type)) |mapping| return mapping;
     }
     return ctype_resolver.resolveCTypeToGo(decls, c_type, strict_enum_typedefs);
 }
