@@ -33,6 +33,7 @@ const supported_golden_case_ids = [_][]const u8{
     "enum_typedef_nonstrict_return",
     "exclude_only_basic",
     "float_param",
+    "func_pointer_typedef_char_pp_param",
     "inline_func_pointer",
     "intptr_t_param",
     "libclang",
@@ -72,7 +73,6 @@ const supported_golden_case_ids = [_][]const u8{
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
 const unsupported_golden_case_ids = [_][]const u8{
-    "func_pointer_typedef_char_pp_param",
     "libsqlite3",
 };
 

@@ -133,36 +133,6 @@ pub fn isOpaqueRecordType(record_type: c.CXType) bool {
     return c.clang_isCursorDefinition(decl) == 0;
 }
 
-pub fn renderFunctionType(
-    allocator: std.mem.Allocator,
-    fn_type: c.CXType,
-) ![]const u8 {
-    const result_type = c.clang_getResultType(fn_type);
-    const result_rendered = try renderType(allocator, result_type);
-    defer freeRenderedType(allocator, result_rendered);
-
-    const num_args = c.clang_getNumArgTypes(fn_type);
-    if (num_args < 0) return error.UnsupportedType;
-
-    var aw: std.Io.Writer.Allocating = .init(allocator);
-    errdefer aw.deinit();
-    const w = &aw.writer;
-
-    try w.writeAll("func(");
-    for (0..@as(usize, @intCast(num_args))) |i| {
-        if (i > 0) try w.writeAll(", ");
-        const arg_type = c.clang_getArgType(fn_type, @intCast(i));
-        const arg_rendered = try renderType(allocator, arg_type);
-        defer freeRenderedType(allocator, arg_rendered);
-        try w.print("{s}", .{arg_rendered.text});
-    }
-    try w.writeByte(')');
-    if (result_rendered.text.len != 0) {
-        try w.print(" {s}", .{result_rendered.text});
-    }
-    return aw.toOwnedSlice();
-}
-
 const UnionValidator = struct {};
 
 fn unionFieldCheck(_: *UnionValidator, cursor_arg: c.CXCursor) anyerror!c.enum_CXChildVisitResult {

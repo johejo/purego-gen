@@ -3,6 +3,7 @@ const clang = @import("clang.zig");
 const parser = @import("parser.zig");
 const macro_eval = @import("macro_eval.zig");
 const type_render = @import("type_render.zig");
+const callback_render = @import("callback_render.zig");
 const c = clang.c;
 
 pub const FunctionDecl = struct {
@@ -455,34 +456,45 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
         const pointee_canonical = c.clang_getCanonicalType(pointee);
         if (pointee_canonical.kind == c.CXType_FunctionProto or pointee_canonical.kind == c.CXType_FunctionNoProto) {
             const main_definition = try type_render.renderAliasDefinition(allocator, name, c_type, "uintptr");
-            const helper_type_name = try type_render.renderCallbackHelperTypeName(allocator, name);
-            errdefer allocator.free(helper_type_name);
+            errdefer allocator.free(main_definition);
 
-            const go_signature = try type_render.renderFunctionType(allocator, pointee_canonical);
-            defer allocator.free(go_signature);
+            if (callback_render.renderCallbackGoSignature(allocator, ctx.decls, c_type)) |go_signature| {
+                defer allocator.free(go_signature);
 
-            const helper_type_definition = try type_render.renderCallbackHelperDefinition(
-                allocator,
-                helper_type_name,
-                c_type,
-                go_signature,
-            );
-            const helper_function_definition = try type_render.renderCallbackConstructor(
-                allocator,
-                name,
-                helper_type_name,
-            );
-            allocator.free(helper_type_name);
+                const helper_type_name = try type_render.renderCallbackHelperTypeName(allocator, name);
+                errdefer allocator.free(helper_type_name);
 
-            try ctx.decls.typedefs.append(allocator, .{
-                .name = name,
-                .c_type = c_type,
-                .main_definition = main_definition,
-                .comment = comment,
-                .helper_type_definition = helper_type_definition,
-                .helper_function_definition = helper_function_definition,
-                .requires_purego = true,
-            });
+                const helper_type_definition = try type_render.renderCallbackHelperDefinition(
+                    allocator,
+                    helper_type_name,
+                    c_type,
+                    go_signature,
+                );
+                errdefer allocator.free(helper_type_definition);
+                const helper_function_definition = try type_render.renderCallbackConstructor(
+                    allocator,
+                    name,
+                    helper_type_name,
+                );
+                allocator.free(helper_type_name);
+
+                try ctx.decls.typedefs.append(allocator, .{
+                    .name = name,
+                    .c_type = c_type,
+                    .main_definition = main_definition,
+                    .comment = comment,
+                    .helper_type_definition = helper_type_definition,
+                    .helper_function_definition = helper_function_definition,
+                    .requires_purego = true,
+                });
+            } else |_| {
+                try ctx.decls.typedefs.append(allocator, .{
+                    .name = name,
+                    .c_type = c_type,
+                    .main_definition = main_definition,
+                    .comment = comment,
+                });
+            }
             return;
         }
     }
