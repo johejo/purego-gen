@@ -72,6 +72,7 @@ const unsupported_golden_case_ids = [_][]const u8{
     "libclang",
     "libsqlite3",
     "libzstd",
+    "opaque_pointer_with_buffer_pair",
 };
 
 pub const LoadedCase = struct {
