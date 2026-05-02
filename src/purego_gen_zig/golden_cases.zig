@@ -61,6 +61,7 @@ const supported_golden_case_ids = [_][]const u8{
     "strict_typing_enabled",
     "struct_accessors_basic",
     "struct_array_pointer_mix",
+    "typedef_chain_int_param",
     "uintptr_t_param",
     "union_basic",
     "union_basic_accessors",
@@ -77,7 +78,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "buffer_wrapper_typedef_callback_passthrough",
     "callback_typedef_complex_signature",
     "libsqlite3",
-    "typedef_chain_int_param",
 };
 
 pub const LoadedCase = struct {

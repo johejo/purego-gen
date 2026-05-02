@@ -13,6 +13,8 @@ pub const BufferPairIndices = struct {
     length_index: usize,
 };
 
+const max_typedef_chain_depth: usize = 16;
+
 pub fn isExactExcluded(excluded_names: []const []const u8, name: []const u8) bool {
     if (excluded_names.len == 0) return false;
     for (excluded_names) |excluded| {
@@ -252,6 +254,18 @@ fn resolveAgainstTypedefList(
     strict_enum_typedefs: bool,
     treat_as_filtered: bool,
 ) ?CTypeMapping {
+    return resolveAgainstTypedefListImpl(decls, typedefs, c_type, strict_enum_typedefs, treat_as_filtered, 0);
+}
+
+fn resolveAgainstTypedefListImpl(
+    decls: *const declarations.CollectedDeclarations,
+    typedefs: []const declarations.TypedefDecl,
+    c_type: []const u8,
+    strict_enum_typedefs: bool,
+    treat_as_filtered: bool,
+    depth: usize,
+) ?CTypeMapping {
+    if (depth >= max_typedef_chain_depth) return null;
     for (typedefs) |typedef_decl| {
         const is_opaque_typedef =
             std.mem.startsWith(u8, typedef_decl.c_type, "struct ") or
@@ -273,6 +287,26 @@ fn resolveAgainstTypedefList(
                 if (mapCTypeToGo(typedef_decl.c_type)) |underlying_mapping| {
                     return underlying_mapping;
                 } else |_| {}
+                if (resolveAgainstTypedefListImpl(
+                    decls,
+                    decls.typedefs.items,
+                    typedef_decl.c_type,
+                    strict_enum_typedefs,
+                    false,
+                    depth + 1,
+                )) |chained| {
+                    return chained;
+                }
+                if (resolveAgainstTypedefListImpl(
+                    decls,
+                    decls.filtered_typedefs.items,
+                    typedef_decl.c_type,
+                    strict_enum_typedefs,
+                    true,
+                    depth + 1,
+                )) |chained| {
+                    return chained;
+                }
             }
             return .{ .go_type = resolveTypedefGoType(decls, typedef_decl, strict_enum_typedefs) };
         }
