@@ -107,6 +107,7 @@ pub fn isOwnedStringReturnTarget(
 
 pub fn trimCommentPrefix(line: []const u8) []const u8 {
     var trimmed = std.mem.trim(u8, line, " \t\r");
+    if (std.mem.eql(u8, trimmed, "*/")) return "";
     if (std.mem.startsWith(u8, trimmed, "/**")) trimmed = trimmed[3..] else if (std.mem.startsWith(u8, trimmed, "/*")) trimmed = trimmed[2..] else if (std.mem.startsWith(u8, trimmed, "///")) trimmed = trimmed[3..] else if (std.mem.startsWith(u8, trimmed, "//")) trimmed = trimmed[2..] else if (std.mem.startsWith(u8, trimmed, "*")) trimmed = trimmed[1..];
 
     trimmed = std.mem.trim(u8, trimmed, " \t\r");
@@ -119,10 +120,21 @@ pub fn trimCommentPrefix(line: []const u8) []const u8 {
 pub fn writeComment(w: anytype, indent: []const u8, raw_comment: ?[]const u8) !void {
     const comment = raw_comment orelse return;
     var lines = std.mem.splitScalar(u8, comment, '\n');
+    var pending_blanks: usize = 0;
+    var emitted_any = false;
     while (lines.next()) |line| {
         const normalized = trimCommentPrefix(line);
-        if (normalized.len == 0) continue;
+        if (normalized.len == 0) {
+            if (emitted_any) pending_blanks += 1;
+            continue;
+        }
+        var i: usize = 0;
+        while (i < pending_blanks) : (i += 1) {
+            try w.print("{s}//\n", .{indent});
+        }
+        pending_blanks = 0;
         try w.print("{s}// {s}\n", .{ indent, normalized });
+        emitted_any = true;
     }
 }
 

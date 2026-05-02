@@ -65,6 +65,7 @@ pub fn mapCTypeToGo(c_type: []const u8) !CTypeMapping {
     if (std.mem.eql(u8, c_type, "int")) return .{ .go_type = "int32" };
     if (std.mem.eql(u8, c_type, "int *")) return .{ .go_type = "*int32" };
     if (std.mem.eql(u8, c_type, "unsigned int")) return .{ .go_type = "uint32" };
+    if (std.mem.eql(u8, c_type, "unsigned int *")) return .{ .go_type = "*uint32" };
     if (std.mem.eql(u8, c_type, "long")) return .{ .go_type = "int64" };
     if (std.mem.eql(u8, c_type, "unsigned long")) return .{ .go_type = "uint64" };
     if (std.mem.eql(u8, c_type, "long long")) return .{ .go_type = "int64" };
@@ -83,7 +84,12 @@ pub fn mapCTypeToGo(c_type: []const u8) !CTypeMapping {
     if (std.mem.eql(u8, c_type, "const char **")) return .{ .go_type = "uintptr", .comment = "const char **" };
     if (std.mem.eql(u8, c_type, "const char *const *")) return .{ .go_type = "uintptr", .comment = "const char *const *" };
     if (isFunctionPointerCType(c_type)) return .{ .go_type = "uintptr", .comment = c_type };
+    if (std.mem.startsWith(u8, c_type, "struct ") and std.mem.endsWith(u8, c_type, " *"))
+        return .{ .go_type = "uintptr", .comment = c_type };
+    if (std.mem.startsWith(u8, c_type, "const struct ") and std.mem.endsWith(u8, c_type, " *"))
+        return .{ .go_type = "uintptr", .comment = c_type };
     if (std.mem.startsWith(u8, c_type, "struct ")) return .{ .go_type = "struct{}" };
+    if (std.mem.startsWith(u8, c_type, "enum ")) return .{ .go_type = "int32" };
     return error.UnsupportedCType;
 }
 
@@ -230,6 +236,84 @@ pub fn resolveTypedefGoType(
     return typedef_decl.name;
 }
 
+fn isOpaquePointerTypedefCType(typedef_c_type: []const u8) bool {
+    return std.mem.eql(u8, typedef_c_type, "void *") or
+        std.mem.eql(u8, typedef_c_type, "const void *") or
+        (std.mem.startsWith(u8, typedef_c_type, "struct ") and
+            std.mem.endsWith(u8, typedef_c_type, " *") and
+            !std.mem.endsWith(u8, typedef_c_type, " **"));
+}
+
+fn resolveAgainstTypedefList(
+    decls: *const declarations.CollectedDeclarations,
+    typedefs: []const declarations.TypedefDecl,
+    c_type: []const u8,
+    strict_enum_typedefs: bool,
+    treat_as_filtered: bool,
+) ?CTypeMapping {
+    for (typedefs) |typedef_decl| {
+        const is_opaque_typedef =
+            std.mem.startsWith(u8, typedef_decl.c_type, "struct ") or
+            std.mem.indexOf(u8, typedef_decl.main_definition, "struct{}") != null;
+        if (std.mem.eql(u8, typedef_decl.name, c_type)) {
+            if (treat_as_filtered and isFunctionPointerCType(typedef_decl.c_type)) {
+                return .{ .go_type = "uintptr", .comment = c_type };
+            }
+            if (std.mem.eql(u8, typedef_decl.c_type, "void *") or
+                std.mem.eql(u8, typedef_decl.c_type, "const void *"))
+            {
+                return .{ .go_type = "uintptr", .comment = c_type };
+            }
+            if (!is_opaque_typedef and
+                !typedef_decl.is_enum_typedef and
+                !isFunctionPointerCType(typedef_decl.c_type) and
+                std.mem.indexOfScalar(u8, typedef_decl.c_type, '*') == null)
+            {
+                if (mapCTypeToGo(typedef_decl.c_type)) |underlying_mapping| {
+                    return underlying_mapping;
+                } else |_| {}
+            }
+            return .{ .go_type = resolveTypedefGoType(decls, typedef_decl, strict_enum_typedefs) };
+        }
+        if (std.mem.eql(u8, c_type, typedef_decl.c_type)) {
+            return .{ .go_type = resolveTypedefGoType(decls, typedef_decl, strict_enum_typedefs) };
+        }
+        if (std.mem.endsWith(u8, c_type, " **")) {
+            const base = c_type[0 .. c_type.len - 3];
+            if (std.mem.eql(u8, base, typedef_decl.name) and
+                (is_opaque_typedef or isOpaquePointerTypedefCType(typedef_decl.c_type)))
+            {
+                return .{ .go_type = "uintptr", .comment = c_type };
+            }
+        }
+        if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " **")) {
+            const base = c_type[6 .. c_type.len - 3];
+            if (std.mem.eql(u8, base, typedef_decl.name) and
+                (is_opaque_typedef or isOpaquePointerTypedefCType(typedef_decl.c_type)))
+            {
+                return .{ .go_type = "uintptr", .comment = c_type };
+            }
+        }
+        if (std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
+            const base = c_type[0 .. c_type.len - 2];
+            if (std.mem.eql(u8, base, typedef_decl.name) and
+                (is_opaque_typedef or isOpaquePointerTypedefCType(typedef_decl.c_type)))
+            {
+                return .{ .go_type = "uintptr", .comment = c_type };
+            }
+        }
+        if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
+            const base = c_type[6 .. c_type.len - 2];
+            if (std.mem.eql(u8, base, typedef_decl.name) and
+                (is_opaque_typedef or isOpaquePointerTypedefCType(typedef_decl.c_type)))
+            {
+                return .{ .go_type = "uintptr", .comment = c_type };
+            }
+        }
+    }
+    return null;
+}
+
 pub fn resolveCTypeToGo(
     decls: *const declarations.CollectedDeclarations,
     c_type: []const u8,
@@ -237,54 +321,11 @@ pub fn resolveCTypeToGo(
 ) !CTypeMapping {
     return mapCTypeToGo(c_type) catch |err| switch (err) {
         error.UnsupportedCType => {
-            for (decls.typedefs.items) |typedef_decl| {
-                const is_opaque_typedef =
-                    std.mem.startsWith(u8, typedef_decl.c_type, "struct ") or
-                    std.mem.indexOf(u8, typedef_decl.main_definition, "struct{}") != null;
-                if (std.mem.eql(u8, typedef_decl.name, c_type)) {
-                    if (!is_opaque_typedef and
-                        !isFunctionPointerCType(typedef_decl.c_type) and
-                        std.mem.indexOfScalar(u8, typedef_decl.c_type, '*') == null)
-                    {
-                        if (mapCTypeToGo(typedef_decl.c_type)) |underlying_mapping| {
-                            return underlying_mapping;
-                        } else |_| {}
-                    }
-                    return .{ .go_type = resolveTypedefGoType(decls, typedef_decl, strict_enum_typedefs) };
-                }
-                if (std.mem.eql(u8, typedef_decl.name, c_type) and is_opaque_typedef) {
-                    return .{ .go_type = "struct{}" };
-                }
-                if (std.mem.eql(u8, c_type, typedef_decl.name)) {
-                    return .{ .go_type = resolveTypedefGoType(decls, typedef_decl, strict_enum_typedefs) };
-                }
-                if (std.mem.eql(u8, c_type, typedef_decl.c_type)) {
-                    return .{ .go_type = resolveTypedefGoType(decls, typedef_decl, strict_enum_typedefs) };
-                }
-                if (std.mem.endsWith(u8, c_type, " **")) {
-                    const base = c_type[0 .. c_type.len - 3];
-                    if (std.mem.eql(u8, base, typedef_decl.name) and is_opaque_typedef) {
-                        return .{ .go_type = "uintptr", .comment = c_type };
-                    }
-                }
-                if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " **")) {
-                    const base = c_type[6 .. c_type.len - 3];
-                    if (std.mem.eql(u8, base, typedef_decl.name) and is_opaque_typedef) {
-                        return .{ .go_type = "uintptr", .comment = c_type };
-                    }
-                }
-                if (std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
-                    const base = c_type[0 .. c_type.len - 2];
-                    if (std.mem.eql(u8, base, typedef_decl.name) and is_opaque_typedef) {
-                        return .{ .go_type = "uintptr", .comment = c_type };
-                    }
-                }
-                if (std.mem.startsWith(u8, c_type, "const ") and std.mem.endsWith(u8, c_type, " *") and !std.mem.endsWith(u8, c_type, " **")) {
-                    const base = c_type[6 .. c_type.len - 2];
-                    if (std.mem.eql(u8, base, typedef_decl.name) and is_opaque_typedef) {
-                        return .{ .go_type = "uintptr", .comment = c_type };
-                    }
-                }
+            if (resolveAgainstTypedefList(decls, decls.typedefs.items, c_type, strict_enum_typedefs, false)) |mapping| {
+                return mapping;
+            }
+            if (resolveAgainstTypedefList(decls, decls.filtered_typedefs.items, c_type, strict_enum_typedefs, true)) |mapping| {
+                return mapping;
             }
             return err;
         },

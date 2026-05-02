@@ -804,7 +804,7 @@ pub fn applyExcludeFilters(
     decls: *declarations.CollectedDeclarations,
 ) void {
     filterInPlace(declarations.FunctionDecl, allocator, &decls.functions, config.exclude.func_names, .exclude);
-    filterInPlace(declarations.TypedefDecl, allocator, &decls.typedefs, config.exclude.type_names, .exclude);
+    filterTypedefsInPlace(allocator, decls, config.exclude.type_names, .exclude);
     filterInPlace(declarations.ConstantDecl, allocator, &decls.constants, config.exclude.const_names, .exclude);
     filterInPlace(declarations.RuntimeVarDecl, allocator, &decls.runtime_vars, config.exclude.var_names, .exclude);
 }
@@ -815,7 +815,7 @@ pub fn applyIncludeFilters(
     decls: *declarations.CollectedDeclarations,
 ) void {
     filterInPlace(declarations.FunctionDecl, allocator, &decls.functions, config.include.func_names, .include);
-    filterInPlace(declarations.TypedefDecl, allocator, &decls.typedefs, config.include.type_names, .include);
+    filterTypedefsInPlace(allocator, decls, config.include.type_names, .include);
     filterInPlace(declarations.ConstantDecl, allocator, &decls.constants, config.include.const_names, .include);
     filterInPlace(declarations.RuntimeVarDecl, allocator, &decls.runtime_vars, config.include.var_names, .include);
 }
@@ -877,6 +877,30 @@ fn filterInPlace(
         next += 1;
     }
     list.items.len = next;
+}
+
+fn filterTypedefsInPlace(
+    allocator: std.mem.Allocator,
+    decls: *declarations.CollectedDeclarations,
+    patterns: []const []const u8,
+    mode: FilterMode,
+) void {
+    var next: usize = 0;
+    for (decls.typedefs.items) |typedef_decl| {
+        const matched = switch (mode) {
+            .exclude => ctype_resolver.isExactExcluded(patterns, typedef_decl.name),
+            .include => !ctype_resolver.isIncludedOnly(patterns, typedef_decl.name),
+        };
+        if (matched) {
+            decls.filtered_typedefs.append(allocator, typedef_decl) catch {
+                typedef_decl.deinit(allocator);
+            };
+            continue;
+        }
+        decls.typedefs.items[next] = typedef_decl;
+        next += 1;
+    }
+    decls.typedefs.items.len = next;
 }
 
 pub fn collectDeclarationsFromHeader(

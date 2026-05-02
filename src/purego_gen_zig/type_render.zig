@@ -311,7 +311,6 @@ pub fn renderType(
             try w.print("[{d}]{s}", .{ @as(usize, @intCast(size)), element_rendered.text });
             return .{
                 .text = try aw.toOwnedSlice(),
-                .comment = if (element_rendered.comment) |comment| try allocator.dupe(u8, comment) else null,
                 .requires_unsafe = element_rendered.requires_unsafe,
                 .requires_purego = element_rendered.requires_purego,
                 .requires_union_helpers = element_rendered.requires_union_helpers,

@@ -91,6 +91,7 @@ pub const CollectedDeclarations = struct {
     allocator: std.mem.Allocator,
     functions: std.ArrayListUnmanaged(FunctionDecl) = .empty,
     typedefs: std.ArrayListUnmanaged(TypedefDecl) = .empty,
+    filtered_typedefs: std.ArrayListUnmanaged(TypedefDecl) = .empty,
     constants: std.ArrayListUnmanaged(ConstantDecl) = .empty,
     runtime_vars: std.ArrayListUnmanaged(RuntimeVarDecl) = .empty,
 
@@ -99,6 +100,8 @@ pub const CollectedDeclarations = struct {
         self.functions.deinit(self.allocator);
         for (self.typedefs.items) |typedef_decl| typedef_decl.deinit(self.allocator);
         self.typedefs.deinit(self.allocator);
+        for (self.filtered_typedefs.items) |typedef_decl| typedef_decl.deinit(self.allocator);
+        self.filtered_typedefs.deinit(self.allocator);
         for (self.constants.items) |constant_decl| constant_decl.deinit(self.allocator);
         self.constants.deinit(self.allocator);
         for (self.runtime_vars.items) |runtime_var_decl| runtime_var_decl.deinit(self.allocator);
@@ -492,7 +495,14 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
     };
     defer type_render.freeRenderedType(allocator, rendered);
 
-    const main_definition = try type_render.renderAliasDefinition(allocator, name, c_type, rendered.text);
+    const is_struct_pointer_typedef =
+        std.mem.startsWith(u8, c_type, "struct ") and
+        std.mem.endsWith(u8, c_type, " *") and
+        !std.mem.endsWith(u8, c_type, " **");
+    const main_definition = if (is_struct_pointer_typedef)
+        try type_render.renderCommentedTypeDefinition(allocator, name, c_type, rendered.text)
+    else
+        try type_render.renderAliasDefinition(allocator, name, c_type, rendered.text);
     try ctx.decls.typedefs.append(allocator, .{
         .name = name,
         .c_type = c_type,
