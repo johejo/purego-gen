@@ -1,0 +1,28 @@
+{
+  "schema_version": 2,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": [
+      "func",
+      "type"
+    ],
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "typedef_chain_int_param.h"
+        ]
+      },
+      "include": {
+        "func": [
+          "fixture_get"
+        ],
+        "type": [
+          "fixture_int_inner",
+          "fixture_int_outer"
+        ]
+      }
+    }
+  }
+}
