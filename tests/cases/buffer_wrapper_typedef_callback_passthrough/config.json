@@ -1,0 +1,42 @@
+{
+  "schema_version": 2,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": [
+      "func",
+      "type"
+    ],
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "buffer_wrapper_typedef_callback_passthrough.h"
+        ]
+      },
+      "include": {
+        "func": [
+          "fixture_bind"
+        ],
+        "type": [
+          "fixture_destructor"
+        ]
+      }
+    },
+    "render": {
+      "helpers": {
+        "buffer_params": [
+          {
+            "function": "fixture_bind",
+            "pairs": [
+              {
+                "pointer": "data",
+                "length": "n"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
