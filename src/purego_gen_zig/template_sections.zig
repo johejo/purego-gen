@@ -106,24 +106,45 @@ pub fn isOwnedStringReturnTarget(
 }
 
 pub fn trimCommentPrefix(line: []const u8) []const u8 {
-    var trimmed = std.mem.trim(u8, line, " \t\r");
-    if (std.mem.eql(u8, trimmed, "*/")) return "";
-    if (std.mem.startsWith(u8, trimmed, "/**")) trimmed = trimmed[3..] else if (std.mem.startsWith(u8, trimmed, "/*")) trimmed = trimmed[2..] else if (std.mem.startsWith(u8, trimmed, "///")) trimmed = trimmed[3..] else if (std.mem.startsWith(u8, trimmed, "//")) trimmed = trimmed[2..] else if (std.mem.startsWith(u8, trimmed, "*")) trimmed = trimmed[1..];
-
-    trimmed = std.mem.trim(u8, trimmed, " \t\r");
-    if (std.mem.endsWith(u8, trimmed, "*/")) {
-        trimmed = std.mem.trimEnd(u8, trimmed[0 .. trimmed.len - 2], " \t\r");
+    // Per-line normalization for block-comment bodies: strip an optional leading
+    // whitespace run plus a single `*` and an optional single space, then trim.
+    var trimmed = line;
+    var i: usize = 0;
+    while (i < trimmed.len and (trimmed[i] == ' ' or trimmed[i] == '\t' or trimmed[i] == '\r')) : (i += 1) {}
+    if (i < trimmed.len and trimmed[i] == '*') {
+        i += 1;
+        if (i < trimmed.len and trimmed[i] == ' ') i += 1;
+        trimmed = trimmed[i..];
     }
-    return trimmed;
+    return std.mem.trim(u8, trimmed, " \t\r");
+}
+
+fn trimLineCommentPrefix(line: []const u8) []const u8 {
+    // Per-line normalization for non-block raw comments (`//` or `///` runs).
+    var trimmed = std.mem.trim(u8, line, " \t\r");
+    if (std.mem.startsWith(u8, trimmed, "///")) {
+        trimmed = trimmed[3..];
+        if (trimmed.len > 0 and trimmed[0] == ' ') trimmed = trimmed[1..];
+    } else if (std.mem.startsWith(u8, trimmed, "//")) {
+        trimmed = trimmed[2..];
+        if (trimmed.len > 0 and trimmed[0] == ' ') trimmed = trimmed[1..];
+    }
+    return std.mem.trim(u8, trimmed, " \t\r");
 }
 
 pub fn writeComment(w: anytype, indent: []const u8, raw_comment: ?[]const u8) !void {
     const comment = raw_comment orelse return;
-    var lines = std.mem.splitScalar(u8, comment, '\n');
+    const stripped = std.mem.trim(u8, comment, " \t\r\n");
+    if (stripped.len == 0) return;
+
+    const is_block = std.mem.startsWith(u8, stripped, "/*") and std.mem.endsWith(u8, stripped, "*/") and stripped.len >= 4;
+    const body = if (is_block) stripped[2 .. stripped.len - 2] else stripped;
+
+    var lines = std.mem.splitScalar(u8, body, '\n');
     var pending_blanks: usize = 0;
     var emitted_any = false;
     while (lines.next()) |line| {
-        const normalized = trimCommentPrefix(line);
+        const normalized = if (is_block) trimCommentPrefix(line) else trimLineCommentPrefix(line);
         if (normalized.len == 0) {
             if (emitted_any) pending_blanks += 1;
             continue;

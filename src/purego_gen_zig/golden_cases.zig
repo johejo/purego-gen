@@ -36,6 +36,7 @@ const supported_golden_case_ids = [_][]const u8{
     "inline_func_pointer",
     "intptr_t_param",
     "libclang",
+    "libzstd",
     "long_long_param",
     "long_long_typedef_param",
     "long_param",
@@ -73,7 +74,6 @@ const supported_golden_case_ids = [_][]const u8{
 const unsupported_golden_case_ids = [_][]const u8{
     "func_pointer_typedef_char_pp_param",
     "libsqlite3",
-    "libzstd",
 };
 
 pub const LoadedCase = struct {
