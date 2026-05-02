@@ -1,0 +1,39 @@
+{
+  "schema_version": 2,
+  "generator": {
+    "lib_id": "fixture_lib",
+    "package": "fixture",
+    "emit": [
+      "func",
+      "type"
+    ],
+    "parse": {
+      "headers": {
+        "kind": "local",
+        "headers": [
+          "callback_typedef_complex_signature.h"
+        ]
+      },
+      "include": {
+        "func": [
+          "fixture_register"
+        ],
+        "type": [
+          "fixture_cb_t"
+        ]
+      }
+    },
+    "render": {
+      "helpers": {
+        "callback_params": [
+          {
+            "function": "fixture_register",
+            "params": [
+              "callback"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
