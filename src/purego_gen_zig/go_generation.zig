@@ -452,8 +452,8 @@ fn buildBufferHelperTexts(
     for (config.buffer_param_helpers) |helper| switch (helper) {
         .explicit => |explicit| {
             const func = ctype_resolver.findFunctionByName(decls, explicit.function_name) orelse return error.BufferHelperTargetFunctionNotFound;
-            const pairs = try template_sections.resolveExplicitBufferPairs(arena, func, explicit.pairs);
-            try items.append(arena, try template_sections.renderBufferHelperItem(arena, config, func, pairs));
+            const pairs = try template_sections.resolveExplicitBufferPairs(arena, decls, func, explicit.pairs);
+            try items.append(arena, try template_sections.renderBufferHelperItem(arena, config, decls, func, pairs));
             try emitted_names.append(arena, func.name);
         },
         .pattern => |pattern| {
@@ -467,9 +467,9 @@ fn buildBufferHelperTexts(
                 if (ctype_resolver.containsString(explicit_names.items, func.name)) continue;
                 if (ctype_resolver.containsString(emitted_names.items, func.name)) continue;
                 if (!ctype_resolver.functionNameMatchesPattern(func.name, pattern.function_pattern)) continue;
-                const pairs = try template_sections.detectBufferPairs(arena, func);
+                const pairs = try template_sections.detectBufferPairs(arena, decls, func);
                 if (pairs.len == 0) continue;
-                try items.append(arena, try template_sections.renderBufferHelperItem(arena, config, func, pairs));
+                try items.append(arena, try template_sections.renderBufferHelperItem(arena, config, decls, func, pairs));
                 try emitted_names.append(arena, func.name);
                 match_count += 1;
             }

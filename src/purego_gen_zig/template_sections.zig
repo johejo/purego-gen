@@ -173,6 +173,7 @@ pub fn writePrefixedTypeDefinition(
 
 pub fn resolveBufferPair(
     allocator: std.mem.Allocator,
+    decls: *const declarations.CollectedDeclarations,
     func: declarations.FunctionDecl,
     pair: config_mod.BufferParamPair,
     seen_pointer_names: *std.ArrayList([]const u8),
@@ -188,12 +189,12 @@ pub fn resolveBufferPair(
     if (!std.mem.eql(u8, func.parameter_c_types[pointer_index], "const void *")) {
         return error.InvalidBufferPointerParameterType;
     }
-    const pointer_go_type = try ctype_resolver.mapCTypeToGo(func.parameter_c_types[pointer_index]);
+    const pointer_go_type = try ctype_resolver.resolveCTypeToGo(decls, func.parameter_c_types[pointer_index], false);
     if (!std.mem.eql(u8, pointer_go_type.go_type, "uintptr")) {
         return error.InvalidBufferPointerParameterType;
     }
 
-    const length_go_type = try ctype_resolver.mapCTypeToGo(func.parameter_c_types[length_index]);
+    const length_go_type = try ctype_resolver.resolveCTypeToGo(decls, func.parameter_c_types[length_index], false);
     if (!ctype_resolver.isSupportedBufferLengthType(length_go_type.go_type)) {
         return error.InvalidBufferLengthParameterType;
     }
@@ -206,6 +207,7 @@ pub fn resolveBufferPair(
 
 pub fn resolveExplicitBufferPairs(
     allocator: std.mem.Allocator,
+    decls: *const declarations.CollectedDeclarations,
     func: declarations.FunctionDecl,
     pairs: []const config_mod.BufferParamPair,
 ) ![]ctype_resolver.BufferPairIndices {
@@ -215,7 +217,7 @@ pub fn resolveExplicitBufferPairs(
     defer seen_pointer_names.deinit(allocator);
 
     for (pairs) |pair| {
-        try resolved.append(allocator, try resolveBufferPair(allocator, func, pair, &seen_pointer_names));
+        try resolved.append(allocator, try resolveBufferPair(allocator, decls, func, pair, &seen_pointer_names));
     }
 
     return resolved.toOwnedSlice(allocator);
@@ -223,6 +225,7 @@ pub fn resolveExplicitBufferPairs(
 
 pub fn detectBufferPairs(
     allocator: std.mem.Allocator,
+    decls: *const declarations.CollectedDeclarations,
     func: declarations.FunctionDecl,
 ) ![]ctype_resolver.BufferPairIndices {
     var pairs: std.ArrayList(ctype_resolver.BufferPairIndices) = .empty;
@@ -230,11 +233,11 @@ pub fn detectBufferPairs(
 
     var index: usize = 0;
     while (index + 1 < func.parameter_c_types.len) {
-        const pointer_mapping = ctype_resolver.mapCTypeToGo(func.parameter_c_types[index]) catch {
+        const pointer_mapping = ctype_resolver.resolveCTypeToGo(decls, func.parameter_c_types[index], false) catch {
             index += 1;
             continue;
         };
-        const length_mapping = ctype_resolver.mapCTypeToGo(func.parameter_c_types[index + 1]) catch {
+        const length_mapping = ctype_resolver.resolveCTypeToGo(decls, func.parameter_c_types[index + 1], false) catch {
             index += 1;
             continue;
         };
@@ -274,6 +277,7 @@ fn writeBufferHelper(
     allocator: std.mem.Allocator,
     w: anytype,
     config: config_mod.GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
     func: declarations.FunctionDecl,
     pairs: []const ctype_resolver.BufferPairIndices,
 ) !void {
@@ -284,6 +288,8 @@ fn writeBufferHelper(
     const target_name = try ctype_resolver.renderFuncName(allocator, config, func.name);
     defer allocator.free(target_name);
 
+    const emits_types = containsEmitKind(config.emit, .type);
+
     try w.print("func {s}(\n", .{emitted_helper_name});
     for (func.parameter_names, func.parameter_c_types, 0..) |param_name, param_c_type, index| {
         if (findPairByLengthIndex(pairs, index) != null) continue;
@@ -291,11 +297,13 @@ fn writeBufferHelper(
             try w.print("\t{s} []byte,\n", .{param_name});
             continue;
         }
-        const mapped = try ctype_resolver.mapCTypeToGo(param_c_type);
+        const mapped = try callback_render.resolveFunctionParameterType(allocator, decls, param_c_type, false, emits_types, config.strict_enum_typedefs);
+        defer if (ctype_resolver.resolvedGoTypeNeedsFree(param_c_type, mapped)) allocator.free(mapped.go_type);
         try w.print("\t{s} {s},\n", .{ param_name, mapped.go_type });
     }
 
-    const result_mapped = try ctype_resolver.mapCTypeToGo(func.result_c_type);
+    const result_mapped = try callback_render.resolveFunctionParameterType(allocator, decls, func.result_c_type, false, emits_types, config.strict_enum_typedefs);
+    defer if (ctype_resolver.resolvedGoTypeNeedsFree(func.result_c_type, result_mapped)) allocator.free(result_mapped.go_type);
     try w.writeAll(")");
     if (result_mapped.go_type.len != 0) {
         try w.print(" {s} {{\n", .{result_mapped.go_type});
@@ -332,7 +340,7 @@ fn writeBufferHelper(
         }
         if (findPairByLengthIndex(pairs, index)) |pair| {
             const pointer_name = func.parameter_names[pair.pointer_index];
-            const length_mapping = try ctype_resolver.mapCTypeToGo(func.parameter_c_types[pair.length_index]);
+            const length_mapping = try ctype_resolver.resolveCTypeToGo(decls, func.parameter_c_types[pair.length_index], false);
             try w.print("\t\t{s}(len({s}_len)),\n", .{ length_mapping.go_type, pointer_name });
             continue;
         }
@@ -464,12 +472,13 @@ pub fn renderAutoCallbackTypeItem(
 pub fn renderBufferHelperItem(
     allocator: std.mem.Allocator,
     config: config_mod.GeneratorConfig,
+    decls: *const declarations.CollectedDeclarations,
     func: declarations.FunctionDecl,
     pairs: []const ctype_resolver.BufferPairIndices,
 ) ![]u8 {
     var aw: std.Io.Writer.Allocating = .init(allocator);
     errdefer aw.deinit();
-    try writeBufferHelper(allocator, &aw.writer, config, func, pairs);
+    try writeBufferHelper(allocator, &aw.writer, config, decls, func, pairs);
     return try aw.toOwnedSlice();
 }
 

@@ -43,6 +43,7 @@ const supported_golden_case_ids = [_][]const u8{
     "macro_sentinels",
     "non_callback_typedef",
     "opaque_func_only",
+    "opaque_pointer_with_buffer_pair",
     "owned_string_return",
     "parameter_names",
     "pointer_to_int_param",
@@ -73,7 +74,6 @@ const unsupported_golden_case_ids = [_][]const u8{
     "func_pointer_typedef_char_pp_param",
     "libsqlite3",
     "libzstd",
-    "opaque_pointer_with_buffer_pair",
 };
 
 pub const LoadedCase = struct {
