@@ -86,6 +86,24 @@ fn configureLibclang(mod: *std.Build.Module, opts: BuildOptions) void {
     }
 }
 
+fn createLibclangModule(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    opts: BuildOptions,
+    root_source_file: []const u8,
+) *std.Build.Module {
+    const mod = b.createModule(.{
+        .root_source_file = b.path(root_source_file),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .link_libcpp = true,
+    });
+    configureLibclang(mod, opts);
+    return mod;
+}
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -125,14 +143,7 @@ pub fn build(b: *std.Build) void {
         ),
     };
 
-    const mod = b.createModule(.{
-        .root_source_file = b.path("src/purego_gen_zig/main.zig"),
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
-        .link_libcpp = true,
-    });
-    configureLibclang(mod, opts);
+    const mod = createLibclangModule(b, target, optimize, opts, "src/purego_gen_zig/main.zig");
 
     const exe = b.addExecutable(.{
         .name = "purego-gen-zig",
@@ -140,14 +151,20 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(exe);
 
-    const test_mod = b.createModule(.{
-        .root_source_file = b.path("src/purego_gen_zig/main.zig"),
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
-        .link_libcpp = true,
+    const golden_check_mod = createLibclangModule(b, target, optimize, opts, "src/purego_gen_zig/golden_check_main.zig");
+    const golden_check_exe = b.addExecutable(.{
+        .name = "purego-gen-zig-golden-check",
+        .root_module = golden_check_mod,
     });
-    configureLibclang(test_mod, opts);
+
+    const run_golden_check = b.addRunArtifact(golden_check_exe);
+    if (b.args) |args| {
+        run_golden_check.addArgs(args);
+    }
+    const golden_check_step = b.step("zig-golden-check", "Compare Zig-generated golden case output");
+    golden_check_step.dependOn(&run_golden_check.step);
+
+    const test_mod = createLibclangModule(b, target, optimize, opts, "src/purego_gen_zig/main.zig");
 
     const unit_tests = b.addTest(.{
         .root_module = test_mod,
