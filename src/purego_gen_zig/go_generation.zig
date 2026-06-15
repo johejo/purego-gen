@@ -487,8 +487,18 @@ fn buildAutoCallbackWrapperViews(
     emits_types: bool,
 ) ![]const template_sections.AutoCallbackWrapperView {
     var views: std.ArrayList(template_sections.AutoCallbackWrapperView) = .empty;
-    for (decls.functions.items, 0..) |func, function_index| {
-        if (!callback_render.hasAutoCallbackParamForFunction(callback_params, function_index)) continue;
+    // Emit one wrapper per function in the order the function first appears in
+    // `callback_params`. For explicit callback helpers that order is the config
+    // order; for auto-discovery it is declaration order. Iterating
+    // `decls.functions` directly would always use declaration order and so
+    // diverge from the config order Python preserves.
+    var emitted_function_indices: std.ArrayList(usize) = .empty;
+    for (callback_params) |callback_param| {
+        const function_index = callback_param.function_index;
+        if (ctype_resolver.containsUsize(emitted_function_indices.items, function_index)) continue;
+        try emitted_function_indices.append(arena, function_index);
+
+        const func = decls.functions.items[function_index];
         const wrapper_name_base = try std.fmt.allocPrint(arena, "{s}_callbacks", .{func.name});
         const wrapper_name = try ctype_resolver.renderFuncName(arena, config, wrapper_name_base);
         const target_name = try ctype_resolver.renderFuncName(arena, config, func.name);
@@ -674,11 +684,17 @@ fn assembleSections(
         });
     }
     try appendBlock(arena, &sections, &has_emitted_section, "var_block", inputs.function_var_texts, inputs.flags.emits_functions, true);
-    try appendText(arena, &sections, &has_emitted_section, inputs.buffer_helper_texts, false);
+    const buffer_abuts_callbacks =
+        inputs.buffer_helper_texts.len > 0 and inputs.auto_callback_wrapper_views.len > 0;
+    const buffer_helper_texts = if (buffer_abuts_callbacks)
+        try stripTrailingNewlineFromLastText(arena, inputs.buffer_helper_texts)
+    else
+        inputs.buffer_helper_texts;
+    try appendText(arena, &sections, &has_emitted_section, buffer_helper_texts, false);
     if (inputs.auto_callback_wrapper_views.len > 0) {
         try template_sections.appendSection(arena, &sections, &has_emitted_section, .{
             .kind = "auto_callback_wrappers",
-            .gap = template_sections.sectionGap(has_emitted_section, false),
+            .gap = if (buffer_abuts_callbacks) "" else template_sections.sectionGap(has_emitted_section, false),
             .auto_callback_wrapper_items = inputs.auto_callback_wrapper_views,
         });
     }
@@ -862,6 +878,23 @@ fn appendText(
         .block_items = &.{},
         .text_items = text_items,
     });
+}
+
+/// Buffer-helper text items end with a trailing newline, while auto-callback
+/// wrapper items begin with a leading newline. When both run back-to-back the
+/// two newlines would render an extra blank line between the last buffer helper
+/// and the first callback wrapper. Drop the trailing newline of the final
+/// buffer-helper item so the two blocks abut with a single newline, matching
+/// the reference output.
+fn stripTrailingNewlineFromLastText(
+    arena: std.mem.Allocator,
+    texts: []const []const u8,
+) ![]const []const u8 {
+    if (texts.len == 0) return texts;
+    const copy = try arena.dupe([]const u8, texts);
+    const last = copy[copy.len - 1];
+    if (std.mem.endsWith(u8, last, "\n")) copy[copy.len - 1] = last[0 .. last.len - 1];
+    return copy;
 }
 
 const FilterMode = enum { include, exclude };

@@ -303,7 +303,7 @@ fn resolveAgainstTypedefList(
     strict_enum_typedefs: bool,
     treat_as_filtered: bool,
 ) ?CTypeMapping {
-    return resolveAgainstTypedefListImpl(decls, typedefs, c_type, strict_enum_typedefs, treat_as_filtered, 0);
+    return resolveAgainstTypedefListImpl(decls, typedefs, c_type, strict_enum_typedefs, treat_as_filtered, false, 0);
 }
 
 fn resolveAgainstTypedefListImpl(
@@ -312,6 +312,11 @@ fn resolveAgainstTypedefListImpl(
     c_type: []const u8,
     strict_enum_typedefs: bool,
     treat_as_filtered: bool,
+    // When resolving the underlying type of a typedef chain we are matching a
+    // typedef *name*; the reverse-spelling match below (c_type == typedef
+    // underlying) must stay disabled so it cannot bounce back to a parent
+    // typedef whose underlying spelling equals the name we are chasing.
+    resolve_name_only: bool,
     depth: usize,
 ) ?CTypeMapping {
     if (depth >= max_typedef_chain_depth) return null;
@@ -342,6 +347,7 @@ fn resolveAgainstTypedefListImpl(
                     typedef_decl.c_type,
                     strict_enum_typedefs,
                     false,
+                    true,
                     depth + 1,
                 )) |chained| {
                     return chained;
@@ -352,6 +358,7 @@ fn resolveAgainstTypedefListImpl(
                     typedef_decl.c_type,
                     strict_enum_typedefs,
                     true,
+                    true,
                     depth + 1,
                 )) |chained| {
                     return chained;
@@ -359,7 +366,7 @@ fn resolveAgainstTypedefListImpl(
             }
             return .{ .go_type = resolveTypedefGoType(decls, typedef_decl, strict_enum_typedefs) };
         }
-        if (std.mem.eql(u8, c_type, typedef_decl.c_type)) {
+        if (!resolve_name_only and std.mem.eql(u8, c_type, typedef_decl.c_type)) {
             return .{ .go_type = resolveTypedefGoType(decls, typedef_decl, strict_enum_typedefs) };
         }
         if (std.mem.endsWith(u8, c_type, " **")) {
@@ -450,6 +457,13 @@ pub fn functionNameMatchesPattern(name: []const u8, pattern: []const u8) bool {
 pub fn containsString(items: []const []const u8, needle: []const u8) bool {
     for (items) |item| {
         if (std.mem.eql(u8, item, needle)) return true;
+    }
+    return false;
+}
+
+pub fn containsUsize(items: []const usize, needle: usize) bool {
+    for (items) |item| {
+        if (item == needle) return true;
     }
     return false;
 }

@@ -302,16 +302,6 @@ pub fn resolvePublicApiGoType(
     return current;
 }
 
-pub fn hasAutoCallbackParamForFunction(
-    auto_callback_params: []const AutoCallbackParam,
-    function_index: usize,
-) bool {
-    for (auto_callback_params) |auto_callback| {
-        if (auto_callback.function_index == function_index) return true;
-    }
-    return false;
-}
-
 pub fn isAutoCallbackParameter(
     auto_callback_params: []const AutoCallbackParam,
     function_index: usize,

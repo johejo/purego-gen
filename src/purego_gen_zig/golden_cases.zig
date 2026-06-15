@@ -40,6 +40,7 @@ const supported_golden_case_ids = [_][]const u8{
     "inline_func_pointer",
     "intptr_t_param",
     "libclang",
+    "libsqlite3",
     "libzstd",
     "long_long_param",
     "long_long_typedef_param",
@@ -63,6 +64,7 @@ const supported_golden_case_ids = [_][]const u8{
     "strict_typing_enabled",
     "struct_accessors_basic",
     "struct_array_pointer_mix",
+    "typedef_chain_filtered_inner_int_param",
     "typedef_chain_int_param",
     "uintptr_t_param",
     "union_basic",
@@ -76,10 +78,7 @@ const supported_golden_case_ids = [_][]const u8{
 
 // Cases intentionally skipped until the Zig generator supports more of the
 // Python golden-case surface area.
-const unsupported_golden_case_ids = [_][]const u8{
-    "libsqlite3",
-    "typedef_chain_filtered_inner_int_param",
-};
+const unsupported_golden_case_ids = [_][]const u8{};
 
 pub const LoadedCase = struct {
     case_dir: []const u8,
