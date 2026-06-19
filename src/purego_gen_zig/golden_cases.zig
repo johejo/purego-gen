@@ -74,6 +74,7 @@ const supported_golden_case_ids = [_][]const u8{
     "unsigned_int_return",
     "unsigned_long_param",
     "unsigned_short_param",
+    "unsupported_typedef_uintptr_fallback",
     "void_callback",
 };
 

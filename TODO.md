@@ -20,3 +20,4 @@ Completed work is intentionally omitted.
 
 - [ ] Decide macro evaluation boundary beyond enum-like constants.
 - [ ] Re-evaluate Windows support scope after v1 (API and symbol-loading strategy).
+- [ ] Decide handling for **by-value** parameters/returns of unrenderable types. Both generators currently fall back to `uintptr` for such by-value slots (e.g. a bit-field struct passed by value), which is ABI-incorrect — a by-value aggregate is not pointer-width. Pointer use of the same type → `uintptr` is correct; only by-value is wrong. Options: skip/diagnose the offending function, or model the value as a correctly-sized opaque byte array. (Zig also still maps a bare untypedef'd by-value `struct X` to `struct{}`, diverging from Python's `uintptr`; resolve alongside this decision.)

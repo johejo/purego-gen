@@ -410,16 +410,19 @@ pub fn resolveCTypeToGo(
     c_type: []const u8,
     strict_enum_typedefs: bool,
 ) !CTypeMapping {
-    return mapCTypeToGo(c_type) catch |err| switch (err) {
-        error.UnsupportedCType => {
-            if (resolveAgainstTypedefList(decls, decls.typedefs.items, c_type, strict_enum_typedefs, false)) |mapping| {
-                return mapping;
-            }
-            if (resolveAgainstTypedefList(decls, decls.filtered_typedefs.items, c_type, strict_enum_typedefs, true)) |mapping| {
-                return mapping;
-            }
-            return err;
-        },
+    return mapCTypeToGo(c_type) catch {
+        // mapCTypeToGo only fails with error.UnsupportedCType.
+        if (resolveAgainstTypedefList(decls, decls.typedefs.items, c_type, strict_enum_typedefs, false)) |mapping| {
+            return mapping;
+        }
+        if (resolveAgainstTypedefList(decls, decls.filtered_typedefs.items, c_type, strict_enum_typedefs, true)) |mapping| {
+            return mapping;
+        }
+        // Mirror Python's `map_function_*_type_to_go_name`: any type that cannot
+        // be resolved (e.g. a reference to a skipped/unrenderable typedef) falls
+        // back to `uintptr` rather than aborting generation. A pointer to such a
+        // type is exactly `uintptr`; a by-value use matches Python's behavior.
+        return .{ .go_type = "uintptr", .comment = c_type };
     };
 }
 
