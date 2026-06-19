@@ -4,6 +4,8 @@ const declarations = @import("declarations.zig");
 const output = @import("output.zig");
 const golden_cases = @import("golden_cases.zig");
 const config_load = @import("config_load.zig");
+const go_generation = @import("go_generation.zig");
+const inspect_filter = @import("inspect_filter.zig");
 const gotmpl = @import("gotmpl.zig");
 const text_diff = @import("text_diff.zig");
 
@@ -14,6 +16,25 @@ const InspectArgs = struct {
     clang_args: std.ArrayListUnmanaged([*:0]const u8) = .empty,
     sample_size: usize = 12,
     skip_gofmt: bool = false,
+    // Name filters (pattern syntax: `^`/`$` anchors, `|` alternation, substring).
+    func_filter: ?[]const u8 = null,
+    func_exclude: ?[]const u8 = null,
+    type_filter: ?[]const u8 = null,
+    type_exclude: ?[]const u8 = null,
+    const_filter: ?[]const u8 = null,
+    const_exclude: ?[]const u8 = null,
+    var_filter: ?[]const u8 = null,
+    var_exclude: ?[]const u8 = null,
+    // Render mode.
+    render_out: ?[]const u8 = null,
+    render_lib_id: ?[]const u8 = null,
+    render_pkg: []const u8 = "bindings",
+    render_emit: []const u8 = "func,type,const,var",
+    // Config-snippet outputs.
+    emit_callback_config: bool = false,
+    emit_buffer_config: bool = false,
+    emit_exclude_config: bool = false,
+    list_names: bool = false,
 
     fn deinit(self: *InspectArgs, allocator: std.mem.Allocator) void {
         self.clang_args.deinit(allocator);
@@ -46,9 +67,39 @@ fn genUsage() void {
 
 fn inspectUsage() void {
     std.debug.print(
-        "usage: purego-gen-zig inspect --header-path <path> [--clang-arg <arg>]... [--sample-size <n>] [--skip-gofmt]\n",
-        .{},
-    );
+        \\usage: purego-gen-zig inspect --header-path <path> [options]
+        \\
+        \\options:
+        \\  --clang-arg <arg>        Extra clang argument (repeatable)
+        \\  --sample-size <n>        Sample count per report section (default: 12)
+        \\  --skip-gofmt             Skip gofmt of rendered output
+        \\  --func-filter <pat>      Keep functions matching <pat>
+        \\  --func-exclude <pat>     Drop functions matching <pat>
+        \\  --type-filter <pat>      Keep typedefs matching <pat>
+        \\  --type-exclude <pat>     Drop typedefs matching <pat>
+        \\  --const-filter <pat>     Keep constants matching <pat>
+        \\  --const-exclude <pat>    Drop constants matching <pat>
+        \\  --var-filter <pat>       Keep runtime vars matching <pat>
+        \\  --var-exclude <pat>      Drop runtime vars matching <pat>
+        \\  --render-out <path>      Render Go bindings to <path>
+        \\  --render-lib-id <id>     Library id for render (default: bindings)
+        \\  --render-pkg <name>      Go package name for render (default: bindings)
+        \\  --render-emit <kinds>    Comma-separated emit kinds (default: func,type,const,var)
+        \\  --emit-callback-config   Print a callback_params config snippet
+        \\  --emit-buffer-config     Print a buffer_params config snippet
+        \\  --emit-exclude-config    Print an exclude config snippet
+        \\  --list-names             Print sorted declaration names per category
+        \\
+        \\patterns use `^`/`$` anchors, `|` alternation, and substring match (not full regex)
+        \\
+    , .{});
+}
+
+fn nextValue(iter: *ArgsIterator, name: []const u8) ![:0]const u8 {
+    return iter.next() orelse {
+        std.debug.print("error: {s} requires a value\n", .{name});
+        return error.InvalidArgs;
+    };
 }
 
 fn parseInspectArgs(allocator: std.mem.Allocator, iter: *ArgsIterator) !InspectArgs {
@@ -57,27 +108,49 @@ fn parseInspectArgs(allocator: std.mem.Allocator, iter: *ArgsIterator) !InspectA
 
     while (iter.next()) |arg| {
         if (std.mem.eql(u8, arg, "--header-path")) {
-            args.header_path = iter.next() orelse {
-                std.debug.print("error: --header-path requires a value\n", .{});
-                return error.InvalidArgs;
-            };
+            args.header_path = try nextValue(iter, "--header-path");
         } else if (std.mem.eql(u8, arg, "--clang-arg")) {
-            const val = iter.next() orelse {
-                std.debug.print("error: --clang-arg requires a value\n", .{});
-                return error.InvalidArgs;
-            };
-            try args.clang_args.append(allocator, val);
+            try args.clang_args.append(allocator, try nextValue(iter, "--clang-arg"));
         } else if (std.mem.eql(u8, arg, "--skip-gofmt")) {
             args.skip_gofmt = true;
         } else if (std.mem.eql(u8, arg, "--sample-size")) {
-            const val = iter.next() orelse {
-                std.debug.print("error: --sample-size requires a value\n", .{});
-                return error.InvalidArgs;
-            };
+            const val = try nextValue(iter, "--sample-size");
             args.sample_size = std.fmt.parseInt(usize, val, 10) catch {
                 std.debug.print("error: --sample-size must be a non-negative integer\n", .{});
                 return error.InvalidArgs;
             };
+        } else if (std.mem.eql(u8, arg, "--func-filter")) {
+            args.func_filter = try nextValue(iter, "--func-filter");
+        } else if (std.mem.eql(u8, arg, "--func-exclude")) {
+            args.func_exclude = try nextValue(iter, "--func-exclude");
+        } else if (std.mem.eql(u8, arg, "--type-filter")) {
+            args.type_filter = try nextValue(iter, "--type-filter");
+        } else if (std.mem.eql(u8, arg, "--type-exclude")) {
+            args.type_exclude = try nextValue(iter, "--type-exclude");
+        } else if (std.mem.eql(u8, arg, "--const-filter")) {
+            args.const_filter = try nextValue(iter, "--const-filter");
+        } else if (std.mem.eql(u8, arg, "--const-exclude")) {
+            args.const_exclude = try nextValue(iter, "--const-exclude");
+        } else if (std.mem.eql(u8, arg, "--var-filter")) {
+            args.var_filter = try nextValue(iter, "--var-filter");
+        } else if (std.mem.eql(u8, arg, "--var-exclude")) {
+            args.var_exclude = try nextValue(iter, "--var-exclude");
+        } else if (std.mem.eql(u8, arg, "--render-out")) {
+            args.render_out = try nextValue(iter, "--render-out");
+        } else if (std.mem.eql(u8, arg, "--render-lib-id")) {
+            args.render_lib_id = try nextValue(iter, "--render-lib-id");
+        } else if (std.mem.eql(u8, arg, "--render-pkg")) {
+            args.render_pkg = try nextValue(iter, "--render-pkg");
+        } else if (std.mem.eql(u8, arg, "--render-emit")) {
+            args.render_emit = try nextValue(iter, "--render-emit");
+        } else if (std.mem.eql(u8, arg, "--emit-callback-config")) {
+            args.emit_callback_config = true;
+        } else if (std.mem.eql(u8, arg, "--emit-buffer-config")) {
+            args.emit_buffer_config = true;
+        } else if (std.mem.eql(u8, arg, "--emit-exclude-config")) {
+            args.emit_exclude_config = true;
+        } else if (std.mem.eql(u8, arg, "--list-names")) {
+            args.list_names = true;
         } else {
             std.debug.print("error: unknown argument: {s}\n", .{arg});
             return error.InvalidArgs;
@@ -90,6 +163,45 @@ fn parseInspectArgs(allocator: std.mem.Allocator, iter: *ArgsIterator) !InspectA
     }
 
     return args;
+}
+
+/// Parse a comma-separated `--render-emit` spec into the set of selected
+/// categories. Errors on an empty spec or an unknown kind.
+fn parseEmitSelection(spec: []const u8) !output.EmitSelection {
+    var selection = output.EmitSelection{ .func = false, .type = false, .@"const" = false, .@"var" = false };
+    var any = false;
+    var it = std.mem.tokenizeScalar(u8, spec, ',');
+    while (it.next()) |raw| {
+        const token = std.mem.trim(u8, raw, " \t");
+        if (token.len == 0) continue;
+        any = true;
+        if (std.mem.eql(u8, token, "func")) {
+            selection.func = true;
+        } else if (std.mem.eql(u8, token, "type")) {
+            selection.type = true;
+        } else if (std.mem.eql(u8, token, "const")) {
+            selection.@"const" = true;
+        } else if (std.mem.eql(u8, token, "var")) {
+            selection.@"var" = true;
+        } else {
+            return error.UnsupportedEmitKind;
+        }
+    }
+    if (!any) return error.UnsupportedEmitKind;
+    return selection;
+}
+
+fn emitKindsFromSelection(
+    allocator: std.mem.Allocator,
+    selection: output.EmitSelection,
+) ![]go_generation.EmitKind {
+    var list: std.ArrayListUnmanaged(go_generation.EmitKind) = .empty;
+    errdefer list.deinit(allocator);
+    if (selection.func) try list.append(allocator, .func);
+    if (selection.type) try list.append(allocator, .type);
+    if (selection.@"const") try list.append(allocator, .@"const");
+    if (selection.@"var") try list.append(allocator, .var_decl);
+    return list.toOwnedSlice(allocator);
 }
 
 fn parseGenArgs(iter: *ArgsIterator) !GenArgs {
@@ -218,13 +330,62 @@ fn runInspect(allocator: std.mem.Allocator, init: std.process.Init, iter: *ArgsI
     };
     defer tu.deinit();
 
+    const emit_selection = parseEmitSelection(args.render_emit) catch {
+        std.debug.print("error: --render-emit contains an unsupported kind (expected func/type/const/var)\n", .{});
+        std.process.exit(1);
+    };
+
     var decls = try declarations.collectDeclarations(allocator, &tu, header_path);
     defer decls.deinit();
+
+    inspect_filter.apply(allocator, &decls, .{
+        .func_include = args.func_filter,
+        .func_exclude = args.func_exclude,
+        .type_include = args.type_filter,
+        .type_exclude = args.type_exclude,
+        .const_include = args.const_filter,
+        .const_exclude = args.const_exclude,
+        .var_include = args.var_filter,
+        .var_exclude = args.var_exclude,
+    });
+
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
 
     var buf: [4096]u8 = undefined;
     var stdout_file = std.Io.File.stdout().writer(init.io, &buf);
     const w = &stdout_file.interface;
-    try output.writeReport(w, header_path, args.clang_args.items, &decls, args.sample_size);
+
+    try output.writeReport(arena, w, header_path, args.clang_args.items, &decls, args.sample_size);
+    if (args.list_names) try output.writeListNames(arena, w, &decls, emit_selection);
+    if (args.emit_callback_config) try output.writeCallbackConfig(arena, w, &decls);
+    if (args.emit_buffer_config) try output.writeBufferConfig(arena, w, &decls);
+    if (args.emit_exclude_config) try output.writeExcludeConfig(arena, w, &decls, emit_selection);
+
+    if (args.render_out) |render_out| {
+        const lib_id = args.render_lib_id orelse "bindings";
+        const emit_kinds = try emitKindsFromSelection(allocator, emit_selection);
+        defer allocator.free(emit_kinds);
+        const source = go_generation.renderInspectSource(
+            allocator,
+            &decls,
+            lib_id,
+            args.render_pkg,
+            emit_kinds,
+            args.skip_gofmt,
+        ) catch |err| {
+            std.debug.print("error: failed to render bindings: {}\n", .{err});
+            std.process.exit(1);
+        };
+        defer allocator.free(source);
+        std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = render_out, .data = source }) catch |err| {
+            std.debug.print("error: failed to write rendered output: {}\n", .{err});
+            std.process.exit(1);
+        };
+        try w.print("rendered_go={s}\n", .{render_out});
+    }
+
     try w.flush();
 }
 

@@ -12,6 +12,45 @@ pub const RenderedType = struct {
     rendered_as_alias: bool = false,
 };
 
+/// Granular reasons a type cannot be rendered. These mirror the Python
+/// `PUREGO_GEN_TYPE_*` diagnostic codes so `inspect` can report why a typedef
+/// was skipped. Callers that only care about success/failure can catch the
+/// whole set generically.
+pub const UnsupportedTypeError = error{
+    UnsupportedBitfield,
+    UnsupportedAnonymousField,
+    UnsupportedUnionSize,
+    UnsupportedRecordKind,
+    NoSupportedFields,
+    UnsupportedFieldType,
+};
+
+/// Map an unsupported-type error to its stable diagnostic code, mirroring the
+/// Python `model.py` `PUREGO_GEN_TYPE_*` constants. Returns a generic field
+/// code for any error outside the dedicated set.
+pub fn unsupportedTypeCode(err: anyerror) []const u8 {
+    return switch (err) {
+        error.UnsupportedBitfield => "PUREGO_GEN_TYPE_UNSUPPORTED_BITFIELD",
+        error.UnsupportedAnonymousField => "PUREGO_GEN_TYPE_UNSUPPORTED_ANONYMOUS_FIELD",
+        error.UnsupportedUnionSize => "PUREGO_GEN_TYPE_UNSUPPORTED_UNION_SIZE",
+        error.UnsupportedRecordKind => "PUREGO_GEN_TYPE_UNSUPPORTED_RECORD_KIND",
+        error.NoSupportedFields => "PUREGO_GEN_TYPE_NO_SUPPORTED_FIELDS",
+        else => "PUREGO_GEN_TYPE_UNSUPPORTED_FIELD_TYPE",
+    };
+}
+
+/// Human-readable explanation paired with `unsupportedTypeCode`.
+pub fn unsupportedTypeReason(err: anyerror) []const u8 {
+    return switch (err) {
+        error.UnsupportedBitfield => "record has a bit-field member",
+        error.UnsupportedAnonymousField => "record has an anonymous or unnamed member",
+        error.UnsupportedUnionSize => "union alignment is not 1, 2, 4, or 8 bytes",
+        error.UnsupportedRecordKind => "underlying record kind is not a struct or union",
+        error.NoSupportedFields => "record has no supported fields",
+        else => "field type is not supported",
+    };
+}
+
 const go_keywords = std.StaticStringMap(void).initComptime(.{
     .{ "break", {} },
     .{ "case", {} },
@@ -137,9 +176,9 @@ const UnionValidator = struct {};
 
 fn unionFieldCheck(_: *UnionValidator, cursor_arg: c.CXCursor) anyerror!c.enum_CXChildVisitResult {
     if (c.clang_getCursorKind(cursor_arg) != c.CXCursor_FieldDecl) return c.CXChildVisit_Continue;
-    if (c.clang_Cursor_isBitField(cursor_arg) != 0) return error.UnsupportedType;
+    if (c.clang_Cursor_isBitField(cursor_arg) != 0) return error.UnsupportedBitfield;
     const field_name = parser.clangString(c.clang_getCursorSpelling(cursor_arg));
-    if (field_name.len == 0) return error.UnsupportedType;
+    if (field_name.len == 0) return error.UnsupportedAnonymousField;
     return c.CXChildVisit_Continue;
 }
 
@@ -153,14 +192,14 @@ const StructFieldContext = struct {
 
 fn structFieldChildBody(ctx: *StructFieldContext, cursor_arg: c.CXCursor) anyerror!c.enum_CXChildVisitResult {
     if (c.clang_getCursorKind(cursor_arg) != c.CXCursor_FieldDecl) return c.CXChildVisit_Continue;
-    if (c.clang_Cursor_isBitField(cursor_arg) != 0) return error.UnsupportedType;
+    if (c.clang_Cursor_isBitField(cursor_arg) != 0) return error.UnsupportedBitfield;
     ctx.saw_field = true;
 
     const field_name = parser.clangString(c.clang_getCursorSpelling(cursor_arg));
-    if (field_name.len == 0) return error.UnsupportedType;
+    if (field_name.len == 0) return error.UnsupportedAnonymousField;
 
     const field_offset_bits = c.clang_Cursor_getOffsetOfField(cursor_arg);
-    if (field_offset_bits < 0) return error.UnsupportedType;
+    if (field_offset_bits < 0) return error.UnsupportedFieldType;
     const field_offset: usize = @intCast(@divTrunc(field_offset_bits, 8));
     if (field_offset > ctx.offset_bytes) {
         try appendPaddingField(ctx.writer, ctx.indent, field_offset - ctx.offset_bytes);
@@ -175,7 +214,7 @@ fn structFieldChildBody(ctx: *StructFieldContext, cursor_arg: c.CXCursor) anyerr
     try ctx.writer.print("{s}{s} {s}\n", .{ ctx.indent, field_name, field_rendered.text });
 
     const field_size = c.clang_Type_getSizeOf(c.clang_getCanonicalType(c.clang_getCursorType(cursor_arg)));
-    if (field_size < 0) return error.UnsupportedType;
+    if (field_size < 0) return error.UnsupportedFieldType;
     ctx.offset_bytes = field_offset + @as(usize, @intCast(field_size));
     return c.CXChildVisit_Continue;
 }
@@ -190,7 +229,7 @@ pub fn renderRecordBody(
 
     const record_size = c.clang_Type_getSizeOf(canonical);
     const record_align = c.clang_Type_getAlignOf(canonical);
-    if (record_size < 0 or record_align < 0) return error.UnsupportedType;
+    if (record_size < 0 or record_align < 0) return error.UnsupportedFieldType;
 
     var aw: std.Io.Writer.Allocating = .init(allocator);
     errdefer aw.deinit();
@@ -203,7 +242,7 @@ pub fn renderRecordBody(
             2 => "int16",
             4 => "int32",
             8 => "int64",
-            else => return error.UnsupportedType,
+            else => return error.UnsupportedUnionSize,
         };
 
         if (anchor_type.len == 0) {
@@ -228,7 +267,7 @@ pub fn renderRecordBody(
         };
     }
 
-    if (kind != c.CXCursor_StructDecl) return error.UnsupportedType;
+    if (kind != c.CXCursor_StructDecl) return error.UnsupportedRecordKind;
 
     try w.writeAll("struct {\n");
     var field_ctx = StructFieldContext{
@@ -237,7 +276,7 @@ pub fn renderRecordBody(
         .indent = indent,
     };
     try parser.visitChildren(StructFieldContext, structFieldChildBody, decl, &field_ctx);
-    if (!field_ctx.saw_field) return error.UnsupportedType;
+    if (!field_ctx.saw_field) return error.NoSupportedFields;
 
     const final_size: usize = @intCast(record_size);
     if (final_size > field_ctx.offset_bytes) {
@@ -273,7 +312,7 @@ pub fn renderType(
             defer freeRenderedType(allocator, element_rendered);
 
             const size = c.clang_getArraySize(canonical);
-            if (size < 0) return error.UnsupportedType;
+            if (size < 0) return error.UnsupportedFieldType;
 
             var aw: std.Io.Writer.Allocating = .init(allocator);
             errdefer aw.deinit();
@@ -310,9 +349,9 @@ pub fn renderType(
                         try allocator.dupe(u8, parser.clangString(c.clang_getTypeSpelling(type_arg))),
                 };
             }
-            return error.UnsupportedType;
+            return error.UnsupportedFieldType;
         },
-        else => return error.UnsupportedType,
+        else => return error.UnsupportedFieldType,
     }
 }
 

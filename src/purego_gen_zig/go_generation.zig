@@ -824,6 +824,38 @@ pub fn generateGoSource(
     return template_sections.formatGoSource(allocator, rendered);
 }
 
+/// Render Go bindings from already-collected (and possibly filtered)
+/// declarations, used by `inspect --render-out`. Builds a minimal
+/// `GeneratorConfig` with no naming prefixes, helpers, or public-API surface;
+/// `lib_id`/`package_name`/`emit` are borrowed from the caller. The config is a
+/// read-only stack temporary, so nothing here needs freeing.
+pub fn renderInspectSource(
+    allocator: std.mem.Allocator,
+    decls: *const declarations.CollectedDeclarations,
+    lib_id: []const u8,
+    package_name: []const u8,
+    emit: []const EmitKind,
+    skip_gofmt: bool,
+) ![]u8 {
+    const config = GeneratorConfig{
+        .lib_id = lib_id,
+        .package_name = package_name,
+        .emit = emit,
+        .naming = .{ .type_prefix = "", .const_prefix = "", .func_prefix = "", .var_prefix = "" },
+        .include = .{ .func_names = &.{}, .type_names = &.{}, .const_names = &.{}, .var_names = &.{} },
+        .exclude = .{ .func_names = &.{}, .type_names = &.{}, .const_names = &.{}, .var_names = &.{} },
+        .public_api = .{
+            .strip_prefix = "",
+            .type_aliases_include = &.{},
+            .type_aliases_overrides = &.{},
+            .wrappers_include = &.{},
+            .wrappers_exclude = &.{},
+            .wrappers_overrides = &.{},
+        },
+    };
+    return generateGoSource(allocator, config, decls, skip_gofmt);
+}
+
 pub fn applyExcludeFilters(
     allocator: std.mem.Allocator,
     config: GeneratorConfig,

@@ -63,6 +63,9 @@ pub const TypedefDecl = struct {
     requires_purego: bool = false,
     requires_unsafe: bool = false,
     requires_union_helpers: bool = false,
+    // Categorization metadata for `inspect` reporting; unused by `gen`.
+    is_record: bool = false,
+    is_opaque_record: bool = false,
 
     pub fn deinit(self: TypedefDecl, allocator: std.mem.Allocator) void {
         allocator.free(self.name);
@@ -88,6 +91,20 @@ pub const RecordFieldDecl = struct {
     }
 };
 
+/// A typedef that could not be rendered, with the diagnostic code/reason that
+/// explains why. Mirrors Python's `SkippedTypedefDecl` for `inspect` reporting.
+/// `reason_code` and `reason` are static strings (not owned); only `name` is
+/// heap-allocated.
+pub const SkippedTypedefDecl = struct {
+    name: []const u8,
+    reason_code: []const u8,
+    reason: []const u8,
+
+    pub fn deinit(self: SkippedTypedefDecl, allocator: std.mem.Allocator) void {
+        allocator.free(self.name);
+    }
+};
+
 pub const CollectedDeclarations = struct {
     allocator: std.mem.Allocator,
     functions: std.ArrayListUnmanaged(FunctionDecl) = .empty,
@@ -95,6 +112,7 @@ pub const CollectedDeclarations = struct {
     filtered_typedefs: std.ArrayListUnmanaged(TypedefDecl) = .empty,
     constants: std.ArrayListUnmanaged(ConstantDecl) = .empty,
     runtime_vars: std.ArrayListUnmanaged(RuntimeVarDecl) = .empty,
+    skipped_typedefs: std.ArrayListUnmanaged(SkippedTypedefDecl) = .empty,
 
     pub fn deinit(self: *CollectedDeclarations) void {
         for (self.functions.items) |func| func.deinit(self.allocator);
@@ -107,6 +125,8 @@ pub const CollectedDeclarations = struct {
         self.constants.deinit(self.allocator);
         for (self.runtime_vars.items) |runtime_var_decl| runtime_var_decl.deinit(self.allocator);
         self.runtime_vars.deinit(self.allocator);
+        for (self.skipped_typedefs.items) |skipped| skipped.deinit(self.allocator);
+        self.skipped_typedefs.deinit(self.allocator);
     }
 };
 
@@ -372,6 +392,39 @@ fn collectRuntimeVar(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
     });
 }
 
+/// Record a typedef that failed to render as a skipped entry, taking ownership
+/// of `name` and freeing `c_type`/`comment`. Non-skip errors (e.g. OOM) are
+/// propagated unchanged so the caller's errdefers release the owned strings
+/// exactly once. The fallible append runs before any free so an append failure
+/// also leaves the caller's errdefers responsible for cleanup.
+fn recordSkippedTypedef(
+    ctx: *VisitorContext,
+    name: []const u8,
+    c_type: []const u8,
+    comment: ?[]const u8,
+    err: anyerror,
+) !void {
+    switch (err) {
+        error.UnsupportedBitfield,
+        error.UnsupportedAnonymousField,
+        error.UnsupportedUnionSize,
+        error.UnsupportedRecordKind,
+        error.NoSupportedFields,
+        error.UnsupportedFieldType,
+        => {},
+        else => return err,
+    }
+
+    const allocator = ctx.decls.allocator;
+    try ctx.decls.skipped_typedefs.append(allocator, .{
+        .name = name,
+        .reason_code = type_render.unsupportedTypeCode(err),
+        .reason = type_render.unsupportedTypeReason(err),
+    });
+    allocator.free(c_type);
+    if (comment) |text| allocator.free(text);
+}
+
 fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
     const allocator = ctx.decls.allocator;
 
@@ -410,23 +463,17 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
                 .c_type = c_type,
                 .main_definition = main_definition,
                 .comment = comment,
+                .is_record = true,
+                .is_opaque_record = true,
             });
             return;
         }
 
-        const record_type = type_render.renderRecordBody(allocator, canonical, "\t\t") catch {
-            allocator.free(name);
-            allocator.free(c_type);
-            if (comment) |text| allocator.free(text);
-            return;
-        };
+        const record_type = type_render.renderRecordBody(allocator, canonical, "\t\t") catch |err|
+            return recordSkippedTypedef(ctx, name, c_type, comment, err);
         defer type_render.freeRenderedType(allocator, record_type);
-        const accessor_fields = collectStructAccessorFields(allocator, canonical) catch {
-            allocator.free(name);
-            allocator.free(c_type);
-            if (comment) |text| allocator.free(text);
-            return;
-        };
+        const accessor_fields = collectStructAccessorFields(allocator, canonical) catch |err|
+            return recordSkippedTypedef(ctx, name, c_type, comment, err);
         errdefer {
             for (accessor_fields) |field| {
                 allocator.free(field.name);
@@ -447,6 +494,7 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
             .requires_unsafe = record_type.requires_unsafe,
             .requires_purego = record_type.requires_purego,
             .requires_union_helpers = record_type.requires_union_helpers,
+            .is_record = true,
         });
         return;
     }
@@ -499,12 +547,8 @@ fn collectTypedef(ctx: *VisitorContext, cursor_arg: c.CXCursor) !void {
         }
     }
 
-    const rendered = type_render.renderType(allocator, underlying) catch {
-        allocator.free(name);
-        allocator.free(c_type);
-        if (comment) |text| allocator.free(text);
-        return;
-    };
+    const rendered = type_render.renderType(allocator, underlying) catch |err|
+        return recordSkippedTypedef(ctx, name, c_type, comment, err);
     defer type_render.freeRenderedType(allocator, rendered);
 
     const is_struct_pointer_typedef =
