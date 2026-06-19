@@ -83,7 +83,10 @@ zig-test:
   zig build test {{zig_build_opts}}
 
 zig-inspect *ARGS:
-  zig build {{zig_build_opts}} && ./zig-out/bin/purego-gen-zig {{ARGS}}
+  zig build {{zig_build_opts}} && ./zig-out/bin/purego-gen-zig inspect {{ARGS}}
+
+zig-gen *ARGS:
+  zig build {{zig_build_opts}} && ./zig-out/bin/purego-gen-zig gen {{ARGS}}
 
 zig-golden-check *ARGS:
   zig build zig-golden-check {{zig_build_opts}} -- {{ARGS}}
